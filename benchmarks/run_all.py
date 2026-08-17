@@ -33,7 +33,11 @@ def main() -> int:
     print("\n" + "=" * 72)
     print("2/4  Work-precision diagrams")
     print("=" * 72)
-    work_precision.plot(work_precision.run(), path=str(FIGURES / "work_precision.png"))
+    wp_results = work_precision.run()
+    work_precision.plot(wp_results, path=str(FIGURES / "work_precision.png"))
+    # Committed alongside the figure, so a performance change is a reviewable
+    # diff rather than something spotted by eye in a picture months later.
+    work_precision.save(wp_results, path=str(FIGURES / "work_precision.json"))
 
     print("\n" + "=" * 72)
     print("3/4  Energy drift")

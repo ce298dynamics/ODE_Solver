@@ -29,8 +29,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import symbolic as _symbolic
 from ..symbolic import (
-    DSOLVE_TIMEOUT,
     ParsedEquation,
     SymbolicSolution,
     characteristic_analysis,
@@ -145,8 +145,9 @@ class SymbolicPanel(QWidget):
         return partial
 
     def solve_for(self, parsed: ParsedEquation,
-                  timeout: float = DSOLVE_TIMEOUT) -> int:
+                  timeout: float | None = None) -> int:
         """Start a symbolic solve. Returns its token."""
+        timeout = _symbolic.DSOLVE_TIMEOUT if timeout is None else timeout
         self._parsed = parsed
         self._token += 1
         self._clear_body()

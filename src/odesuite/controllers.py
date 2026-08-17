@@ -18,6 +18,7 @@ __all__ = [
     "Controller",
     "IController",
     "PIController",
+    "PredictiveController",
     "make_controller",
 ]
 
@@ -99,12 +100,16 @@ class Controller(ABC):
     @abstractmethod
     def _factor(self, err: float) -> float: ...
 
-    def update(self, err: float, accepted: bool) -> float:
+    def update(self, err: float, accepted: bool, h: float | None = None) -> float:
         """Return the multiplicative step-size change for an error norm `err`.
 
         On rejection the factor is capped at 1 so the step can only shrink, and
         the error history is *not* advanced: feeding a rejected step's error into
         the PI term makes the controller oscillate.
+
+        `h` is the magnitude of the step just attempted. Controllers that read
+        only the error ignore it; a predictive controller needs the ratio
+        between this step and the last accepted one.
         """
         if err == 0.0:
             factor = self.max_factor
@@ -154,7 +159,93 @@ class PIController(Controller):
         return factor
 
 
-_CONTROLLERS = {"pi": PIController, "i": IController}
+class PredictiveController(Controller):
+    """Gustafsson's predictive controller — Hairer & Wanner II, IV.8.
+
+    The default for the implicit methods, and the reason is economic rather than
+    numerical. For an explicit method a step-size change is free. For an implicit
+    one `h` is baked into the iteration matrix ``M/(gamma h) - J``, so changing it
+    throws away an ``O(n^3)`` factorisation. A controller that is right about the
+    step size but changes it constantly can easily lose to one that is
+    approximately right and leaves it alone.
+
+    Two things follow, and this class is both of them.
+
+    **Predict, don't just react.** The classical factor reads the current error.
+    Gustafsson's additional term reads how the error *responded to the last
+    change*: with `h_acc` and `err_acc` from the previously accepted step,
+
+        ``h/h_acc * (err_acc / err^2)^(1/k)``
+
+    which is an estimate built from the observed trend rather than from one
+    sample. The smaller of the two factors is taken, so the controller is
+    ambitious only when both agree. On a problem whose stiffness varies this
+    converts rejected steps — each of which costs a full refactorisation — into
+    slightly smaller accepted ones.
+
+    **Decline small increases outright.** If the proposed growth is under
+    `freeze_below`, the step is kept exactly as it is. `h` then equals the `h`
+    the current factorisation was built for, so the stepper reuses it instead of
+    rebuilding. Nudging `h` up by 15% buys a few percent fewer steps and costs a
+    cubic-time factorisation; it is not a good trade, and `radau5.f` declines it
+    for the same reason.
+
+    The bounds follow ``radau5.f``'s ``FACL``/``FACR``: the step may grow by at
+    most 8x and shrink by at most 5x in one go.
+    """
+
+    min_factor = 0.2
+    max_factor = 8.0
+    safety = 0.9
+    #: Proposed growth at or below this is declined, keeping `h` bit-for-bit
+    #: identical so the iteration matrix stays valid. ``radau5.f``'s ``QUOT2``.
+    freeze_below = 1.2
+
+    def reset(self) -> None:
+        super().reset()
+        #: Step size and error norm of the last *accepted* step.
+        self.h_acc: float | None = None
+        self.err_acc: float | None = None
+
+    def _factor(self, err: float) -> float:
+        return self.safety * err ** (-self.exponent)
+
+    def update(self, err: float, accepted: bool, h: float | None = None) -> float:
+        if err == 0.0:
+            factor = self.max_factor
+        else:
+            factor = self._factor(err)
+            if self.h_acc is not None and self.err_acc is not None and h:
+                predicted = (
+                    self.safety
+                    * (h / self.h_acc)
+                    * (self.err_acc / (err * err)) ** self.exponent
+                )
+                factor = min(factor, predicted)
+            factor = float(np.clip(factor, self.min_factor, self.max_factor))
+
+        if accepted:
+            if h:
+                self.h_acc = h
+            # Floored as in radau5.f: an error of essentially zero would make the
+            # next predicted factor enormous on the strength of one lucky step.
+            self.err_acc = max(err, 1e-2)
+            self.err_prev = max(err, 1e-4)
+            if 1.0 <= factor <= self.freeze_below:
+                factor = 1.0
+        else:
+            factor = min(factor, 1.0)
+        return factor
+
+
+#: Every entry is concrete; the annotation says `type[Controller]` because that
+#: is the contract callers rely on, and `Controller` itself is abstract.
+_CONTROLLERS: dict[str, type[Controller]] = {
+    "pi": PIController,
+    "i": IController,
+    "predictive": PredictiveController,
+    "gustafsson": PredictiveController,
+}
 
 
 def make_controller(spec, error_order: int, **kwargs) -> Controller:

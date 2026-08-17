@@ -204,6 +204,7 @@ class Rosenbrock(Stepper):
 
     implicit = True
     supports_mass = True
+    default_controller = "predictive"
 
     def __init__(self, tableau: RosenbrockTableau | str = RODAS4, jac_method: str = "auto"):
         tab = (

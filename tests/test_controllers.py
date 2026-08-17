@@ -21,6 +21,7 @@ from odesuite.controllers import (
     Controller,
     IController,
     PIController,
+    PredictiveController,
     error_norm,
     initial_step_size,
     make_controller,
@@ -328,3 +329,148 @@ def test_a_custom_controller_subclass_drives_a_real_solve():
     assert sol.success
     steps = np.diff(sol.t)
     assert np.allclose(steps[:-1], steps[0], rtol=1e-9), "step size should be constant"
+
+
+# ---------------------------------------------------------------------------
+# PredictiveController
+# ---------------------------------------------------------------------------
+#
+# The controller for methods where changing h costs a factorisation. Two
+# behaviours to pin: Gustafsson's predictive term, and the refusal to make small
+# increases at all.
+
+
+def _predictive(**kwargs):
+    # error_order 3 -> k = 4, exponent = 1/4, matching Radau and RODAS4.
+    return PredictiveController(error_order=3, **kwargs)
+
+
+def test_a_small_proposed_increase_is_declined_outright():
+    """The economic rule. ``0.9 * 0.448^-0.25`` is 1.1, a 10% increase -- worth
+    less than the O(n^3) refactorisation that changing h would force."""
+    c = _predictive()
+    assert c._factor(0.448) == pytest.approx(1.1, abs=1e-3)
+    assert c.update(0.448, accepted=True, h=0.1) == 1.0
+
+
+def test_the_frozen_step_is_bit_for_bit_the_same():
+    """Not merely close: the stepper reuses its factorisation only if `h` is
+    unchanged, so the factor has to be exactly 1.0."""
+    c = _predictive()
+    factor = c.update(0.448, accepted=True, h=0.1)
+    assert factor == 1.0
+    assert 0.1 * factor == 0.1
+
+
+def test_a_large_proposed_increase_is_allowed_through():
+    """The freeze is a threshold, not a ceiling: when the step really can grow,
+    it must."""
+    c = _predictive()
+    factor = c.update(0.1, accepted=True, h=0.1)
+    assert factor > c.freeze_below
+    assert factor == pytest.approx(0.9 * 0.1 ** -0.25)
+
+
+def test_a_shrink_is_never_frozen():
+    """Only *increases* are declined. Freezing a shrink would keep a step the
+    controller has just judged too large."""
+    c = _predictive()
+    factor = c.update(2.0, accepted=True, h=0.1)
+    assert factor < 1.0
+
+
+def test_a_rejected_step_does_not_become_the_reference():
+    """`h_acc` and `err_acc` are the last *accepted* step; a rejection must not
+    poison the prediction."""
+    c = _predictive()
+    c.update(0.5, accepted=True, h=0.1)
+    h_acc, err_acc = c.h_acc, c.err_acc
+    c.update(4.0, accepted=False, h=0.1)
+    assert (c.h_acc, c.err_acc) == (h_acc, err_acc)
+
+
+def test_the_predictive_term_can_only_make_the_controller_more_cautious():
+    """The smaller of the classical and predicted factors is taken, so the
+    prediction can restrain an increase but never inflate one."""
+    c = _predictive()
+    c.update(0.5, accepted=True, h=0.1)          # establishes the reference
+    classical = c._factor(0.05)
+    # A step that grew a lot while the error barely improved: the trend says be
+    # careful even though the current error alone says accelerate.
+    factor = c.update(0.05, accepted=True, h=1.0)
+    assert factor <= classical + 1e-12
+
+
+def test_the_error_reference_is_floored():
+    """An essentially-zero error would otherwise make the next predicted factor
+    enormous on the strength of one lucky step. radau5.f floors it at 1e-2."""
+    c = _predictive()
+    c.update(1e-12, accepted=True, h=0.1)
+    assert c.err_acc == 1e-2
+
+
+def test_growth_and_shrink_are_bounded():
+    c = _predictive()
+    assert c.update(1e-30, accepted=True, h=0.1) == pytest.approx(c.max_factor)
+    assert c.update(1e30, accepted=False, h=0.1) == pytest.approx(c.min_factor)
+
+
+def test_reset_clears_the_prediction_reference():
+    c = _predictive()
+    c.update(0.5, accepted=True, h=0.1)
+    assert c.h_acc is not None
+    c.reset()
+    assert c.h_acc is None and c.err_acc is None
+
+
+def test_without_a_step_size_it_degrades_to_the_classical_factor():
+    """`h` is optional on the base signature, so a caller that does not supply
+    one must still get sensible control rather than an exception."""
+    c = _predictive()
+    factor = c.update(0.1, accepted=True)
+    assert factor == pytest.approx(0.9 * 0.1 ** -0.25)
+    assert c.h_acc is None
+
+
+# ---------------------------------------------------------------------------
+# The method picks its own controller
+# ---------------------------------------------------------------------------
+
+
+def test_implicit_methods_default_to_the_predictive_controller():
+    from odesuite.steppers import make_stepper
+
+    assert make_stepper("radau").default_controller == "predictive"
+    assert make_stepper("rodas4").default_controller == "predictive"
+    assert make_stepper("dopri5").default_controller == "pi"
+
+
+def test_the_predictive_default_costs_radau_less_work_than_pi():
+    """The claim the change was made for, on the problem it was made for."""
+    from odesuite.problems import robertson
+
+    default = solve(robertson().problem, "radau", rtol=1e-8, atol=1e-10)
+    with_pi = solve(robertson().problem, "radau", rtol=1e-8, atol=1e-10,
+                    controller="pi")
+
+    assert default.success and with_pi.success
+    assert default.stats.nfev < with_pi.stats.nfev, (
+        f"predictive {default.stats.nfev} nfev vs pi {with_pi.stats.nfev}"
+    )
+    assert default.stats.naccepted < with_pi.stats.naccepted
+
+
+def test_naming_a_controller_still_overrides_the_method_default():
+    from odesuite.problems import robertson
+
+    forced = solve(robertson().problem, "radau", rtol=1e-6, atol=1e-9,
+                   controller="i")
+    assert forced.success
+
+
+def test_explicit_methods_are_unaffected_by_the_new_default():
+    """dopri5 must still be driven by the PI controller, bit for bit."""
+    bench = lotka_volterra()
+    default = solve(bench.problem, "dopri5", rtol=1e-8, atol=1e-10)
+    forced = solve(bench.problem, "dopri5", rtol=1e-8, atol=1e-10, controller="pi")
+    np.testing.assert_array_equal(default.y, forced.y)

@@ -574,8 +574,13 @@ def _run_dsolve(payload: dict, timeout: float) -> dict:
 
 
 def solve_symbolically(parsed: ParsedEquation,
-                       timeout: float = DSOLVE_TIMEOUT) -> SymbolicSolution:
-    """Find a closed form, verify it, and describe the equation."""
+                       timeout: float | None = None) -> SymbolicSolution:
+    """Find a closed form, verify it, and describe the equation.
+
+    `timeout` defaults to `DSOLVE_TIMEOUT`, read at call time so the module
+    attribute can be raised on a slow or heavily loaded machine.
+    """
+    timeout = DSOLVE_TIMEOUT if timeout is None else timeout
     analysis = characteristic_analysis(parsed)
     solution = SymbolicSolution(
         order=parsed.order,

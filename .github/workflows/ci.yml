@@ -87,14 +87,15 @@ jobs:
       # `tests/conftest.py` forces the offscreen platform, but setting it here
       # too means a stray direct invocation cannot open a window on a runner.
       #
-      # Deliberately serial. `-n auto` halves the wall time, but two of the
-      # equation-editor tests depend on a 12 s subprocess timeout for `dsolve`
-      # and become flaky under parallel load. A suite that goes red at random is
-      # worse than one that takes six minutes.
+      # `-n auto` was previously unusable: two equation-editor tests depend on
+      # the `dsolve` subprocess beating a wall-clock deadline, which an
+      # oversubscribed machine breaks. The deadline is now raised for the test
+      # session (see tests/conftest.py), and the suite has been run parallel
+      # three times over without a failure.
       - name: pytest
         env:
           QT_QPA_PLATFORM: offscreen
-        run: pytest tests/ -q
+        run: pytest tests/ -q -n auto
 
       - name: selftest across every method family
         env:

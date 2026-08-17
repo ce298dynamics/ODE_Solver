@@ -38,7 +38,21 @@ from odesuite.problems import (
     van_der_pol,
 )
 
-__all__ = ["Point", "sweep", "scipy_sweep", "run", "plot"]
+__all__ = ["Point", "sweep", "scipy_sweep", "run", "plot", "save", "load"]
+
+#: Timing repeats. Every wall-clock number published from this module is the
+#: best of this many runs -- the minimum rather than the mean, because the
+#: noise here is one-sided: a run can be slowed by the machine but never
+#: sped up below the work it actually has to do.
+#:
+#: This is enough to stabilise the numbers *within* a run and not enough to
+#: compare *across* runs. Two sweeps taken minutes apart on the same machine
+#: were seen to differ by 30-60% in the same direction, which was very nearly
+#: read as a regression in a change that had in fact reduced the work by a
+#: fifth. Comparing two versions means interleaving them in one process,
+#: alternating A and B so machine drift lands on both equally -- not running
+#: one, editing, and running the other.
+REPEATS = 3
 
 
 @dataclass
@@ -172,9 +186,11 @@ def run(names=None, verbose: bool = True):
             print(f"\n{name}  (n={bench.problem.n}, {'stiff' if bench.stiff else 'non-stiff'})")
         table = {}
         for method in ours:
-            table[method] = sweep(bench, method, tolerances, reference)
+            table[method] = sweep(bench, method, tolerances, reference, REPEATS)
         for method in theirs:
-            table[f"scipy:{method}"] = scipy_sweep(bench, method, tolerances, reference)
+            table[f"scipy:{method}"] = scipy_sweep(
+                bench, method, tolerances, reference, REPEATS
+            )
 
         if verbose:
             for label, points in table.items():
@@ -190,41 +206,105 @@ def run(names=None, verbose: bool = True):
     return results
 
 
-def plot(results, path: str = "work_precision.png"):
-    import matplotlib
+def save(results, path: str = "work_precision.json") -> str:
+    """Write the sweep to JSON.
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    Two reasons. The figure can be redrawn without re-running a suite that
+    takes minutes; and a committed result file turns a performance change
+    into a reviewable diff instead of something noticed by eye months later.
+    """
+    import json
+
+    payload = {
+        suite: {
+            label: [
+                {"tol": p.tol, "error": p.error, "nfev": p.nfev,
+                 "runtime": p.runtime, "steps": p.steps}
+                for p in points
+            ]
+            for label, points in table.items()
+        }
+        for suite, table in results.items()
+    }
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=1, sort_keys=True)
+    print(f"  wrote {path}")
+    return path
+
+
+def load(path: str = "work_precision.json"):
+    """Read back what `save` wrote."""
+    import json
+
+    with open(path, encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return {
+        suite: {label: [Point(**row) for row in rows] for label, rows in table.items()}
+        for suite, table in payload.items()
+    }
+
+
+def plot(results, path: str = "work_precision.png", max_cols: int = 4):
+    """Render the sweep.
+
+    Each suite occupies a column of two panels: accuracy against evaluations,
+    and accuracy against wall time. Columns wrap after `max_cols`, because the
+    alternative -- one row of every suite side by side -- produced a figure
+    nearly 4 000 px wide in which no legend was legible at any sane display
+    size. A grid that wraps stays readable as the suite list grows.
+    """
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
 
     names = list(results)
-    figure, axes = plt.subplots(2, len(names), figsize=(4.2 * len(names), 8.4), squeeze=False)
+    cols = min(max_cols, len(names)) or 1
+    blocks = -(-len(names) // cols)          # ceil
+    rows = 2 * blocks
 
-    for column, name in enumerate(names):
+    figure = Figure(figsize=(4.6 * cols, 4.3 * rows))
+    FigureCanvasAgg(figure)
+    axes = figure.subplots(rows, cols, squeeze=False)
+
+    for index, name in enumerate(names):
+        block, column = divmod(index, cols)
+        top, bottom = axes[2 * block][column], axes[2 * block + 1][column]
+
         for label, points in results[name].items():
             if len(points) < 2:
                 continue
             errors = [max(p.error, 1e-16) for p in points]
-            style = dict(marker="s", ls="--", alpha=0.65) if label.startswith("scipy:") \
-                else dict(marker="o", ls="-", lw=1.8)
-            axes[0][column].loglog([p.nfev for p in points], errors, label=label, **style)
-            axes[1][column].loglog([p.runtime for p in points], errors, label=label, **style)
+            style = (
+                dict(marker="s", ls="--", alpha=0.6, lw=1.3, ms=4)
+                if label.startswith("scipy:")
+                else dict(marker="o", ls="-", lw=1.9, ms=4.5)
+            )
+            top.loglog([p.nfev for p in points], errors, label=label, **style)
+            bottom.loglog([p.runtime for p in points], errors, label=label, **style)
 
-        axes[0][column].set_title(name)
-        axes[0][column].set_xlabel("RHS evaluations")
-        axes[1][column].set_xlabel("wall time (s)")
-        for row in (0, 1):
-            axes[row][column].set_ylabel("relative error at $t_{end}$")
-            axes[row][column].grid(True, which="both", alpha=0.25)
-            axes[row][column].legend(fontsize=6.5)
+        top.set_title(name, fontsize=11, pad=6)
+        top.set_xlabel("RHS evaluations", fontsize=9)
+        bottom.set_xlabel("wall time (s)", fontsize=9)
+        for ax in (top, bottom):
+            ax.set_ylabel("relative error at $t_{end}$", fontsize=9)
+            ax.grid(True, which="major", alpha=0.28, lw=0.6)
+            ax.grid(True, which="minor", alpha=0.12, lw=0.4)
+            ax.tick_params(labelsize=8)
+            ax.legend(fontsize=7.5, framealpha=0.85)
+
+    # Hide the leftover panels of a partly-filled final block.
+    for index in range(len(names), blocks * cols):
+        block, column = divmod(index, cols)
+        axes[2 * block][column].set_visible(False)
+        axes[2 * block + 1][column].set_visible(False)
 
     figure.suptitle(
         "Work-precision: down and to the left is better  "
         "(solid = odesuite, dashed = scipy)",
-        y=1.0,
+        fontsize=13,
     )
-    figure.tight_layout()
-    figure.savefig(path, dpi=130, bbox_inches="tight")
-    print(f"\n  wrote {path}")
+    figure.tight_layout(rect=(0, 0, 1, 0.985))
+    figure.savefig(path, dpi=120)
+    print(f"  wrote {path}")
     return path
 
 

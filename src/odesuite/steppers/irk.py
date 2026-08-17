@@ -124,6 +124,7 @@ class RadauIIA(Stepper):
 
     implicit = True
     supports_mass = True
+    default_controller = "predictive"
 
     def __init__(
         self,
@@ -312,10 +313,13 @@ class RadauIIA(Stepper):
         # (an (s, n) stack of stage increments) and the Kronecker-structured
         # solve that the eigendecomposition above makes cheap.
         stage_nfev = 0
+        # One buffer for the whole step rather than one per Newton iteration.
+        # It is fully overwritten on every call and never escapes -- `residual`
+        # returns a fresh array from the arithmetic below.
+        F = np.empty((s, n), dtype=y.dtype)
 
         def residual(Z: np.ndarray) -> np.ndarray:
             nonlocal stage_nfev
-            F = np.empty((s, n), dtype=y.dtype)
             for i in range(s):
                 F[i] = problem.f(t + tab.c[i] * h, y + Z[i])
             stage_nfev += s

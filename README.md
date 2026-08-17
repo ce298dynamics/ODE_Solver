@@ -143,19 +143,27 @@ tolerance over eight decades. Selected results at the tightest tolerance:
 | | dopri5 | 1.2e-12 | 24 086 |
 | Kepler (e=0.5) | **taylor20** | **1.5e-12** | **1 462** |
 | | scipy DOP853 | 5.7e-12 | 2 318 |
-| Robertson | radau | 9.3e-15 | 49 286 |
-| | scipy Radau | 5.6e-15 | 37 112 |
-| HIRES | radau | 3.7e-10 | 31 762 |
-| | scipy Radau | 1.0e-12 | 23 136 |
+| Robertson | radau | 8.1e-15 | 40 026 |
+| | scipy Radau | 2.4e-15 | 37 112 |
+| HIRES | radau | 7.3e-11 | 28 320 |
+| | scipy Radau | 2.3e-12 | 23 136 |
 
 Read honestly: **the Taylor method is the standout**, reaching higher accuracy than
 SciPy's best explicit integrator with roughly half the evaluations on smooth problems.
-The explicit RK pairs are competitive with SciPy's (within ~1.3× on evaluations). The
-stiff solvers are respectable but not leading — `radau` uses about 1.3–1.5× SciPy's
-Radau evaluations and ~1.7× its wall time. SciPy's `LSODA` and `BDF` are faster still on
-stiff problems; they are BDF-based, a family deliberately excluded here (see
-[Scope](#scope)). `rodas4` needs 2–3× `radau`'s work on stiff problems, as expected: it
-recomputes the Jacobian every step and is an order lower.
+The explicit RK pairs are competitive with SciPy's (within ~1.3× on evaluations).
+`radau` uses **1.08–1.22× SciPy's Radau evaluations and 1.2–1.5× its wall time** across
+the four stiff problems — closed up from 1.3–1.5× and ~1.7× by the predictive step
+controller described under [Design](#design). SciPy's `LSODA` and `BDF` are faster
+still on stiff problems; they are BDF-based, a family deliberately excluded here (see
+[Scope](#scope)). `rodas4` needs 1.4–4× `radau`'s work, as expected: it recomputes the
+Jacobian every step and is an order lower.
+
+The numbers behind this figure are written to `figures/work_precision.json` alongside
+it, so a change in performance is a diff rather than something noticed by eye. One
+caveat on method: three timing repeats stabilise the numbers *within* a run and not
+*across* runs — two sweeps minutes apart on the same machine were seen to differ by
+30–60% in the same direction. Comparing two versions of the code means interleaving
+them in one process, not running one, editing, and running the other.
 
 ### Symplectic energy drift
 
@@ -328,6 +336,18 @@ Consequences worth noting:
   methods; adding a sixth is coefficients, not code.
 - **Mass matrices are supported from day one.** A singular `M` turns the same code path
   into an index-1 DAE solver, needing only stiff accuracy from the method.
+- **The controller is chosen by the method, not the caller.** A step-size change is
+  free for an explicit method and costs an `O(n³)` refactorisation for an implicit one,
+  because `h` is baked into the iteration matrix `M/(γh) − J`. So `Stepper` declares a
+  `default_controller`: the explicit pairs get the PI controller, and the implicit ones
+  get **Gustafsson's predictive controller**, which adds a term reading how the error
+  responded to the last step-size change rather than the current error alone, and which
+  **declines any proposed growth under 1.2×** outright — keeping `h` bit-for-bit
+  identical so the existing factorisation stays valid. Nudging `h` up by 15% buys a few
+  percent fewer steps and costs a cubic-time factorisation. Measured on the stiff set:
+  **19% fewer RHS evaluations, 10% fewer factorisations, 1.18–1.32× faster.** The
+  controller still sees only a scalar error norm and a step size — it is not told which
+  method it is driving.
 - **Four Jacobian strategies**, shared by every implicit method: analytic, finite
   differences with Shampine scaling, complex-step (`Im f(y + ihe_j)/h` — exact to
   machine precision, verified bit-for-bit against analytic Jacobians), and sparse via

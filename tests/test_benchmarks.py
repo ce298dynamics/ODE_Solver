@@ -170,3 +170,58 @@ def test_benchmark_metadata_is_consistent():
             assert end.shape == bench.problem.y0.shape, bench.name
         if bench.invariant is not None:
             assert np.isfinite(bench.invariant(bench.problem.y0)), bench.name
+
+
+# ---------------------------------------------------------------------------
+# The work-precision result file
+# ---------------------------------------------------------------------------
+#
+# The JSON exists so a performance change shows up as a reviewable diff and so
+# the figure can be redrawn without re-running a sweep that takes minutes. Both
+# depend on the round trip being lossless.
+
+
+def test_work_precision_results_round_trip_through_json(tmp_path):
+    from work_precision import Point, load, save
+
+    results = {
+        "toy": {
+            "dopri5": [
+                Point(tol=1e-4, error=1.2e-6, nfev=500, runtime=0.01, steps=80),
+                Point(tol=1e-8, error=3.4e-10, nfev=2100, runtime=0.04, steps=340),
+            ],
+            "scipy:RK45": [
+                Point(tol=1e-4, error=9.9e-7, nfev=480, runtime=0.009, steps=75),
+            ],
+        }
+    }
+    path = tmp_path / "wp.json"
+    save(results, str(path))
+    restored = load(str(path))
+
+    assert restored.keys() == results.keys()
+    assert restored["toy"].keys() == results["toy"].keys()
+    for label, points in results["toy"].items():
+        assert restored["toy"][label] == points, f"{label} did not round trip"
+
+
+def test_the_figure_layout_wraps_instead_of_growing_sideways(tmp_path):
+    """Seven suites in one row produced a figure ~3 800 px wide whose legends
+    were unreadable. The grid must wrap at `max_cols`."""
+    from work_precision import Point, plot
+
+    fake = {
+        f"suite{i}": {"dopri5": [Point(1e-4, 1e-6, 500, 0.01, 80),
+                                 Point(1e-8, 1e-9, 2000, 0.04, 300)]}
+        for i in range(7)
+    }
+    path = tmp_path / "wp.png"
+    plot(fake, str(path), max_cols=4)
+    assert path.exists()
+
+    from PIL import Image  # matplotlib ships Pillow
+
+    with Image.open(path) as image:
+        width, height = image.size
+    assert width < 2600, f"figure is {width}px wide; it should wrap, not stretch"
+    assert height > width * 0.7, "expected a grid, not a strip"

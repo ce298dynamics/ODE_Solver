@@ -6,7 +6,9 @@ on disk, and reused; regenerating twenty of them takes a few seconds, which is
 too long to spend on every launch but fine once.
 
 Rendering uses matplotlib's Agg backend rather than pyqtgraph because this
-happens off the GUI thread and must not touch Qt at all.
+happens off the GUI thread and must not touch Qt at all -- and a bare `Figure`
+rather than pyplot, because pyplot's figure registry and `matplotlib.use` are
+global state that a worker thread must not mutate.
 """
 
 from __future__ import annotations
@@ -80,13 +82,19 @@ def _preview_solution(entry: CatalogEntry):
 
 def render_thumbnail(entry: CatalogEntry, palette: Palette,
                      size=(3.2, 2.0), dpi: int = 100) -> bytes:
-    """Render one thumbnail and return the PNG bytes."""
-    import matplotlib
+    """Render one thumbnail and return the PNG bytes.
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    A bare `Figure` with an Agg canvas, never pyplot. pyplot keeps a global
+    registry of open figures, and `matplotlib.use` swaps the global backend --
+    neither is safe to touch from a worker thread, which is exactly where this
+    runs. The same reasoning produced `mathrender._render`; this function was
+    left on pyplot when that one was written.
+    """
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
 
-    figure = plt.figure(figsize=size, dpi=dpi)
+    figure = Figure(figsize=size, dpi=dpi)
+    FigureCanvasAgg(figure)
     axes = figure.add_axes((0, 0, 1, 1))
     axes.set_facecolor(palette.surface)
     figure.patch.set_facecolor(palette.surface)
@@ -127,7 +135,6 @@ def render_thumbnail(entry: CatalogEntry, palette: Palette,
 
     buffer = io.BytesIO()
     figure.savefig(buffer, format="png", facecolor=palette.surface)
-    plt.close(figure)
     return buffer.getvalue()
 
 

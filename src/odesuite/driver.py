@@ -40,7 +40,7 @@ def solve(
     max_step: float = np.inf,
     min_step: float = 0.0,
     max_steps: int = 1_000_000,
-    controller: Any = "pi",
+    controller: Any = None,
     controller_options: dict | None = None,
 ) -> Solution:
     """Integrate an `ODEProblem`.
@@ -71,7 +71,9 @@ def solve(
     max_steps
         Safety valve on the total number of attempted steps.
     controller
-        ``"pi"`` (default) or ``"i"``, a `Controller` subclass, or an instance.
+        ``"pi"``, ``"i"``, ``"predictive"``, a `Controller` subclass, or an
+        instance. The default, None, lets the method choose: ``"pi"`` for the
+        explicit pairs, ``"predictive"`` for the implicit ones.
 
     Returns
     -------
@@ -97,7 +99,11 @@ def solve(
         raise ValueError("max_step must be positive")
 
     stepper.set_tolerances(rtol, atol)
-    ctrl = make_controller(controller, stepper.error_order, **(controller_options or {}))
+    ctrl = make_controller(
+        stepper.default_controller if controller is None else controller,
+        stepper.error_order,
+        **(controller_options or {}),
+    )
     # A controller passed in as an instance is returned unchanged, so it arrives
     # carrying the error history of whatever it was used for last. The first step
     # of a solve has no history by definition, and inheriting one makes the same
@@ -277,7 +283,7 @@ def solve(
         else:
             err = error_norm(result.error, y, y_new, rtol, atol)
             accepted = err <= 1.0
-            factor = ctrl.update(err, accepted)
+            factor = ctrl.update(err, accepted, abs(h))
 
         if not accepted:
             stats.nrejected += 1

@@ -21,6 +21,7 @@ from .controllers import (
     Controller,
     IController,
     PIController,
+    PredictiveController,
     error_norm,
     initial_step_size,
 )
@@ -81,6 +82,7 @@ __all__ = [
     "Controller",
     "IController",
     "PIController",
+    "PredictiveController",
     "error_norm",
     "initial_step_size",
     "Interpolant",

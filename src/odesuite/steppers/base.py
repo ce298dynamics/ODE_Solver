@@ -65,6 +65,11 @@ class Stepper(ABC):
     uses_f: bool = True
     #: Whether a non-identity mass matrix is supported.
     supports_mass: bool = False
+    #: Controller used when the caller does not name one. Implicit methods
+    #: override this: for them a step-size change invalidates the iteration
+    #: matrix, so the controller has to weigh a better `h` against an
+    #: O(n^3) refactorisation.
+    default_controller: str = "pi"
     name: str = "stepper"
 
     @abstractmethod
