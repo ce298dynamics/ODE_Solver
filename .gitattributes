@@ -1,0 +1,9 @@
+# Normalise line endings in the repository; check out native on each platform.
+* text=auto
+
+# Binary assets — never diff or convert these.
+*.png binary
+*.exe binary
+*.pyd binary
+*.dll binary
+*.zip binary

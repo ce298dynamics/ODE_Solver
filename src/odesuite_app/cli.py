@@ -1,0 +1,183 @@
+"""Command-line entry point."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+
+__all__ = ["main"]
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="odesuite-gui", description="odesuite ODE solver studio"
+    )
+    parser.add_argument(
+        "--theme", choices=("dark", "light"), default="dark",
+        help="colour theme (default: dark)",
+    )
+    parser.add_argument(
+        "--problem", default=None,
+        help="open a problem by key and jump straight to the Solver Lab",
+    )
+    parser.add_argument(
+        "--screen", default=None,
+        help="open on a specific screen (home, lab, portrait, stiffness, race, accuracy)",
+    )
+    parser.add_argument(
+        "--rebuild-thumbnails", action="store_true",
+        help="regenerate the home-screen previews and exit",
+    )
+    parser.add_argument(
+        "--list-problems", action="store_true", help="print the catalogue and exit"
+    )
+    parser.add_argument(
+        "--dsolve-worker", action="store_true",
+        help=argparse.SUPPRESS,     # internal: the killable symbolic solver
+    )
+    parser.add_argument(
+        "--selftest", metavar="REPORT", nargs="?", const="-",
+        help="solve a few problems, write a report, and exit non-zero on "
+             "failure. Intended for checking a packaged build, where a "
+             "windowed executable has no console to print to.",
+    )
+    return parser
+
+
+def selftest(report_path: str | None = None) -> int:
+    """Exercise the library and the catalogue end to end.
+
+    The check that matters for a frozen build. A GUI executable on Windows has
+    no stdout, so the exit code is the result and the optional report file is
+    the detail.
+    """
+    import numpy as np
+
+    from odesuite import solve
+
+    from . import catalog
+    from .custom import EXAMPLES, build
+
+    lines: list[str] = []
+    failures = 0
+
+    checks = [
+        ("lotka_volterra", "dopri5", {}),
+        ("robertson", "radau", {"log_t_end": 8.0}),
+        ("kepler_symplectic", "verlet", {"n_orbits": 5.0}),
+        ("allen_cahn", "etdrk4", {"n_modes": 32.0, "t_end": 2.0}),
+        ("pendulum", "taylor20", {"t_end": 10.0}),
+    ]
+    for key, method, overrides in checks:
+        entry = catalog.get(key)
+        params = {**entry.defaults(), **overrides}
+        try:
+            bench = entry.build(params)
+            kwargs = (
+                {"n_steps": 2000}
+                if method in ("verlet", "yoshida4", "etdrk4")
+                else {"rtol": 1e-8, "atol": 1e-10, "max_steps": 200_000}
+            )
+            solution = solve(bench.problem, method=method, **kwargs)
+            ok = solution.success and np.all(np.isfinite(solution.y[:, -1]))
+            lines.append(
+                f"{'PASS' if ok else 'FAIL'}  {key:22s} {method:9s} "
+                f"steps={solution.stats.naccepted}"
+            )
+            failures += not ok
+        except Exception as exc:
+            lines.append(f"FAIL  {key:22s} {method:9s} {type(exc).__name__}: {exc}")
+            failures += 1
+
+    for name, spec in EXAMPLES.items():
+        try:
+            system = build(spec)
+            solution = solve(system.problem, method="radau", rtol=1e-7, atol=1e-10,
+                             max_steps=200_000)
+            ok = solution.success
+            lines.append(f"{'PASS' if ok else 'FAIL'}  custom: {name}")
+            failures += not ok
+        except Exception as exc:
+            lines.append(f"FAIL  custom: {name}: {type(exc).__name__}: {exc}")
+            failures += 1
+
+    # Typesetting depends on font files inside matplotlib's `mpl-data`, which
+    # arrive in a frozen build only as bundled data -- nothing imports them, so
+    # a packaging change could drop them and no test run from source would
+    # notice. Checking here means the exit code covers it.
+    try:
+        import sympy as sp
+
+        from . import mathrender
+
+        symbol = sp.Symbol("t", real=True)
+        expression = sp.exp(-symbol) * sp.cos(2 * symbol)
+        data = mathrender.latex_to_png(sp.latex(expression), "#E6EDF3", 15.0, 110.0)
+        ok = data.startswith(b"\x89PNG") and len(data) > 200
+        lines.append(
+            f"{'PASS' if ok else 'FAIL'}  typesetting: mathtext + Computer Modern"
+            f" ({len(data)} bytes)"
+        )
+        failures += not ok
+    except Exception as exc:
+        lines.append(f"FAIL  typesetting: {type(exc).__name__}: {exc}")
+        failures += 1
+
+    lines.append(f"{len(lines) - failures}/{len(lines)} passed")
+    text = "\n".join(lines)
+    if report_path and report_path != "-":
+        from pathlib import Path
+
+        Path(report_path).write_text(text, encoding="utf-8")
+    else:
+        print(text)
+    return 1 if failures else 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    if args.dsolve_worker:
+        from .dsolve_worker import run
+
+        return run()
+
+    if args.selftest:
+        return selftest(args.selftest)
+
+    if args.list_problems:
+        from . import catalog
+
+        width = max(len(k) for k in catalog.keys())
+        for key in catalog.keys():
+            entry = catalog.get(key)
+            print(f"  {key:<{width}}  {entry.title:<26} [{', '.join(entry.tags)}]")
+        return 0
+
+    if args.rebuild_thumbnails:
+        from . import thumbnails
+        from .theme import PALETTES
+
+        def report(done: int, total: int, key: str) -> None:
+            print(f"  [{done:>2}/{total}] {key}")
+
+        for name in ("dark", "light"):
+            print(f"{name} theme:")
+            thumbnails.ensure_all(PALETTES[name], force=True, progress=report)
+        print(f"\nwritten to {thumbnails.cache_dir()}")
+        return 0
+
+    from .app import build_application
+
+    app, window = build_application(args.theme)
+    if args.problem:
+        window.state.set_problem(args.problem)
+        window.go("lab")
+    if args.screen:
+        window.go(args.screen)
+    window.show()
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,519 @@
+"""The main trajectory plot.
+
+Draws the solution from the **dense output**, not from the accepted step points.
+That distinction is the whole reason the library's continuous extension exists
+and it shows here directly: a Taylor-20 solve of Kepler takes about sixty steps,
+and joining sixty points with straight lines would look like a polygon. Sampling
+the interpolant instead gives a smooth curve at any zoom level, and the step
+points can then be drawn *on top* — so the picture shows both the true
+trajectory and how sparsely the solver needed to sample it.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pyqtgraph as pg
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+)
+
+from ..theme import Palette
+from .flow import FlowWidget
+
+__all__ = ["PlotPanel"]
+
+#: Samples used to render a dense curve. Far more than any solver takes, which
+#: is the point.
+_DENSE_SAMPLES = 2400
+
+
+class _ComponentChip(QPushButton):
+    """A toggle for one component, carrying that component's colour.
+
+    Doubles as the legend, which is why it is coloured and why the plot's own
+    legend is suppressed while these are showing -- two lists of the same names
+    beside each other would be clutter, and only one of them can be clicked.
+    """
+
+    def __init__(self, label: str, colour: str, muted: str, parent=None) -> None:
+        super().__init__(parent)
+        self.label = label
+        self.colour = colour
+        self.muted = muted
+        self.setCheckable(True)
+        self.setChecked(True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip(f"Show or hide {label}")
+        self.toggled.connect(lambda _: self._restyle())
+        self._restyle()
+
+    def _restyle(self) -> None:
+        on = self.isChecked()
+        self.setText(f"{'●' if on else '○'}  {self.label}")
+        colour = self.colour if on else self.muted
+        self.setStyleSheet(
+            f"QPushButton {{"
+            f" background: transparent; border: 1px solid"
+            f" {'transparent' if not on else colour + '55'};"
+            f" border-radius: 10px; padding: 2px 9px;"
+            f" font-size: 11.5px; color: {colour}; }}"
+            f"QPushButton:hover {{ border-color: {colour}; }}"
+        )
+
+
+class PlotPanel(QFrame):
+    """Trajectory display, switching form to suit the problem."""
+
+    view_changed = Signal(str)
+
+    def __init__(self, palette: Palette, parent=None) -> None:
+        super().__init__(parent)
+        self.palette_obj = palette
+        self.setProperty("role", "panel")
+        self._image = None
+        self._colourbar = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        header = QHBoxLayout()
+        self.title = QLabel("—")
+        self.title.setProperty("role", "heading")
+        header.addWidget(self.title)
+        header.addStretch(1)
+
+        self.view = QComboBox()
+        self.view.addItems(["Auto", "Time series", "Phase", "Components"])
+        self.view.setFixedWidth(118)
+        self.view.currentTextChanged.connect(
+            lambda text: self.view_changed.emit(text)
+        )
+        header.addWidget(self.view)
+
+        self.show_steps = QCheckBox("step points")
+        self.show_steps.setChecked(True)
+        self.show_steps.setToolTip(
+            "Mark where the solver actually stopped. The curve itself comes "
+            "from the dense output, so it stays smooth however few steps "
+            "were taken."
+        )
+        header.addWidget(self.show_steps)
+
+        self.log_time = QCheckBox("log t")
+        self.log_time.setToolTip(
+            "Essential for problems spanning many decades of time, such as "
+            "Robertson to t = 1e11."
+        )
+        header.addWidget(self.log_time)
+
+        # Only meaningful for a scalar equation, so it appears only then --
+        # see `_redraw`.
+        self.show_slope_field = QCheckBox("slope field")
+        self.show_slope_field.setToolTip(
+            "The slope y′ = f(t, y) at each point. Every solution of the "
+            "equation runs tangent to it, whatever its initial value."
+        )
+        self.show_slope_field.setVisible(False)
+        header.addWidget(self.show_slope_field)
+
+        header.addSpacing(4)
+        layout.addLayout(header)
+
+        # One chip per component, wrapping. Wrapping is not cosmetic: Pleiades
+        # has more components than fit a single row, and a non-wrapping layout
+        # would give this widget a minimum width wider than the window.
+        self.components = FlowWidget(spacing=6)
+        self.components.setVisible(False)
+        layout.addWidget(self.components)
+        self._chips: list[_ComponentChip] = []
+        #: Component indices the user has switched off.
+        self._hidden: set[int] = set()
+        #: What `_hidden` refers to. Component 2 of Lorenz and component 2 of
+        #: Van der Pol are unrelated, so the set is dropped when this changes.
+        self._hidden_for: tuple | None = None
+        #: Plot items belonging to each component: the curve and its markers.
+        self._series: dict[int, list] = {}
+
+        self.plot = pg.PlotWidget()
+        self.plot.setBackground(palette.plot_background)
+        self.plot.showGrid(x=True, y=True, alpha=0.18)
+        layout.addWidget(self.plot, 1)
+
+        self.legend = self.plot.addLegend(offset=(-10, 10), labelTextSize="9pt")
+        self._curves: list = []
+        self._markers: list = []
+
+        self.show_steps.toggled.connect(lambda _: self._redraw())
+        self.log_time.toggled.connect(lambda _: self._redraw())
+        self.show_slope_field.toggled.connect(lambda _: self._redraw())
+        self._last = None
+        self._auto_log_for: str | None = None
+
+    # -- helpers ---------------------------------------------------------
+
+    def _colour(self, index: int) -> str:
+        series = self.palette_obj.series
+        return series[index % len(series)]
+
+    def _reset(self) -> None:
+        self.plot.clear()
+        self.legend = self.plot.addLegend(offset=(-10, 10), labelTextSize="9pt")
+        self._curves.clear()
+        self._markers.clear()
+        self._series.clear()
+        self._image = None
+
+    def _dense(self, solution, samples: int = _DENSE_SAMPLES):
+        """``(t, y)`` sampled from the continuous solution where available.
+
+        The grid is the union of a uniform sweep and the solver's *own* step
+        points. Uniform sampling alone is not enough: on a relaxation
+        oscillator the fast jumps occupy a tiny slice of the time axis, get a
+        handful of uniform samples, and the phase portrait shows straight
+        chords cutting across the limit cycle. The accepted step points cluster
+        precisely where the solution moves fastest -- that is what adaptivity
+        means -- so including them guarantees at least the solver's own
+        resolution everywhere, while the uniform part keeps slow stretches
+        smooth.
+        """
+        if solution.sol is None:
+            return solution.t, solution.y
+        lo, hi = solution.sol.t_min, solution.sol.t_max
+        if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+            return solution.t, solution.y
+
+        uniform = np.linspace(lo, hi, samples)
+        steps = solution.t[(solution.t >= lo) & (solution.t <= hi)]
+        if steps.size > 6 * samples:
+            # Already far finer than the display needs.
+            return solution.t, solution.y
+        grid = np.union1d(uniform, steps)
+        try:
+            return grid, solution.sol(grid)
+        except Exception:
+            return solution.t, solution.y
+
+    def _wants_log_time(self, result) -> bool:
+        """Whether this problem should default to a logarithmic time axis.
+
+        Read from the catalogue rather than inferred from the solution: the
+        obvious heuristic -- comparing t_end to the smallest positive output
+        time -- fires for nearly every problem, since the first accepted step
+        is always minuscule.
+        """
+        entry = result.entry
+        return bool(entry is not None and entry.log_time_default)
+
+    # -- entry point -----------------------------------------------------
+
+    def clear(self, message: str = "") -> None:
+        self._reset()
+        self.title.setText(message or "—")
+
+    def update_from(self, result, view: str = "Auto") -> None:
+        # Apply the catalogue's log-time preference once per problem, then
+        # leave the control alone. Re-deriving it on every redraw would make
+        # the checkbox impossible to switch off.
+        key = result.entry.key if result.entry is not None else None
+        if key is not None and key != self._auto_log_for:
+            self._auto_log_for = key
+            self.log_time.blockSignals(True)
+            self.log_time.setChecked(self._wants_log_time(result))
+            self.log_time.blockSignals(False)
+
+        self._last = (result, view)
+        self._redraw()
+
+    def _redraw(self) -> None:
+        if self._last is None:
+            return
+        result, view = self._last
+        if not result.ok:
+            self.clear(result.error or "solve failed")
+            return
+
+        entry, solution = result.entry, result.solution
+        self._reset()
+
+        kind = entry.plot_kind if view == "Auto" else {
+            "Time series": "time", "Phase": "phase", "Components": "time",
+        }.get(view, entry.plot_kind)
+        if view == "Phase" and solution.y.shape[0] < 2:
+            kind = "time"
+
+        # A slope field is a picture of a scalar equation and nothing else.
+        scalar = solution.y.shape[0] == 1
+        self.show_slope_field.setVisible(scalar and kind == "time")
+
+        if kind == "spacetime":
+            self._draw_spacetime(result)
+        elif kind in ("phase", "orbit", "nbody"):
+            self._draw_phase(result, kind)
+        else:
+            self._draw_time(result)
+            if scalar and self.show_slope_field.isChecked():
+                self._draw_slope_field(result)
+
+        # Chips belong to the time view, where a component is a meaningful unit
+        # to switch off. In the phase plane the curve *is* the pair of them.
+        components = solution.y.shape[0] if kind not in (
+            "spacetime", "phase", "orbit", "nbody"
+        ) else 0
+        self._sync_components(result, components)
+
+    # -- component visibility ---------------------------------------------
+
+    def _sync_components(self, result, count: int) -> None:
+        """Rebuild the chip row if the problem changed, then apply the hiding."""
+        entry = result.entry
+        shown = min(count, 8)
+        key = (entry.key, shown)
+
+        if key != self._hidden_for:
+            # A different problem, or a different number of components. The
+            # previous selection cannot be carried over meaningfully, but a
+            # re-solve of the *same* problem must keep it -- otherwise nudging
+            # a slider quietly switches hidden components back on.
+            self._hidden_for = key
+            self._hidden.clear()
+            self._rebuild_chips(entry, shown)
+
+        self.components.setVisible(shown >= 2)
+        self._apply_component_visibility()
+
+    def _rebuild_chips(self, entry, count: int) -> None:
+        for chip in self._chips:
+            chip.setParent(None)
+            chip.deleteLater()
+        self._chips.clear()
+        if count < 2:
+            return
+
+        for index in range(count):
+            label = (
+                entry.labels[index] if index < len(entry.labels) else f"y[{index}]"
+            )
+            chip = _ComponentChip(
+                label, self._colour(index), self.palette_obj.text_muted
+            )
+            chip.toggled.connect(
+                lambda on, i=index: self._set_component_visible(i, on)
+            )
+            self.components.addWidget(chip)
+            self._chips.append(chip)
+
+    def _set_component_visible(self, index: int, visible: bool) -> None:
+        if visible:
+            self._hidden.discard(index)
+        else:
+            self._hidden.add(index)
+        self._apply_component_visibility()
+
+    def _apply_component_visibility(self) -> None:
+        """Hide items rather than redraw. No solving, no resampling."""
+        for index, items in self._series.items():
+            visible = index not in self._hidden
+            for item in items:
+                item.setVisible(visible)
+
+    def hidden_components(self) -> set[int]:
+        """Which components are switched off. For tests and for the Lab."""
+        return set(self._hidden)
+
+    def _draw_slope_field(self, result) -> None:
+        """Tangent dashes under a scalar solution curve.
+
+        Drawn after the curve is in place so the window is already framed on
+        it, and as a single item with NaN breaks rather than several hundred
+        separate ones -- pyqtgraph slows to a crawl otherwise.
+        """
+        from .. import analysis
+
+        solution = result.solution
+        if result.benchmark is None or self.log_time.isChecked():
+            return
+        problem = getattr(result.benchmark, "problem", None)
+        if problem is None or problem.y0.size != 1:
+            return
+
+        values = solution.y[0]
+        low, high = float(np.min(values)), float(np.max(values))
+        pad = 0.25 * (high - low) or 1.0
+        try:
+            segments, _ = analysis.slope_field(
+                problem,
+                (float(solution.t[0]), float(solution.t[-1])),
+                (low - pad, high + pad),
+            )
+        except Exception:
+            return
+        if segments.size == 0:
+            return
+
+        # One polyline, with a NaN between each pair of endpoints to lift the pen.
+        count = segments.shape[0]
+        xs = np.full(count * 3, np.nan)
+        ys = np.full(count * 3, np.nan)
+        xs[0::3], xs[1::3] = segments[:, 0, 0], segments[:, 1, 0]
+        ys[0::3], ys[1::3] = segments[:, 0, 1], segments[:, 1, 1]
+
+        item = pg.PlotDataItem(
+            xs, ys, connect="finite",
+            pen=pg.mkPen(self.palette_obj.text_muted, width=1.0),
+        )
+        item.setOpacity(0.55)
+        item.setZValue(-10)                 # beneath the solution curve
+        self.plot.addItem(item)
+
+    # -- the three forms -------------------------------------------------
+
+    def _draw_time(self, result) -> None:
+        entry, solution = result.entry, result.solution
+        palette = self.palette_obj
+
+        use_log = self.log_time.isChecked()
+        self.plot.setLogMode(x=use_log, y=False)
+        self.plot.setAspectLocked(False)
+        self.plot.setLabel("bottom", "t")
+        self.plot.setLabel("left", "y")
+
+        t, y = self._dense(solution)
+        if use_log:
+            keep = t > 0
+            t, y = t[keep], y[:, keep]
+
+        count = min(y.shape[0], 8)
+        # With chips on show they *are* the legend, so the plot's own is left
+        # empty rather than repeating the same names inside the axes.
+        chipped = count >= 2
+        for index in range(count):
+            label = (
+                entry.labels[index] if index < len(entry.labels) else f"y[{index}]"
+            )
+            curve = self.plot.plot(
+                t, y[index], name=None if chipped else label,
+                pen=pg.mkPen(self._colour(index), width=2),
+            )
+            self._curves.append(curve)
+            self._series.setdefault(index, []).append(curve)
+
+        if self.show_steps.isChecked() and solution.t.size < 4000:
+            st, sy = solution.t, solution.y
+            if use_log:
+                keep = st > 0
+                st, sy = st[keep], sy[:, keep]
+            for index in range(count):
+                # Plotted via `plot` rather than a bare ScatterPlotItem so the
+                # markers follow the log-time transform along with the curve.
+                marker = self.plot.plot(
+                    st, sy[index], pen=None, symbol="o", symbolSize=4,
+                    symbolPen=None, symbolBrush=pg.mkBrush(self._colour(index)),
+                )
+                marker.setOpacity(0.55)
+                self._markers.append(marker)
+                # Recorded against the component so hiding a curve takes its
+                # step points with it -- otherwise a "hidden" component leaves
+                # a trail of dots exactly where its curve used to be.
+                self._series.setdefault(index, []).append(marker)
+
+        self.title.setText(
+            f"{entry.title} — {solution.stats.naccepted} steps, "
+            f"{solution.y.shape[0]} component"
+            f"{'s' if solution.y.shape[0] != 1 else ''}"
+        )
+
+    def _draw_phase(self, result, kind: str) -> None:
+        entry, solution = result.entry, result.solution
+        self.plot.setLogMode(x=False, y=False)
+        self.plot.setAspectLocked(kind in ("orbit", "nbody"))
+
+        _, y = self._dense(solution)
+
+        if kind == "nbody":
+            self.plot.setLabel("bottom", "x")
+            self.plot.setLabel("left", "y")
+            bodies = y.shape[0] // 4
+            for body in range(bodies):
+                self._curves.append(
+                    self.plot.plot(
+                        y[body], y[body + bodies], name=f"body {body + 1}",
+                        pen=pg.mkPen(self._colour(body), width=1.6),
+                    )
+                )
+            self.title.setText(f"{entry.title} — {bodies} bodies")
+            return
+
+        i, j = entry.phase_axes
+        if max(i, j) >= y.shape[0]:
+            i, j = 0, 1
+        x_label = entry.labels[i] if i < len(entry.labels) else f"y[{i}]"
+        y_label = entry.labels[j] if j < len(entry.labels) else f"y[{j}]"
+        self.plot.setLabel("bottom", x_label)
+        self.plot.setLabel("left", y_label)
+
+        self._curves.append(
+            self.plot.plot(
+                y[i], y[j], pen=pg.mkPen(self._colour(0), width=2), name="trajectory"
+            )
+        )
+        if self.show_steps.isChecked() and solution.t.size < 4000:
+            marker = self.plot.plot(
+                solution.y[i], solution.y[j], pen=None, symbol="o", symbolSize=4,
+                symbolPen=None, symbolBrush=pg.mkBrush(self._colour(0)),
+            )
+            marker.setOpacity(0.55)
+            self._markers.append(marker)
+
+        # Start and end, so the direction of travel is unambiguous.
+        start = self.plot.plot(
+            [solution.y[i, 0]], [solution.y[j, 0]], pen=None, symbol="o",
+            symbolSize=11, symbolBrush=None,
+            symbolPen=pg.mkPen(self.palette_obj.success, width=2), name="start",
+        )
+        finish = self.plot.plot(
+            [solution.y[i, -1]], [solution.y[j, -1]], pen=None, symbol="s",
+            symbolSize=11, symbolBrush=None,
+            symbolPen=pg.mkPen(self.palette_obj.danger, width=2), name="end",
+        )
+        self._markers += [start, finish]
+
+        self.title.setText(
+            f"{entry.title} — phase portrait ({solution.stats.naccepted} steps)"
+        )
+
+    def _draw_spacetime(self, result) -> None:
+        entry, solution = result.entry, result.solution
+        benchmark = result.benchmark
+        self.plot.setLogMode(x=False, y=False)
+        self.plot.setAspectLocked(False)
+
+        to_real = getattr(benchmark, "to_real", None)
+        field = to_real(solution.y) if to_real else np.real(solution.y)
+        limit = float(np.abs(field).max()) or 1.0
+
+        image = pg.ImageItem(field.T)
+        colours = pg.colormap.get("CET-D1A") or pg.colormap.get("viridis")
+        image.setLookupTable(colours.getLookupTable(nPts=256))
+        image.setLevels([-limit, limit])
+
+        x = getattr(benchmark, "x", np.arange(field.shape[0]))
+        image.setRect(
+            solution.t[0], float(x[0]),
+            solution.t[-1] - solution.t[0], float(x[-1] - x[0]),
+        )
+        self.plot.addItem(image)
+        self._image = image
+
+        self.plot.setLabel("bottom", "t")
+        self.plot.setLabel("left", "x")
+        self.title.setText(
+            f"{entry.title} — spacetime, u ∈ [{field.min():.2f}, {field.max():.2f}]"
+        )

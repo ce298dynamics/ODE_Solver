@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "odesuite"
+version = "0.1.0"
+description = "A from-scratch ODE solver library: adaptive Runge-Kutta, stiff solvers, events, DAEs, BVPs and sensitivities."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "scipy>=1.10"]
+
+[project.optional-dependencies]
+plots = ["matplotlib>=3.7"]
+app = ["PySide6>=6.6", "pyqtgraph>=0.13", "matplotlib>=3.7", "sympy>=1.12"]
+dev = ["pytest>=7.0", "matplotlib>=3.7", "PySide6>=6.6", "pyqtgraph>=0.13", "sympy>=1.12"]
+
+[project.scripts]
+odesuite-gui = "odesuite_app.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

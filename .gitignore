@@ -1,0 +1,31 @@
+# PyInstaller output. Regenerate with:
+#   py -3.10 -m PyInstaller packaging/odesuite.spec --noconfirm
+build/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editor and IDE state
+.vs/
+.vscode/
+.idea/
+*.swp
+
+# Claude Code: settings.json is shared, settings.local.json is machine-specific
+# (it hard-codes an absolute interpreter path).
+.claude/settings.local.json
+
+# OS
+Thumbs.db
+.DS_Store
