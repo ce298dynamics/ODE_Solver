@@ -10,7 +10,6 @@ pytest.importorskip("PySide6", reason="the app extra is not installed")
 from PySide6.QtCore import QThreadPool  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from odesuite_app import catalog  # noqa: E402
 from odesuite_app.state import SessionState  # noqa: E402
 from odesuite_app.theme import PALETTES  # noqa: E402
 
@@ -174,6 +173,7 @@ def test_pde_problems_are_excluded(stiffness):
         assert key not in offered
 
 
+@pytest.mark.slow
 def test_method_list_is_filtered_to_what_can_run(stiffness, qapp):
     index = stiffness.problem_picker.findData("robertson")
     stiffness.problem_picker.setCurrentIndex(index)
@@ -227,6 +227,7 @@ def test_race_runs_every_selected_method(race, qapp):
     assert set(race._lanes) == set(results)
 
 
+@pytest.mark.slow
 def test_race_shows_an_explicit_method_failing_on_robertson(race, qapp):
     """The Phase 2 acceptance result, as a race.
 
@@ -247,6 +248,7 @@ def test_race_shows_an_explicit_method_failing_on_robertson(race, qapp):
     )
 
 
+@pytest.mark.slow
 def test_failed_competitor_still_reports_what_it_spent(race, qapp):
     """Reporting zero work for a failure would hide the whole point."""
     _run_race(race, qapp, "robertson", ["dopri5", "radau"])

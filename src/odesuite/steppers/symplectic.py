@@ -33,7 +33,7 @@ import numpy as np
 
 from ..dense import HermiteInterpolant, Interpolant
 from ..problem import ODEProblem
-from .base import StepResult, Stepper
+from .base import Stepper, StepResult
 
 __all__ = [
     "second_order_problem",

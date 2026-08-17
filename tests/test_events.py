@@ -248,3 +248,64 @@ def test_dense_output_is_clipped_at_terminal_event():
     assert sol.sol.t_max == pytest.approx(sol.t_events[0][0])
     with pytest.raises(ValueError, match="outside the solved interval"):
         sol.y_at(bench.impact_time + 0.5)
+
+
+# ---------------------------------------------------------------------------
+# A bracket that does not survive interpolation
+# ---------------------------------------------------------------------------
+#
+# `find_active_events` brackets a root from `g` at the two step *endpoints*,
+# but the root is then located on the *interpolant*. Those are different
+# functions, and on rare occasions they disagree. The old behaviour was to
+# return the end of the step as the root, which invents a detection that never
+# happened -- the same shape as the recorded bugs in the README, where a
+# plausible answer is worse than an error.
+
+
+def test_a_bracket_that_does_not_survive_interpolation_reports_no_root():
+    from odesuite.events import _solve_event
+
+    ev = Event(lambda t, y: y[0])
+    never_zero = lambda t: np.array([1.0])  # noqa: E731
+    assert _solve_event(ev, never_zero, 0.0, 1.0, ()) is None
+
+
+def test_a_phantom_crossing_is_dropped_rather_than_reported():
+    from odesuite.events import locate_events
+
+    ev = Event(lambda t, y: y[0])
+    never_zero = lambda t: np.array([1.0])  # noqa: E731
+    active, roots, terminate_at = locate_events(
+        [ev], np.array([0]), never_zero, 0.0, 1.0, ()
+    )
+    assert active.size == 0
+    assert roots.size == 0
+    assert terminate_at is None
+
+
+def test_a_phantom_crossing_does_not_consume_a_terminal_allowance():
+    """The expensive version of the bug: a fabricated root would have ended the
+    integration early, and the caller would have had no way to tell."""
+    from odesuite.events import locate_events
+
+    ev = Event(lambda t, y: y[0], terminal=True)
+    never_zero = lambda t: np.array([1.0])  # noqa: E731
+    _, _, terminate_at = locate_events([ev], np.array([0]), never_zero, 0.0, 1.0, ())
+    assert terminate_at is None
+    assert ev.count == 0, "a phantom detection used up the terminal allowance"
+    assert not ev.is_exhausted()
+
+
+def test_a_genuine_root_is_still_found_alongside_a_phantom_one():
+    """The filter must drop only the phantom, not the whole step's detections."""
+    from odesuite.events import locate_events
+
+    real = Event(lambda t, y: y[0])        # crosses zero at t = 0.5
+    phantom = Event(lambda t, y: y[0] + 5.0)
+    line = lambda t: np.array([t - 0.5])   # noqa: E731
+
+    active, roots, _ = locate_events(
+        [real, phantom], np.array([0, 1]), line, 0.0, 1.0, ()
+    )
+    assert list(active) == [0]
+    assert roots[0] == pytest.approx(0.5)

@@ -159,7 +159,7 @@ def rows(expr) -> list[Row]:
 #: *whether* something is cached without rendering it if it is not: a widget
 #: paints a cached image immediately and defers a miss to a worker thread, and
 #: with `lru_cache` there is no way to tell the two cases apart.
-_CACHE: "OrderedDict[tuple, bytes]" = OrderedDict()
+_CACHE: OrderedDict[tuple, bytes] = OrderedDict()
 _CACHE_LIMIT = 512
 _CACHE_LOCK = threading.Lock()
 

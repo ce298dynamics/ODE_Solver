@@ -34,6 +34,7 @@ transcription error.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -45,8 +46,8 @@ from ..linalg import (
     mass_minus_jacobian,
     threshold_from_tolerances,
 )
-from ..newton import NewtonSettings
-from .base import StepResult, Stepper
+from ..newton import JacobianPolicy, NewtonSettings, simplified_newton
+from .base import Stepper, StepResult
 
 __all__ = ["RadauTableau", "RADAU_IIA_5", "RadauIIA"]
 
@@ -140,7 +141,15 @@ class RadauIIA(Stepper):
         self.interpolant_order = tableau.n_stages
         self.linear_solve = linear_solve
         self.jac_method = jac_method
-        self.newton = newton or NewtonSettings(max_iter=8, tol_factor=0.03)
+        # `max_rate=1.0`: for a collocation solve, "slow" is not the same as
+        # "failing". The stage equations are solved to a fraction of the local
+        # error, so an iteration creeping along at theta = 0.97 still gets there
+        # in the eight iterations allowed, and abandoning it would force a step
+        # rejection and a refactorisation that cost far more than the extra
+        # iteration. Only genuine divergence, theta >= 1, is worth quitting on.
+        self.newton = newton or NewtonSettings(
+            max_iter=8, tol_factor=0.03, max_rate=1.0
+        )
 
         self.A_inv = np.linalg.inv(tableau.A)
         self.eigenvalues, self.T, self.TI = _spectral_data(tableau.A)
@@ -151,13 +160,12 @@ class RadauIIA(Stepper):
         self.atol = np.asarray(1e-9)
 
     def _reset_cache(self) -> None:
-        self.J = None
-        self.h_factored: float | None = None
-        self._lu = None
-        self._lu_real = None
+        # Jacobian freshness and LU reuse are `JacobianPolicy`'s job, not this
+        # stepper's; everything below it is Radau-specific state.
+        self._policy = JacobianPolicy()
+        self._lu_real: Any = None
         self._last_rate: float | None = None
-        self._jac_is_current = False
-        self._Z = None
+        self._Z: np.ndarray | None = None
         self._prev: tuple[float, np.ndarray] | None = None
         self._complex_state = False
 
@@ -183,7 +191,7 @@ class RadauIIA(Stepper):
         Both paths produce the real-eigenvalue factorisation, because the error
         estimator needs it regardless of how the stage system was solved.
         """
-        M, J = problem.mass, self.J
+        M, J = problem.mass, self._policy.J
         lu_real = lu_factorize(
             mass_minus_jacobian(M, J, self.eigenvalues[0].real / h)
         )
@@ -215,18 +223,19 @@ class RadauIIA(Stepper):
     def _solve_increment(self, problem, G: np.ndarray) -> np.ndarray:
         """Apply the inverse iteration matrix to the stacked residual `G`."""
         s, n = G.shape
+        lu = self._policy.factorization
         if self.linear_solve == "dense":
-            return self._lu.solve(G.reshape(s * n)).reshape(s, n)
+            return lu.solve(G.reshape(s * n)).reshape(s, n)
 
         rhs = self.TI @ G                      # (s, n), complex
         dW = np.empty((s, n), dtype=complex)
 
         if self._complex_state:
             for block in range(s):
-                dW[block] = self._lu[block].solve(rhs[block])
+                dW[block] = lu[block].solve(rhs[block])
             return self.T @ dW
 
-        lu_real, lu_complex = self._lu
+        lu_real, lu_complex = lu
         dW[0] = lu_real.solve(rhs[0].real)
         dW[1] = lu_complex.solve(rhs[1])
         # For a real state the third block is the conjugate of the second, so
@@ -270,84 +279,74 @@ class RadauIIA(Stepper):
         njev = nlu = 0
         nfev = 0
 
+        policy = self._policy
+
         complex_state = np.iscomplexobj(y)
         if complex_state != self._complex_state:
+            # The Jacobian's entries are still right; only the matrix built from
+            # them has the wrong dtype.
             self._complex_state = complex_state
-            self._lu = None
+            policy.invalidate_factorization()
 
-        needs_jac = self.J is None or (
-            not self._jac_is_current
-            and (self._last_rate is None or self._last_rate > 0.3)
-        )
+        needs_jac = policy.needs_jacobian(self._last_rate, after_failure=False)
         if needs_jac:
             before = jac_eval.nfev
-            self.J = jac_eval(t, y, f)
+            policy.store_jacobian(jac_eval(t, y, f))
             nfev += jac_eval.nfev - before
             njev += 1
-            self._jac_is_current = True
-            self._lu = None
 
-        if self._lu is None or self.h_factored is None or abs(h - self.h_factored) > 0.2 * abs(self.h_factored):
+        if policy.needs_factorization(h):
             try:
-                self._lu, count = self._factorize(problem, h)
+                factorization, count = self._factorize(problem, h)
             except (np.linalg.LinAlgError, RuntimeError):
-                self._lu = None
+                policy.invalidate_factorization()
                 return StepResult(y, None, None, nfev=nfev, njev=njev, nlu=1, ok=False)
+            policy.store_factorization(factorization, h)
             nlu += count
-            self.h_factored = h
 
         scale = self.atol + self.rtol * np.abs(y)
-        Z = self._predict(h, n).astype(y.dtype, copy=False)
 
-        converged = False
-        rate: float | None = None
-        dZ_norm_old: float | None = None
+        # The stage system, expressed as a residual and a linear solve so that
+        # the convergence-rate monitoring in `newton.py` drives it. What is
+        # Radau-specific is only the two closures: the shape of the unknown
+        # (an (s, n) stack of stage increments) and the Kronecker-structured
+        # solve that the eigendecomposition above makes cheap.
+        stage_nfev = 0
 
-        for iteration in range(self.newton.max_iter):
+        def residual(Z: np.ndarray) -> np.ndarray:
+            nonlocal stage_nfev
             F = np.empty((s, n), dtype=y.dtype)
             for i in range(s):
                 F[i] = problem.f(t + tab.c[i] * h, y + Z[i])
-            nfev += s
-
+            stage_nfev += s
             MZ = Z if problem.mass is None else (problem.mass @ Z.T).T
-            G = F - (self.A_inv @ MZ) / h
+            return F - (self.A_inv @ MZ) / h
 
-            dZ = self._solve_increment(problem, G).astype(y.dtype, copy=False)
-            dZ_norm = float(np.linalg.norm(dZ / scale) / np.sqrt(dZ.size))
+        def solve_linear(G: np.ndarray) -> np.ndarray:
+            return self._solve_increment(problem, G).astype(y.dtype, copy=False)
 
-            if dZ_norm_old is not None and dZ_norm_old > 0:
-                rate = dZ_norm / dZ_norm_old
-                if rate >= 1.0:
-                    break  # diverging
+        outcome = simplified_newton(
+            residual,
+            solve_linear,
+            self._predict(h, n).astype(y.dtype, copy=False),
+            scale,
+            self.newton,
+        )
+        nfev += stage_nfev
+        self._last_rate = outcome.rate
 
-            Z = Z + dZ
-
-            if dZ_norm == 0.0:
-                converged = True
-                break
-            if rate is not None:
-                if rate / (1.0 - rate) * dZ_norm < self.newton.tol_factor:
-                    converged = True
-                    break
-            elif dZ_norm < self.newton.tol_factor:
-                converged = True
-                break
-            dZ_norm_old = dZ_norm
-
-        self._last_rate = rate
-
-        if not converged:
+        if not outcome.converged:
             # Retry with a fresh Jacobian before giving up; a stale J is the
             # usual reason simplified Newton stalls, and refactorising is far
             # cheaper than the step-size cut the driver would otherwise make.
             if not needs_jac:
-                self._jac_is_current = False
-                self.J = None
-                self._lu = None
+                policy.invalidate()
             # History from a step that failed to converge is not a safe basis
             # for extrapolation; the next attempt restarts from zero.
             self._prev = None
             return StepResult(y, None, None, nfev=nfev, njev=njev, nlu=nlu, ok=False)
+
+        Z = outcome.x
 
         # Stiff accuracy: the last stage *is* the step endpoint.
         y_new = y + Z[-1]
@@ -370,7 +369,7 @@ class RadauIIA(Stepper):
 
         self._Z = Z
         self._prev = (h, Z)
-        self._jac_is_current = False
+        policy.mark_step_done()
 
         return StepResult(
             y_new=y_new,

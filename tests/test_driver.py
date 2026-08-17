@@ -356,3 +356,57 @@ def test_args_are_threaded_through():
     )
     sol = solve(prob, rtol=1e-10, atol=1e-12)
     assert sol.y[0, -1] == pytest.approx(np.exp(-6.0), rel=1e-7)
+
+
+# ---------------------------------------------------------------------------
+# Failure diagnostics
+# ---------------------------------------------------------------------------
+#
+# A solve that fails must say what actually went wrong. Both cases below used to
+# surface as "step size underflow", which is the *symptom* -- the step gets cut
+# until it cannot be cut further -- and names nothing the caller wrote.
+
+
+def test_a_non_finite_right_hand_side_is_named_as_such():
+    problem = ODEProblem(
+        lambda t, y: np.array([np.nan]) if t > 0.5 else -y, (0.0, 1.0), [1.0]
+    )
+    sol = solve(problem, "dopri5")
+
+    assert sol.status == "failed"
+    assert "non-finite" in sol.message
+    assert "0.5" in sol.message, f"the message should locate the failure: {sol.message}"
+    assert "underflow" not in sol.message
+
+
+@pytest.mark.filterwarnings("ignore:invalid value encountered:RuntimeWarning")
+def test_a_recovered_non_finite_step_is_not_reported_at_the_end():
+    """One over-ambitious step overshooting into overflow is normal and is
+    handled by halving. It must not colour the diagnostic of a solve that then
+    completed, nor of one that failed later for an unrelated reason."""
+    seen = {"count": 0}
+
+    def f(t, y):
+        # Blows up only for the very first, largest, trial step.
+        if seen["count"] == 0 and t > 0.4:
+            seen["count"] += 1
+            return np.array([np.inf])
+        return -y
+
+    sol = solve(ODEProblem(f, (0.0, 1.0), [1.0]), "dopri5", first_step=0.9)
+    assert sol.success, sol.message
+    assert "non-finite" not in sol.message
+
+
+def test_finite_time_blow_up_points_at_the_singularity():
+    """``y' = y^2`` from y(0)=1 escapes at t=1. The error estimate grows without
+    the state ever going non-finite, so this is genuinely the underflow path --
+    but the message should still suggest why."""
+    sol = solve(ODEProblem(lambda t, y: y**2, (0.0, 2.0), [1.0]), "dopri5", rtol=1e-6)
+
+    assert sol.status == "failed"
+    assert "underflow" in sol.message
+    assert "blowing up" in sol.message
+    assert sol.t[-1] == pytest.approx(1.0, abs=1e-3), (
+        "the solve should get very close to the singularity before giving up"
+    )

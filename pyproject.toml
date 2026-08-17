@@ -13,7 +13,16 @@ dependencies = ["numpy>=1.24", "scipy>=1.10"]
 [project.optional-dependencies]
 plots = ["matplotlib>=3.7"]
 app = ["PySide6>=6.6", "pyqtgraph>=0.13", "matplotlib>=3.7", "sympy>=1.12"]
-dev = ["pytest>=7.0", "matplotlib>=3.7", "PySide6>=6.6", "pyqtgraph>=0.13", "sympy>=1.12"]
+dev = [
+    "pytest>=7.0",
+    "pytest-xdist>=3.0",
+    "matplotlib>=3.7",
+    "PySide6>=6.6",
+    "pyqtgraph>=0.13",
+    "sympy>=1.12",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
 
 [project.scripts]
 odesuite-gui = "odesuite_app.cli:main"
@@ -23,3 +32,49 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: takes more than a couple of seconds; deselect with -m 'not slow'",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+# Deliberately conservative. These are the families that find real defects --
+# dead imports, unused variables, undefined names, import hygiene. The stylistic
+# families (B, C4, SIM) flag another ~50 sites, none of them bugs; turning them
+# on would mean rewriting working numerical code to satisfy a tool that was
+# added after it. They can be adopted one at a time, on purpose, later.
+select = ["E", "F", "W", "I", "UP"]
+ignore = [
+    # The numerical code names variables after the mathematics it implements --
+    # A, J, T, E, K, Z are the symbols in Hairer & Wanner, and renaming them to
+    # satisfy a linter would make the code harder to check against the source.
+    "E741",
+    # Assigning a lambda is the clearest form for the small closures the tests
+    # use to stand in for an interpolant.
+    "E731",
+    # "%.2e" % x inside an f-string is the idiom used throughout for formatting
+    # lists of numbers in assertion messages, and reads better than the nested
+    # f-string alternative.
+    "UP031",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Re-exports: the package's public surface is deliberately assembled here.
+"src/odesuite/__init__.py" = ["F401"]
+"src/odesuite/steppers/__init__.py" = ["F401"]
+"src/odesuite/bvp/__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src/odesuite"]
+ignore_missing_imports = true
+# The library is annotated but not exhaustively; these are the checks that catch
+# real mistakes without demanding that every numpy expression be typed.
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+strict_equality = true

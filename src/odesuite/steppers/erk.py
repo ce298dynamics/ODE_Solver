@@ -11,7 +11,7 @@ import numpy as np
 
 from ..dense import HermiteInterpolant, Interpolant, RKPolynomialInterpolant
 from ..tableaux import ButcherTableau, get_tableau
-from .base import StepResult, Stepper
+from .base import Stepper, StepResult
 
 __all__ = ["ExplicitRungeKutta"]
 

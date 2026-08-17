@@ -377,7 +377,6 @@ class PlotPanel(QFrame):
 
     def _draw_time(self, result) -> None:
         entry, solution = result.entry, result.solution
-        palette = self.palette_obj
 
         use_log = self.log_time.isChecked()
         self.plot.setLogMode(x=use_log, y=False)

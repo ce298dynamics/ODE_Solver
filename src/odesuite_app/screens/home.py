@@ -7,7 +7,6 @@ from threading import Event
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
     QGridLayout,
-    QHBoxLayout,
     QLabel,
     QScrollArea,
     QVBoxLayout,
@@ -16,7 +15,7 @@ from PySide6.QtWidgets import (
 
 from .. import catalog, thumbnails
 from ..theme import Palette
-from ..widgets.cards import ProblemCard, ChipBar, ShowcaseTile
+from ..widgets.cards import ChipBar, ProblemCard, ShowcaseTile
 from ..widgets.flow import FlowWidget
 
 __all__ = ["HomeScreen"]

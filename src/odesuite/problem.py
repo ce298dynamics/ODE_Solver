@@ -9,7 +9,8 @@ system into an index-1 DAE. Accepting it from the start keeps the retrofit out o
 
 from __future__ import annotations
 
-from typing import Any, Callable, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import numpy as np
 from scipy import sparse

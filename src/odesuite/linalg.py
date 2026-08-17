@@ -19,7 +19,6 @@ Written once and shared by every implicit method. Four ways to obtain
 from __future__ import annotations
 
 import warnings
-from typing import Callable
 
 import numpy as np
 from scipy import sparse
@@ -229,6 +228,7 @@ class JacobianEvaluator:
             self.nfev += y.size
             return complex_step_jacobian(f, t, y)
         if self.method == "sparse":
+            assert self.n_groups is not None  # the sparse path requires a pattern
             self.nfev += self.n_groups
             return sparse_diff_jacobian(
                 f, t, y, f0, self.sparsity, self.groups, self.threshold

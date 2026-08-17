@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import catalog
-from ..catalog import CatalogEntry, ParamSpec
+from ..catalog import CatalogEntry
 
 
 def fill_problem_picker(combo: QComboBox, accept=None, *,

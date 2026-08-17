@@ -27,7 +27,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.integrate import solve_ivp as scipy_solve_ivp
 
-from odesuite import ODEProblem, solve
+from odesuite import solve
 from odesuite.problems import (
     brusselator,
     hires,

@@ -12,8 +12,9 @@ those with a conserved quantity expose `invariant(y)`.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Any
 
 import numpy as np
 from scipy.linalg import expm
@@ -66,7 +67,7 @@ class Benchmark:
 
     name: str
     problem: ODEProblem
-    exact: Callable[[np.ndarray], np.ndarray] | None = None
+    exact: Callable[[Any], np.ndarray] | None = None
     invariant: Callable[[np.ndarray], float] | None = None
     stiff: bool = False
     description: str = ""
@@ -960,8 +961,9 @@ def bratu(lam: float = 1.0, branch: str = "lower") -> BVPBenchmark:
     where `theta` solves ``theta = sqrt(2 lam) cosh(theta/4)``. That equation has
     the two roots corresponding to the two branches.
     """
-    from ..bvp import BVProblem
     from scipy.optimize import brentq
+
+    from ..bvp import BVProblem
 
     prob = BVProblem(
         f=lambda t, y: np.array([y[1], -lam * np.exp(y[0])]),

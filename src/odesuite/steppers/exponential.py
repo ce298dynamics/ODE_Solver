@@ -34,7 +34,7 @@ import numpy as np
 
 from ..dense import HermiteInterpolant, Interpolant
 from ..problem import ODEProblem
-from .base import StepResult, Stepper
+from .base import Stepper, StepResult
 
 __all__ = [
     "semilinear_problem",
@@ -138,7 +138,7 @@ class ETDRK4(Stepper):
     def __init__(self, contour_points: int = 32):
         self.contour_points = contour_points
         self._cached_h: float | None = None
-        self._coefficients = None
+        self._coefficients: tuple | None = None
 
     def validate(self, problem) -> None:
         super().validate(problem)

@@ -29,12 +29,13 @@ in `tests/test_rosenbrock.py` and is the analogue of the Butcher row-sum test.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
 from ..dense import HermiteInterpolant, Interpolant, LinearInterpolant
 from ..linalg import EPS, apply_mass, lu_factorize, mass_minus_jacobian
-from .base import StepResult, Stepper
+from .base import Stepper, StepResult
 
 __all__ = ["RosenbrockTableau", "Rosenbrock", "RODAS4", "ROSENBROCK_TABLEAUX"]
 
@@ -205,17 +206,20 @@ class Rosenbrock(Stepper):
     supports_mass = True
 
     def __init__(self, tableau: RosenbrockTableau | str = RODAS4, jac_method: str = "auto"):
-        if isinstance(tableau, str):
-            tableau = ROSENBROCK_TABLEAUX[tableau.lower()]
-        self.tab = tableau
-        self.name = tableau.name
-        self.order = tableau.order
-        self.error_order = tableau.error_order
+        tab = (
+            ROSENBROCK_TABLEAUX[tableau.lower()]
+            if isinstance(tableau, str)
+            else tableau
+        )
+        self.tab: RosenbrockTableau = tab
+        self.name = tab.name
+        self.order = tab.order
+        self.error_order = tab.error_order
         self.interpolant_order = 3
         self.jac_method = jac_method
-        self._jac = None
-        self._mass = None
-        self._mass_lu = None
+        self._jac: Any = None
+        self._mass: Any = None
+        self._mass_lu: Any = None
         self.rtol = 1e-6
         self.atol = np.asarray(1e-9)
 

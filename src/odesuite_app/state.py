@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QObject, Signal
 
-from odesuite.steppers import EXPLICIT_METHODS, IMPLICIT_METHODS, SPECIAL_METHODS
+from odesuite.steppers import EXPLICIT_METHODS
 
 from . import catalog
 from .catalog import CatalogEntry

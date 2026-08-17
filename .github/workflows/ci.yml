@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The README claims the library is usable with no interface attached, and that
+  # `odesuite` never imports Qt. That is an architectural promise, so it gets a
+  # job of its own rather than being taken on trust: install the library extra
+  # only, and fail if PySide6 turns up in sys.modules after importing it.
+  library-only:
+    name: library without Qt (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[plots]" pytest
+
+      - name: odesuite imports without Qt
+        run: |
+          python -c "
+          import sys, odesuite
+          leaked = [m for m in sys.modules if m.startswith(('PySide', 'shiboken'))]
+          assert not leaked, f'the library imported Qt: {leaked}'
+          print('odesuite', odesuite.__version__, 'imported clean')
+          "
+
+      - name: the library's own tests, with the app tests skipping themselves
+        run: pytest tests/ -q
+
+  checks:
+    name: ruff + mypy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: pip install ruff mypy numpy scipy
+      - run: ruff check .
+      - run: mypy
+
+  tests:
+    name: full suite (${{ matrix.os }}, ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      # PySide6 needs these even under the offscreen platform; without them the
+      # import fails rather than the tests skipping, which would hide a break.
+      - name: Qt runtime libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libxkbcommon0 libdbus-1-3 libglib2.0-0 \
+            libfontconfig1 libfreetype6
+
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+
+      # `tests/conftest.py` forces the offscreen platform, but setting it here
+      # too means a stray direct invocation cannot open a window on a runner.
+      #
+      # Deliberately serial. `-n auto` halves the wall time, but two of the
+      # equation-editor tests depend on a 12 s subprocess timeout for `dsolve`
+      # and become flaky under parallel load. A suite that goes red at random is
+      # worse than one that takes six minutes.
+      - name: pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest tests/ -q
+
+      - name: selftest across every method family
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m odesuite_app --selftest selftest-report.txt
+
+      - name: upload the selftest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selftest-${{ matrix.os }}-${{ matrix.python }}
+          path: selftest-report.txt
+          if-no-files-found: ignore

@@ -14,7 +14,6 @@ from odesuite.steppers.symplectic import (
     triple_jump_weights,
 )
 
-
 # ---------------------------------------------------------------------------
 # Composition weights, derived rather than transcribed
 # ---------------------------------------------------------------------------

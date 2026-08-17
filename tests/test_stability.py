@@ -12,12 +12,12 @@ import pytest
 
 from odesuite.stability import (
     REAL_AXIS_LIMITS,
+    _tableau_for,
     classify_stability,
     stability_function,
     stability_grid,
     tableau_stability_function,
 )
-from odesuite.stability import _tableau_for
 from odesuite.tableaux import TABLEAUX
 
 TABLEAU_METHODS = ["rk23", "rkf45", "cashkarp", "dopri5", "tsit5", "radau"]

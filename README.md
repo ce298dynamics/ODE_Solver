@@ -57,7 +57,7 @@ Beyond the IVP solver: `solve_bvp` (multiple shooting), `forward_sensitivities`
 ## Verification
 
 Correctness evidence is the point of this project, so it is worth being specific about
-what is actually checked. **943 tests**, of which the load-bearing ones are:
+what is actually checked. **998 tests**, of which the load-bearing ones are:
 
 **Order conditions, algebraically.** `tests/test_tableaux.py` evaluates the rooted-tree
 order conditions through order 5 for every Butcher tableau, and asserts that the
@@ -82,11 +82,22 @@ comes from `numpy.linalg.eig` at import (and matches the published `MU_REAL`/`MU
 to 1e-12); the symplectic composition weights come from the triple-jump recursion; the
 stability functions below are measured by running the actual steppers.
 
+**The step controller and the Newton iteration are tested directly**, not only through
+the solves they drive. `tests/test_controllers.py` checks the PI and I formulas against
+the arithmetic they document, the clamps, and the rule that a rejected step never
+enters the PI history; `tests/test_newton.py` pins the termination test to the
+*remaining geometric series* rather than the last correction, by constructing an
+iteration that converges slowly enough for the two to disagree. Both modules used to
+be covered only indirectly — which, given that the worst bug recorded below was a
+controller running blind, was the wrong place to have a gap.
+
 **Cross-validation** against `scipy.integrate.solve_ivp` on shared problems, used as an
 oracle only — never as the basis of an order or accuracy claim.
 
 ```
-py -3.10 -m pytest tests/ -q          # 933 passed, 10 skipped, ~7 min
+py -3.10 -m pytest tests/ -q          # 988 passed, 10 skipped, ~6 min
+py -3.10 -m pytest tests/ -q -m 'not slow'   # the fast loop, ~3.5 min
+py -3.10 -m ruff check . && py -3.10 -m mypy # lint and types, both clean
 py -3.10 benchmarks/run_all.py        # regenerate every static figure below
 ```
 
@@ -361,7 +372,15 @@ a test named after it:
    heuristic, naming nothing the user had written. `ODEProblem` already validated the
    *shape* of `f(t₀, y₀)` up front for exactly this reason; it now validates finiteness
    too.
-9. **Floating-point substitution hid the repeated root.** Putting `c = 1.0` into
+9. **A controller instance carried its history between solves.** `make_controller`
+   returns a caller-supplied `Controller` unchanged, so the error norm from the end of
+   one solve became the PI history for the *first* step of the next — a step that has no
+   history by definition. Reusing one object across two identical solves gave 82 steps
+   and then 83. Nothing raised, both answers were within tolerance, and the only symptom
+   was that the same computation run twice was not reproducible. Found by writing
+   `tests/test_controllers.py`, which existed because `controllers.py` had no direct
+   tests at all.
+10. **Floating-point substitution hid the repeated root.** Putting `c = 1.0` into
    `y'' + 2c·y' + y = 0` as a float gave two roots that were numerically equal, each with
    a whisker of imaginary part, so the critically damped case — the one interesting point
    on the whole slider — was reported as underdamped. Substituting exact rationals lets
@@ -422,7 +441,7 @@ src/odesuite_app/                                    the studio
              race accuracy                           the six screens
   widgets/                                           sliders, cards, plots, maths
 
-tests/         943 tests
+tests/         998 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```

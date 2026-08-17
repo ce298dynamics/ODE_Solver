@@ -15,16 +15,12 @@ import pytest
 
 from odesuite import solve
 from odesuite.problems import BVPS, DAE, NONSTIFF, SEMILINEAR, SEPARABLE, STIFF, all_benchmarks
-
 from odesuite.stability import (  # noqa: E402
-    classify_stability,
     stability_function,
-    stability_grid,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "benchmarks"))
 from stability_regions import stability_summary  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Stability functions, measured by running the steppers
@@ -142,6 +138,7 @@ def test_bvp_benchmarks_solve(factory):
         assert np.abs(sol.y_at(t) - bench.exact(t)).max() < 1e-6
 
 
+@pytest.mark.slow
 def test_stiff_benchmarks_really_are_stiff():
     """An explicit method must struggle where an implicit one does not.
 

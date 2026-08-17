@@ -9,7 +9,8 @@ implicit steppers in Phase 2 unchanged.
 from __future__ import annotations
 
 import time
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 
@@ -97,13 +98,20 @@ def solve(
 
     stepper.set_tolerances(rtol, atol)
     ctrl = make_controller(controller, stepper.error_order, **(controller_options or {}))
+    # A controller passed in as an instance is returned unchanged, so it arrives
+    # carrying the error history of whatever it was used for last. The first step
+    # of a solve has no history by definition, and inheriting one makes the same
+    # solve run twice give different answers. Resetting here covers every route
+    # into `make_controller`, including a caller who reuses one deliberately.
+    ctrl.reset()
 
     t0, tf, direction = problem.t0, problem.tf, problem.direction
     t = t0
     y = problem.y0.copy()
     stats = Stats()
 
-    f = problem.f(t, y)
+    f0 = problem.f(t, y)
+    f: np.ndarray | None = f0
     stats.nfev += 1
 
     event_list = prepare_events(events)
@@ -166,7 +174,7 @@ def solve(
         h_abs = min(h_abs, max_step, abs(tf - t0))
     else:
         h_abs = initial_step_size(
-            problem.f, t, y, f, stepper.order, direction, rtol, atol, max_step
+            problem.f, t, y, f0, stepper.order, direction, rtol, atol, max_step
         )
         stats.nfev += 1
         h_abs = min(h_abs, abs(tf - t0))
@@ -174,6 +182,12 @@ def solve(
     status = "finished"
     message = ""
     terminated = False
+    #: Where the state last came back non-finite, cleared by any accepted step.
+    #: Halving is the right response to one such attempt -- an over-ambitious
+    #: step can overshoot into overflow where a shorter one is fine -- but if it
+    #: never recovers, the eventual failure is a NaN, not a step-size problem,
+    #: and saying "underflow" names nothing the caller wrote.
+    nonfinite_at: float | None = None
 
     # -- main loop -------------------------------------------------------
     while direction * (t - tf) < 0:
@@ -183,11 +197,21 @@ def solve(
 
         h_floor = _MIN_STEP_FACTOR * abs(np.nextafter(t, direction * np.inf) - t)
         if h_abs < h_floor:
-            status, message = (
-                "failed",
-                f"step size underflow at t={t:.6g}: required h={h_abs:.3g} is below "
-                f"the local floating-point resolution",
-            )
+            if nonfinite_at is not None:
+                status, message = (
+                    "failed",
+                    f"the solution became non-finite at t={nonfinite_at:.6g} and did "
+                    f"not recover as the step was cut to h={h_abs:.3g}. Either the "
+                    f"right-hand side returns NaN or inf there, or the solution blows "
+                    f"up in finite time",
+                )
+            else:
+                status, message = (
+                    "failed",
+                    f"step size underflow at t={t:.6g}: required h={h_abs:.3g} is below "
+                    f"the local floating-point resolution. The solution may be singular "
+                    f"or blowing up there",
+                )
             break
         if min_step > 0 and h_abs < min_step:
             status, message = (
@@ -242,6 +266,7 @@ def solve(
         if not np.all(np.isfinite(y_new)):
             stats.nrejected += 1
             rejections.append((t, abs(h)))
+            nonfinite_at = t
             h_abs *= 0.5
             continue
 
@@ -259,6 +284,9 @@ def solve(
             rejections.append((t, abs(h)))
             h_abs *= factor
             continue
+
+        # A step landed, so whatever went non-finite earlier was recovered from.
+        nonfinite_at = None
 
         t_new = tf if last_step else (t_target if t_target is not None else t + h)
         f_new = result.f_new
@@ -278,6 +306,7 @@ def solve(
         # -- events ------------------------------------------------------
         step_end_t, step_end_y = t_new, y_new
         if event_list:
+            assert interp is not None  # need_interp is true when events exist
             g_new = np.array([ev(t_new, y_new, problem.args) for ev in event_list])
             active = find_active_events(g_old, g_new, event_list)
             if active.size:
@@ -298,8 +327,11 @@ def solve(
             interpolants.append(interp)
 
         if t_eval_arr is not None:
-            stop = np.searchsorted(
-                direction * t_eval_arr, direction * step_end_t, side="right"
+            assert interp is not None  # need_interp is true when t_eval is given
+            stop = int(
+                np.searchsorted(
+                    direction * t_eval_arr, direction * step_end_t, side="right"
+                )
             )
             if stop > eval_idx:
                 chunk = t_eval_arr[eval_idx:stop]
@@ -367,7 +399,7 @@ def _prepare_t_eval(t_eval, t0: float, tf: float, direction: float):
     """Validate and orient the requested output times."""
     if t_eval is None:
         return None
-    arr = np.asarray(t_eval, dtype=float).ravel()
+    arr: np.ndarray = np.asarray(t_eval, dtype=float).ravel()
     if arr.size == 0:
         return arr
     lo, hi = (t0, tf) if direction > 0 else (tf, t0)
@@ -377,7 +409,7 @@ def _prepare_t_eval(t_eval, t0: float, tf: float, direction: float):
         )
     arr = np.sort(arr)
     if direction < 0:
-        arr = arr[::-1]
+        arr = np.ascontiguousarray(arr[::-1])
     if np.any(np.diff(direction * arr) < 0):
         raise ValueError("t_eval must be sortable in the integration direction")
     return np.ascontiguousarray(arr)

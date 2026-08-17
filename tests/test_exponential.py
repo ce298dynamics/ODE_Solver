@@ -156,6 +156,7 @@ def test_agrees_with_an_explicit_method_on_a_mild_problem():
     )
 
 
+@pytest.mark.slow
 def test_beats_explicit_methods_on_a_stiff_spectral_problem():
     """The showcase claim, measured.
 

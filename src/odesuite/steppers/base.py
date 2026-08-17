@@ -68,18 +68,25 @@ class Stepper(ABC):
     name: str = "stepper"
 
     @abstractmethod
-    def step(self, problem, t: float, y: np.ndarray, f: np.ndarray, h: float) -> StepResult:
-        """Advance from ``(t, y)`` by `h`. `f` is ``f(t, y)``, already evaluated."""
+    def step(
+        self, problem, t: float, y: np.ndarray, f: np.ndarray | None, h: float
+    ) -> StepResult:
+        """Advance from ``(t, y)`` by `h`. `f` is ``f(t, y)``, already evaluated.
+
+        `f` is None only for steppers that declare ``uses_f = False``: the driver
+        skips the endpoint evaluation for them when no interpolant needs it, so
+        such a stepper must not read this argument.
+        """
 
     @abstractmethod
     def interpolant(
         self,
         t: float,
         y: np.ndarray,
-        f: np.ndarray,
+        f: np.ndarray | None,
         t_new: float,
         y_new: np.ndarray,
-        f_new: np.ndarray,
+        f_new: np.ndarray | None,
     ) -> Interpolant:
         """Build the continuous extension for the step just accepted.
 

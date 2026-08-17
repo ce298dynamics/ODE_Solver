@@ -70,7 +70,9 @@ def plot_atlas(explicit=None, implicit=None, path: str = "stability_regions.png"
         axes[1].contourf(re, im, R, levels=[0.0, 1.0], alpha=0.25)
         axes[1].contour(re, im, R, levels=[1.0], linewidths=1.8)
         axes[1].plot([], [], label=make_stepper(method).name)
-    axes[1].set_title("Implicit methods: stable region shaded\n(A-stable: covers the left half-plane)")
+    axes[1].set_title(
+        "Implicit methods: stable region shaded\n(A-stable: covers the left half-plane)"
+    )
 
     for ax in axes:
         ax.axhline(0.0, lw=0.6, color="0.6")

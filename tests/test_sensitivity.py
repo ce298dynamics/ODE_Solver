@@ -7,7 +7,6 @@ import pytest
 
 from odesuite import ODEProblem, forward_sensitivities, solve
 
-
 # ---------------------------------------------------------------------------
 # Test systems
 # ---------------------------------------------------------------------------
@@ -237,6 +236,7 @@ def test_identity_propagation_at_zero_time_offset():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_gauss_newton_parameter_fit_recovers_true_parameters():
     """Fit Lotka-Volterra rate constants to noisy data using the sensitivities.
 

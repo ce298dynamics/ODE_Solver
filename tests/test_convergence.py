@@ -17,7 +17,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from odesuite import ODEProblem, ExplicitRungeKutta, make_stepper
+from odesuite import ExplicitRungeKutta, ODEProblem, make_stepper
 from odesuite.problems import ANALYTIC, kepler, linear_system, sine_cosine
 from odesuite.tableaux import TABLEAUX, ButcherTableau
 

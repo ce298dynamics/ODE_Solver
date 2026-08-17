@@ -154,6 +154,7 @@ def test_offered_methods_are_all_runnable(key):
 
 
 @pytest.mark.parametrize("key", ALL_KEYS)
+@pytest.mark.slow
 def test_taylor_offered_exactly_where_it_works(key):
     """`supports_taylor` must be neither optimistic nor needlessly cautious.
 

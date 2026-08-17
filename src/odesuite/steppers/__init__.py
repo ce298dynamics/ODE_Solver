@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from functools import partial
+
 from ..tableaux import TABLEAUX
-from .base import StepResult, Stepper
+from .base import Stepper, StepResult
 from .erk import ExplicitRungeKutta
 from .exponential import ETDRK4, phi_coefficients_contour, semilinear_problem
 from .irk import RADAU_IIA_5, RadauIIA
@@ -38,12 +41,12 @@ __all__ = [
     "SPECIAL_METHODS",
 ]
 
-EXPLICIT_METHODS: dict[str, callable] = {
-    name: (lambda tab=tab: ExplicitRungeKutta(tab)) for name, tab in TABLEAUX.items()
+EXPLICIT_METHODS: dict[str, Callable[[], Stepper]] = {
+    name: partial(ExplicitRungeKutta, tab) for name, tab in TABLEAUX.items()
 }
 
-IMPLICIT_METHODS: dict[str, callable] = {
-    name: (lambda tab=tab: Rosenbrock(tab)) for name, tab in ROSENBROCK_TABLEAUX.items()
+IMPLICIT_METHODS: dict[str, Callable[[], Stepper]] = {
+    name: partial(Rosenbrock, tab) for name, tab in ROSENBROCK_TABLEAUX.items()
 }
 IMPLICIT_METHODS.update(
     {
@@ -51,24 +54,24 @@ IMPLICIT_METHODS.update(
         "radau5": RadauIIA,
         # The unsplit 3n x 3n solve, kept as the oracle the fast path is
         # validated against rather than as a method anyone should choose.
-        "radaudense": (lambda: RadauIIA(linear_solve="dense")),
+        "radaudense": partial(RadauIIA, linear_solve="dense"),
     }
 )
 
 #: Methods that need a problem with extra structure -- a separable second-order
 #: system for the symplectic family, a semilinear splitting for ETDRK4 -- or, in
 #: the Taylor method's case, a right-hand side expressible in jet arithmetic.
-SPECIAL_METHODS: dict[str, callable] = {
+SPECIAL_METHODS: dict[str, Callable[[], Stepper]] = {
     **SYMPLECTIC_METHODS,
     "etdrk4": ETDRK4,
     "taylor": TaylorMethod,
-    "taylor8": (lambda: TaylorMethod(8)),
-    "taylor20": (lambda: TaylorMethod(20)),
-    "taylor30": (lambda: TaylorMethod(30)),
+    "taylor8": partial(TaylorMethod, 8),
+    "taylor20": partial(TaylorMethod, 20),
+    "taylor30": partial(TaylorMethod, 30),
 }
 
 #: Names accepted by `solve(..., method=...)`.
-METHODS: dict[str, callable] = {
+METHODS: dict[str, Callable[[], Stepper]] = {
     **EXPLICIT_METHODS,
     **IMPLICIT_METHODS,
     **SPECIAL_METHODS,

@@ -75,6 +75,7 @@ def test_entry_labels_every_state(name):
     assert len(entry.labels) == bench.problem.y0.size
 
 
+@pytest.mark.slow
 def test_closed_form_agrees_with_the_numeric_solve_through_the_entry():
     """The S3 gate: two independent routes to the same answer.
 
@@ -499,6 +500,7 @@ def test_editing_the_equation_is_not_swallowed(qapp):
 def test_a_parameter_slider_moves_the_characteristic_roots(qapp):
     """The showcase: dragging c crosses the discriminant."""
     import sympy as sp
+
     from odesuite_app.symbolic import describe_roots
 
     screen, state = _lab(qapp)
@@ -532,6 +534,7 @@ def test_a_parameter_slider_moves_the_characteristic_roots(qapp):
     screen.deleteLater()
 
 
+@pytest.mark.slow
 def test_a_typed_equation_reaches_the_other_screens(qapp):
     """The point of registering it as a catalogue entry."""
     from odesuite_app.screens.portrait import PortraitScreen

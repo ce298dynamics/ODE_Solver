@@ -17,7 +17,6 @@ from odesuite.problems import (
 )
 from odesuite.steppers.irk import RADAU_IIA_5, RadauIIA, _lagrange_basis, _spectral_data
 
-
 # ---------------------------------------------------------------------------
 # The tableau
 # ---------------------------------------------------------------------------

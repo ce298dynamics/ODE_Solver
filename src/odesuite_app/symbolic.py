@@ -37,7 +37,7 @@ import sympy as sp
 
 from odesuite import ODEProblem
 
-from .custom import ALLOWED_FUNCTIONS, ParseError, _SAFE_GLOBALS, _TRANSFORMATIONS
+from .custom import _SAFE_GLOBALS, _TRANSFORMATIONS, ALLOWED_FUNCTIONS, ParseError
 
 __all__ = [
     "EquationSpec",

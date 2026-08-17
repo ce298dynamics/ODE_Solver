@@ -19,6 +19,7 @@ step controller when the Jacobian has gone stale.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -128,8 +129,11 @@ class JacobianPolicy:
     step_change = 0.2
 
     def __init__(self) -> None:
-        self.J = None
-        self.factorization = None
+        # `Any` rather than a concrete type: `J` may be dense or sparse, and the
+        # factorisation is whatever the chosen linear-solve path produced -- a
+        # single object for the dense route, a tuple of them for the split one.
+        self.J: Any = None
+        self.factorization: Any = None
         self.h_factored: float | None = None
         self.jacobian_current = False
 
@@ -155,6 +159,27 @@ class JacobianPolicy:
     def store_factorization(self, factorization, h: float) -> None:
         self.factorization = factorization
         self.h_factored = h
+
+    def invalidate_factorization(self) -> None:
+        """Drop the factorisation but keep the Jacobian.
+
+        For the case where `J` is still a faithful derivative but the matrix
+        built from it is no longer usable -- a state that has just become
+        complex, say, where the entries are right but the dtype is not.
+        """
+        self.factorization = None
+        self.h_factored = None
+
+    def invalidate(self) -> None:
+        """Discard the Jacobian and everything derived from it.
+
+        Used after a nonlinear solve fails on an already-stale `J`: grinding on
+        with the Jacobian that just failed to converge is the one thing known
+        not to work, so the next attempt starts from a fresh evaluation.
+        """
+        self.J = None
+        self.jacobian_current = False
+        self.invalidate_factorization()
 
     def mark_step_done(self) -> None:
         """After a completed step the Jacobian is one step out of date."""

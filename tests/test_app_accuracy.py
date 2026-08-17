@@ -191,8 +191,8 @@ def test_the_editor_loads_and_solves_every_example(qapp):
 
 
 def test_the_editor_reports_an_unknown_name_without_crashing(qapp):
-    from odesuite_app.equationmodel import entry_from_text
     from odesuite_app.custom import ParseError
+    from odesuite_app.equationmodel import entry_from_text
     from odesuite_app.widgets.equationeditor import EquationEditor
 
     editor = EquationEditor(PALETTE)

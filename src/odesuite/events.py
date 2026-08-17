@@ -9,7 +9,7 @@ why dense output is built in Phase 1 alongside events rather than bolted on.
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 from scipy.optimize import brentq
@@ -45,7 +45,7 @@ class Event:
             raise TypeError("event g must be callable")
         self.g = g
         self.direction = float(direction)
-        self.name = name or getattr(g, "__name__", "event")
+        self.name: str = str(name or getattr(g, "__name__", "event"))
 
         if terminal is False or terminal is None:
             self.max_count = None
@@ -119,7 +119,9 @@ def find_active_events(g_old, g_new, events: list[Event]) -> np.ndarray:
     )[0]
 
 
-def _solve_event(event: Event, interpolant, t_old: float, t_new: float, args: tuple) -> float:
+def _solve_event(
+    event: Event, interpolant, t_old: float, t_new: float, args: tuple
+) -> float | None:
     """Locate a single root inside ``[t_old, t_new]`` using the step interpolant."""
     lo, hi = (t_old, t_new) if t_old < t_new else (t_new, t_old)
 
@@ -128,13 +130,17 @@ def _solve_event(event: Event, interpolant, t_old: float, t_new: float, args: tu
 
     f_lo, f_hi = h(lo), h(hi)
     # brentq requires a strict sign change; endpoints that are already zero are
-    # the answer, and equal signs mean the bracket closed during interpolation.
+    # the answer.
     if f_lo == 0.0:
         return lo
     if f_hi == 0.0:
         return hi
     if np.sign(f_lo) == np.sign(f_hi):
-        return hi
+        # The step endpoints bracketed a crossing but the interpolant does not.
+        # There is no root to report here, and reporting the step end as one
+        # would be a fabricated detection -- a plausible wrong answer of exactly
+        # the kind this library's tests exist to catch. Say so instead.
+        return None
     return float(brentq(h, lo, hi, xtol=1e-14, rtol=1e-14, maxiter=100))
 
 
@@ -153,9 +159,17 @@ def locate_events(
     its allowance, or None to continue. Simultaneous events are all reported;
     only the trailing ones beyond a terminal root are discarded.
     """
-    roots = np.array(
-        [_solve_event(events[i], interpolant, t_old, t_new, args) for i in active]
-    )
+    located = [
+        (i, _solve_event(events[i], interpolant, t_old, t_new, args)) for i in active
+    ]
+    # Drop the events whose bracket did not survive interpolation; they are not
+    # detections and must not be counted towards a terminal event's allowance.
+    located = [(i, root) for i, root in located if root is not None]
+    if not located:
+        return np.empty(0, dtype=int), np.empty(0, dtype=float), None
+
+    active = np.array([i for i, _ in located], dtype=int)
+    roots = np.array([root for _, root in located], dtype=float)
 
     order = np.argsort(roots if t_new > t_old else -roots)
     active = active[order]

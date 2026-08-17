@@ -35,7 +35,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..dense import Interpolant
-from .base import StepResult, Stepper
+from .base import Stepper, StepResult
 
 __all__ = ["Jet", "TaylorMethod"]
 
@@ -58,13 +58,13 @@ class Jet:
     # -- construction ----------------------------------------------------
 
     @classmethod
-    def constant(cls, value: float, order: int) -> "Jet":
+    def constant(cls, value: float, order: int) -> Jet:
         c = np.zeros(order + 1)
         c[0] = value
         return cls(c)
 
     @classmethod
-    def variable(cls, value: float, order: int) -> "Jet":
+    def variable(cls, value: float, order: int) -> Jet:
         """The independent variable: ``value + s``, i.e. derivative one."""
         c = np.zeros(order + 1)
         c[0] = value
@@ -76,7 +76,7 @@ class Jet:
     def order(self) -> int:
         return self.c.size - 1
 
-    def _lift(self, other) -> "Jet":
+    def _lift(self, other) -> Jet:
         return other if isinstance(other, Jet) else Jet.constant(float(other), self.order)
 
     def __call__(self, s: float) -> float:
@@ -159,7 +159,7 @@ class Jet:
 
     # -- elementary functions --------------------------------------------
 
-    def exp(self) -> "Jet":
+    def exp(self) -> Jet:
         a = self.c
         out = np.zeros_like(a)
         out[0] = np.exp(a[0])
@@ -168,7 +168,7 @@ class Jet:
             out[k] = (j * a[j] * out[k - j]).sum() / k
         return Jet(out)
 
-    def log(self) -> "Jet":
+    def log(self) -> Jet:
         a = self.c
         if a[0] <= 0.0:
             raise ValueError("jet log needs a positive constant term")
@@ -180,7 +180,7 @@ class Jet:
             out[k] = (a[k] - acc) / a[0]
         return Jet(out)
 
-    def sqrt(self) -> "Jet":
+    def sqrt(self) -> Jet:
         return self ** 0.5
 
     def _sin_cos(self):
@@ -195,13 +195,13 @@ class Jet:
             c[k] = -(weighted * s[k - j]).sum() / k
         return Jet(s), Jet(c)
 
-    def sin(self) -> "Jet":
+    def sin(self) -> Jet:
         return self._sin_cos()[0]
 
-    def cos(self) -> "Jet":
+    def cos(self) -> Jet:
         return self._sin_cos()[1]
 
-    def tanh(self) -> "Jet":
+    def tanh(self) -> Jet:
         e = (2.0 * self).exp()
         return (e - 1.0) / (e + 1.0)
 
@@ -342,6 +342,7 @@ class TaylorMethod(Stepper):
         Unusually for a continuous extension this costs nothing and matches the
         order of the step, because the polynomial *is* what was integrated.
         """
+        assert self._coefficients is not None  # set by the preceding `step`
         return _TaylorInterpolant(t, t_new, self._coefficients)
 
 

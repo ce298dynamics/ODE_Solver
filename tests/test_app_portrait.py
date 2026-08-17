@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
 pytest.importorskip("PySide6", reason="the app extra is not installed")
 
-from PySide6.QtCore import QPointF, QThreadPool, Qt  # noqa: E402
+from PySide6.QtCore import QThreadPool  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from odesuite_app import catalog  # noqa: E402
@@ -101,6 +100,7 @@ def test_pendulum_portrait_reports_its_equilibria(screen, qapp):
     assert "saddle" in report and "λ" in report
 
 
+@pytest.mark.slow
 def test_damped_pendulum_turns_centres_into_spirals(screen, qapp):
     _select(screen, "pendulum", qapp, damping=0.4)
     kinds = {p.kind for p in screen._data.fixed_points}
@@ -108,6 +108,7 @@ def test_damped_pendulum_turns_centres_into_spirals(screen, qapp):
     assert "centre" not in kinds
 
 
+@pytest.mark.slow
 def test_duffing_bifurcation_is_visible_through_the_parameter(screen, qapp):
     """Sliding alpha through zero must actually change the portrait.
 
@@ -136,6 +137,7 @@ def test_window_frames_all_the_equilibria(screen, qapp):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_layer_toggles_change_what_is_computed(screen, qapp):
     _select(screen, "pendulum", qapp)
     assert screen._data.streamlines

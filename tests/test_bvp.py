@@ -8,7 +8,6 @@ import pytest
 from odesuite import BVProblem, solve_bvp
 from odesuite.problems import bratu, bvp_linear, bvp_trig
 
-
 # ---------------------------------------------------------------------------
 # Linear problems: Newton must converge immediately
 # ---------------------------------------------------------------------------

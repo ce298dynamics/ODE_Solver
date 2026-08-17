@@ -45,6 +45,7 @@ def test_explicit_methods_refuse_a_mass_matrix():
             solve(bench.problem, method=method)
 
 
+@pytest.mark.slow
 def test_non_stiffly_accurate_rosenbrock_refuses_a_dae():
     """Stiff accuracy is a hard requirement for a DAE, not a preference.
 

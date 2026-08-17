@@ -9,7 +9,6 @@ clearest possible demonstration of why simplified Newton reuses factorisations.
 
 from __future__ import annotations
 
-import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
@@ -56,7 +55,7 @@ class _Row(QWidget):
     def set(self, text: str, colour: str | None = None) -> None:
         self.value.setText(text)
         self.value.setStyleSheet(
-            f"font-size: 13px; font-weight: 600;"
+            "font-size: 13px; font-weight: 600;"
             + (f" color: {colour};" if colour else "")
         )
 

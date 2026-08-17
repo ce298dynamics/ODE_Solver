@@ -11,7 +11,6 @@ from odesuite.steppers.taylor import TaylorMethod
 
 from .test_convergence import ROUNDOFF_FLOOR
 
-
 # ---------------------------------------------------------------------------
 # Jet arithmetic
 # ---------------------------------------------------------------------------

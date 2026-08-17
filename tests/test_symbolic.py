@@ -159,7 +159,6 @@ def test_missing_conditions_give_the_general_solution():
 )
 def test_characteristic_polynomial_and_roots(text, poly, roots):
     analysis = characteristic_analysis(parse_equation(_spec(text)))
-    r = sp.Symbol("r")
     assert sp.simplify(analysis["poly"] - sp.sympify(poly)) == 0
     assert analysis["constant_coefficients"] and analysis["linear"]
 
@@ -334,6 +333,7 @@ def test_symbolic_and_numeric_agree(name):
 
 
 @pytest.mark.parametrize("text", ["y' = sin(y)", "y'' + sin(y) = 0"])
+@pytest.mark.slow
 def test_unsolvable_equations_time_out_rather_than_hang(text):
     """`dsolve` does not merely take a long time on these -- it never returns.
 

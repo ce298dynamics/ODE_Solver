@@ -70,9 +70,8 @@ def test_every_expression_the_engine_emits_is_typeset(name):
 
 def test_the_symbolic_examples_all_render():
     """Every closed form the engine ships as an example must typeset."""
-    from odesuite_app.symbolic import EXAMPLES, parse_equation
-
     from odesuite_app.custom import ParseError
+    from odesuite_app.symbolic import EXAMPLES, parse_equation
 
     checked = 0
     for spec in EXAMPLES.values():
@@ -244,9 +243,10 @@ def test_the_computer_modern_face_is_actually_used():
     latex = sp.latex(EXPRESSIONS["general solution"])
     ours = _png(latex)
 
+    import io as _io
+
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
-    import io as _io
 
     figure = Figure(figsize=(0.01, 0.01), dpi=110.0)
     FigureCanvasAgg(figure)
@@ -368,6 +368,7 @@ def test_math_widgets_do_not_paint_their_own_backdrop(qapp):
     sitting on -- the same trap the theme's ``QLabel`` rule already guards.
     """
     from PySide6.QtCore import Qt
+
     from odesuite_app.theme import DARK
     from odesuite_app.widgets.mathlabel import MathBlock, MathLabel
 
@@ -381,6 +382,7 @@ def test_math_widgets_do_not_paint_their_own_backdrop(qapp):
 def test_the_lead_in_is_wide_enough_for_its_text(qapp):
     """Regression: measured from raw font metrics it came out clipped."""
     from PySide6.QtWidgets import QLabel
+
     from odesuite_app.theme import DARK
     from odesuite_app.widgets.mathlabel import MathBlock
 
@@ -428,9 +430,9 @@ def test_mathblock_handles_a_system(qapp):
 
 def test_copying_latex_and_python_put_different_text_on_the_clipboard(qapp):
     from PySide6.QtGui import QGuiApplication
+
     from odesuite_app.theme import DARK
-    from odesuite_app.widgets.mathlabel import MathLabel
-    from odesuite_app.widgets.mathlabel import _copy
+    from odesuite_app.widgets.mathlabel import MathLabel, _copy
 
     label = MathLabel(DARK, sp.exp(-T) / 2)
     _copy(label.latex)
