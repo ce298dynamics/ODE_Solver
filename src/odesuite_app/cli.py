@@ -7,6 +7,27 @@ import sys
 
 __all__ = ["main"]
 
+#: Modules that only the `[app]` extra provides.
+_APP_EXTRA_MODULES = ("PySide6", "shiboken6", "pyqtgraph")
+
+_APP_EXTRA_MESSAGE = (
+    "this needs the interface, which is an optional extra:\n"
+    "    pip install odesuite[app]\n"
+    "The library itself, and `--list-problems` and `--selftest`, work without it."
+)
+
+
+def _is_missing_app_extra(exc: ImportError) -> bool:
+    """True when `exc` is Qt (or pyqtgraph) being absent, not some other failure.
+
+    Checked by module name rather than by catching ImportError broadly: a typo
+    inside the interface code raises ImportError too, and reporting that as
+    "install the app extra" would send someone off to reinstall a package they
+    already have.
+    """
+    name = exc.name or ""
+    return name.split(".")[0] in _APP_EXTRA_MODULES
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -155,8 +176,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.rebuild_thumbnails:
-        from . import thumbnails
-        from .theme import PALETTES
+        try:
+            from . import thumbnails
+            from .theme import PALETTES
+        except ImportError as exc:
+            if not _is_missing_app_extra(exc):
+                raise
+            print(_APP_EXTRA_MESSAGE, file=sys.stderr)
+            return 1
 
         def report(done: int, total: int, key: str) -> None:
             print(f"  [{done:>2}/{total}] {key}")
@@ -167,7 +194,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nwritten to {thumbnails.cache_dir()}")
         return 0
 
-    from .app import build_application
+    try:
+        from .app import build_application
+    except ImportError as exc:
+        if not _is_missing_app_extra(exc):
+            raise
+        print(_APP_EXTRA_MESSAGE, file=sys.stderr)
+        return 1
 
     app, window = build_application(args.theme)
     if args.problem:

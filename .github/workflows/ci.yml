@@ -109,3 +109,68 @@ jobs:
           name: selftest-${{ matrix.os }}-${{ matrix.python }}
           path: selftest-report.txt
           if-no-files-found: ignore
+
+  package:
+    name: build and install the wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+
+      # The claim this project makes is that the library is usable with no
+      # interface attached. The only test of that is installing the built wheel
+      # somewhere that has never seen the source tree.
+      - name: install the wheel into a clean environment
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl
+          /tmp/clean/bin/python - <<'PY'
+          import sys, numpy as np
+          import odesuite
+          from odesuite import ODEProblem, solve
+
+          leaked = [m for m in sys.modules
+                    if m.startswith(('PySide', 'shiboken', 'pyqtgraph', 'matplotlib'))]
+          assert not leaked, f"the wheel pulled in {leaked}"
+
+          problem = ODEProblem(lambda t, y: np.array([y[1], -y[0]]), (0.0, 10.0), [1.0, 0.0])
+          sol = solve(problem, "dopri5", rtol=1e-10, atol=1e-12, dense_output=True)
+          error = abs(sol.y_at(10.0)[0] - np.cos(10.0))
+          assert sol.success and error < 1e-9, error
+          print(f"odesuite {odesuite.__version__}: clean install solves to {error:.2e}")
+          PY
+
+      - name: the console script explains itself without the app extra
+        run: |
+          set +e
+          output=$(/tmp/clean/bin/odesuite-gui 2>&1); status=$?
+          set -e
+          echo "$output"
+          test "$status" -eq 1
+          echo "$output" | grep -q "odesuite\[app\]"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/*
+
+  docs:
+    name: docs build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: pip install -e ".[docs]"
+      # --strict turns a broken cross-reference into a failure. A docs site that
+      # builds with warnings is a docs site with dead links in it.
+      - run: mkdocs build --strict

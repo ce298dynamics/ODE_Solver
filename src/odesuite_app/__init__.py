@@ -10,7 +10,9 @@ and launch it with ``odesuite-gui`` or ``python -m odesuite_app``.
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+# One distribution, one version. Read from the library rather than kept in
+# step by hand -- these two strings had already drifted from pyproject.toml.
+from odesuite import __version__ as __version__
 
 __all__ = ["main", "__version__"]
 

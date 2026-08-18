@@ -4,10 +4,33 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "odesuite"
-version = "0.1.0"
+# Single source of truth: `odesuite.__version__`. Declaring it here as well is
+# how the three copies of "0.1.0" that used to exist drifted apart.
+dynamic = ["version"]
 description = "A from-scratch ODE solver library: adaptive Runge-Kutta, stiff solvers, events, DAEs, BVPs and sensitivities."
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Ediz" }]
+keywords = [
+    "ode", "differential-equations", "runge-kutta", "stiff", "dae", "bvp",
+    "numerical-analysis", "scientific-computing", "initial-value-problem",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Typing :: Typed",
+]
 dependencies = ["numpy>=1.24", "scipy>=1.10"]
 
 [project.optional-dependencies]
@@ -22,13 +45,28 @@ dev = [
     "sympy>=1.12",
     "ruff>=0.6",
     "mypy>=1.11",
+    "build>=1.2",
+    "twine>=5.0",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
 ]
 
 [project.scripts]
 odesuite-gui = "odesuite_app.cli:main"
 
+[tool.setuptools.dynamic]
+version = { attr = "odesuite.__version__" }
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# PEP 561: without this marker the library's annotations are invisible to a
+# downstream type checker, however complete they are.
+odesuite = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

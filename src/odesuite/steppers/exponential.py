@@ -57,9 +57,12 @@ def semilinear_problem(linear, nonlinear, t_span, u0, args: tuple = ()):
     nonlinear
         ``N(t, u, *args)``, returning an array shaped like `u`.
 
-    The resulting problem is a perfectly ordinary IVP with ``f = L u + N``, so
-    any method can integrate it; `ETDRK4` additionally reads the split off the
-    attached attributes.
+    Returns
+    -------
+    ODEProblem
+        A perfectly ordinary IVP with ``f = L u + N``, so any method can
+        integrate it; `ETDRK4` additionally reads the split off the attached
+        `linear_operator` and `nonlinear_part` attributes.
     """
     linear = np.asarray(linear)
     u0 = np.atleast_1d(np.asarray(u0))

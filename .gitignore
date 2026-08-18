@@ -29,3 +29,10 @@ env/
 # OS
 Thumbs.db
 .DS_Store
+
+# Documentation build output, and the pages staged into docs/ from the
+# repository root by scripts/docs_hooks.py (README.md, LICENSE, figures/).
+site/
+docs/index.md
+docs/license.md
+docs/figures/

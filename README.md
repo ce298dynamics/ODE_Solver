@@ -431,14 +431,62 @@ Deliberately **not** included, and why:
 ```
 py -3.10 -m pip install -e .          # library only: numpy, scipy
 py -3.10 -m pip install -e ".[app]"   # + PySide6, pyqtgraph, matplotlib, sympy
-py -3.10 -m pip install -e ".[dev]"   # + pytest
+py -3.10 -m pip install -e ".[dev]"   # + pytest, ruff, mypy, build, twine
+py -3.10 -m pip install -e ".[docs]"  # + mkdocs-material, mkdocstrings
 ```
 
 Requires Python 3.10+. Tested on 3.10.11 with numpy 2.2.6 and scipy 1.15.3.
 
+**Not yet on PyPI**, though it builds a wheel that is ready for it:
+
+```
+py -3.10 -m build && py -3.10 -m twine check dist/*
+```
+
+The wheel installs into an environment containing only numpy and scipy, and CI
+proves it on every push — the `package` job installs the built wheel somewhere
+that has never seen the source tree and solves a problem with it. The library
+ships a `py.typed` marker, so its annotations are visible to your type checker
+rather than stopping at the package boundary.
+
 The library never imports Qt. `odesuite` and `odesuite_app` are separate packages, and
 the application talks to the library through a view-model that imports no widget — so the
-solver stays usable, testable and installable with no interface attached.
+solver stays usable, testable and installable with no interface attached. That is a claim
+rather than an aspiration, so CI checks it: one job installs the library extra alone and
+fails if `PySide6` appears in `sys.modules` after importing `odesuite`.
+
+`odesuite-gui` without the `[app]` extra says which extra to install rather than raising a
+PySide6 traceback, and `--list-problems` and `--selftest` work without it.
+
+## Documentation
+
+```
+py -3.10 -m pip install -e ".[docs]"
+py -3.10 -m mkdocs serve                # http://127.0.0.1:8000
+```
+
+An API reference generated from the docstrings, plus this page. The site reuses
+`README.md` as its home rather than keeping a second copy that drifts, and
+`mkdocs build --strict` is part of CI so a dead cross-reference fails the build.
+
+## Examples
+
+Eight runnable scripts in `examples/`, one per capability — dense output and a
+conserved quantity, event location to machine precision, stiffness and the four
+Jacobian strategies, a DAE by singular mass matrix, multiple shooting, parameter
+sensitivities and a Gauss-Newton fit, symplectic energy behaviour, and adding
+your own method and controller.
+
+```
+py -3.10 examples/01_getting_started.py
+```
+
+**Every one of them is executed by the test suite**, and each asserts something
+about its own result rather than merely printing it. That is the same standard
+the "copy as code" button is held to, and it earns its keep: writing them
+surfaced three cases written against an API that had been assumed rather than
+read, and one embedded Runge–Kutta pair whose weights summed to 0.875 — the same
+class of defect as the ROS3P estimator recorded above.
 
 ## Layout
 

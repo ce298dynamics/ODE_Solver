@@ -49,7 +49,7 @@ from .steppers import (
 )
 from .tableaux import TABLEAUX, ButcherTableau, get_tableau
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "ODEProblem",
