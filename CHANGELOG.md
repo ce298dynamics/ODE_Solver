@@ -4,6 +4,44 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-08-17
+
+### Added
+
+- **`solve(..., callback=...)`** — called after every accepted step with
+  ``(t, y, stats)``; returning ``False`` stops the integration and the solve
+  returns ``status="cancelled"``. Progress reporting, live plotting, streaming
+  output and cancellation from another thread were all previously impossible
+  because nothing in the loop offered a way in.
+- **`Solution.cancelled`**, distinguishing a deliberate stop from a failure.
+  ``success`` stays False for a cancelled solve: the trajectory is valid but
+  the requested interval was not integrated, and code checking ``success``
+  before reading ``y[:, -1]`` as an endpoint must not treat a partial result as
+  a complete one.
+- **`Event(..., subdivisions=k)`** — samples the event function inside each step
+  instead of only at its ends. Endpoint comparison misses any *even* number of
+  crossings within a step, silently; measured on a smooth decay with
+  ``g = sin(20t)``, 63 roots exist and endpoint comparison finds 5. With
+  ``subdivisions=16`` all 63 are found, each to 2e-14. Off by default, since an
+  event that changes sign once gains nothing. `scipy.integrate.solve_ivp` has no
+  equivalent.
+- **`SolveRunner.submit(..., supersede=True)`** and `cancel_all()` in the studio.
+  A superseded solve now stops at its next step boundary instead of running to
+  completion for an answer that will be discarded. Opt-in, because concurrency
+  is not always supersession — the Method Race submits one solve per method
+  through the same runner and wants every one of them.
+- `examples/09_progress_and_hidden_events.py`.
+
+### Documented
+
+- **Where `PredictiveController` loses.** The Tier 2 measurements that made it
+  the default for implicit methods all used problems supplying an analytic
+  Jacobian. Differenced, it still wins on HIRES (0.83x), Van der Pol (0.84x) and
+  OREGO (0.87x), but costs 2.10x on Robertson, whose own finite-difference
+  Jacobian is notoriously poor — one component near 1e-8 against entries of `J`
+  reaching 3e7. Supplying `jac`, as its catalogue entry does, reverses it. The
+  docstring now carries the table and two tests pin it.
+
 ## [0.2.0] — 2026-08-17
 
 The first release that can be installed, and the first with a measured

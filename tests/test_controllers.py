@@ -474,3 +474,66 @@ def test_explicit_methods_are_unaffected_by_the_new_default():
     default = solve(bench.problem, "dopri5", rtol=1e-8, atol=1e-10)
     forced = solve(bench.problem, "dopri5", rtol=1e-8, atol=1e-10, controller="pi")
     np.testing.assert_array_equal(default.y, forced.y)
+
+
+# ---------------------------------------------------------------------------
+# The predictive default with a differenced Jacobian
+# ---------------------------------------------------------------------------
+#
+# The Tier 2 measurements that made this the default all used problems that
+# supply an analytic Jacobian, which is not how most people call a stiff solver.
+# Differenced, the error estimate is noisier and the nonlinear solve more
+# fragile, and an undamped controller can push the step into Newton failures.
+# These tests exist because that gap was found by accident rather than by
+# measurement, and should not be able to reopen unnoticed.
+
+
+def _without_jacobian(bench):
+    from odesuite import ODEProblem
+
+    p = bench.problem
+    return ODEProblem(f=p.f_user, t_span=(p.t0, p.tf), y0=p.y0)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("factory_name", ["hires", "van_der_pol"])
+def test_the_predictive_default_also_wins_with_a_differenced_jacobian(factory_name):
+    from odesuite import problems
+
+    problem = _without_jacobian(getattr(problems, factory_name)())
+    predictive = solve(problem, "radau", rtol=1e-8, atol=1e-10)
+    with_pi = solve(problem, "radau", rtol=1e-8, atol=1e-10, controller="pi")
+
+    assert predictive.success and with_pi.success
+    assert predictive.stats.nfev <= with_pi.stats.nfev * 1.05, (
+        f"{factory_name} without an analytic Jacobian: predictive "
+        f"{predictive.stats.nfev} nfev vs pi {with_pi.stats.nfev}"
+    )
+
+
+@pytest.mark.slow
+def test_robertson_without_a_jacobian_is_the_documented_exception():
+    """The one measured case where the predictive default loses, pinned so the
+    docstring's claim stays true and an improvement would be noticed.
+
+    The asymmetry is the point: differenced, predictive costs about twice PI;
+    supplied, it beats PI. Robertson's finite-difference Jacobian is poor -- one
+    component sits near 1e-8 while entries of J reach 3e7 -- so this is a
+    statement about the Jacobian, not about the controller.
+    """
+    from odesuite.problems import robertson
+
+    bench = robertson()
+
+    differenced = _without_jacobian(bench)
+    fd_pred = solve(differenced, "radau", rtol=1e-8, atol=1e-10)
+    fd_pi = solve(differenced, "radau", rtol=1e-8, atol=1e-10, controller="pi")
+    assert fd_pred.stats.nfev > fd_pi.stats.nfev, (
+        "Robertson without a Jacobian used to be the predictive controller's "
+        "weak case; if this now passes, update the docstring table"
+    )
+
+    # Supplying the Jacobian -- what the catalogue entry does -- reverses it.
+    supplied_pred = solve(bench.problem, "radau", rtol=1e-8, atol=1e-10)
+    supplied_pi = solve(bench.problem, "radau", rtol=1e-8, atol=1e-10, controller="pi")
+    assert supplied_pred.stats.nfev < supplied_pi.stats.nfev

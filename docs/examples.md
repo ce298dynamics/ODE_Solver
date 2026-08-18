@@ -83,3 +83,15 @@ only sets the first step) and one that refuses to grow it by more than 20%.
     returning a wrong answer. The example now asserts both weight vectors sum to
     one, which is the cheapest check there is and catches the most common way of
     getting an embedded pair wrong.
+
+## 09 · Progress, cancellation and hidden events
+
+Watching a long stiff solve report its own progress, stopping one on a step
+budget and keeping what it computed, and the event case that endpoint
+bracketing cannot see.
+
+Both halves come from the same observation: the step size is chosen for the
+*solution's* convenience, and everything else has to be told about it. `g` is
+sampled at the ends of a step, so an event that oscillates faster than `y` does
+is invisible between them — 63 roots exist, 5 are found, and nothing indicates
+the other 58 are missing until you ask for `subdivisions`.

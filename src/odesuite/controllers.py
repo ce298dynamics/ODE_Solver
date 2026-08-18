@@ -192,6 +192,31 @@ class PredictiveController(Controller):
 
     The bounds follow ``radau5.f``'s ``FACL``/``FACR``: the step may grow by at
     most 8x and shrink by at most 5x in one go.
+
+    **Where it loses.** The base factor here is the I-controller's, without the
+    PI term's damping, which makes it responsive -- and that responsiveness
+    depends on the error estimate being trustworthy. It is, when the Jacobian is
+    analytic. With a finite-difference Jacobian on a badly-scaled problem the
+    estimate is noisy and the nonlinear solve is fragile, and this controller
+    will push the step into Newton failures that the PI controller's damping
+    would have avoided.
+
+    Measured at rtol=1e-8, RHS evaluations against `PIController`, with the
+    Jacobian differenced rather than supplied:
+
+    ==============  ==========
+    HIRES           0.83x
+    Van der Pol     0.84x
+    OREGO           0.87x
+    **Robertson**   **2.10x**
+    ==============  ==========
+
+    Robertson is the outlier because its own finite-difference Jacobian is
+    notoriously poor -- one component sits near 1e-8 while entries of `J` reach
+    3e7. Supply `jac` there, which its catalogue entry does and which drops the
+    figure back to 0.92x. Everything else measured improves under both routes,
+    which is why this is still the default; `controller="pi"` is one argument
+    away if a problem disagrees.
     """
 
     min_factor = 0.2

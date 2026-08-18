@@ -456,3 +456,90 @@ def test_home_screen_lists_every_problem(qapp):
     screen._apply_filter("all")
     assert all(c.isVisibleTo(screen) for c in screen._cards.values())
     screen.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Cancelling superseded solves
+# ---------------------------------------------------------------------------
+#
+# Discarding a result is not the same as not computing it. Before `solve` grew a
+# callback, a superseded job ran to completion anyway, holding a pool thread for
+# however long the problem takes purely to have its answer thrown away.
+#
+# Supersession is opt-in, and that is load-bearing rather than cautious: the
+# Method Race submits one solve per method through this same runner and wants
+# every one of them. A runner that treated "not the newest token" as "cancel"
+# would silently have raced one method.
+
+
+def test_supersede_is_off_by_default_so_concurrent_solves_all_survive(qapp):
+    """The Method Race's requirement, pinned directly."""
+    runner = SolveRunner()
+    finished = []
+    runner.finished.connect(finished.append)
+
+    for method in ("rk23", "dopri5", "tsit5"):
+        runner.submit(
+            SolveRequest(problem_key="logistic", method=method, rtol=1e-8,
+                         atol=1e-10, dense_output=False)
+        )
+    assert runner.wait(30_000)
+    qapp.processEvents()
+
+    assert len(finished) == 3, "concurrent solves must not cancel one another"
+    assert all(not result.cancelled for result in finished)
+    assert {r.request.method for r in finished} == {"rk23", "dopri5", "tsit5"}
+
+
+def test_a_superseded_solve_stops_early(qapp):
+    """A slider drag: several superseding submissions, only the last wanted."""
+    runner = SolveRunner(max_threads=1)      # force them to queue, so the
+    finished, latest = [], []                # earlier ones are stale on arrival
+    runner.finished.connect(finished.append)
+    runner.latest.connect(latest.append)
+
+    for log_t_end in (9.0, 10.0, 11.0):
+        runner.submit(
+            SolveRequest(problem_key="robertson", method="radau", rtol=1e-8,
+                         atol=1e-10, params={"log_t_end": log_t_end},
+                         dense_output=False),
+            supersede=True,
+        )
+    assert runner.wait(60_000)
+    qapp.processEvents()
+
+    assert len(latest) == 1
+    assert latest[0].request.params["log_t_end"] == 11.0
+    assert not latest[0].cancelled
+    # The superseded ones were stopped, so they never reached a consumer.
+    assert len(finished) == 1, f"{len(finished)} results emitted; expected only the newest"
+
+
+def test_cancel_all_stops_everything_in_flight(qapp):
+    """For screen teardown: leaving a screen mid-solve should not leave the pool
+    computing an answer nobody will read."""
+    runner = SolveRunner(max_threads=1)
+    finished = []
+    runner.finished.connect(finished.append)
+
+    for _ in range(3):
+        runner.submit(
+            SolveRequest(problem_key="robertson", method="radau", rtol=1e-10,
+                         atol=1e-12, params={"log_t_end": 11.0}, dense_output=False)
+        )
+    runner.cancel_all()
+    assert runner.wait(60_000)
+    qapp.processEvents()
+
+    assert finished == [], "cancel_all should suppress every pending result"
+
+
+def test_the_single_solve_path_supersedes(qapp):
+    """`SessionState.resolve` is what every slider drives, so it must opt in --
+    otherwise the hook exists and nothing uses it."""
+    import inspect
+
+    from odesuite_app.state import SessionState
+
+    source = inspect.getsource(SessionState.resolve)
+    assert "supersede=True" in source

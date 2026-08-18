@@ -309,3 +309,106 @@ def test_a_genuine_root_is_still_found_alongside_a_phantom_one():
     )
     assert list(active) == [0]
     assert roots[0] == pytest.approx(0.5)
+
+
+# ---------------------------------------------------------------------------
+# Sub-step scanning
+# ---------------------------------------------------------------------------
+#
+# Comparing only the two step endpoints misses any *even* number of crossings
+# inside a step, and misses them silently: g has the same sign at both ends, so
+# nothing looks wrong. The step size is chosen to resolve `y`, not `g`, so an
+# event that oscillates faster than the solution is entirely ordinary.
+#
+# `scipy.integrate.solve_ivp` has the same limitation and no way around it.
+
+
+def _fast_oscillation(subdivisions: int):
+    """Smooth, slowly-decaying state; an event that wiggles 20x faster."""
+    problem = ODEProblem(lambda t, y: -0.1 * y, (0.0, 10.0), [1.0])
+    event = Event(lambda t, y: np.sin(20 * t), subdivisions=subdivisions)
+    return solve(problem, "dopri5", rtol=1e-6, atol=1e-9, events=[event])
+
+
+def _exact_roots() -> np.ndarray:
+    return np.array([k * np.pi / 20 for k in range(1, 200) if 0 < k * np.pi / 20 < 10])
+
+
+def test_endpoint_bracketing_alone_misses_most_of_the_roots():
+    """The behaviour being fixed, pinned so the improvement below is measured
+    against something rather than asserted."""
+    sol = _fast_oscillation(subdivisions=0)
+    assert sol.stats.naccepted < 20, "the state is smooth; steps should be large"
+    assert sol.t_events[0].size < 10
+    assert _exact_roots().size == 63
+
+
+def test_subdivision_finds_every_crossing():
+    sol = _fast_oscillation(subdivisions=16)
+    found, exact = sol.t_events[0], _exact_roots()
+
+    assert found.size == exact.size, f"found {found.size} of {exact.size}"
+    assert np.abs(found - exact).max() < 1e-10, "and located to the usual precision"
+
+
+def test_more_subdivisions_never_finds_fewer():
+    counts = [_fast_oscillation(k).t_events[0].size for k in (0, 2, 4, 8, 16)]
+    assert counts == sorted(counts), counts
+    assert counts[-1] > 5 * counts[0]
+
+
+def test_subdivision_reports_no_spurious_roots():
+    """Every root it reports must be a real one -- inventing crossings would be
+    a worse failure than missing them."""
+    sol = _fast_oscillation(subdivisions=16)
+    exact = _exact_roots()
+    for t in sol.t_events[0]:
+        assert np.abs(exact - t).min() < 1e-9, f"{t} is not a root of sin(20t)"
+
+
+def test_subdivision_respects_direction():
+    """Only upward crossings, so exactly half the roots of a sine."""
+    problem = ODEProblem(lambda t, y: -0.1 * y, (0.0, 10.0), [1.0])
+    up = Event(lambda t, y: np.sin(20 * t), direction=1, subdivisions=16)
+    sol = solve(problem, "dopri5", rtol=1e-6, atol=1e-9, events=[up])
+
+    found = sol.t_events[0]
+    assert 30 <= found.size <= 32, found.size
+    for t in found:
+        assert np.cos(20 * t) > 0, f"{t} is a downward crossing"
+
+
+def test_subdivision_drives_a_terminal_event_to_the_first_root():
+    """A terminal event must stop at the *earliest* crossing in the step, not
+    at whichever one the scan happened to evaluate first."""
+    problem = ODEProblem(lambda t, y: -0.1 * y, (0.0, 10.0), [1.0])
+    event = Event(lambda t, y: np.sin(20 * t), terminal=True, subdivisions=16)
+    sol = solve(problem, "dopri5", rtol=1e-6, atol=1e-9, events=[event])
+
+    assert sol.status == "terminated"
+    assert sol.t_events[0][0] == pytest.approx(np.pi / 20, abs=1e-10)
+    assert sol.t[-1] == pytest.approx(np.pi / 20, abs=1e-10)
+
+
+def test_subdivision_is_off_by_default_and_costs_nothing():
+    assert Event(lambda t, y: y[0]).subdivisions == 0
+
+    bench = sine_cosine()
+    plain = solve(bench.problem, "dopri5", rtol=1e-8,
+                  events=[Event(lambda t, y: y[0])])
+    assert plain.success
+
+
+def test_a_negative_subdivision_count_is_rejected():
+    with pytest.raises(ValueError, match="subdivisions"):
+        Event(lambda t, y: y[0], subdivisions=-1)
+
+
+def test_subdivision_still_finds_a_single_ordinary_crossing():
+    """The common case must not regress: one crossing, found once, not twice."""
+    bench = bouncing_ball()
+    event = Event(lambda t, y: y[0], terminal=True, direction=-1, subdivisions=8)
+    sol = solve(bench.problem, rtol=1e-10, events=[event])
+
+    assert sol.t_events[0].size == 1
+    assert sol.t_events[0][0] == pytest.approx(bench.impact_time, abs=1e-9)

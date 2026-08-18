@@ -57,8 +57,8 @@ class Solution:
         Per-event arrays of detection times and states. Empty arrays for events
         that never fired.
     status
-        ``"finished"``, ``"terminated"`` (a terminal event stopped it), or
-        ``"failed"``.
+        ``"finished"``, ``"terminated"`` (a terminal event stopped it),
+        ``"cancelled"`` (a `solve` callback returned False), or ``"failed"``.
     """
 
     t: np.ndarray
@@ -84,7 +84,20 @@ class Solution:
 
     @property
     def success(self) -> bool:
+        """True when the solve produced the trajectory it was asked for.
+
+        ``"cancelled"`` is deliberately *not* success. Nothing went wrong -- the
+        caller asked to stop -- but the requested interval was not integrated,
+        and code that checks `success` before using `y[:, -1]` as an endpoint
+        would otherwise read a partial result as a complete one. Use
+        `Solution.cancelled` to tell a deliberate stop from a failure.
+        """
         return self.status in ("finished", "terminated")
+
+    @property
+    def cancelled(self) -> bool:
+        """True when a `solve` callback stopped the integration."""
+        return self.status == "cancelled"
 
     @property
     def n(self) -> int:

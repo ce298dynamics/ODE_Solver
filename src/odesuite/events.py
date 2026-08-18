@@ -14,7 +14,8 @@ from collections.abc import Callable
 import numpy as np
 from scipy.optimize import brentq
 
-__all__ = ["Event", "prepare_events", "find_active_events", "locate_events"]
+__all__ = ["Event", "prepare_events", "find_active_events", "locate_events",
+           "scan_step"]
 
 
 class Event:
@@ -32,6 +33,23 @@ class Event:
         ``+1`` to detect only upward crossings, ``-1`` only downward, ``0`` both.
     name
         Optional label, used in reporting.
+    subdivisions
+        Sample `g` at this many interior points of each step before looking for
+        a sign change. Zero, the default, compares only the two step endpoints.
+
+        Endpoint comparison misses any *even* number of crossings inside a
+        single step, silently: `g` has the same sign at both ends, so nothing
+        looks wrong. It is not a rare corner either -- an event that oscillates
+        faster than the solution does is entirely ordinary, because the step
+        size is chosen to resolve `y`, not `g`. Measured on a smooth decay with
+        ``g = sin(20t)``: 63 roots exist in the interval and endpoint comparison
+        finds 5 of them, with no indication that 58 are missing.
+
+        The cost is `subdivisions` extra evaluations of `g` and of the step
+        interpolant per step, which is why this is off unless asked for: for the
+        common case of an event that changes sign once, it buys nothing. Set it
+        when `g` can wiggle within a step. `scipy.integrate.solve_ivp` has no
+        equivalent.
     """
 
     def __init__(
@@ -40,11 +58,15 @@ class Event:
         terminal: bool | int = False,
         direction: float = 0.0,
         name: str | None = None,
+        subdivisions: int = 0,
     ) -> None:
         if not callable(g):
             raise TypeError("event g must be callable")
         self.g = g
         self.direction = float(direction)
+        if int(subdivisions) < 0:
+            raise ValueError("subdivisions must be >= 0")
+        self.subdivisions = int(subdivisions)
         self.name: str = str(name or getattr(g, "__name__", "event"))
 
         if terminal is False or terminal is None:
@@ -144,6 +166,72 @@ def _solve_event(
     return float(brentq(h, lo, hi, xtol=1e-14, rtol=1e-14, maxiter=100))
 
 
+def scan_step(events, active_mask, interpolant, t_old, t_new, args, g_old, g_new):
+    """Find every crossing inside one step, not just one per event.
+
+    Returns ``(indices, roots)`` covering both the endpoint-bracketed crossings
+    and any additional ones found by sub-sampling, sorted in integration order
+    and with each event's own `direction` respected.
+
+    The sub-interval walk is the whole point: an event with `subdivisions` set
+    is examined on `subdivisions + 1` consecutive brackets across the step, so
+    two crossings that cancel out at the endpoints are each found on their own
+    sub-interval. Events with ``subdivisions == 0`` cost nothing extra -- they
+    take the endpoint bracket exactly as before.
+    """
+    found: list[tuple[float, int]] = []
+
+    for index, event in enumerate(events):
+        if event.subdivisions <= 0:
+            if active_mask[index]:
+                root = _solve_event(event, interpolant, t_old, t_new, args)
+                if root is not None:
+                    found.append((root, index))
+            continue
+
+        # Sample the interpolant across the step and bracket each sub-interval
+        # separately. The endpoint values are reused rather than recomputed, so
+        # the extra cost is exactly `subdivisions` evaluations of g.
+        taus = np.linspace(t_old, t_new, event.subdivisions + 2)
+        values = [float(g_old[index])]
+        values.extend(
+            event(t, interpolant(t), args) for t in taus[1:-1]
+        )
+        values.append(float(g_new[index]))
+
+        for left in range(len(taus) - 1):
+            lo, hi = float(taus[left]), float(taus[left + 1])
+            if not _crosses(values[left], values[left + 1], event.direction):
+                continue
+            root = _solve_event(event, interpolant, lo, hi, args)
+            if root is not None:
+                found.append((root, index))
+
+    if not found:
+        return np.empty(0, dtype=int), np.empty(0, dtype=float)
+
+    found.sort(key=lambda pair: pair[0] if t_new > t_old else -pair[0])
+    return (
+        np.array([index for _, index in found], dtype=int),
+        np.array([root for root, _ in found], dtype=float),
+    )
+
+
+def _crosses(g_lo: float, g_hi: float, direction: float) -> bool:
+    """The same sign-change rule as `find_active_events`, for one pair.
+
+    Strict at the left end and inclusive at the right, so a root landing exactly
+    on a sub-interval boundary is counted once rather than twice.
+    """
+    up = g_lo < 0 <= g_hi
+    down = g_lo > 0 >= g_hi
+    if direction > 0:
+        return up
+    if direction < 0:
+        return down
+    return up or down
+
+
 def locate_events(
     events: list[Event],
     active: np.ndarray,
@@ -151,6 +239,7 @@ def locate_events(
     t_old: float,
     t_new: float,
     args: tuple,
+    roots: np.ndarray | None = None,
 ):
     """Refine all active events on a step and decide whether to terminate.
 
@@ -159,9 +248,15 @@ def locate_events(
     its allowance, or None to continue. Simultaneous events are all reported;
     only the trailing ones beyond a terminal root are discarded.
     """
-    located = [
-        (i, _solve_event(events[i], interpolant, t_old, t_new, args)) for i in active
-    ]
+    if roots is not None:
+        # Already located, by `scan_step`, which may have found several
+        # crossings for a single event within this step.
+        located = list(zip(active.tolist(), roots.tolist()))
+    else:
+        located = [
+            (i, _solve_event(events[i], interpolant, t_old, t_new, args))
+            for i in active
+        ]
     # Drop the events whose bracket did not survive interpolation; they are not
     # detections and must not be counted towards a terminal event's allowance.
     located = [(i, root) for i, root in located if root is not None]

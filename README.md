@@ -52,6 +52,26 @@ Beyond the IVP solver: `solve_bvp` (multiple shooting), `forward_sensitivities`
 (`dy/dp` by internal differentiation), mass matrices `M y' = f` including singular `M`
 (index-1 DAEs), and event location to machine precision.
 
+`solve` takes a `callback(t, y, stats)` called after every accepted step; returning
+`False` stops it. One parameter, and it is the difference between a black box that
+returns eventually and a solve you can watch, stream, plot live, or give up on — the
+studio uses it to abandon a solve the moment a slider supersedes it, instead of holding a
+worker thread to compute an answer nobody will read.
+
+### Events that a step can hide
+
+Comparing `g` at the two ends of a step misses any **even** number of crossings inside
+it, silently — and the step size is chosen to resolve `y`, not `g`. On a smooth decay
+with `g = sin(20t)`, 63 roots exist in the interval and endpoint comparison finds **5**,
+with nothing to indicate the other 58 are missing.
+
+```python
+Event(g, subdivisions=16)     # sample inside each step, not just at its ends
+```
+
+finds all 63, each to 2e-14. It is off by default because an event that changes sign once
+gains nothing from it. `scipy.integrate.solve_ivp` has no equivalent.
+
 ---
 
 ## Verification

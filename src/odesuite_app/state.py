@@ -206,8 +206,14 @@ class SessionState(QObject):
         return SolveRequest(**base)
 
     def resolve(self) -> int:
-        """Kick off a solve for the current state. Returns its token."""
-        return self.runner.submit(self.request())
+        """Kick off a solve for the current state. Returns its token.
+
+        Superseding: this is the single-solve path that every slider drives, so
+        only the newest answer is ever shown. Marking it as such means a dragged
+        slider stops the solves it outruns instead of leaving four pool threads
+        computing trajectories that will be discarded on arrival.
+        """
+        return self.runner.submit(self.request(), supersede=True)
 
     def _on_result(self, result) -> None:
         self.result = result

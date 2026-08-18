@@ -9,6 +9,13 @@ Requests carry a monotonically increasing token. When the user drags a slider,
 a dozen solves may be in flight at once; the screen keeps only the newest token
 and discards the rest as they land, so a slow early solve can never overwrite a
 fast later one.
+
+Discarding a result is not the same as not computing it. Until `solve` grew a
+`callback`, a superseded job ran to completion anyway -- holding one of four
+pool threads for however long Robertson-at-1e11 takes, purely to have its answer
+thrown away. Each job now passes a callback that returns False as soon as its
+token is stale, so a superseded solve stops at its next step boundary instead of
+at the end of the interval.
 """
 
 from __future__ import annotations
@@ -95,6 +102,16 @@ class SolveResult:
         return self.error is None and self.solution is not None and self.solution.success
 
     @property
+    def cancelled(self) -> bool:
+        """True when this solve was abandoned because a newer one superseded it.
+
+        Distinct from `ok` being False: nothing went wrong, the answer simply
+        stopped being wanted. Screens should ignore these rather than reporting
+        them.
+        """
+        return self.solution is not None and self.solution.status == "cancelled"
+
+    @property
     def status_text(self) -> str:
         if self.error:
             return f"failed — {self.error}"
@@ -135,10 +152,11 @@ class _Signals(QObject):
 
 
 class _Job(QRunnable):
-    def __init__(self, request: SolveRequest, signals: _Signals) -> None:
+    def __init__(self, request: SolveRequest, signals: _Signals, is_stale=None) -> None:
         super().__init__()
         self.request = request
         self.signals = signals
+        self.is_stale = is_stale
         self.setAutoDelete(True)
 
     def run(self) -> None:  # executed on a pool thread
@@ -157,6 +175,12 @@ class _Job(QRunnable):
                 kwargs["atol"] = self.request.atol
             if self.request.events:
                 kwargs["events"] = self.request.events
+
+            # Returning False stops the solve. Checked once per accepted step,
+            # which is a token comparison against an int -- far cheaper than the
+            # step it follows.
+            if self.is_stale is not None:
+                kwargs["callback"] = lambda t, y, stats: not self.is_stale()
 
             solution = solve(bench.problem, **kwargs)
             result = SolveResult(
@@ -185,7 +209,7 @@ class SolveRunner(QObject):
     their own.
     """
 
-    finished = Signal(object)   # SolveResult (any job)
+    finished = Signal(object)   # SolveResult (any job that ran to completion)
     latest = Signal(object)     # SolveResult (newest job only)
     started = Signal(object)    # SolveRequest
 
@@ -197,16 +221,63 @@ class SolveRunner(QObject):
         self._signals.finished.connect(self._on_finished)
         self._token = 0
         self._newest = 0
+        self._supersede_newest = 0
+        self._cancelled_before = 0
 
-    def submit(self, request: SolveRequest) -> int:
+    def submit(self, request: SolveRequest, supersede: bool = False) -> int:
+        """Queue a solve. Returns its token.
+
+        `supersede` marks the request as one of a "only the newest matters"
+        series -- a slider being dragged, say. Submitting another superseding
+        request then *stops* the earlier ones at their next step boundary rather
+        than letting them run to completion for an answer nobody will read.
+        Cancelled jobs emit neither `finished` nor `latest`.
+
+        It is opt-in because concurrency is not always supersession: the Method
+        Race submits one solve per method through this same runner and wants
+        every one of them. Defaulting to supersede would have silently cancelled
+        all but the last.
+        """
         self._token += 1
         request.token = self._token
         self._newest = self._token
+        if supersede:
+            self._supersede_newest = self._token
         self.started.emit(request)
-        self._pool.start(_Job(request, self._signals))
+        self._pool.start(
+            _Job(request, self._signals, self._stale_check(request.token, supersede))
+        )
         return request.token
 
+    def _stale_check(self, token: int, supersede: bool):
+        """A zero-argument predicate the worker thread polls once per step.
+
+        Reads ints written by the GUI thread. Safe without a lock under CPython,
+        and the cost of a stale read is one extra step of a solve that was about
+        to stop anyway.
+        """
+
+        def is_stale() -> bool:
+            if token <= self._cancelled_before:
+                return True
+            return supersede and token != self._supersede_newest
+
+        return is_stale
+
+    def cancel_all(self) -> None:
+        """Stop every solve currently in flight, superseding or not.
+
+        For screen teardown and for an explicit Cancel: without it, leaving a
+        screen mid-solve keeps the pool working on an answer nobody will read.
+        """
+        self._cancelled_before = self._token
+
     def _on_finished(self, result: SolveResult) -> None:
+        if result.cancelled:
+            # Superseded before it finished. Nobody wants it, and emitting it
+            # would let a screen render a partial trajectory as if it were the
+            # answer.
+            return
         self.finished.emit(result)
         if result.request.token == self._newest:
             self.latest.emit(result)

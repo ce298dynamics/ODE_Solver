@@ -16,7 +16,12 @@ import numpy as np
 
 from .controllers import error_norm, initial_step_size, make_controller
 from .dense import ConstantInterpolant, DenseOutput
-from .events import find_active_events, locate_events, prepare_events
+from .events import (
+    find_active_events,
+    locate_events,
+    prepare_events,
+    scan_step,
+)
 from .problem import ODEProblem
 from .solution import Solution, Stats
 from .steppers import make_stepper
@@ -42,6 +47,7 @@ def solve(
     max_steps: int = 1_000_000,
     controller: Any = None,
     controller_options: dict | None = None,
+    callback: Any = None,
 ) -> Solution:
     """Integrate an `ODEProblem`.
 
@@ -74,6 +80,21 @@ def solve(
         ``"pi"``, ``"i"``, ``"predictive"``, a `Controller` subclass, or an
         instance. The default, None, lets the method choose: ``"pi"`` for the
         explicit pairs, ``"predictive"`` for the implicit ones.
+    callback
+        Optional ``callback(t, y, stats) -> bool | None``, called once after
+        every accepted step. Returning ``False`` stops the integration and the
+        solve comes back with ``status="cancelled"``; any other return value
+        (including None) continues.
+
+        One parameter, and it is what makes a long solve *observable* rather
+        than a black box that returns eventually: progress reporting, live
+        plotting, streaming output to disk, and -- because it can say stop --
+        cancellation from another thread. Nothing else in the loop offers a way
+        in.
+
+        `y` is the solver's own state array, not a copy. Do not mutate it; copy
+        first if it needs to outlive the call. Exceptions propagate rather than
+        being swallowed, so a broken callback is not silently ignored.
 
     Returns
     -------
@@ -121,6 +142,8 @@ def solve(
     stats.nfev += 1
 
     event_list = prepare_events(events)
+    # Hoisted: checked once rather than on every step of every solve.
+    scanning = any(ev.subdivisions > 0 for ev in event_list)
     t_eval_arr = _prepare_t_eval(t_eval, t0, tf, direction)
 
     # An interpolant is needed for any of these three consumers; when none of
@@ -314,10 +337,22 @@ def solve(
         if event_list:
             assert interp is not None  # need_interp is true when events exist
             g_new = np.array([ev(t_new, y_new, problem.args) for ev in event_list])
-            active = find_active_events(g_old, g_new, event_list)
+            bracketed = find_active_events(g_old, g_new, event_list)
+
+            if scanning:
+                # At least one event wants the step examined from the inside, so
+                # the endpoint bracket is not the whole story.
+                mask = np.zeros(len(event_list), dtype=bool)
+                mask[bracketed] = True
+                active, roots = scan_step(
+                    event_list, mask, interp, t, t_new, problem.args, g_old, g_new
+                )
+            else:
+                active, roots = bracketed, None
+
             if active.size:
                 active, roots, terminate_at = locate_events(
-                    event_list, active, interp, t, t_new, problem.args
+                    event_list, active, interp, t, t_new, problem.args, roots
                 )
                 for i, root in zip(active, roots):
                     t_events[i].append(float(root))
@@ -350,6 +385,12 @@ def solve(
             ys.append(step_end_y.copy())
 
         stats.naccepted += 1
+
+        if callback is not None and callback(step_end_t, step_end_y, stats) is False:
+            status = "cancelled"
+            message = f"cancelled by the callback at t={step_end_t:.10g}"
+            t, y = step_end_t, step_end_y
+            break
 
         if terminated:
             status = "terminated"
