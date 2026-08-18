@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **`driver.solve` split into the loop and its bookkeeping.** It had reached 408
+  lines: the loop plus argument validation, step-endpoint arithmetic, output
+  accumulation and event tracking. Those four now live in `odesuite/_loop.py`
+  as `prepare_tolerances`, `StepPlanner`, `Recorder` and `EventTracker`, and
+  `solve` is 237 lines of which 51 are its docstring. It is no longer the
+  longest function in the project.
+
+  Purely structural: the refactor was gated on 78 solves — every method family,
+  dense output, `t_eval`, events with and without sub-step scanning, fixed-step
+  runs, backward integration, DAEs, both failure paths and the callback —
+  hashing **bit-identically** before and after, states, event times, work
+  counters, messages and sampled dense output included.
+
+- The extracted pieces have unit tests for the first time (`tests/test_loop.py`,
+  36 of them). That was the point of extracting them: rules like "a fixed-step
+  run lands on `t0 + k*h` computed afresh, never on an accumulated sum" — the
+  arithmetic behind recorded bug #4 — could previously only be checked by
+  inference from a finished trajectory.
+
 ## [0.3.0] — 2026-08-17
 
 ### Added
