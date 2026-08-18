@@ -28,7 +28,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -38,6 +37,7 @@ from odesuite import make_stepper, solve
 from .. import catalog
 from ..state import SessionState, methods_for
 from ..theme import Palette
+from ..widgets.controls import add_heading, control_panel
 
 __all__ = ["AccuracyScreen"]
 
@@ -221,21 +221,9 @@ class AccuracyScreen(QWidget):
         self._sync_controls()
 
     def _build_controls(self) -> QWidget:
-        panel = QFrame()
-        panel.setProperty("role", "panel")
-        panel.setFixedWidth(244)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        inner = QWidget()
-        scroll.setWidget(inner)
-        layout = QVBoxLayout(inner)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(8)
+        panel, layout = control_panel(244)
 
-        study_heading = QLabel("Study")
-        study_heading.setProperty("role", "heading")
-        layout.addWidget(study_heading)
+        add_heading(layout, "Study")
 
         self.study = QComboBox()
         self.study.addItems(_STUDIES)
@@ -248,19 +236,13 @@ class AccuracyScreen(QWidget):
         self.explanation.setStyleSheet("font-size: 11px;")
         layout.addWidget(self.explanation)
 
-        layout.addSpacing(4)
-        problem_heading = QLabel("Problem")
-        problem_heading.setProperty("role", "heading")
-        layout.addWidget(problem_heading)
+        add_heading(layout, "Problem", space_above=4)
 
         self.problem_picker = QComboBox()
         self.problem_picker.currentIndexChanged.connect(self._on_problem)
         layout.addWidget(self.problem_picker)
 
-        layout.addSpacing(4)
-        method_heading = QLabel("Methods")
-        method_heading.setProperty("role", "heading")
-        layout.addWidget(method_heading)
+        add_heading(layout, "Methods", space_above=4)
 
         self.checks: dict[str, QCheckBox] = {}
         for method in _CANDIDATES:
@@ -281,10 +263,6 @@ class AccuracyScreen(QWidget):
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addStretch(1)
-
-        holder = QVBoxLayout(panel)
-        holder.setContentsMargins(0, 0, 0, 0)
-        holder.addWidget(scroll)
         self._on_study(_STUDIES[0])
         return panel
 
@@ -316,9 +294,7 @@ class AccuracyScreen(QWidget):
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(3)
 
-        heading = QLabel("Results")
-        heading.setProperty("role", "heading")
-        layout.addWidget(heading)
+        add_heading(layout, "Results")
 
         self.summary = QLabel("—")
         self.summary.setProperty("role", "mono")

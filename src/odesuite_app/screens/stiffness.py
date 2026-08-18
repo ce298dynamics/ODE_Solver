@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
     QSlider,
     QVBoxLayout,
     QWidget,
@@ -39,7 +38,7 @@ from .. import catalog
 from ..analysis import jacobian_at
 from ..state import SessionState, methods_for
 from ..theme import Palette
-from ..widgets.controls import ParameterPanel, ValueSlider
+from ..widgets.controls import ParameterPanel, ValueSlider, add_heading, control_panel
 
 __all__ = ["StiffnessScreen"]
 
@@ -197,17 +196,7 @@ class StiffnessScreen(QWidget):
     # -- construction ----------------------------------------------------
 
     def _build_controls(self) -> QWidget:
-        panel = QFrame()
-        panel.setProperty("role", "panel")
-        panel.setFixedWidth(252)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        inner = QWidget()
-        scroll.setWidget(inner)
-        layout = QVBoxLayout(inner)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(8)
+        panel, layout = control_panel(252)
 
         explanation = QLabel(
             "Each dot is <b>h·λ</b> — a Jacobian eigenvalue times the current "
@@ -220,19 +209,14 @@ class StiffnessScreen(QWidget):
         explanation.setStyleSheet("font-size: 11px;")
         layout.addWidget(explanation)
 
-        layout.addSpacing(4)
-        heading = QLabel("Problem")
-        heading.setProperty("role", "heading")
-        layout.addWidget(heading)
+        add_heading(layout, "Problem", space_above=4)
 
         self.problem_picker = QComboBox()
         self.refresh_problems()
         self.problem_picker.currentIndexChanged.connect(self._on_problem)
         layout.addWidget(self.problem_picker)
 
-        method_heading = QLabel("Method")
-        method_heading.setProperty("role", "heading")
-        layout.addWidget(method_heading)
+        add_heading(layout, "Method")
 
         self.method_picker = QComboBox()
         self.method_picker.currentTextChanged.connect(self._on_method)
@@ -243,18 +227,12 @@ class StiffnessScreen(QWidget):
         self.verdict.setStyleSheet("font-size: 11px;")
         layout.addWidget(self.verdict)
 
-        layout.addSpacing(4)
-        tolerance_heading = QLabel("Tolerance")
-        tolerance_heading.setProperty("role", "heading")
-        layout.addWidget(tolerance_heading)
+        add_heading(layout, "Tolerance", space_above=4)
         self.rtol = ValueSlider("relative tolerance", 1e-11, 1e-3, 1e-6, log=True)
         self.rtol.committed.connect(lambda _: self._recompute())
         layout.addWidget(self.rtol)
 
-        layout.addSpacing(4)
-        parameter_heading = QLabel("Parameters")
-        parameter_heading.setProperty("role", "heading")
-        layout.addWidget(parameter_heading)
+        add_heading(layout, "Parameters", space_above=4)
         self.parameters = ParameterPanel()
         self.parameters.changed.connect(self._on_param)
         layout.addWidget(self.parameters)
@@ -281,10 +259,6 @@ class StiffnessScreen(QWidget):
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addStretch(1)
-
-        holder = QVBoxLayout(panel)
-        holder.setContentsMargins(0, 0, 0, 0)
-        holder.addWidget(scroll)
         return panel
 
     def _build_region(self) -> QWidget:

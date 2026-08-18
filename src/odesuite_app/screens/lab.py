@@ -26,17 +26,15 @@ still selected on every other screen.
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
     QFileDialog,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
     QStackedWidget,
     QTabWidget,
     QVBoxLayout,
@@ -49,7 +47,13 @@ from ..equationmodel import build_entry
 from ..state import SessionState, methods_for
 from ..symbolic import with_parameters
 from ..theme import Palette
-from ..widgets.controls import MethodPicker, ParameterPanel, TolerancePanel
+from ..widgets.controls import (
+    MethodPicker,
+    ParameterPanel,
+    TolerancePanel,
+    add_heading,
+    control_panel,
+)
 from ..widgets.equationeditor import EquationEditor
 from ..widgets.plotpanel import PlotPanel
 from ..widgets.stats import StatsPanel
@@ -137,23 +141,9 @@ class LabScreen(QWidget):
     # -- construction ----------------------------------------------------
 
     def _build_controls(self) -> QWidget:
-        panel = QFrame()
-        panel.setProperty("role", "panel")
-        panel.setFixedWidth(258)
+        panel, layout = control_panel(258)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-
-        inner = QWidget()
-        scroll.setWidget(inner)
-        layout = QVBoxLayout(inner)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(8)
-
-        heading = QLabel("Problem")
-        heading.setProperty("role", "heading")
-        layout.addWidget(heading)
+        add_heading(layout, "Problem")
 
         # -- source switch -----------------------------------------------
         source = QHBoxLayout()
@@ -203,10 +193,7 @@ class LabScreen(QWidget):
 
         layout.addWidget(self.source_stack)
 
-        layout.addSpacing(6)
-        method_heading = QLabel("Method")
-        method_heading.setProperty("role", "heading")
-        layout.addWidget(method_heading)
+        add_heading(layout, "Method", space_above=6)
 
         self.method_picker = MethodPicker()
         self.method_picker.method_chosen.connect(self.state.set_method)
@@ -218,20 +205,14 @@ class LabScreen(QWidget):
         self.method_note.setStyleSheet("font-size: 10.5px;")
         layout.addWidget(self.method_note)
 
-        layout.addSpacing(6)
-        accuracy_heading = QLabel("Accuracy")
-        accuracy_heading.setProperty("role", "heading")
-        layout.addWidget(accuracy_heading)
+        add_heading(layout, "Accuracy", space_above=6)
 
         self.tolerances = TolerancePanel()
         self.tolerances.tolerances_changed.connect(self.state.set_tolerances)
         self.tolerances.steps_changed.connect(self.state.set_n_steps)
         layout.addWidget(self.tolerances)
 
-        layout.addSpacing(6)
-        parameter_heading = QLabel("Parameters")
-        parameter_heading.setProperty("role", "heading")
-        layout.addWidget(parameter_heading)
+        add_heading(layout, "Parameters", space_above=6)
 
         self.parameters = ParameterPanel()
         self.parameters.changed.connect(self.state.set_param)
@@ -258,10 +239,6 @@ class LabScreen(QWidget):
         self.toast.setWordWrap(True)
         layout.addWidget(self.toast)
         layout.addStretch(1)
-
-        holder = QVBoxLayout(panel)
-        holder.setContentsMargins(0, 0, 0, 0)
-        holder.addWidget(scroll)
         return panel
 
     # -- synchronisation with the session --------------------------------

@@ -20,8 +20,10 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
+    QScrollArea,
     QSlider,
     QVBoxLayout,
     QWidget,
@@ -29,6 +31,49 @@ from PySide6.QtWidgets import (
 
 from .. import catalog
 from ..catalog import CatalogEntry
+
+
+def control_panel(width: int) -> tuple[QFrame, QVBoxLayout]:
+    """A screen's left-hand control column: a fixed-width scrolling panel.
+
+    Returns the panel to place in the screen's layout, and the layout to fill
+    with controls. Every screen wants the same seventeen lines of Qt scaffolding
+    -- a themed frame, a vertical scroll area with horizontal scrolling off, an
+    inner widget, and a zero-margin holder -- and had its own copy of them.
+
+    The caller supplies the width because the five screens genuinely differ
+    (238 to 258 px). Those numbers look like drift rather than design, but
+    unifying them would change the layout, which is not what extracting
+    boilerplate is for.
+    """
+    panel = QFrame()
+    panel.setProperty("role", "panel")
+    panel.setFixedWidth(width)
+
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+    inner = QWidget()
+    scroll.setWidget(inner)
+    layout = QVBoxLayout(inner)
+    layout.setContentsMargins(14, 12, 14, 12)
+    layout.setSpacing(8)
+
+    holder = QVBoxLayout(panel)
+    holder.setContentsMargins(0, 0, 0, 0)
+    holder.addWidget(scroll)
+    return panel, layout
+
+
+def add_heading(layout: QVBoxLayout, text: str, *, space_above: int = 0) -> QLabel:
+    """Add a section heading, returning it in case the caller wants to keep it."""
+    if space_above:
+        layout.addSpacing(space_above)
+    label = QLabel(text)
+    label.setProperty("role", "heading")
+    layout.addWidget(label)
+    return label
 
 
 def fill_problem_picker(combo: QComboBox, accept=None, *,

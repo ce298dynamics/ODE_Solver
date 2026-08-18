@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QProgressBar,
     QPushButton,
-    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -36,7 +35,7 @@ from .. import catalog
 from ..solver import SolveRequest
 from ..state import SessionState, methods_for
 from ..theme import Palette
-from ..widgets.controls import ValueSlider
+from ..widgets.controls import ValueSlider, add_heading, control_panel
 
 __all__ = ["RaceScreen"]
 
@@ -128,31 +127,16 @@ class RaceScreen(QWidget):
     # -- construction ----------------------------------------------------
 
     def _build_controls(self) -> QWidget:
-        panel = QFrame()
-        panel.setProperty("role", "panel")
-        panel.setFixedWidth(238)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        inner = QWidget()
-        scroll.setWidget(inner)
-        layout = QVBoxLayout(inner)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(8)
+        panel, layout = control_panel(238)
 
-        heading = QLabel("Problem")
-        heading.setProperty("role", "heading")
-        layout.addWidget(heading)
+        add_heading(layout, "Problem")
 
         self.problem_picker = QComboBox()
         self.refresh_problems()
         self.problem_picker.currentIndexChanged.connect(self._on_problem)
         layout.addWidget(self.problem_picker)
 
-        layout.addSpacing(4)
-        competitors = QLabel("Competitors")
-        competitors.setProperty("role", "heading")
-        layout.addWidget(competitors)
+        add_heading(layout, "Competitors", space_above=4)
 
         self.checks: dict[str, QCheckBox] = {}
         for method in _CANDIDATES:
@@ -161,10 +145,7 @@ class RaceScreen(QWidget):
             layout.addWidget(box)
             self.checks[method] = box
 
-        layout.addSpacing(4)
-        tolerance = QLabel("Tolerance")
-        tolerance.setProperty("role", "heading")
-        layout.addWidget(tolerance)
+        add_heading(layout, "Tolerance", space_above=4)
         self.rtol = ValueSlider("relative tolerance", 1e-11, 1e-3, 1e-6, log=True)
         layout.addWidget(self.rtol)
 
@@ -185,10 +166,6 @@ class RaceScreen(QWidget):
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addStretch(1)
-
-        holder = QVBoxLayout(panel)
-        holder.setContentsMargins(0, 0, 0, 0)
-        holder.addWidget(scroll)
         return panel
 
     def _build_plot(self) -> QWidget:

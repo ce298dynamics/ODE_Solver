@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from .. import catalog, thumbnails
 from ..theme import Palette
 from ..widgets.cards import ChipBar, ProblemCard, ShowcaseTile
+from ..widgets.controls import add_heading
 from ..widgets.flow import FlowWidget
 
 __all__ = ["HomeScreen"]
@@ -105,10 +106,7 @@ class HomeScreen(QWidget):
         layout.addWidget(subtitle)
 
         # -- showcase tiles ----------------------------------------------
-        layout.addSpacing(6)
-        showcase_heading = QLabel("Start here")
-        showcase_heading.setProperty("role", "heading")
-        layout.addWidget(showcase_heading)
+        add_heading(layout, "Start here", space_above=6)
 
         tiles = QGridLayout()
         tiles.setSpacing(12)
@@ -130,10 +128,7 @@ class HomeScreen(QWidget):
         layout.addLayout(tiles)
 
         # -- gallery -----------------------------------------------------
-        layout.addSpacing(10)
-        gallery_heading = QLabel("Problem gallery")
-        gallery_heading.setProperty("role", "heading")
-        layout.addWidget(gallery_heading)
+        add_heading(layout, "Problem gallery", space_above=10)
 
         self.chips = ChipBar(catalog.all_tags())
         self.chips.changed.connect(self._apply_filter)

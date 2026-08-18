@@ -543,3 +543,131 @@ def test_the_single_solve_path_supersedes(qapp):
 
     source = inspect.getsource(SessionState.resolve)
     assert "supersede=True" in source
+
+
+# ---------------------------------------------------------------------------
+# The shared control-panel scaffolding
+# ---------------------------------------------------------------------------
+#
+# All five screens opened `_build_controls` with the same seventeen lines of Qt
+# scaffolding and closed it with the same five, and repeated a three-line
+# heading idiom twenty-one times between them. Both are now helpers in
+# `widgets/controls.py`.
+#
+# The refactor was gated on 42 offscreen renders -- every screen, both palettes,
+# whole and per-panel -- hashing pixel-identically. These tests keep the helpers
+# honest afterwards.
+
+
+def test_control_panel_builds_a_themed_scrolling_column(qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QFrame, QScrollArea, QVBoxLayout
+
+    from odesuite_app.widgets.controls import control_panel
+
+    panel, layout = control_panel(250)
+
+    assert isinstance(panel, QFrame)
+    assert panel.property("role") == "panel", "the theme styles on this property"
+    assert panel.width() == 250
+    assert isinstance(layout, QVBoxLayout)
+
+    scrolls = panel.findChildren(QScrollArea)
+    assert len(scrolls) == 1
+    scroll = scrolls[0]
+    assert scroll.widgetResizable()
+    # A control column scrolls vertically only; a horizontal bar here would mean
+    # a control is too wide, which is a thing to fix rather than to scroll to.
+    assert scroll.horizontalScrollBarPolicy() == Qt.ScrollBarAlwaysOff
+
+
+def test_control_panel_width_is_the_callers_choice(qapp):
+    """The five screens use 238 to 258 px. That looks like drift rather than
+    design, but unifying it would change the layout, which is not what
+    extracting boilerplate is for."""
+    from odesuite_app.widgets.controls import control_panel
+
+    assert control_panel(238)[0].width() == 238
+    assert control_panel(258)[0].width() == 258
+
+
+def test_widgets_added_to_the_returned_layout_land_inside_the_panel(qapp):
+    from PySide6.QtWidgets import QLabel
+
+    from odesuite_app.widgets.controls import control_panel
+
+    panel, layout = control_panel(250)
+    label = QLabel("inside")
+    layout.addWidget(label)
+
+    assert label in panel.findChildren(QLabel)
+
+
+def test_add_heading_marks_the_label_for_the_theme(qapp):
+    from PySide6.QtWidgets import QLabel
+
+    from odesuite_app.widgets.controls import add_heading, control_panel
+
+    panel, layout = control_panel(250)
+    heading = add_heading(layout, "Problem")
+
+    assert isinstance(heading, QLabel)
+    assert heading.text() == "Problem"
+    assert heading.property("role") == "heading"
+    assert heading in panel.findChildren(QLabel)
+
+
+def test_add_heading_can_leave_room_above_itself(qapp):
+    from odesuite_app.widgets.controls import add_heading, control_panel
+
+    _, plain = control_panel(250)
+    add_heading(plain, "First")
+    assert plain.count() == 1
+
+    _, spaced = control_panel(250)
+    add_heading(spaced, "First", space_above=6)
+    assert spaced.count() == 2, "the spacer is an item in its own right"
+
+
+def _build_controls_bodies():
+    """Source of every screen's `_build_controls`, keyed by file."""
+    import ast
+    import glob
+
+    newline = chr(10)
+    bodies = {}
+    for path in sorted(glob.glob("src/odesuite_app/screens/*.py")):
+        with open(path, encoding="utf-8") as handle:
+            lines = handle.read().splitlines()
+        for node in ast.walk(ast.parse(newline.join(lines))):
+            if isinstance(node, ast.FunctionDef) and node.name == "_build_controls":
+                bodies[path] = newline.join(lines[node.lineno - 1: node.end_lineno])
+    return bodies
+
+
+def test_no_screen_rebuilds_the_scrolling_column_by_hand():
+    """Finding #27, pinned.
+
+    Scoped to `_build_controls` rather than to whole files, and checked on
+    `QScrollArea` rather than on the panel role, because both broader versions
+    are wrong: screens legitimately build other `role="panel"` frames for the
+    plot area and the results summary, and the home screen legitimately scrolls
+    its whole gallery. The duplicated thing was specifically the scrolling
+    control column, and `control_panel` is now the only place one is built.
+    """
+    offenders = [
+        path for path, body in _build_controls_bodies().items()
+        if "QScrollArea(" in body
+    ]
+    assert not offenders, (
+        "these screens build a scrolling control column by hand instead of "
+        f"using control_panel(): {offenders}"
+    )
+
+
+def test_every_screen_with_a_control_column_uses_the_shared_one():
+    """The other half: the helper is adopted, not merely available."""
+    bodies = _build_controls_bodies()
+    assert len(bodies) == 5, f"expected five control columns, found {len(bodies)}"
+    for path, body in bodies.items():
+        assert "control_panel(" in body, f"{path} builds its control column by hand"

@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -32,7 +31,7 @@ from PySide6.QtWidgets import (
 from .. import analysis, catalog
 from ..state import SessionState
 from ..theme import Palette
-from ..widgets.controls import ParameterPanel
+from ..widgets.controls import ParameterPanel, add_heading, control_panel
 
 __all__ = ["PortraitScreen"]
 
@@ -101,22 +100,9 @@ class PortraitScreen(QWidget):
     # -- construction ----------------------------------------------------
 
     def _build_controls(self) -> QWidget:
-        panel = QFrame()
-        panel.setProperty("role", "panel")
-        panel.setFixedWidth(250)
+        panel, layout = control_panel(250)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        inner = QWidget()
-        scroll.setWidget(inner)
-        layout = QVBoxLayout(inner)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(8)
-
-        heading = QLabel("System")
-        heading.setProperty("role", "heading")
-        layout.addWidget(heading)
+        add_heading(layout, "System")
 
         self.picker = QComboBox()
         # Only planar autonomous systems have a phase portrait in this sense.
@@ -134,19 +120,13 @@ class PortraitScreen(QWidget):
         self.blurb.setStyleSheet("font-size: 11px;")
         layout.addWidget(self.blurb)
 
-        layout.addSpacing(6)
-        parameters = QLabel("Parameters")
-        parameters.setProperty("role", "heading")
-        layout.addWidget(parameters)
+        add_heading(layout, "Parameters", space_above=6)
 
         self.parameters = ParameterPanel()
         self.parameters.changed.connect(self._on_param)
         layout.addWidget(self.parameters)
 
-        layout.addSpacing(6)
-        layers = QLabel("Layers")
-        layers.setProperty("role", "heading")
-        layout.addWidget(layers)
+        add_heading(layout, "Layers", space_above=6)
 
         self.toggles: dict[str, QCheckBox] = {}
         for key, label, tip, default in [
@@ -189,10 +169,6 @@ class PortraitScreen(QWidget):
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addStretch(1)
-
-        holder = QVBoxLayout(panel)
-        holder.setContentsMargins(0, 0, 0, 0)
-        holder.addWidget(scroll)
         return panel
 
     def _build_plot(self) -> QWidget:
@@ -228,9 +204,7 @@ class PortraitScreen(QWidget):
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(3)
 
-        heading = QLabel("Equilibria")
-        heading.setProperty("role", "heading")
-        layout.addWidget(heading)
+        add_heading(layout, "Equilibria")
 
         self.report = QLabel("—")
         self.report.setProperty("role", "mono")

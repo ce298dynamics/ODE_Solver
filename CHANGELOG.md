@@ -47,6 +47,23 @@ All notable changes to this project are documented here. The format follows
   an error there converges fine on easy problems and fails mysteriously on hard
   ones.
 
+- **The five screens no longer each rebuild their control column.** Every one of
+  them opened `_build_controls` with the same seventeen lines of Qt scaffolding
+  and closed it with the same five, and between them repeated a three-line
+  heading idiom twenty-one times. Both are now `control_panel()` and
+  `add_heading()` in `widgets/controls.py`, and `_build_controls` across the
+  five drops from 441 lines to 322.
+
+  Deliberately a helper and not a base class: the middles of those functions are
+  genuinely different screens, and forcing them into one shape would be worse
+  than the duplication. The panel width stays a caller's argument for the same
+  reason — the five differ (238 to 258 px), which looks like drift rather than
+  design, but unifying it would change the layout, and that is not what
+  extracting boilerplate is for.
+
+  Gated on 42 offscreen renders — every screen, both palettes, whole and
+  per-panel — hashing **pixel-identically**.
+
 ## [0.3.0] — 2026-08-17
 
 ### Added
