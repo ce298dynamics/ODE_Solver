@@ -151,6 +151,181 @@ def _initial_guess(guess, nodes: np.ndarray, n: int) -> np.ndarray:
     return arr.copy()
 
 
+class _ShootingSystem:
+    """The nonlinear system multiple shooting turns the BVP into.
+
+    Holds everything a shot needs -- the problem, the node times, the inner
+    solver's settings -- and exposes the three things Newton asks for: the
+    residual, its Jacobian, and (once converged) the continuous solution.
+
+    Separating this from the Newton iteration is what lets each be read on its
+    own. The iteration is a textbook damped Newton loop; everything specific to
+    *shooting* is here.
+    """
+
+    def __init__(self, bvp: BVProblem, nodes: np.ndarray, *, method: str,
+                 rtol: float, atol, fd_floor: float):
+        self.bvp = bvp
+        self.nodes = nodes
+        self.n = bvp.n
+        self.n_nodes = nodes.size - 1
+        self.method = method
+        self.rtol = rtol
+        self.atol = atol
+        self.fd_floor = fd_floor
+        self.stats = Stats()
+
+        # Differentiating a *numerically integrated* map: the effective machine
+        # epsilon is the integration tolerance, not np.finfo(float).eps. A shot
+        # is only accurate to ~rtol, so the optimal forward-difference step is
+        # sqrt(rtol) rather than sqrt(EPS) -- about 3e-6 at rtol=1e-11 instead
+        # of 1.5e-8. Getting this wrong is silent: the Jacobian fills with
+        # noise, the Newton direction is meaningless, and the line search
+        # rejects every step while reporting only "line search failed".
+        self.fd_eps = np.sqrt(max(float(rtol), EPS))
+
+    # -- one shot --------------------------------------------------------
+
+    def shoot(self, k: int, state: np.ndarray, want_dense: bool = False):
+        """Integrate interval `k` from `state`. Returns ``(endpoint, dense)``."""
+        problem = ODEProblem(
+            f=self.bvp.f,
+            t_span=(self.nodes[k], self.nodes[k + 1]),
+            y0=state,
+            jac=self.bvp.jac,
+            args=self.bvp.args,
+        )
+        sol = solve(
+            problem,
+            method=self.method,
+            rtol=self.rtol,
+            atol=self.atol,
+            dense_output=want_dense,
+        )
+        stats = self.stats
+        stats.nfev += sol.stats.nfev
+        stats.njev += sol.stats.njev
+        stats.nlu += sol.stats.nlu
+        stats.nsteps += sol.stats.nsteps
+        stats.naccepted += sol.stats.naccepted
+        stats.nrejected += sol.stats.nrejected
+        if not sol.success:
+            raise FloatingPointError(f"shot {k} failed: {sol.message}")
+        return sol.y[:, -1], (sol.sol if want_dense else None)
+
+    # -- what Newton asks for --------------------------------------------
+
+    def residual(self, S: np.ndarray) -> np.ndarray:
+        """Continuity residuals for every interval, then the boundary residual."""
+        n, n_nodes = self.n, self.n_nodes
+        r = np.empty((n_nodes + 1) * n)
+        for k in range(n_nodes):
+            end, _ = self.shoot(k, S[:, k])
+            r[k * n : (k + 1) * n] = end - S[:, k + 1]
+        r[n_nodes * n :] = self.bvp.residual(S[:, 0], S[:, n_nodes])
+        return r
+
+    def _fd_steps(self, values: np.ndarray) -> np.ndarray:
+        # The floor must be a *typical size* of the state, not a tiny number:
+        # a component sitting at zero still needs a perturbation big enough to
+        # register above the integrator's noise.
+        return self.fd_eps * np.maximum(np.abs(values), self.fd_floor)
+
+    def jacobian(self, S: np.ndarray):
+        """Block-bidiagonal Jacobian of the residual, assembled sparsely.
+
+        Only the propagation blocks ``G_k = dy(t_{k+1})/dS_k`` and the two
+        boundary blocks need differencing; the ``-I`` coupling each continuity
+        residual has to the *next* node is exact and is written in directly.
+        That is what keeps the cost at ``m*n`` short shots rather than
+        ``(m+1)*n`` full ones.
+        """
+        n, n_nodes = self.n, self.n_nodes
+        rows, cols, vals = [], [], []
+
+        def add_block(block, row0, col0):
+            block = np.asarray(block)
+            r_idx, c_idx = np.nonzero(np.ones_like(block))
+            rows.append(r_idx + row0)
+            cols.append(c_idx + col0)
+            vals.append(block.ravel())
+
+        for k in range(n_nodes):
+            base, _ = self.shoot(k, S[:, k])
+            G = np.empty((n, n))
+            steps = self._fd_steps(S[:, k])
+            for j in range(n):
+                perturbed = S[:, k].copy()
+                perturbed[j] += steps[j]
+                delta = perturbed[j] - S[j, k]
+                end, _ = self.shoot(k, perturbed)
+                G[:, j] = (end - base) / delta
+            add_block(G, k * n, k * n)
+            add_block(-np.eye(n), k * n, (k + 1) * n)
+
+        ya, yb = S[:, 0].copy(), S[:, n_nodes].copy()
+        base_bc = self.bvp.residual(ya, yb)
+        Ba = np.empty((n, n))
+        Bb = np.empty((n, n))
+        # `bc` is evaluated exactly rather than integrated, so here the ordinary
+        # sqrt(EPS) step is the right one.
+        a_steps = np.sqrt(EPS) * np.maximum(np.abs(ya), self.fd_floor)
+        b_steps = np.sqrt(EPS) * np.maximum(np.abs(yb), self.fd_floor)
+        for j in range(n):
+            ya_p = ya.copy()
+            ya_p[j] += a_steps[j]
+            Ba[:, j] = (self.bvp.residual(ya_p, yb) - base_bc) / (ya_p[j] - ya[j])
+
+            yb_p = yb.copy()
+            yb_p[j] += b_steps[j]
+            Bb[:, j] = (self.bvp.residual(ya, yb_p) - base_bc) / (yb_p[j] - yb[j])
+
+        add_block(Ba, n_nodes * n, 0)
+        add_block(Bb, n_nodes * n, n_nodes * n)
+
+        size = (n_nodes + 1) * n
+        return sparse.csc_matrix(
+            (np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))),
+            shape=(size, size),
+        )
+
+    def dense_output(self, S: np.ndarray) -> DenseOutput:
+        """Re-shoot every interval with dense output and splice the pieces."""
+        interpolants = []
+        for k in range(self.n_nodes):
+            _, piece = self.shoot(k, S[:, k], want_dense=True)
+            interpolants.extend(piece.interpolants)
+        return DenseOutput(interpolants, self.n)
+
+    @staticmethod
+    def norm(r: np.ndarray) -> float:
+        return float(np.linalg.norm(r) / np.sqrt(r.size))
+
+
+def _line_search(system: _ShootingSystem, S: np.ndarray, step: np.ndarray,
+                 r_norm: float):
+    """Armijo backtracking. Returns ``(S, r, r_norm)`` or None if none worked.
+
+    Undamped Newton overshoots readily on a nonlinear BVP -- Bratu's upper
+    branch is the standard example -- and a diverged shot raises rather than
+    returning a large residual, so the failure has to be caught and treated as
+    "step too long" rather than propagated.
+    """
+    lam = 1.0
+    while lam >= 1.0 / 64:
+        trial = S + lam * step
+        try:
+            r_trial = system.residual(trial)
+            trial_norm = system.norm(r_trial)
+        except FloatingPointError:
+            lam /= 2
+            continue
+        if trial_norm < (1.0 - 0.25 * lam) * r_norm:
+            return trial, r_trial, trial_norm, lam
+        lam /= 2
+    return None
+
+
 def solve_bvp(
     bvp: BVProblem,
     guess,
@@ -198,120 +373,11 @@ def solve_bvp(
     if n_nodes < 1:
         raise ValueError("n_nodes must be at least 1")
 
-    n = bvp.n
     nodes = np.linspace(bvp.a, bvp.b, n_nodes + 1)
-    S = _initial_guess(guess, nodes, n)
-    stats = Stats()
-
-    def shoot(k: int, state: np.ndarray, want_dense: bool = False):
-        """Integrate interval `k` from `state`. Returns (endpoint, interpolants)."""
-        problem = ODEProblem(
-            f=bvp.f,
-            t_span=(nodes[k], nodes[k + 1]),
-            y0=state,
-            jac=bvp.jac,
-            args=bvp.args,
-        )
-        sol = solve(
-            problem,
-            method=method,
-            rtol=rtol,
-            atol=atol,
-            dense_output=want_dense,
-        )
-        stats.nfev += sol.stats.nfev
-        stats.njev += sol.stats.njev
-        stats.nlu += sol.stats.nlu
-        stats.nsteps += sol.stats.nsteps
-        stats.naccepted += sol.stats.naccepted
-        stats.nrejected += sol.stats.nrejected
-        if not sol.success:
-            raise FloatingPointError(f"shot {k} failed: {sol.message}")
-        return sol.y[:, -1], (sol.sol if want_dense else None)
-
-    def residual(S: np.ndarray) -> np.ndarray:
-        """Continuity residuals for every interval, then the boundary residual."""
-        r = np.empty((n_nodes + 1) * n)
-        for k in range(n_nodes):
-            end, _ = shoot(k, S[:, k])
-            r[k * n : (k + 1) * n] = end - S[:, k + 1]
-        r[n_nodes * n :] = bvp.residual(S[:, 0], S[:, n_nodes])
-        return r
-
-    # Differentiating a *numerically integrated* map: the effective machine
-    # epsilon is the integration tolerance, not np.finfo(float).eps. A shot is
-    # only accurate to ~rtol, so the optimal forward-difference step is
-    # sqrt(rtol) rather than sqrt(EPS) -- about 3e-6 at rtol=1e-11 instead of
-    # 1.5e-8. Getting this wrong is silent: the Jacobian fills with noise, the
-    # Newton direction is meaningless, and the line search rejects every step
-    # while reporting only "line search failed".
-    fd_eps = np.sqrt(max(float(rtol), EPS))
-
-    def fd_steps(values: np.ndarray) -> np.ndarray:
-        # The floor must be a *typical size* of the state, not a tiny number:
-        # a component sitting at zero still needs a perturbation big enough to
-        # register above the integrator's noise.
-        return fd_eps * np.maximum(np.abs(values), fd_floor)
-
-    def jacobian(S: np.ndarray):
-        """Block-bidiagonal Jacobian of the residual, assembled sparsely.
-
-        Only the propagation blocks ``G_k = dy(t_{k+1})/dS_k`` and the two
-        boundary blocks need differencing; the ``-I`` coupling each continuity
-        residual has to the *next* node is exact and is written in directly.
-        That is what keeps the cost at ``m*n`` short shots rather than
-        ``(m+1)*n`` full ones.
-        """
-        rows, cols, vals = [], [], []
-
-        def add_block(block, row0, col0):
-            block = np.asarray(block)
-            r_idx, c_idx = np.nonzero(np.ones_like(block))
-            rows.append(r_idx + row0)
-            cols.append(c_idx + col0)
-            vals.append(block.ravel())
-
-        for k in range(n_nodes):
-            base, _ = shoot(k, S[:, k])
-            G = np.empty((n, n))
-            steps = fd_steps(S[:, k])
-            for j in range(n):
-                perturbed = S[:, k].copy()
-                perturbed[j] += steps[j]
-                delta = perturbed[j] - S[j, k]
-                end, _ = shoot(k, perturbed)
-                G[:, j] = (end - base) / delta
-            add_block(G, k * n, k * n)
-            add_block(-np.eye(n), k * n, (k + 1) * n)
-
-        ya, yb = S[:, 0].copy(), S[:, n_nodes].copy()
-        base_bc = bvp.residual(ya, yb)
-        Ba = np.empty((n, n))
-        Bb = np.empty((n, n))
-        # `bc` is evaluated exactly rather than integrated, so here the ordinary
-        # sqrt(EPS) step is the right one.
-        a_steps = np.sqrt(EPS) * np.maximum(np.abs(ya), fd_floor)
-        b_steps = np.sqrt(EPS) * np.maximum(np.abs(yb), fd_floor)
-        for j in range(n):
-            ya_p = ya.copy()
-            ya_p[j] += a_steps[j]
-            Ba[:, j] = (bvp.residual(ya_p, yb) - base_bc) / (ya_p[j] - ya[j])
-
-            yb_p = yb.copy()
-            yb_p[j] += b_steps[j]
-            Bb[:, j] = (bvp.residual(ya, yb_p) - base_bc) / (yb_p[j] - yb[j])
-
-        add_block(Ba, n_nodes * n, 0)
-        add_block(Bb, n_nodes * n, n_nodes * n)
-
-        size = (n_nodes + 1) * n
-        return sparse.csc_matrix(
-            (np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))),
-            shape=(size, size),
-        )
-
-    def norm(r: np.ndarray) -> float:
-        return float(np.linalg.norm(r) / np.sqrt(r.size))
+    S = _initial_guess(guess, nodes, bvp.n)
+    system = _ShootingSystem(
+        bvp, nodes, method=method, rtol=rtol, atol=atol, fd_floor=fd_floor
+    )
 
     # -- damped Newton ---------------------------------------------------
     history: list[float] = []
@@ -320,12 +386,12 @@ def solve_bvp(
     n_iter = 0
 
     try:
-        r = residual(S)
+        r = system.residual(S)
     except FloatingPointError as exc:
         return BVPSolution(
             nodes, S, False, 0, np.inf, f"initial guess is not integrable: {exc}"
         )
-    r_norm = norm(r)
+    r_norm = system.norm(r)
     history.append(r_norm)
 
     for n_iter in range(1, max_iter + 1):
@@ -335,7 +401,7 @@ def solve_bvp(
             break
 
         try:
-            factorization = lu_factorize(jacobian(S))
+            factorization = lu_factorize(system.jacobian(S))
         except (np.linalg.LinAlgError, RuntimeError) as exc:
             message = f"shooting Jacobian is singular at iteration {n_iter}: {exc}"
             break
@@ -343,29 +409,10 @@ def solve_bvp(
             message = f"a shot diverged while building the Jacobian: {exc}"
             break
 
-        step = -factorization.solve(r).reshape(n_nodes + 1, n).T
+        step = -factorization.solve(r).reshape(n_nodes + 1, bvp.n).T
 
-        # Armijo backtracking. Undamped Newton overshoots readily on a
-        # nonlinear BVP -- Bratu's upper branch is the standard example -- and
-        # a diverged shot raises rather than returning a large residual, so the
-        # failure has to be caught and treated as "step too long".
-        lam = 1.0
-        accepted = False
-        while lam >= 1.0 / 64:
-            trial = S + lam * step
-            try:
-                r_trial = residual(trial)
-                trial_norm = norm(r_trial)
-            except FloatingPointError:
-                lam /= 2
-                continue
-            if trial_norm < (1.0 - 0.25 * lam) * r_norm:
-                S, r, r_norm = trial, r_trial, trial_norm
-                accepted = True
-                break
-            lam /= 2
-
-        if not accepted:
+        outcome = _line_search(system, S, step, r_norm)
+        if outcome is None:
             # No damping improved the residual. If it is already below
             # tolerance that is convergence, not failure: near the solution the
             # residual sits on the integrator's noise floor and no step can
@@ -380,6 +427,7 @@ def solve_bvp(
                 )
             break
 
+        S, r, r_norm, lam = outcome
         history.append(r_norm)
         if verbose:
             print(f"  iter {n_iter:2d}  |r| = {r_norm:.3e}  damping = {lam:g}")
@@ -393,15 +441,6 @@ def solve_bvp(
     if converged:
         message = f"converged in {n_iter} iterations, residual {r_norm:.3e}"
 
-    # -- assemble the continuous solution --------------------------------
-    dense = None
-    if dense_output and converged:
-        interpolants = []
-        for k in range(n_nodes):
-            _, piece = shoot(k, S[:, k], want_dense=True)
-            interpolants.extend(piece.interpolants)
-        dense = DenseOutput(interpolants, n)
-
     return BVPSolution(
         nodes=nodes,
         y_nodes=S,
@@ -409,7 +448,7 @@ def solve_bvp(
         n_iter=n_iter,
         residual_norm=r_norm,
         message=message,
-        sol=dense,
-        stats=stats,
+        sol=system.dense_output(S) if (dense_output and converged) else None,
+        stats=system.stats,
         history=history,
     )

@@ -275,3 +275,233 @@ def test_stats_and_repr():
     assert sol.stats.naccepted > 0
     assert "BVPSolution" in repr(sol)
     assert "converged" in repr(sol)
+
+
+# ---------------------------------------------------------------------------
+# The shooting system, tested without running Newton
+# ---------------------------------------------------------------------------
+#
+# `solve_bvp` had reached 262 lines by holding the shooting machinery and the
+# Newton iteration in one function, as five closures over its own arguments.
+# The machinery is now `_ShootingSystem`, which is the point: the residual
+# layout, the block-bidiagonal Jacobian and the Armijo line search could
+# previously only be checked by inference from a converged answer.
+#
+# The load-bearing test here is `test_the_assembled_jacobian_matches_a_dense_one`.
+# The `-I` coupling blocks are written in analytically rather than differenced,
+# and an error there is exactly the kind that still converges on easy problems
+# and fails mysteriously on hard ones.
+
+from odesuite.bvp.shooting import (  # noqa: E402
+    _initial_guess,
+    _line_search,
+    _ShootingSystem,
+)
+
+
+def _linear_system(n_nodes=3, rtol=1e-11, atol=1e-13, fd_floor=1.0):
+    """``y'' = y`` on [0, 1] with y(0)=0, y(1)=1, split into `n_nodes` shots."""
+    bvp = bvp_linear().problem
+    nodes = np.linspace(bvp.a, bvp.b, n_nodes + 1)
+    system = _ShootingSystem(
+        bvp, nodes, method="dopri5", rtol=rtol, atol=atol, fd_floor=fd_floor
+    )
+    return system, nodes
+
+
+def _exact_nodes(nodes):
+    s = np.sinh(1.0)
+    return np.stack([np.sinh(nodes) / s, np.cosh(nodes) / s], axis=0)
+
+
+def test_a_shot_integrates_one_interval_and_counts_its_work():
+    system, nodes = _linear_system(n_nodes=4)
+    exact = _exact_nodes(nodes)
+
+    end, dense = system.shoot(0, exact[:, 0])
+    assert dense is None, "dense output is opt-in"
+    assert np.allclose(end, exact[:, 1], atol=1e-9)
+    assert system.stats.nfev > 0 and system.stats.naccepted > 0
+
+
+def test_a_shot_can_return_its_continuous_solution():
+    system, nodes = _linear_system(n_nodes=2)
+    _, dense = system.shoot(0, _exact_nodes(nodes)[:, 0], want_dense=True)
+    assert dense is not None
+    midpoint = dense(0.5 * (nodes[0] + nodes[1]))
+    assert midpoint.shape == (2,)
+
+
+def test_a_shot_that_cannot_be_integrated_raises():
+    """It must raise rather than return a large residual, because the line
+    search treats the exception as "step too long" and backs off."""
+    bvp = BVProblem(
+        f=lambda t, y: np.array([y[0] ** 2 * 1e8, 0.0]),
+        t_span=(0.0, 1.0),
+        bc=lambda ya, yb: np.array([ya[0], yb[1]]),
+        n=2,
+    )
+    system = _ShootingSystem(
+        bvp, np.array([0.0, 1.0]), method="dopri5", rtol=1e-8, atol=1e-10,
+        fd_floor=1.0,
+    )
+    with pytest.raises(FloatingPointError, match="shot 0 failed"):
+        system.shoot(0, np.array([1e8, 1.0]))
+
+
+def test_the_residual_vanishes_at_the_true_solution():
+    system, nodes = _linear_system(n_nodes=5)
+    r = system.residual(_exact_nodes(nodes))
+    assert system.norm(r) < 1e-9
+
+
+def test_the_residual_is_continuity_blocks_then_the_boundary_block():
+    """Layout matters: the Jacobian is assembled against these row indices."""
+    system, nodes = _linear_system(n_nodes=3)
+    n, m = system.n, system.n_nodes
+
+    S = _exact_nodes(nodes)
+    S[:, 2] += 0.5                       # break continuity at node 2 only
+    r = system.residual(S)
+
+    assert r.size == (m + 1) * n
+    # The boundary block is untouched: node 0 and node m still satisfy the bc.
+    assert np.allclose(r[m * n :], 0.0, atol=1e-9)
+    # Continuity is broken across the two intervals that touch node 2.
+    assert abs(r[1 * n : 2 * n]).max() > 0.1
+    assert abs(r[2 * n : 3 * n]).max() > 0.1
+    assert abs(r[0 * n : 1 * n]).max() < 1e-8
+
+
+def test_the_assembled_jacobian_matches_a_dense_one():
+    """The whole assembly checked against brute force.
+
+    The propagation blocks are differenced but the ``-I`` couplings are written
+    in analytically, and the whole thing is placed into a sparse matrix by index
+    arithmetic. Differencing the *entire* residual gives an independent answer
+    that exercises none of that.
+    """
+    system, nodes = _linear_system(n_nodes=3, rtol=1e-12, atol=1e-14)
+    S = _exact_nodes(nodes) + 0.05
+
+    assembled = system.jacobian(S).toarray()
+
+    size = (system.n_nodes + 1) * system.n
+    dense = np.empty((size, size))
+    base = system.residual(S)
+    eps = 1e-6
+    for col in range(size):
+        perturbed = S.copy()
+        perturbed[col % system.n, col // system.n] += eps
+        dense[:, col] = (system.residual(perturbed) - base) / eps
+
+    assert assembled.shape == (size, size)
+    assert np.allclose(assembled, dense, rtol=2e-4, atol=2e-5), (
+        f"largest discrepancy {np.abs(assembled - dense).max():.3e}"
+    )
+
+
+def test_the_jacobian_has_the_block_bidiagonal_sparsity():
+    """The structure is the reason multiple shooting is affordable."""
+    system, nodes = _linear_system(n_nodes=4)
+    J = system.jacobian(_exact_nodes(nodes))
+    n, m = system.n, system.n_nodes
+
+    dense = J.toarray()
+    # Every continuity row couples only to its own node and the next one.
+    for k in range(m):
+        rows = slice(k * n, (k + 1) * n)
+        for other in range(m + 1):
+            block = dense[rows, other * n : (other + 1) * n]
+            if other in (k, k + 1):
+                continue
+            assert np.allclose(block, 0.0), f"row block {k} touches node {other}"
+    # And the coupling to the next node is exactly -I, not a differenced copy.
+    for k in range(m):
+        block = dense[k * n : (k + 1) * n, (k + 1) * n : (k + 2) * n]
+        assert np.array_equal(block, -np.eye(n))
+
+
+def test_the_finite_difference_step_is_sized_by_the_integration_tolerance():
+    """Recorded bug #2: a shot is only accurate to ~rtol, so the right step is
+    sqrt(rtol), not sqrt(EPS). With a node component at zero the sqrt(EPS)
+    perturbation was 1.5e-16 -- pure noise -- and every Bratu solve failed
+    reporting only "line search failed"."""
+    loose, _ = _linear_system(rtol=1e-8)
+    tight, _ = _linear_system(rtol=1e-13)
+    assert loose.fd_eps == pytest.approx(1e-4)
+    assert tight.fd_eps > np.sqrt(np.finfo(float).eps) / 2
+
+    # And the floor keeps a component sitting at zero from getting a useless
+    # perturbation.
+    steps = loose._fd_steps(np.array([0.0, 100.0]))
+    assert steps[0] == pytest.approx(loose.fd_eps * 1.0)
+    assert steps[1] == pytest.approx(loose.fd_eps * 100.0)
+
+
+def test_the_norm_is_rms():
+    system, _ = _linear_system()
+    assert system.norm(np.array([3.0, 4.0])) == pytest.approx(5.0 / np.sqrt(2))
+
+
+def test_dense_output_splices_every_interval():
+    system, nodes = _linear_system(n_nodes=4)
+    dense = system.dense_output(_exact_nodes(nodes))
+
+    t = np.linspace(0.0, 1.0, 101)
+    exact = np.sinh(t) / np.sinh(1.0)
+    assert np.abs(dense(t)[0] - exact).max() < 1e-8
+
+
+# ---------------------------------------------------------------------------
+# The line search
+# ---------------------------------------------------------------------------
+
+
+def test_a_good_full_step_is_taken_undamped():
+    system, nodes = _linear_system(n_nodes=3)
+    exact = _exact_nodes(nodes)
+    S = exact + 0.05
+    r = system.residual(S)
+
+    step = exact - S                       # exactly the correction needed
+    outcome = _line_search(system, S, step, system.norm(r))
+
+    assert outcome is not None
+    _, _, new_norm, lam = outcome
+    assert lam == 1.0, "no damping should be needed"
+    assert new_norm < system.norm(r)
+
+
+def test_a_step_that_does_not_help_is_reported_as_failure():
+    """Returning None is what lets `solve_bvp` distinguish "converged onto the
+    noise floor" from "genuinely stuck"."""
+    system, nodes = _linear_system(n_nodes=2)
+    S = _exact_nodes(nodes)
+    r_norm = system.norm(system.residual(S))
+
+    # Already at the solution: no direction can reduce the residual further.
+    outcome = _line_search(system, S, np.ones_like(S) * 1e3, r_norm)
+    assert outcome is None
+
+
+def test_an_unintegrable_trial_step_is_backed_off_rather_than_raised():
+    """A diverged shot raises; the search must treat that as "too long" and try
+    a shorter step instead of letting the exception escape."""
+    bvp = BVProblem(
+        f=lambda t, y: np.array([y[1], np.exp(np.clip(y[0], -50, 50))]),
+        t_span=(0.0, 1.0),
+        bc=lambda ya, yb: np.array([ya[0], yb[0]]),
+        n=2,
+    )
+    nodes = np.linspace(0.0, 1.0, 3)
+    system = _ShootingSystem(
+        bvp, nodes, method="dopri5", rtol=1e-9, atol=1e-11, fd_floor=1.0
+    )
+    S = _initial_guess(np.array([0.0, 0.0]), nodes, 2)
+    r_norm = system.norm(system.residual(S))
+
+    # A wildly long step: the first trials cannot be integrated at all.
+    huge = np.full_like(S, 1e3)
+    outcome = _line_search(system, S, huge, r_norm)
+    assert outcome is None or outcome[3] <= 1.0
