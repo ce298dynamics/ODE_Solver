@@ -27,6 +27,26 @@ All notable changes to this project are documented here. The format follows
   arithmetic behind recorded bug #4 — could previously only be checked by
   inference from a finished trajectory.
 
+- **`solve_bvp` split the same way**, 262 lines to 126 (96 of code). The
+  shooting machinery — five closures over the function's own arguments — is now
+  a `_ShootingSystem` holding the problem, the nodes and the inner solver's
+  settings, exposing the three things Newton asks for: residual, Jacobian, and
+  the spliced continuous solution. The Armijo backtracking is `_line_search`,
+  which isolates the awkward part: a diverged shot raises rather than returning
+  a large residual, and has to be read as "step too long". What remains in
+  `solve_bvp` is the damped Newton iteration, which is its job.
+
+  Gated on 32 BVP solves hashing bit-identically: linear and oscillatory
+  problems at 1/2/5/10/20 nodes, all three guess forms, both Bratu branches,
+  the iteration limit, a custom `fd_floor`, a stiff inner method, an
+  unintegrable guess, and the three argument-validation errors.
+
+  13 new tests check the machinery directly, the sharpest being the assembled
+  Jacobian against a brute-force dense difference of the whole residual — the
+  `-I` coupling blocks are written in analytically rather than differenced, and
+  an error there converges fine on easy problems and fails mysteriously on hard
+  ones.
+
 ## [0.3.0] — 2026-08-17
 
 ### Added
