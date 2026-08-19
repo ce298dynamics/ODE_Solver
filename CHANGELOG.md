@@ -6,6 +6,30 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **The app is split into two sections: Learning Hub and Solver Studio**, over a
+  shared Home. The Studio holds the five screens that already existed — Solver
+  Lab, Phase Portrait, Stiffness Explorer, Method Race, Accuracy Lab — and the
+  Hub is a new section for learning to solve ODEs, currently four placeholders
+  being filled in by phase: Solve Step by Step, Laplace Transforms, Methods by
+  Hand, Worked Problems.
+
+  The split is presentation only. Both sections drive the same `SessionState`
+  and select from the same catalogue by key, which is what lets a problem —
+  including one the user typed — appear on either side without either knowing
+  about the other.
+
+  `go(key)` still takes a bare screen key and now resolves the section itself,
+  because every caller passes one that way: `cli.py --screen`, the Home tiles,
+  and the tests. Shortcuts stay globally unique rather than restarting per
+  section, so one never means two different screens.
+
+  Verified by the same 42-render offscreen comparison used for the
+  control-panel refactor: the five existing screens render **pixel-identically**
+  to before the split. A navigation change must not disturb what it navigates
+  to.
+
 ### Changed
 
 - **`driver.solve` split into the loop and its bookkeeping.** It had reached 408

@@ -422,6 +422,10 @@ def test_palettes_define_every_colour():
         assert len(palette.series) >= 6
 
 
+#: Learning Hub screens still to be built. Each phase removes one.
+PENDING_SCREENS = {"steps", "laplace", "byhand", "worked"}
+
+
 def test_window_builds_and_navigates(qapp):
     """A headless smoke test: construct the window and visit every screen."""
     from odesuite_app.app import SCREENS, MainWindow
@@ -435,11 +439,19 @@ def test_window_builds_and_navigates(qapp):
         assert window.sidebar.buttons[key].isChecked(), (
             f"the sidebar did not follow the switch to {key!r}"
         )
-    # Every screen must be real, not a placeholder left over from a phase.
+    # Placeholders are allowed only where a phase has not landed yet, and the
+    # set is pinned in both directions: a new one appearing is caught, and so is
+    # a phase that shipped without replacing the one it was for.
     from odesuite_app.app import _Placeholder
 
-    for key, widget in window._screens.items():
-        assert not isinstance(widget, _Placeholder), f"{key} is still a placeholder"
+    pending = {
+        key for key, widget in window._screens.items()
+        if isinstance(widget, _Placeholder)
+    }
+    assert pending == PENDING_SCREENS, (
+        f"placeholders are {sorted(pending)}, expected {sorted(PENDING_SCREENS)} -- "
+        f"update PENDING_SCREENS when a Learning Hub phase lands"
+    )
     window.deleteLater()
 
 

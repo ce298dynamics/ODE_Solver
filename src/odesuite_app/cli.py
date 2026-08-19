@@ -43,7 +43,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--screen", default=None,
-        help="open on a specific screen (home, lab, portrait, stiffness, race, accuracy)",
+        help="open on a specific screen. Learning Hub: steps, laplace, byhand, "
+             "worked. Solver Studio: lab, portrait, stiffness, race, accuracy. "
+             "Or home.",
     )
     parser.add_argument(
         "--rebuild-thumbnails", action="store_true",

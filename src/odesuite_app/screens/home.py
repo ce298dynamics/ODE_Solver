@@ -98,34 +98,51 @@ class HomeScreen(QWidget):
         layout.addWidget(title)
 
         subtitle = QLabel(
-            "A from-scratch ODE solver — 13 methods, adaptive stepping, stiff "
-            "systems, DAEs, events and dense output.  Pick a problem to begin."
+            "A from-scratch ODE solver, and two ways in. The <b>Learning Hub</b> "
+            "is about solving equations — techniques, worked step by step, and "
+            "the methods done by hand. <b>Solver Studio</b> is about the solvers "
+            "themselves — adaptivity, stiffness and accuracy."
         )
+        subtitle.setTextFormat(Qt.RichText)
         subtitle.setProperty("role", "subtitle")
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
 
-        # -- showcase tiles ----------------------------------------------
-        add_heading(layout, "Start here", space_above=6)
-
-        tiles = QGridLayout()
-        tiles.setSpacing(12)
-        specs = [
-            ("Solver Lab", "Solve anything, and watch the step size adapt "
-             "underneath the trajectory.", palette.accent, "lab"),
-            ("Phase Portrait", "Vector fields, nullclines and fixed points. "
-             "Click anywhere to launch a trajectory.", palette.success, "portrait"),
-            ("Stiffness Explorer", "See why stiff problems break explicit "
-             "methods — eigenvalues crossing the stability boundary.",
-             palette.danger, "stiffness"),
-            ("Method Race", "Four integrators, one problem, live evaluation "
-             "counters and a finish line.", palette.warning, "race"),
+        # -- showcase tiles, one group per section -----------------------
+        groups = [
+            ("Learning Hub", [
+                ("Solve Step by Step", "See which technique solves your "
+                 "equation, worked a line at a time — and check your own answer.",
+                 palette.accent, "steps"),
+                ("Laplace Transforms", "Transform the equation, solve for "
+                 "Y(s), and invert it back.", palette.success, "laplace"),
+                ("Methods by Hand", "Euler and RK4 as they are taught: the "
+                 "arithmetic, beside the exact answer.", palette.warning, "byhand"),
+                ("Worked Problems", "Mixing tanks, circuits and cooling — "
+                 "where the equation comes from.", palette.danger, "worked"),
+            ]),
+            ("Solver Studio", [
+                ("Solver Lab", "Solve anything, and watch the step size adapt "
+                 "underneath the trajectory.", palette.accent, "lab"),
+                ("Phase Portrait", "Vector fields, nullclines and fixed points. "
+                 "Click anywhere to launch a trajectory.", palette.success,
+                 "portrait"),
+                ("Stiffness Explorer", "See why stiff problems break explicit "
+                 "methods — eigenvalues crossing the stability boundary.",
+                 palette.danger, "stiffness"),
+                ("Method Race", "Four integrators, one problem, live evaluation "
+                 "counters and a finish line.", palette.warning, "race"),
+            ]),
         ]
-        for index, (name, blurb, colour, screen) in enumerate(specs):
-            tile = ShowcaseTile(name, blurb, colour)
-            tile.clicked.connect(lambda s=screen: self.showcase_chosen.emit(s))
-            tiles.addWidget(tile, index // 2, index % 2)
-        layout.addLayout(tiles)
+        for group_index, (title, specs) in enumerate(groups):
+            add_heading(layout, title, space_above=6 if group_index == 0 else 12)
+            tiles = QGridLayout()
+            tiles.setSpacing(12)
+            for index, (name, blurb, colour, screen) in enumerate(specs):
+                tile = ShowcaseTile(name, blurb, colour)
+                tile.clicked.connect(lambda s=screen: self.showcase_chosen.emit(s))
+                tiles.addWidget(tile, index // 2, index % 2)
+            layout.addLayout(tiles)
 
         # -- gallery -----------------------------------------------------
         add_heading(layout, "Problem gallery", space_above=10)

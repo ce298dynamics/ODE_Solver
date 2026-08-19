@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -22,15 +22,51 @@ from .theme import PALETTES, Palette
 
 __all__ = ["MainWindow", "build_application"]
 
-#: (screen id, sidebar label, keyboard shortcut)
-SCREENS = [
-    ("home", "Home", "Ctrl+1"),
-    ("lab", "Solver Lab", "Ctrl+2"),
-    ("portrait", "Phase Portrait", "Ctrl+3"),
-    ("stiffness", "Stiffness Explorer", "Ctrl+4"),
-    ("race", "Method Race", "Ctrl+5"),
-    ("accuracy", "Accuracy Lab", "Ctrl+6"),
+#: (section id, sidebar label, [(screen id, label, shortcut), ...])
+#:
+#: Two audiences, one app. The Learning Hub is about *solving ODEs* -- the
+#: techniques a first course teaches, and the arithmetic behind the methods.
+#: Solver Studio is about *the solvers themselves* -- adaptivity, stiffness,
+#: accuracy, the comparisons between methods.
+#:
+#: The split is presentation only. Both sections drive the same `SessionState`
+#: and select from the same catalogue by key, which is what lets a problem --
+#: including one the user typed -- appear on either side without either knowing
+#: about the other.
+SECTIONS = [
+    (
+        "learn",
+        "Learning Hub",
+        [
+            ("steps", "Solve Step by Step", "Ctrl+1"),
+            ("laplace", "Laplace Transforms", "Ctrl+2"),
+            ("byhand", "Methods by Hand", "Ctrl+3"),
+            ("worked", "Worked Problems", "Ctrl+4"),
+        ],
+    ),
+    (
+        "studio",
+        "Solver Studio",
+        [
+            ("lab", "Solver Lab", "Ctrl+5"),
+            ("portrait", "Phase Portrait", "Ctrl+6"),
+            ("stiffness", "Stiffness Explorer", "Ctrl+7"),
+            ("race", "Method Race", "Ctrl+8"),
+            ("accuracy", "Accuracy Lab", "Ctrl+9"),
+        ],
+    ),
 ]
+
+#: Home sits above the split and belongs to neither section.
+HOME = ("home", "Home", "Ctrl+0")
+
+#: Flattened, in nav order, for the places that just want every screen.
+SCREENS = [HOME] + [entry for _, _, group in SECTIONS for entry in group]
+
+#: screen id -> section id, for `MainWindow.go`.
+SECTION_OF = {
+    key: section for section, _, group in SECTIONS for key, _, _ in group
+}
 
 
 class _Placeholder(QWidget):
@@ -60,7 +96,10 @@ class _Placeholder(QWidget):
 
 
 class Sidebar(QFrame):
-    """Fixed-width navigation rail."""
+    """Fixed-width navigation rail: Home, a section switch, then that section."""
+
+    #: Emitted when the user picks a section from the switch.
+    section_changed = Signal(str)
 
     def __init__(self, palette: Palette, parent=None) -> None:
         super().__init__(parent)
@@ -85,18 +124,60 @@ class Sidebar(QFrame):
         tagline.setStyleSheet("font-size: 11px; padding: 0 8px 14px 8px;")
         layout.addWidget(tagline)
 
+        self.buttons: dict[str, QPushButton] = {}
+
+        # Home is above the split: it belongs to neither section and is how you
+        # get back to choosing one.
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
-        self.buttons: dict[str, QPushButton] = {}
-        for index, (key, label, shortcut) in enumerate(SCREENS):
+        home_button = QPushButton(HOME[1])
+        home_button.setProperty("role", "nav")
+        home_button.setCheckable(True)
+        home_button.setCursor(Qt.PointingHandCursor)
+        home_button.setToolTip(HOME[2])
+        self.group.addButton(home_button)
+        layout.addWidget(home_button)
+        self.buttons[HOME[0]] = home_button
+
+        layout.addSpacing(10)
+
+        # The section switch. Segmented rather than a combo box: there are two
+        # of them and both should be visible without a click.
+        self.section_group = QButtonGroup(self)
+        self.section_group.setExclusive(True)
+        self.section_buttons: dict[str, QPushButton] = {}
+        for section, label, _ in SECTIONS:
             button = QPushButton(label)
-            button.setProperty("role", "nav")
+            button.setProperty("role", "section")
             button.setCheckable(True)
             button.setCursor(Qt.PointingHandCursor)
-            button.setToolTip(shortcut)
-            self.group.addButton(button, index)
+            self.section_group.addButton(button)
             layout.addWidget(button)
-            self.buttons[key] = button
+            self.section_buttons[section] = button
+            button.clicked.connect(
+                lambda _=False, s=section: self.section_changed.emit(s)
+            )
+
+        layout.addSpacing(6)
+
+        # One page of screen buttons per section, only one of which is visible.
+        self.section_pages: dict[str, QWidget] = {}
+        for section, _, group in SECTIONS:
+            page = QWidget()
+            page_layout = QVBoxLayout(page)
+            page_layout.setContentsMargins(0, 0, 0, 0)
+            page_layout.setSpacing(3)
+            for key, label, shortcut in group:
+                button = QPushButton(label)
+                button.setProperty("role", "nav")
+                button.setCheckable(True)
+                button.setCursor(Qt.PointingHandCursor)
+                button.setToolTip(shortcut)
+                self.group.addButton(button)
+                page_layout.addWidget(button)
+                self.buttons[key] = button
+            layout.addWidget(page)
+            self.section_pages[section] = page
 
         layout.addStretch(1)
 
@@ -109,6 +190,16 @@ class Sidebar(QFrame):
         self.status.setStyleSheet("font-size: 10.5px; padding: 8px 8px 0 8px;")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
+
+        self.show_section(SECTIONS[0][0])
+
+    def show_section(self, section: str) -> None:
+        """Reveal one section's screen buttons and check its switch button."""
+        for name, page in self.section_pages.items():
+            page.setVisible(name == section)
+        button = self.section_buttons.get(section)
+        if button is not None:
+            button.setChecked(True)
 
 
 class MainWindow(QWidget):
@@ -135,12 +226,16 @@ class MainWindow(QWidget):
         self._screens: dict[str, QWidget] = {}
         self._build_screens()
 
-        for index, (key, _, shortcut) in enumerate(SCREENS):
+        for key, _, shortcut in SCREENS:
             self.sidebar.buttons[key].clicked.connect(
                 lambda _=False, k=key: self.go(k)
             )
+            # Shortcuts are unique across the whole app rather than restarting
+            # per section, so one never means two different screens.
             QShortcut(QKeySequence(shortcut), self,
                       activated=lambda k=key: self.go(k))
+
+        self.sidebar.section_changed.connect(self.show_section)
 
         self.sidebar.theme_button.clicked.connect(self.toggle_theme)
         self.state.busy_changed.connect(
@@ -163,6 +258,29 @@ class MainWindow(QWidget):
         home.problem_chosen.connect(self._open_problem)
         home.showcase_chosen.connect(self.go)
         self._add("home", home)
+
+        # The Learning Hub, still being built. `_Placeholder` exists so that a
+        # screen which is missing looks different from one which is broken.
+        self._add("steps", _Placeholder(
+            "Solve Step by Step",
+            "Type an equation and see the technique that solves it, worked "
+            "through a line at a time — and check your own answer against it.",
+        ))
+        self._add("laplace", _Placeholder(
+            "Laplace Transforms",
+            "Transform the equation, solve for Y(s), and invert — with the "
+            "transform table alongside.",
+        ))
+        self._add("byhand", _Placeholder(
+            "Methods by Hand",
+            "Euler and RK4 as they are taught: the arithmetic of the first few "
+            "steps, beside the exact solution and the error.",
+        ))
+        self._add("worked", _Placeholder(
+            "Worked Problems",
+            "Mixing tanks, circuits, cooling and falling bodies — where the "
+            "equation comes from, and what the answer means.",
+        ))
         self._add("lab", LabScreen(self.state, self.palette_obj))
         self._add("portrait", PortraitScreen(self.state, self.palette_obj))
         self._add("stiffness", StiffnessScreen(self.state, self.palette_obj))
@@ -176,9 +294,25 @@ class MainWindow(QWidget):
         self._screens[key] = widget
         self.stack.addWidget(widget)
 
+    def show_section(self, section: str) -> None:
+        """Switch the sidebar to a section, opening its first screen."""
+        self.sidebar.show_section(section)
+        group = next((g for s, _, g in SECTIONS if s == section), None)
+        if group:
+            self.go(group[0][0])
+
     def go(self, key: str) -> None:
+        """Open a screen by key, switching section if it lives in the other one.
+
+        Callers pass a bare screen key and always have -- `cli.py --screen`,
+        the Home screen's showcase tiles, and the tests. Resolving the section
+        here rather than at every call site is what keeps that true.
+        """
         if key not in self._screens:
             return
+        section = SECTION_OF.get(key)
+        if section is not None:
+            self.sidebar.show_section(section)
         screen = self._screens[key]
         # An equation typed in the Solver Lab is registered long after the other
         # screens were built, so their problem lists are stale until asked. This

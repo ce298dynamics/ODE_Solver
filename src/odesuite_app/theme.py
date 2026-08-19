@@ -163,6 +163,25 @@ def stylesheet(palette: Palette) -> str:
         color: {p.accent};
         font-weight: 600;
     }}
+    /* The Learning Hub / Solver Studio switch. Deliberately quieter than a
+       nav button when unselected and louder when selected: it is a mode, not a
+       destination, and the eye should land on the current section first. */
+    QPushButton[role="section"] {{
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        padding: 7px 12px;
+        text-align: left;
+        color: {p.text_muted};
+        font-size: 12px;
+    }}
+    QPushButton[role="section"]:hover {{ color: {p.text}; }}
+    QPushButton[role="section"]:checked {{
+        background: {p.surface_alt};
+        border-color: {p.border};
+        color: {p.text};
+        font-weight: 700;
+    }}
     QPushButton[role="chip"] {{
         border-radius: 11px;
         padding: 4px 11px;
