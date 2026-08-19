@@ -108,6 +108,11 @@ class Derivation:
     #: The result substituted back into the equation: the same check
     #: `symbolic._verify` applies to sympy's own answer.
     verified: bool | None = None
+    #: How `verified` was decided, so the interface never names a check that
+    #: was not the one performed. Empty means substitution, which is the usual
+    #: route; `laplace` sets "numeric" where substituting a switched answer
+    #: leaves impulse terms that cannot be simplified away.
+    check: str = ""
     #: Why it stopped early, when it did.
     message: str = ""
 

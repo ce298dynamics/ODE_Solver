@@ -166,7 +166,7 @@ class StepsScreen(QWidget):
         except Exception as exc:
             self._parsed = None
             self._set_enabled(False)
-            self.editor.show_message(str(exc), error=True)
+            self.editor.show_message(str(exc), kind="error")
             return
 
         self.steps.clear("working out how this one is solved…")

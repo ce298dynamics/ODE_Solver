@@ -28,7 +28,23 @@ def derivation_reply(equation, function, ics: dict) -> dict | None:
     from .steps import derive
 
     hints = sp.classify_ode(equation, function)
-    derivation = derive(equation, function.func, hints=hints, ics=ics)
+    return _as_dict(derive(equation, function.func, hints=hints, ics=ics))
+
+
+def laplace_reply(equation, function, ics: dict) -> dict | None:
+    """The same, for the transform method.
+
+    `laplace.derive` returns a `steps.Derivation` too, so it travels over the
+    same wire format and renders through the same panel.
+    """
+    from .laplace import derive
+
+    return _as_dict(derive(equation, function.func, ics=ics))
+
+
+def _as_dict(derivation) -> dict | None:
+    import sympy as sp
+
     if derivation is None:
         return None
     return {
@@ -36,6 +52,7 @@ def derivation_reply(equation, function, ics: dict) -> dict | None:
         "title": derivation.title,
         "message": derivation.message,
         "verified": derivation.verified,
+        "check": derivation.check,
         "result": None if derivation.result is None else sp.srepr(derivation.result),
         "steps": [
             {"title": s.title, "latex": s.latex, "note": s.note,
@@ -65,6 +82,20 @@ def solve_payload(payload: dict, emit=None) -> dict:
     }
 
     reply: dict = {"ok": False}
+
+    # The transform method is a different question, not a variation on this
+    # one: it wants the derivation and nothing else. `dsolve` is not run at all
+    # -- the derivation already carries the answer and checks it, and skipping
+    # the one part of this module that can hang costs nothing here.
+    if payload.get("mode") == "laplace" and len(equations) == 1:
+        try:
+            reply["derivation"] = laplace_reply(equations[0], functions[0], ics)
+            reply["ok"] = True
+        except Exception as exc:
+            reply["error"] = f"{type(exc).__name__}: {exc}"
+        if emit is not None:
+            emit(dict(reply, partial=True))
+        return reply
 
     # Classification first: it is fast, it is useful even when no closed form
     # comes out, and it is what tells the user *why* their equation is easy or

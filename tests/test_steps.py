@@ -700,3 +700,21 @@ def test_only_this_screen_asks_for_narration(qapp):
     for panel in lab.findChildren(SymbolicPanel):
         assert panel.narrate is False
     lab.deleteLater()
+
+
+def test_an_equation_the_editor_accepts_but_the_parser_rejects_is_reported(qapp):
+    """The editor only checks that a derivative is present, so an unknown
+    function reaches `parse_equation` and fails there. That path called
+    `show_message(..., error=True)` where the argument is `kind`, so instead of
+    an error message the user got a TypeError on stderr and a silent screen.
+    Found by the equivalent test on the Laplace screen; both are fixed.
+    """
+    from PySide6.QtWidgets import QLineEdit
+
+    screen = _screen()
+    screen.editor.findChildren(QLineEdit)[0].setText("y' = foo(t)")
+    screen.editor.submit()                        # the real path, not _on_submitted
+    qapp.processEvents()
+
+    assert "cannot parse" in screen.editor.message.text()
+    screen.deleteLater()

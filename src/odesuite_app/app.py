@@ -69,32 +69,6 @@ SECTION_OF = {
 }
 
 
-class _Placeholder(QWidget):
-    """Stands in for a screen that has not been built yet.
-
-    Explicit rather than an empty widget: during a phased build it should be
-    obvious what is missing and what is merely broken.
-    """
-
-    def __init__(self, title: str, note: str, parent=None) -> None:
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 40, 40, 40)
-        layout.addStretch(1)
-
-        heading = QLabel(title)
-        heading.setProperty("role", "title")
-        heading.setAlignment(Qt.AlignCenter)
-        layout.addWidget(heading)
-
-        detail = QLabel(note)
-        detail.setProperty("role", "subtitle")
-        detail.setAlignment(Qt.AlignCenter)
-        detail.setWordWrap(True)
-        layout.addWidget(detail)
-        layout.addStretch(1)
-
-
 class Sidebar(QFrame):
     """Fixed-width navigation rail: Home, a section switch, then that section."""
 
@@ -259,16 +233,13 @@ class MainWindow(QWidget):
         home.showcase_chosen.connect(self.go)
         self._add("home", home)
 
-        # The Learning Hub, still being built. `_Placeholder` exists so that a
-        # screen which is missing looks different from one which is broken.
+        # The Learning Hub.
         from .screens.learn_steps import StepsScreen
 
         self._add("steps", StepsScreen(self.state, self.palette_obj))
-        self._add("laplace", _Placeholder(
-            "Laplace Transforms",
-            "Transform the equation, solve for Y(s), and invert — with the "
-            "transform table alongside.",
-        ))
+        from .screens.learn_laplace import LaplaceScreen
+
+        self._add("laplace", LaplaceScreen(self.state, self.palette_obj))
         from .screens.learn_byhand import ByHandScreen
 
         self._add("byhand", ByHandScreen(self.state, self.palette_obj))

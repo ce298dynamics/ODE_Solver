@@ -373,6 +373,34 @@ equation and simplified. Equivalent forms pass, because the check never compares
 sympy's spelling; initial conditions are judged separately from the equation; and "cannot
 decide" is reported as such rather than as "wrong".
 
+**Laplace Transforms** is the one technique here that turns the equation into
+*algebra*, and the only one that copes with forcing switched on partway through or
+delivered as an impulse. `y' + y = u(t-2)` — a switch thrown at two seconds — is not
+separable, has no integrating factor worth writing, and is not what undetermined
+coefficients is for. It is three lines here, and the answer is the textbook
+`u(t-2)(1 - e^{-(t-2)})`.
+
+The initial conditions are the point. They do not arrive at the end as constants to be
+pinned down; they enter at the start, through `L{y''} = s²Y - s·y(0) - y'(0)`, and the
+narration shows them appearing there. A transform table sits alongside with the rows this
+particular answer needed highlighted, so it reads as a reference being consulted rather
+than as decoration.
+
+Two obstacles were worth the trouble of handling properly rather than hiding. `apart`
+raises `PolynomialError` on an `e^{-as}` factor — on exactly the switched problems the
+technique exists for — so the delay is split off first, which is also the textbook move
+and gains the derivation a step rather than losing one. And **substitution cannot check a
+switched answer**: differentiating a Heaviside leaves Dirac terms that never cancel even
+when the answer is right. Those are checked against this project's own integrator
+instead, and the panel says which route decided it, because naming a check that was not
+performed would be worse than naming none. An impulse can be checked by neither route and
+is reported unchecked — never as wrong.
+
+This screen accepts `Heaviside` and `DiracDelta`, which the rest of the application does
+not. `DiracDelta` cannot be lambdified at all, and a discontinuous right-hand side is
+precisely what an adaptive step can cross without noticing, so the widening lives on the
+symbolic path that never reaches an integrator.
+
 **Methods by Hand** is the bridge back to the numerical half. Euler and RK4 written out
 as a course teaches them — one row per step with the slope, the stages, the increment,
 the new value and the error — plus a halve-the-step table whose ratio column *is* the
@@ -595,14 +623,14 @@ src/odesuite_app/                                    the studio
   analysis.py custom.py                              phase-plane maths, sympy systems
   symbolic.py dsolve_worker.py                       closed forms, in a killable process
   equationmodel.py mathrender.py                     typed equations, LaTeX typesetting
-  steps.py byhand.py                                 derivations, RK by hand
+  steps.py laplace.py byhand.py                      derivations, transforms, RK by hand
   screens/   home                                    shared landing
              lab portrait stiffness race accuracy    Solver Studio
              learn_steps learn_byhand
              learn_problems learn_laplace            Learning Hub
   widgets/                                           sliders, cards, plots, maths
 
-tests/         1400 tests
+tests/         1550 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```

@@ -8,6 +8,158 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Learning Hub: `Laplace Transforms`**, and with it the Learning Hub is
+  complete — no screen in the application is a placeholder any more.
+
+  The transform is the one technique in a first course that turns the equation
+  into *algebra*, and the only one that copes with forcing switched on partway
+  through or delivered as an impulse. ``y' + y = u(t-2)`` — a switch thrown at
+  two seconds — is not separable, has no integrating factor worth writing, and
+  is not what undetermined coefficients is for. It comes out here as the
+  textbook ``u(t-2)(1 - e^{-(t-2)})``, and ``y'' + y = δ(t-1)`` as
+  ``sin(t-1)u(t-1)``.
+
+  Six steps, each a real move of the method, and the initial conditions enter at
+  the *start* through ``L{y''} = s²Y - s·y(0) - y'(0)`` rather than arriving at
+  the end as constants to be pinned down — which is the point of the technique
+  and what separates it from everything else in the Hub. A transform table sits
+  alongside with the rows the answer actually needed highlighted.
+
+  It reuses rather than rebuilds: the result is a `steps.Derivation`, so it
+  renders through the panel L2 already built and travels over the wire format
+  L2 already defined, and it runs in the subprocess `dsolve` already owns. That
+  subprocess grew a mode rather than a twin; `dsolve` itself is not run at all
+  here, since the derivation carries the answer and checks it.
+
+- **`Heaviside` and `DiracDelta` are typeable — on the Laplace screen only.**
+  Without them a user could not type the forcing that motivates the entire
+  topic. With them everywhere, the Solver Lab would accept a `DiracDelta` that
+  cannot be lambdified at all (`NameError` at solve time) and a discontinuous
+  right-hand side that an adaptive step can cross without noticing, which is a
+  failure this project already documents. So `parse_equation` takes an explicit
+  widening and exactly one caller passes it.
+
+### Changed
+
+- **A check is never named unless it is the one performed.** Most answers in the
+  Hub are decided by substituting them back and simplifying to zero, and the
+  panel said so. A switched answer cannot be decided that way — differentiating
+  a Heaviside leaves Dirac terms that never cancel *even when the answer is
+  right* — so those are decided against this project's own integrator instead.
+  `Derivation.check` records which route decided it, and the verdict line says
+  what actually happened rather than claiming a substitution that never ran.
+
+  An impulse can be decided by neither route and is reported unchecked. Never
+  wrong: "cannot decide" is not "incorrect", the rule `check_answer` and
+  `steps._conditions_hold` already follow.
+
+- **`apart` is not asked to do the impossible.** It raises `PolynomialError` on
+  an ``e^{-as}`` factor — on exactly the switched and impulsive problems this
+  technique exists for. The delay is split off first and narrated as the second
+  shifting theorem, so the obstacle and the teaching turn out to agree and the
+  derivation gains a step rather than losing one.
+
+- **A variable-coefficient equation is declined with its reason.** ``L{t·y'}``
+  is a derivative in s, so transforming ``t·y' + y = 0`` produces another
+  differential equation rather than an algebraic one. It previously produced an
+  unevaluated `InverseLaplaceTransform` on screen and claimed the answer was
+  *wrong*; it now says the transform does not simplify this equation, which is
+  true and useful.
+
+- **`_Placeholder` is gone.** It existed so a screen that was missing looked
+  different from one that was broken, and every phase of the Learning Hub
+  removed one. With the last replaced it was dead code, and the test that pinned
+  the remaining set now asserts something stronger and permanent: no screen is a
+  stand-in.
+
+
+- **A derivation now outlives a `dsolve` that hangs.** The worker publishes the
+  classification and the derivation *before* attempting `dsolve`, and the parent
+  recovers that line from the killed process's captured output when the timeout
+  fires. `y' = sin(y)` is the case: it is the equation this project records
+  `dsolve` hanging on — not stalling, hanging — and separation of variables
+  solves it in about four seconds. The Hub shows a complete verified derivation
+  where the Studio can only report a timeout.
+
+  What is published happens in two stages, cheapest first: the classification
+  costs milliseconds, the derivation can cost seconds. Emitting only once, at
+  the end of both, was a regression found by the test for it — a slow
+  derivation took the classification down with it, so *asking* for steps made
+  the reply worse than not asking.
+
+  The remaining cost is stated rather than hidden: narration and `dsolve` share
+  one hard budget, so a derivation slower than the timeout is lost with it. On
+  a busy machine that happens — narrating `y' = sin(y)` takes about four
+  seconds idle and can exceed thirty under a fully parallel test run. The
+  classification always survives; the derivation is best-effort.
+
+
+- **`driver.solve` split into the loop and its bookkeeping.** It had reached 408
+  lines: the loop plus argument validation, step-endpoint arithmetic, output
+  accumulation and event tracking. Those four now live in `odesuite/_loop.py`
+  as `prepare_tolerances`, `StepPlanner`, `Recorder` and `EventTracker`, and
+  `solve` is 237 lines of which 51 are its docstring. It is no longer the
+  longest function in the project.
+
+  Purely structural: the refactor was gated on 78 solves — every method family,
+  dense output, `t_eval`, events with and without sub-step scanning, fixed-step
+  runs, backward integration, DAEs, both failure paths and the callback —
+  hashing **bit-identically** before and after, states, event times, work
+  counters, messages and sampled dense output included.
+
+- The extracted pieces have unit tests for the first time (`tests/test_loop.py`,
+  36 of them). That was the point of extracting them: rules like "a fixed-step
+  run lands on `t0 + k*h` computed afresh, never on an accumulated sum" — the
+  arithmetic behind recorded bug #4 — could previously only be checked by
+  inference from a finished trajectory.
+
+- **`solve_bvp` split the same way**, 262 lines to 126 (96 of code). The
+  shooting machinery — five closures over the function's own arguments — is now
+  a `_ShootingSystem` holding the problem, the nodes and the inner solver's
+  settings, exposing the three things Newton asks for: residual, Jacobian, and
+  the spliced continuous solution. The Armijo backtracking is `_line_search`,
+  which isolates the awkward part: a diverged shot raises rather than returning
+  a large residual, and has to be read as "step too long". What remains in
+  `solve_bvp` is the damped Newton iteration, which is its job.
+
+  Gated on 32 BVP solves hashing bit-identically: linear and oscillatory
+  problems at 1/2/5/10/20 nodes, all three guess forms, both Bratu branches,
+  the iteration limit, a custom `fd_floor`, a stiff inner method, an
+  unintegrable guess, and the three argument-validation errors.
+
+  13 new tests check the machinery directly, the sharpest being the assembled
+  Jacobian against a brute-force dense difference of the whole residual — the
+  `-I` coupling blocks are written in analytically rather than differenced, and
+  an error there converges fine on easy problems and fails mysteriously on hard
+  ones.
+
+- **The five screens no longer each rebuild their control column.** Every one of
+  them opened `_build_controls` with the same seventeen lines of Qt scaffolding
+  and closed it with the same five, and between them repeated a three-line
+  heading idiom twenty-one times. Both are now `control_panel()` and
+  `add_heading()` in `widgets/controls.py`, and `_build_controls` across the
+  five drops from 441 lines to 322.
+
+  Deliberately a helper and not a base class: the middles of those functions are
+  genuinely different screens, and forcing them into one shape would be worse
+  than the duplication. The panel width stays a caller's argument for the same
+  reason — the five differ (238 to 258 px), which looks like drift rather than
+  design, but unifying it would change the layout, and that is not what
+  extracting boilerplate is for.
+
+  Gated on 42 offscreen renders — every screen, both palettes, whole and
+  per-panel — hashing **pixel-identically**.
+
+### Fixed
+
+- **An unparseable equation crashed the handler instead of reporting itself.**
+  `show_message(..., error=True)` — the parameter is `kind` — so typing
+  ``y' = foo(t)`` into `Solve Step by Step` raised a `TypeError` inside the
+  signal handler and left the screen silent with a traceback on stderr. The
+  editor only checks that a derivative is present, so anything it does not know
+  about reaches `parse_equation` and fails there; this was reachable by typing.
+  Shipped in L2 and found by writing the equivalent test for the Laplace screen.
+
 - **Learning Hub: `Solve Step by Step` narrates the derivation.** Five techniques
   — separation of variables, integrating factors, characteristic roots,
   undetermined coefficients, Cauchy–Euler — written out a move at a time, with
@@ -100,86 +252,6 @@ All notable changes to this project are documented here. The format follows
   equation comes from and what the letters mean, in real units. They are ordinary
   catalogue entries, so they appear in the Solver Studio's pickers too.
 
-### Changed
-
-- **A derivation now outlives a `dsolve` that hangs.** The worker publishes the
-  classification and the derivation *before* attempting `dsolve`, and the parent
-  recovers that line from the killed process's captured output when the timeout
-  fires. `y' = sin(y)` is the case: it is the equation this project records
-  `dsolve` hanging on — not stalling, hanging — and separation of variables
-  solves it in about four seconds. The Hub shows a complete verified derivation
-  where the Studio can only report a timeout.
-
-  What is published happens in two stages, cheapest first: the classification
-  costs milliseconds, the derivation can cost seconds. Emitting only once, at
-  the end of both, was a regression found by the test for it — a slow
-  derivation took the classification down with it, so *asking* for steps made
-  the reply worse than not asking.
-
-  The remaining cost is stated rather than hidden: narration and `dsolve` share
-  one hard budget, so a derivation slower than the timeout is lost with it. On
-  a busy machine that happens — narrating `y' = sin(y)` takes about four
-  seconds idle and can exceed thirty under a fully parallel test run. The
-  classification always survives; the derivation is best-effort.
-
-
-- **`driver.solve` split into the loop and its bookkeeping.** It had reached 408
-  lines: the loop plus argument validation, step-endpoint arithmetic, output
-  accumulation and event tracking. Those four now live in `odesuite/_loop.py`
-  as `prepare_tolerances`, `StepPlanner`, `Recorder` and `EventTracker`, and
-  `solve` is 237 lines of which 51 are its docstring. It is no longer the
-  longest function in the project.
-
-  Purely structural: the refactor was gated on 78 solves — every method family,
-  dense output, `t_eval`, events with and without sub-step scanning, fixed-step
-  runs, backward integration, DAEs, both failure paths and the callback —
-  hashing **bit-identically** before and after, states, event times, work
-  counters, messages and sampled dense output included.
-
-- The extracted pieces have unit tests for the first time (`tests/test_loop.py`,
-  36 of them). That was the point of extracting them: rules like "a fixed-step
-  run lands on `t0 + k*h` computed afresh, never on an accumulated sum" — the
-  arithmetic behind recorded bug #4 — could previously only be checked by
-  inference from a finished trajectory.
-
-- **`solve_bvp` split the same way**, 262 lines to 126 (96 of code). The
-  shooting machinery — five closures over the function's own arguments — is now
-  a `_ShootingSystem` holding the problem, the nodes and the inner solver's
-  settings, exposing the three things Newton asks for: residual, Jacobian, and
-  the spliced continuous solution. The Armijo backtracking is `_line_search`,
-  which isolates the awkward part: a diverged shot raises rather than returning
-  a large residual, and has to be read as "step too long". What remains in
-  `solve_bvp` is the damped Newton iteration, which is its job.
-
-  Gated on 32 BVP solves hashing bit-identically: linear and oscillatory
-  problems at 1/2/5/10/20 nodes, all three guess forms, both Bratu branches,
-  the iteration limit, a custom `fd_floor`, a stiff inner method, an
-  unintegrable guess, and the three argument-validation errors.
-
-  13 new tests check the machinery directly, the sharpest being the assembled
-  Jacobian against a brute-force dense difference of the whole residual — the
-  `-I` coupling blocks are written in analytically rather than differenced, and
-  an error there converges fine on easy problems and fails mysteriously on hard
-  ones.
-
-- **The five screens no longer each rebuild their control column.** Every one of
-  them opened `_build_controls` with the same seventeen lines of Qt scaffolding
-  and closed it with the same five, and between them repeated a three-line
-  heading idiom twenty-one times. Both are now `control_panel()` and
-  `add_heading()` in `widgets/controls.py`, and `_build_controls` across the
-  five drops from 441 lines to 322.
-
-  Deliberately a helper and not a base class: the middles of those functions are
-  genuinely different screens, and forcing them into one shape would be worse
-  than the duplication. The panel width stays a caller's argument for the same
-  reason — the five differ (238 to 258 px), which looks like drift rather than
-  design, but unifying it would change the layout, and that is not what
-  extracting boilerplate is for.
-
-  Gated on 42 offscreen renders — every screen, both palettes, whole and
-  per-panel — hashing **pixel-identically**.
-
-### Fixed
 
 - **A decimal initial condition poisoned the answer.** `y(0) = 0.1` parses to a
   float, which propagates through `solve` into a constant whose imaginary part

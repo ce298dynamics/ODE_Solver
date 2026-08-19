@@ -146,16 +146,29 @@ class StepsPanel(QWidget):
         return label
 
     def _verdict(self, derivation) -> QWidget:
-        """Whether the derivation's own answer satisfies the equation."""
+        """Whether the derivation's own answer satisfies the equation.
+
+        The wording must not name a check that was not the one performed. Most
+        answers here are decided by substituting them back; a switched answer
+        cannot be — differentiating a Heaviside leaves impulse terms that never
+        cancel — and is decided against the numeric solver instead.
+        `Derivation.check` records which route ran, because claiming
+        "simplified to zero" for the other one would be the panel asserting
+        something it did not do.
+        """
         palette = self.palette_obj
+        substituted = getattr(derivation, "check", "") != "numeric"
         if derivation.verified:
             colour = palette.success
             text = ("✓ The answer above satisfies the equation exactly — "
-                    "substituted back and simplified to zero.")
+                    "substituted back and simplified to zero."
+                    if substituted else
+                    "✓ The answer above agrees with this project's own solver, "
+                    "which is what decides it here.")
         else:
             colour = palette.danger
-            text = ("✗ The answer above does not substitute back to zero. "
-                    "Trust the closed form beside this instead.")
+            text = ("✗ The answer above does not satisfy the equation. "
+                    "Treat it with suspicion.")
         label = QLabel(text)
         label.setWordWrap(True)
         label.setStyleSheet(f"color: {colour};")

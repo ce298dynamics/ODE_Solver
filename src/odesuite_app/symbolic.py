@@ -46,6 +46,7 @@ __all__ = [
     "parse_equation",
     "parse_initial_conditions",
     "solve_symbolically",
+    "solve_by_laplace",
     "characteristic_analysis",
     "analyse_linear",
     "describe_roots",
@@ -219,14 +220,23 @@ def _parse_side(text: str, scope: dict) -> sp.Expr:
         raise ParseError(f"cannot parse {text!r}: {exc}") from exc
 
 
-def parse_equation(spec: EquationSpec) -> ParsedEquation:
-    """Parse `spec` into sympy equations in terms of ``y(t)``."""
+def parse_equation(spec: EquationSpec, *,
+                   extra_functions: dict | None = None) -> ParsedEquation:
+    """Parse `spec` into sympy equations in terms of ``y(t)``.
+
+    `extra_functions` widens the whitelist for one caller only. The Laplace
+    screen is the only user: it needs `Heaviside` and `DiracDelta`, and those
+    must not become typeable everywhere, because `DiracDelta` has no numerical
+    value at all and a discontinuous right-hand side is exactly what an adaptive
+    step can cross without noticing. See `laplace.EXTRA_FUNCTIONS`.
+    """
     if not spec.equations or not any(e.strip() for e in spec.equations):
         raise ParseError("type an equation")
+    allowed = {**ALLOWED_FUNCTIONS, **(extra_functions or {})}
     for name in [*spec.variables, *spec.parameters]:
         if name == "t":
             raise ParseError("'t' is the independent variable")
-        if name in ALLOWED_FUNCTIONS:
+        if name in allowed:
             raise ParseError(f"{name!r} shadows a built-in function")
         if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
             raise ParseError(f"{name!r} is not a valid variable name")
@@ -248,7 +258,7 @@ def parse_equation(spec: EquationSpec) -> ParsedEquation:
             )
         left, right = text.split("=")
 
-        scope: dict = {"t": _T, **parameters, **ALLOWED_FUNCTIONS}
+        scope: dict = {"t": _T, **parameters, **allowed}
         rewritten_sides = []
         equation_order = 0
 
@@ -621,6 +631,40 @@ def _last_reply(stream) -> dict | None:
     return None
 
 
+def solve_by_laplace(parsed: ParsedEquation,
+                     timeout: float | None = None) -> SymbolicSolution:
+    """Solve by transforming, in the same killable subprocess `dsolve` uses.
+
+    Returns a `SymbolicSolution` whose `derivation` is the narrated transform.
+    `general`/`particular` stay empty: the answer is the derivation's result,
+    checked by the derivation itself, and there is no second opinion to report.
+    """
+    timeout = DSOLVE_TIMEOUT if timeout is None else timeout
+    solution = SymbolicSolution(order=parsed.order)
+    if parsed.is_system:
+        solution.message = "the transform method here handles one equation at a time"
+        return solution
+
+    reply = _run_dsolve({
+        "equations": [sp.srepr(parsed.equation)],
+        "functions": [sp.srepr(parsed.function(_T))],
+        "ics": {sp.srepr(k): sp.srepr(v) for k, v in parsed.ics.items()},
+        "mode": "laplace",
+    }, timeout)
+
+    solution.derivation = _restore_derivation(reply.get("derivation"))
+    solution.timed_out = bool(reply.get("timeout"))
+    if not reply.get("ok") and solution.derivation is None:
+        # `_run_dsolve`'s timeout text is about `dsolve`, which this path never
+        # runs. Saying "no closed form found" here would name the wrong cause.
+        solution.message = (
+            f"the transform did not finish within {timeout:g} s"
+            if solution.timed_out
+            else reply.get("error", "the transform could not be taken")
+        )
+    return solution
+
+
 def _label(hints, first: str) -> str:
     """What to call the equation: the technique a course teaches, if there is one.
 
@@ -650,6 +694,7 @@ def _restore_derivation(blob):
         ],
         result=(sp.sympify(blob["result"]) if blob.get("result") else None),
         verified=blob.get("verified"),
+        check=blob.get("check", ""),
         message=blob.get("message", ""),
     )
 
