@@ -104,6 +104,8 @@ def test_propagated_order_is_maximal(tab: ButcherTableau):
 @pytest.mark.parametrize("tab", ALL_TABLEAUX, ids=IDS)
 def test_embedded_order_conditions(tab: ButcherTableau):
     """The embedded weights ``b_hat = b - e`` satisfy their own order conditions."""
+    if not tab.embedded:
+        pytest.skip(f"{tab.name} has no embedded pair")
     b_hat = tab.b - tab.e
     res = order_condition_residuals(tab.A, b_hat, tab.c, tab.error_order)
     bad = {k: v for k, v in res.items() if abs(v) > TOL}
@@ -116,6 +118,8 @@ def test_embedded_order_conditions(tab: ButcherTableau):
 @pytest.mark.parametrize("tab", ALL_TABLEAUX, ids=IDS)
 def test_embedded_pair_differs(tab: ButcherTableau):
     """The two solutions must actually differ, or there is no error estimate."""
+    if not tab.embedded:
+        pytest.skip(f"{tab.name} has no embedded pair")
     assert np.linalg.norm(tab.e) > 1e-10, f"{tab.name}: b_hat == b, no error estimate"
     assert tab.error_order < tab.order, (
         f"{tab.name}: embedded order {tab.error_order} must be below "

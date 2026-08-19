@@ -649,6 +649,147 @@ def _verify(parsed: ParsedEquation, solution: SymbolicSolution) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Checking the student's own answer
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class AnswerCheck:
+    """The verdict on a solution somebody typed in."""
+
+    #: What was parsed, or None if it could not be.
+    expression: sp.Expr | None = None
+    #: The residual after substituting it into the equation, simplified.
+    residual: sp.Expr | None = None
+    #: True when the residual simplifies to exactly zero. None when sympy could
+    #: not decide, which is not the same as "wrong" and must not be shown as it.
+    correct: bool | None = None
+    #: True when it also satisfies the initial conditions, where any were given.
+    matches_conditions: bool | None = None
+    message: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return bool(self.correct) and self.matches_conditions is not False
+
+
+def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
+    """Substitute a proposed solution into the equation and report what is left.
+
+    The same test the library already applies to sympy's own answer, pointed at
+    the user's instead. That is the whole implementation: `_verify` decides
+    whether a closed form is right by substituting and simplifying, and there is
+    no reason a hand-written candidate deserves a weaker check.
+
+    Two things it deliberately does not do. It does not compare against sympy's
+    answer -- an equation has many equivalent forms and a student who wrote
+    ``C*exp(-t)`` where sympy wrote ``C1*exp(-t)`` is not wrong. And it does not
+    report "wrong" when simplification merely fails; `correct` is None there,
+    because the residual not visibly vanishing is not proof that it does not.
+
+    The text goes through the same hardened parser as everything else --
+    `parse_expr` with an emptied ``__builtins__`` and a whitelist -- because
+    this is a new place a user's string reaches sympy, and `sympify` executes
+    what it is given.
+    """
+    if not text or not text.strip():
+        return AnswerCheck(message="type a solution to check")
+    if parsed.is_system:
+        return AnswerCheck(
+            message="checking an answer is available for a single equation"
+        )
+
+    scope = {"t": _T, "C1": sp.Symbol("C1"), "C2": sp.Symbol("C2"),
+             "C3": sp.Symbol("C3"), "C": sp.Symbol("C1")}
+    # Any free symbol already in the equation -- a parameter the user gave a
+    # slider -- must resolve to the *same* symbol here, or the residual will
+    # never simplify away.
+    for symbol in parsed.equation.free_symbols:
+        if symbol.is_Symbol and symbol is not _T:
+            scope.setdefault(symbol.name, symbol)
+
+    # A student writes the answer the way it is written on paper: "y = ...".
+    # Accept that, with or without spaces and with or without the "(t)".
+    text = re.sub(
+        r"^\s*y\s*(\(\s*t\s*\))?\s*=\s*", "", text.strip(), count=1,
+        flags=re.IGNORECASE,
+    )
+    if not text:
+        return AnswerCheck(message="type a solution to check")
+
+    try:
+        candidate = _parse_side(text, scope)
+    except ParseError as exc:
+        return AnswerCheck(message=str(exc))
+
+    check = AnswerCheck(expression=candidate)
+    try:
+        equation = parsed.equation
+        residual = sp.simplify(
+            (equation.lhs - equation.rhs).subs(parsed.function(_T), candidate).doit()
+        )
+        check.residual = residual
+        check.correct = bool(sp.simplify(residual) == 0)
+    except Exception as exc:
+        check.message = f"could not decide: {exc}"
+        return check
+
+    if check.correct and parsed.ics:
+        check.matches_conditions = _satisfies_conditions(parsed, candidate)
+
+    if check.correct is False:
+        check.message = "substituting it does not give zero"
+    elif check.matches_conditions is False:
+        check.message = "it solves the equation, but not with these conditions"
+    else:
+        check.message = "verified: substituting it gives exactly zero"
+    return check
+
+
+def _satisfies_conditions(parsed: ParsedEquation, candidate: sp.Expr) -> bool | None:
+    """Whether `candidate` also meets the initial conditions, if it can be told.
+
+    The conditions come back from parsing in two shapes and both have to be
+    handled: a value condition is the applied function ``y(0)``, while a
+    derivative condition is ``Subs(Derivative(y(t), t), t, 0)``. Reading only
+    the first would silently evaluate every derivative condition at the wrong
+    point and at order zero -- which reports a *correct* answer as wrong, the
+    worst thing this check could do.
+    """
+    try:
+        for condition, value in parsed.ics.items():
+            order, point = _condition_at(condition)
+            if point is None:
+                return None
+            expression = candidate
+            if order:
+                expression = sp.diff(candidate, _T, order)
+            if sp.simplify(expression.subs(_T, point) - value) != 0:
+                return False
+        return True
+    except Exception:
+        return None
+
+
+def _condition_at(condition) -> tuple[int, object | None]:
+    """``(derivative order, point)`` for an initial-condition key."""
+    if isinstance(condition, sp.Subs):
+        inner = condition.expr
+        order = 0
+        if isinstance(inner, sp.Derivative):
+            order = sum(int(count) for _, count in inner.variable_count)
+        point = condition.point[0] if condition.point else None
+        return order, point
+    if isinstance(condition, sp.Derivative):
+        order = sum(int(count) for _, count in condition.variable_count)
+        args = condition.expr.args if hasattr(condition, "expr") else ()
+        return order, (args[0] if args else None)
+    # An applied function: `y(0)`.
+    args = getattr(condition, "args", ())
+    return 0, (args[0] if args else None)
+
+
+# ---------------------------------------------------------------------------
 # Reduction to a first-order system, for the numeric side
 # ---------------------------------------------------------------------------
 

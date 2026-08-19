@@ -423,7 +423,7 @@ def test_palettes_define_every_colour():
 
 
 #: Learning Hub screens still to be built. Each phase removes one.
-PENDING_SCREENS = {"steps", "laplace", "byhand", "worked"}
+PENDING_SCREENS = {"laplace"}
 
 
 def test_window_builds_and_navigates(qapp):
@@ -680,6 +680,10 @@ def test_no_screen_rebuilds_the_scrolling_column_by_hand():
 def test_every_screen_with_a_control_column_uses_the_shared_one():
     """The other half: the helper is adopted, not merely available."""
     bodies = _build_controls_bodies()
-    assert len(bodies) == 5, f"expected five control columns, found {len(bodies)}"
+    # A floor rather than an exact count: screens are still being added, and the
+    # invariant is that each one uses the shared helper, not how many there are.
+    # The floor is only here so a glob that silently matches nothing cannot make
+    # this pass vacuously.
+    assert len(bodies) >= 5, f"only found {len(bodies)} control columns"
     for path, body in bodies.items():
         assert "control_panel(" in body, f"{path} builds its control column by hand"

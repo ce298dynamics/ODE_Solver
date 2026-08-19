@@ -38,7 +38,10 @@ class ButcherTableau:
     A: np.ndarray          # (s, s) strictly lower triangular
     b: np.ndarray          # (s,)   weights of the propagated solution
     c: np.ndarray          # (s,)   stage abscissae
-    e: np.ndarray          # (s,)   b - b_hat, the error weights
+    #: ``b - b_hat``, the error weights. None for a method with no embedded
+    #: pair -- Euler and classical RK4 have none, and inventing one for them
+    #: would be worse than admitting they are fixed-step.
+    e: np.ndarray | None
     order: int             # order of the propagated solution
     error_order: int       # order of the embedded solution
     P: np.ndarray | None = None   # (s, k) dense-output matrix, if any
@@ -50,8 +53,10 @@ class ButcherTableau:
         s = self.b.size
         if self.A.shape != (s, s):
             raise ValueError(f"{self.name}: A must be ({s}, {s})")
-        if self.c.size != s or self.e.size != s:
-            raise ValueError(f"{self.name}: c and e must have length {s}")
+        if self.c.size != s:
+            raise ValueError(f"{self.name}: c must have length {s}")
+        if self.e is not None and self.e.size != s:
+            raise ValueError(f"{self.name}: e must have length {s}")
         if np.any(np.triu(self.A) != 0):
             raise ValueError(f"{self.name}: A must be strictly lower triangular")
         # First Same As Last: the final stage already equals f(t+h, y_new), so the
@@ -66,6 +71,11 @@ class ButcherTableau:
     def n_stages(self) -> int:
         return self.b.size
 
+    @property
+    def embedded(self) -> bool:
+        """Whether the pair carries an error estimate, i.e. can adapt its step."""
+        return self.e is not None
+
     def __repr__(self) -> str:
         return (
             f"ButcherTableau({self.name}, order={self.order}"
@@ -75,7 +85,10 @@ class ButcherTableau:
 
 
 def _tab(name, A_rows, b, c, b_hat, order, error_order, **kw) -> ButcherTableau:
-    """Build a tableau from ragged lower-triangular rows."""
+    """Build a tableau from ragged lower-triangular rows.
+
+    `b_hat` may be None, for a method that carries no embedded estimate.
+    """
     s = len(b)
     A = np.zeros((s, s))
     for i, row in enumerate(A_rows):
@@ -86,7 +99,7 @@ def _tab(name, A_rows, b, c, b_hat, order, error_order, **kw) -> ButcherTableau:
         A=A,
         b=b,
         c=np.asarray(c, dtype=float),
-        e=b - np.asarray(b_hat, dtype=float),
+        e=None if b_hat is None else b - np.asarray(b_hat, dtype=float),
         order=order,
         error_order=error_order,
         **kw,
@@ -311,7 +324,49 @@ TSIT5 = _tab(
 )
 
 
+# ---------------------------------------------------------------------------
+# The two methods every first course teaches by hand.
+#
+# Neither has an embedded pair, so neither can choose its own step: both run
+# fixed-step and the driver asks for `n_steps` or `first_step`, exactly as the
+# symplectic methods do. That is the honest arrangement -- a made-up error
+# estimate would let them pretend to adapt while the controller flew blind,
+# which is the failure this project already has a recorded bug for.
+# ---------------------------------------------------------------------------
+
+EULER = _tab(
+    "Euler",
+    A_rows=[[]],
+    b=[1.0],
+    c=[0.0],
+    b_hat=None,
+    order=1,
+    error_order=0,
+    description="Forward Euler. One evaluation per step, first order; the "
+    "method every course starts with and no method should end with.",
+)
+
+RK4 = _tab(
+    "RK4",
+    A_rows=[
+        [],
+        [1 / 2],
+        [0, 1 / 2],
+        [0, 0, 1],
+    ],
+    b=[1 / 6, 1 / 3, 1 / 3, 1 / 6],
+    c=[0, 1 / 2, 1 / 2, 1],
+    b_hat=None,
+    order=4,
+    error_order=3,
+    description="The classical Runge-Kutta method. Four evaluations per step, "
+    "fourth order, no embedded estimate.",
+)
+
+
 TABLEAUX: dict[str, ButcherTableau] = {
+    "euler": EULER,
+    "rk4": RK4,
     "rk23": RK23,
     "rkf45": RKF45,
     "cashkarp": CASHKARP,

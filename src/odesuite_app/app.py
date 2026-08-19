@@ -261,26 +261,22 @@ class MainWindow(QWidget):
 
         # The Learning Hub, still being built. `_Placeholder` exists so that a
         # screen which is missing looks different from one which is broken.
-        self._add("steps", _Placeholder(
-            "Solve Step by Step",
-            "Type an equation and see the technique that solves it, worked "
-            "through a line at a time — and check your own answer against it.",
-        ))
+        from .screens.learn_steps import StepsScreen
+
+        self._add("steps", StepsScreen(self.state, self.palette_obj))
         self._add("laplace", _Placeholder(
             "Laplace Transforms",
             "Transform the equation, solve for Y(s), and invert — with the "
             "transform table alongside.",
         ))
-        self._add("byhand", _Placeholder(
-            "Methods by Hand",
-            "Euler and RK4 as they are taught: the arithmetic of the first few "
-            "steps, beside the exact solution and the error.",
-        ))
-        self._add("worked", _Placeholder(
-            "Worked Problems",
-            "Mixing tanks, circuits, cooling and falling bodies — where the "
-            "equation comes from, and what the answer means.",
-        ))
+        from .screens.learn_byhand import ByHandScreen
+
+        self._add("byhand", ByHandScreen(self.state, self.palette_obj))
+        from .screens.learn_problems import WorkedProblemsScreen
+
+        worked = WorkedProblemsScreen(self.state, self.palette_obj)
+        worked.open_in_lab.connect(self._open_problem)
+        self._add("worked", worked)
         self._add("lab", LabScreen(self.state, self.palette_obj))
         self._add("portrait", PortraitScreen(self.state, self.palette_obj))
         self._add("stiffness", StiffnessScreen(self.state, self.palette_obj))

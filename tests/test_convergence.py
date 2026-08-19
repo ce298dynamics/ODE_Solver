@@ -211,6 +211,8 @@ def test_embedded_estimator_order(method):
     """
     stepper = make_stepper(method)
     tab = stepper.tab
+    if not tab.embedded:
+        pytest.skip(f"{tab.name} carries no embedded estimate")
 
     embedded = ExplicitRungeKutta(
         ButcherTableau(
@@ -281,6 +283,10 @@ def test_non_autonomous_problem():
     prob = ODEProblem(f=lambda t, y: np.array([np.cos(t)]), t_span=(0.0, 2.0), y0=[0.0])
     for method in METHOD_NAMES:
         stepper = make_stepper(method)
+        if stepper.n_stages == 1:
+            # A one-stage method has c = [0]: there is no abscissa to get wrong,
+            # and its first-order error swamps any fixed tolerance anyway.
+            continue
         y_end = fixed_step_integrate(stepper, prob, 40)
         assert y_end[0] == pytest.approx(np.sin(2.0), abs=1e-6), (
             f"{stepper.name} mishandles a time-dependent RHS"

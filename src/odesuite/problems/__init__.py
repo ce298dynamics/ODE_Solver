@@ -1014,6 +1014,257 @@ def bratu(lam: float = 1.0, branch: str = "lower") -> BVPBenchmark:
     return bench
 
 
+# ---------------------------------------------------------------------------
+# Textbook models
+#
+# Every other problem in this module is here because it is hard: stiff, chaotic,
+# a known integrator torture test. These are here because they are the ones a
+# first course is actually about -- a tank, a circuit, a cooling cup -- and
+# because a learner meets an ODE as something derived from a situation rather
+# than handed over ready-made.
+#
+# Each has a closed form, so the convergence suite can use it and the
+# Methods-by-Hand table has something to measure error against.
+# ---------------------------------------------------------------------------
+
+
+def mixing_tank(volume: float = 100.0, flow: float = 5.0,
+                inflow_concentration: float = 0.4, initial_mass: float = 5.0,
+                t_end: float = 60.0) -> Benchmark:
+    """Brine entering and leaving a well-stirred tank at the same rate.
+
+    ``Q' = flow * c_in - (flow / V) * Q``, with `Q` the dissolved mass in kg,
+    `V` the volume in litres and `flow` in litres per minute. The classic
+    first-order linear equation: the outflow concentration is ``Q / V`` because
+    the tank is well stirred, which is the modelling assumption that makes it
+    linear.
+
+    Reaches the steady state ``V * c_in`` on a timescale ``V / flow``.
+    """
+    rate = flow / volume
+    steady = volume * inflow_concentration
+
+    prob = ODEProblem(
+        f=lambda t, y: np.array([flow * inflow_concentration - rate * y[0]]),
+        t_span=(0.0, t_end),
+        y0=[initial_mass],
+        jac=lambda t, y: np.array([[-rate]]),
+    )
+
+    def exact(t):
+        t = np.asarray(t, dtype=float)
+        return np.atleast_1d(steady + (initial_mass - steady) * np.exp(-rate * t))
+
+    return Benchmark(
+        name="mixing_tank",
+        problem=prob,
+        exact=exact,
+        description=(
+            "Brine in a well-stirred tank: Q' = flow*c_in - (flow/V)*Q. "
+            "First-order linear; solved by an integrating factor."
+        ),
+        tags=("analytic", "linear", "first-order", "textbook", "1d"),
+    )
+
+
+def newton_cooling(ambient: float = 20.0, rate: float = 0.18,
+                   initial: float = 95.0, t_end: float = 30.0) -> Benchmark:
+    """A cup of coffee cooling towards room temperature.
+
+    ``T' = -k (T - T_ambient)``, temperatures in degrees Celsius and `t` in
+    minutes. Separable *and* first-order linear, which makes it the standard
+    example for both techniques -- and the one where the two routes visibly give
+    the same answer.
+    """
+    prob = ODEProblem(
+        f=lambda t, y: np.array([-rate * (y[0] - ambient)]),
+        t_span=(0.0, t_end),
+        y0=[initial],
+        jac=lambda t, y: np.array([[-rate]]),
+    )
+
+    def exact(t):
+        t = np.asarray(t, dtype=float)
+        return np.atleast_1d(ambient + (initial - ambient) * np.exp(-rate * t))
+
+    return Benchmark(
+        name="newton_cooling",
+        problem=prob,
+        exact=exact,
+        description=(
+            "Newton's law of cooling, T' = -k(T - T_ambient). Separable and "
+            "linear at once, in degrees Celsius over minutes."
+        ),
+        tags=("analytic", "linear", "separation", "first-order", "textbook", "1d"),
+    )
+
+
+def rc_circuit(resistance: float = 1000.0, capacitance: float = 1e-3,
+               supply: float = 5.0, initial_charge: float = 0.0,
+               t_end: float = 6.0) -> Benchmark:
+    """A resistor and capacitor in series with a constant supply.
+
+    ``R Q' + Q/C = V``, i.e. ``Q' = (V - Q/C) / R``, with `Q` in coulombs, `R`
+    in ohms and `C` in farads. The time constant ``RC`` is the whole content of
+    the problem: after one it has covered 63% of the way to ``CV``.
+    """
+    tau = resistance * capacitance
+    steady = capacitance * supply
+
+    prob = ODEProblem(
+        f=lambda t, y: np.array([(supply - y[0] / capacitance) / resistance]),
+        t_span=(0.0, t_end),
+        y0=[initial_charge],
+        jac=lambda t, y: np.array([[-1.0 / tau]]),
+    )
+
+    def exact(t):
+        t = np.asarray(t, dtype=float)
+        return np.atleast_1d(steady + (initial_charge - steady) * np.exp(-t / tau))
+
+    return Benchmark(
+        name="rc_circuit",
+        problem=prob,
+        exact=exact,
+        description=(
+            "Charging an RC circuit: R Q' + Q/C = V, with a time constant of "
+            "RC seconds."
+        ),
+        tags=("analytic", "linear", "first-order", "textbook", "circuit", "1d"),
+    )
+
+
+def falling_with_drag(mass: float = 80.0, drag: float = 12.0,
+                      gravity: float = 9.81, t_end: float = 25.0) -> Benchmark:
+    """A skydiver with drag proportional to speed.
+
+    ``m v' = m g - b v``, in metres per second. Linear because the drag is taken
+    proportional to `v` rather than to `v^2`, which is the simplification that
+    makes it a first-course problem; the terminal velocity ``m g / b`` falls
+    straight out of setting ``v' = 0``.
+    """
+    terminal = mass * gravity / drag
+    rate = drag / mass
+
+    prob = ODEProblem(
+        f=lambda t, y: np.array([gravity - rate * y[0]]),
+        t_span=(0.0, t_end),
+        y0=[0.0],
+        jac=lambda t, y: np.array([[-rate]]),
+    )
+
+    def exact(t):
+        t = np.asarray(t, dtype=float)
+        return np.atleast_1d(terminal * (1.0 - np.exp(-rate * t)))
+
+    return Benchmark(
+        name="falling_with_drag",
+        problem=prob,
+        exact=exact,
+        description=(
+            "Falling under gravity with linear drag: m v' = m g - b v. "
+            "Terminal velocity m g / b, in m/s."
+        ),
+        tags=("analytic", "linear", "first-order", "textbook", "1d"),
+    )
+
+
+def harvested_population(rate: float = 0.6, capacity: float = 1000.0,
+                         harvest: float = 60.0, initial: float = 200.0,
+                         t_end: float = 20.0) -> Benchmark:
+    """Logistic growth with a constant harvest taken off the top.
+
+    ``P' = r P (1 - P/K) - H``. Still separable, and the interesting question is
+    not the formula but the equilibria: harvesting shifts them together, and past
+    ``H = rK/4`` they collide and vanish, which is a saddle-node bifurcation met
+    long before anyone uses that name.
+
+    No elementary closed form is offered here -- the partial-fraction solution
+    exists but is unpleasant, and the point of the problem is the phase line.
+    """
+    prob = ODEProblem(
+        f=lambda t, y: np.array([rate * y[0] * (1.0 - y[0] / capacity) - harvest]),
+        t_span=(0.0, t_end),
+        y0=[initial],
+        jac=lambda t, y: np.array([[rate * (1.0 - 2.0 * y[0] / capacity)]]),
+    )
+
+    return Benchmark(
+        name="harvested_population",
+        problem=prob,
+        description=(
+            "Logistic growth with constant harvesting, P' = rP(1 - P/K) - H. "
+            "The equilibria collide and vanish at H = rK/4."
+        ),
+        tags=("nonlinear", "separation", "first-order", "textbook", "biology", "1d"),
+    )
+
+
+def spring_mass_damper(mass: float = 1.0, damping: float = 0.5,
+                       stiffness: float = 4.0, initial_position: float = 1.0,
+                       initial_velocity: float = 0.0,
+                       t_end: float = 20.0) -> Benchmark:
+    """``m x'' + c x' + k x = 0``: the second-order equation of a first course.
+
+    Written as a first-order system in ``(x, v)``. The three regimes are the
+    whole lesson and are reached by moving `c` alone: under-damped below
+    ``2*sqrt(mk)``, critically damped at it, over-damped above. The closed form
+    below covers all three, including the repeated root.
+    """
+    omega0 = np.sqrt(stiffness / mass)
+    zeta = damping / (2.0 * np.sqrt(mass * stiffness))
+
+    prob = ODEProblem(
+        f=lambda t, y: np.array([
+            y[1],
+            -(damping * y[1] + stiffness * y[0]) / mass,
+        ]),
+        t_span=(0.0, t_end),
+        y0=[initial_position, initial_velocity],
+        jac=lambda t, y: np.array([
+            [0.0, 1.0],
+            [-stiffness / mass, -damping / mass],
+        ]),
+    )
+
+    def exact(t):
+        t = np.asarray(t, dtype=float)
+        x0, v0 = initial_position, initial_velocity
+        decay = np.exp(-zeta * omega0 * t)
+        if zeta < 1.0:                                   # under-damped
+            wd = omega0 * np.sqrt(1.0 - zeta**2)
+            a = x0
+            b = (v0 + zeta * omega0 * x0) / wd
+            x = decay * (a * np.cos(wd * t) + b * np.sin(wd * t))
+            v = decay * (
+                (-zeta * omega0) * (a * np.cos(wd * t) + b * np.sin(wd * t))
+                + wd * (-a * np.sin(wd * t) + b * np.cos(wd * t))
+            )
+        elif np.isclose(zeta, 1.0):                      # critically damped
+            a, b = x0, v0 + omega0 * x0
+            x = decay * (a + b * t)
+            v = decay * (b - omega0 * (a + b * t))
+        else:                                            # over-damped
+            root = omega0 * np.sqrt(zeta**2 - 1.0)
+            r1, r2 = -zeta * omega0 + root, -zeta * omega0 - root
+            b = (v0 - r1 * x0) / (r2 - r1)
+            a = x0 - b
+            x = a * np.exp(r1 * t) + b * np.exp(r2 * t)
+            v = a * r1 * np.exp(r1 * t) + b * r2 * np.exp(r2 * t)
+        return np.stack([np.atleast_1d(x), np.atleast_1d(v)], axis=0).reshape(2, -1).squeeze()
+
+    return Benchmark(
+        name="spring_mass_damper",
+        problem=prob,
+        exact=exact,
+        description=(
+            "m x'' + c x' + k x = 0, as a first-order system. Under-, "
+            "critically and over-damped, selected by c alone."
+        ),
+        tags=("analytic", "linear", "second-order", "oscillator", "textbook", "2d"),
+    )
+
+
 #: Boundary value problems.
 BVPS = (bvp_linear, bvp_trig, lambda: bratu(1.0, "lower"), lambda: bratu(1.0, "upper"))
 
@@ -1022,8 +1273,30 @@ BVPS = (bvp_linear, bvp_trig, lambda: bratu(1.0, "lower"), lambda: bratu(1.0, "u
 # Collections
 # ---------------------------------------------------------------------------
 
-#: Problems with a closed-form solution: the order-of-convergence suite.
+#: Problems with a closed-form solution *and* an O(1) state: the
+#: order-of-convergence suite.
+#:
+#: Deliberately not "everything with a closed form". Measuring an order needs a
+#: usable window between the asymptotic regime and the round-off floor, and the
+#: floor is absolute. A problem whose state is small in its own natural units --
+#: `rc_circuit` carries a charge of about 5e-3 coulombs -- has proportionally
+#: smaller local errors and reaches that floor several halvings early, which
+#: reads as a slope of 5.7 where 6 was expected. That is a property of the units,
+#: not of the method, and it does not belong in a test about methods. The
+#: textbook models are checked against their closed forms in
+#: `tests/test_textbook.py` instead, over the whole interval.
 ANALYTIC = (exponential_decay, linear_system, sine_cosine, logistic)
+
+#: Models a first course is actually about, as opposed to the integrator
+#: torture tests that make up the rest of this module.
+TEXTBOOK = (
+    mixing_tank,
+    newton_cooling,
+    rc_circuit,
+    falling_with_drag,
+    harvested_population,
+    spring_mass_damper,
+)
 
 #: Non-stiff benchmarks for the work-precision diagrams.
 NONSTIFF = (
@@ -1054,7 +1327,7 @@ SEMILINEAR = (allen_cahn, kuramoto_sivashinsky)
 def all_benchmarks() -> list[Benchmark]:
     """Instantiate every registered benchmark."""
     seen, out = set(), []
-    for factory in (*NONSTIFF, *STIFF, *DAE, bouncing_ball):
+    for factory in (*NONSTIFF, *STIFF, *DAE, *TEXTBOOK, bouncing_ball):
         bench = factory()
         if bench.name not in seen:
             seen.add(bench.name)

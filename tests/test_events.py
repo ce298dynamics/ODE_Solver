@@ -9,7 +9,11 @@ from odesuite import Event, ODEProblem, solve
 from odesuite.problems import bouncing_ball, sine_cosine
 from odesuite.tableaux import TABLEAUX
 
-METHOD_NAMES = sorted({tab.name.lower(): key for key, tab in TABLEAUX.items()}.values())
+#: Methods that can choose their own step. Euler and RK4 carry no embedded
+#: estimate and run fixed-step, so an adaptive-solve test cannot include them.
+METHOD_NAMES = sorted(
+    {tab.name.lower(): key for key, tab in TABLEAUX.items() if tab.embedded}.values()
+)
 
 
 # ---------------------------------------------------------------------------

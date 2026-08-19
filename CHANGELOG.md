@@ -30,6 +30,42 @@ All notable changes to this project are documented here. The format follows
   to before the split. A navigation change must not disturb what it navigates
   to.
 
+### Added
+
+- **`euler` and `rk4` are real methods.** The method list previously started at
+  Bogacki–Shampine, so a learner could not select either of the two methods they
+  had just been taught. Both are tableaux like every other explicit method, and
+  both are verified by the machinery that already existed: the rooted-tree order
+  conditions hold at their claimed order and *fail* one higher, and the measured
+  slopes are 1.00 and 4.00.
+
+  Neither carries an embedded pair, so `ButcherTableau.e` may now be None and
+  such a method runs fixed-step — the driver requires `n_steps` or `first_step`,
+  exactly as it does for the symplectic methods. Inventing an error estimate for
+  them would have let the controller adapt on a meaningless number, which is the
+  failure this project has a recorded bug for.
+
+- **Learning Hub: `Methods by Hand`.** Euler and RK4 written out the way a course
+  teaches them — one row per step with the slope, the stages, the increment, the
+  new value and the error — plus a halve-the-step table whose ratio column is the
+  order, measured. Every number comes from the library's own stepper, and
+  `tests/test_byhand.py` asserts the walkthrough matches `solve` at the same step
+  size bit-for-bit.
+
+- **Learning Hub: `Solve Step by Step`**, with **"check your answer"**. A student
+  types their own solution; it is substituted into their equation and simplified.
+  The same check the library already applies to sympy's answer, pointed at the
+  user's instead — so equivalent forms pass, initial conditions are checked
+  separately from the equation, and "cannot decide" is reported as such rather
+  than as "wrong".
+
+- **Learning Hub: `Worked Problems`**, and six textbook models behind it: mixing
+  tank, Newton's cooling, RC circuit, falling with drag, harvested population,
+  spring–mass–damper. The catalogue previously held only integrator benchmarks;
+  these are what a first course is actually about, and each carries where its
+  equation comes from and what the letters mean, in real units. They are ordinary
+  catalogue entries, so they appear in the Solver Studio's pickers too.
+
 ### Changed
 
 - **`driver.solve` split into the loop and its bookkeeping.** It had reached 408

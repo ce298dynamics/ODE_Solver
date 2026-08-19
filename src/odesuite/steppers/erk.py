@@ -38,6 +38,10 @@ class ExplicitRungeKutta(Stepper):
             tableau.interpolant_order if tableau.P is not None else 3
         )
         self.n_stages = tableau.n_stages
+        # A pair without embedded weights has no error estimate, so it cannot
+        # choose its own step: the driver will require `n_steps` or
+        # `first_step`, as it does for the symplectic methods.
+        self.adaptive = tableau.embedded
         self._K: np.ndarray | None = None
         self._h: float = 0.0
 
@@ -65,7 +69,7 @@ class ExplicitRungeKutta(Stepper):
         return StepResult(
             y_new=y_new,
             f_new=f_new,
-            error=h * (e @ K),
+            error=None if e is None else h * (e @ K),
             nfev=s - 1,
         )
 

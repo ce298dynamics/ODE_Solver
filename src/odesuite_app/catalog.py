@@ -490,6 +490,152 @@ _ENTRIES += [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Textbook models
+#
+# The rest of this catalogue is chosen for what it does to an integrator. These
+# are chosen for being the problems a first ODE course is about, and their
+# blurbs carry what a textbook carries and the others do not: where the equation
+# comes from, and what the letters mean.
+# ---------------------------------------------------------------------------
+
+_ENTRIES += [
+    _entry(
+        key="mixing_tank",
+        title="Mixing tank",
+        blurb="A tank holds V litres of brine. Solution at c_in kg/litre flows "
+              "in at F litres/min, and the well-stirred mixture leaves at the "
+              "same rate. With Q the dissolved mass, the outflow carries away "
+              "Q/V per litre, so Q' = F·c_in − (F/V)·Q — first-order linear, "
+              "solved by an integrating factor. It settles to V·c_in over a "
+              "timescale of V/F minutes.",
+        tags=("textbook", "linear", "first-order", "analytic", "1d"),
+        factory=problems.mixing_tank,
+        params=(
+            ParamSpec("volume", "tank volume V (l)", 20.0, 400.0, 100.0),
+            ParamSpec("flow", "flow rate F (l/min)", 0.5, 25.0, 5.0),
+            ParamSpec("inflow_concentration", "inflow c_in (kg/l)", 0.0, 2.0, 0.4),
+            ParamSpec("initial_mass", "initial salt (kg)", 0.0, 80.0, 5.0),
+            ParamSpec("t_end", "duration (min)", 5.0, 200.0, 60.0),
+        ),
+        supports_taylor=True,
+        default_method="dopri5",
+        plot_kind="time",
+        labels=("Q (kg)",),
+    ),
+    _entry(
+        key="newton_cooling",
+        title="Newton's cooling",
+        blurb="Coffee at 95 °C in a 20 °C room. The rate of cooling is "
+              "proportional to the temperature difference, T' = −k(T − T_room), "
+              "so the difference decays exponentially and the coffee approaches "
+              "room temperature without ever reaching it. Separable and linear "
+              "at the same time — the standard example for both techniques.",
+        tags=("textbook", "linear", "separation", "first-order", "analytic", "1d"),
+        factory=problems.newton_cooling,
+        params=(
+            ParamSpec("initial", "initial T (°C)", 20.0, 100.0, 95.0),
+            ParamSpec("ambient", "room T (°C)", -10.0, 40.0, 20.0),
+            ParamSpec("rate", "cooling rate k (1/min)", 0.01, 1.0, 0.18, log=True),
+            ParamSpec("t_end", "duration (min)", 5.0, 120.0, 30.0),
+        ),
+        supports_taylor=True,
+        default_method="dopri5",
+        plot_kind="time",
+        labels=("T (°C)",),
+    ),
+    _entry(
+        key="rc_circuit",
+        title="RC circuit",
+        blurb="A resistor and capacitor in series across a battery. Kirchhoff's "
+              "voltage law gives R·Q' + Q/C = V, with Q the charge on the "
+              "capacitor. The product RC is the time constant: after RC seconds "
+              "the capacitor has covered 63% of the way to its final charge CV, "
+              "whatever the values.",
+        tags=("textbook", "linear", "first-order", "analytic", "circuit", "1d"),
+        factory=problems.rc_circuit,
+        params=(
+            ParamSpec("resistance", "resistance R (Ω)", 100.0, 10000.0, 1000.0, log=True),
+            ParamSpec("capacitance", "capacitance C (F)", 1e-4, 1e-2, 1e-3, log=True),
+            ParamSpec("supply", "supply V (volts)", 1.0, 24.0, 5.0),
+            ParamSpec("t_end", "duration (s)", 1.0, 30.0, 6.0),
+        ),
+        supports_taylor=True,
+        default_method="dopri5",
+        plot_kind="time",
+        labels=("Q (C)",),
+    ),
+    _entry(
+        key="falling_with_drag",
+        title="Falling with drag",
+        blurb="A skydiver of mass m, pulled down by gravity and slowed by drag "
+              "proportional to speed: m·v' = m·g − b·v. Setting v' = 0 gives the "
+              "terminal velocity m·g/b immediately, without solving anything — "
+              "which is the first lesson in reading an equation rather than "
+              "integrating it.",
+        tags=("textbook", "linear", "first-order", "analytic", "1d"),
+        factory=problems.falling_with_drag,
+        params=(
+            ParamSpec("mass", "mass m (kg)", 40.0, 120.0, 80.0),
+            ParamSpec("drag", "drag b (kg/s)", 2.0, 40.0, 12.0),
+            ParamSpec("t_end", "duration (s)", 5.0, 60.0, 25.0),
+        ),
+        supports_taylor=True,
+        default_method="dopri5",
+        plot_kind="time",
+        labels=("v (m/s)",),
+    ),
+    _entry(
+        key="harvested_population",
+        title="Harvested population",
+        blurb="Logistic growth with a fixed quota removed each year: "
+              "P' = r·P(1 − P/K) − H. The formula matters less than the phase "
+              "line. Raising H slides the two equilibria towards each other, "
+              "and past H = rK/4 they collide and vanish — after which every "
+              "population collapses, however large it started. A saddle-node "
+              "bifurcation, met long before anyone uses the name.",
+        tags=("textbook", "nonlinear", "separation", "first-order", "biology", "1d"),
+        factory=problems.harvested_population,
+        params=(
+            ParamSpec("rate", "growth rate r", 0.1, 2.0, 0.6),
+            ParamSpec("capacity", "carrying capacity K", 200.0, 2000.0, 1000.0),
+            ParamSpec("harvest", "harvest H", 0.0, 200.0, 60.0),
+            ParamSpec("initial", "initial P", 10.0, 1500.0, 200.0),
+            ParamSpec("t_end", "duration", 5.0, 60.0, 20.0),
+        ),
+        supports_taylor=True,
+        default_method="dopri5",
+        plot_kind="time",
+        labels=("P",),
+    ),
+    _entry(
+        key="spring_mass_damper",
+        title="Spring, mass and damper",
+        blurb="A mass on a spring with a dashpot: m·x'' + c·x' + k·x = 0, the "
+              "second-order equation of a first course. Damping alone selects "
+              "the behaviour: below c = 2√(mk) it oscillates inside a decaying "
+              "envelope, at that value it returns as fast as possible without "
+              "overshooting, and above it it creeps back. Drag c through 4 and "
+              "watch the characteristic roots collide.",
+        tags=("textbook", "linear", "second-order", "oscillator", "analytic", "2d"),
+        factory=problems.spring_mass_damper,
+        params=(
+            ParamSpec("mass", "mass m (kg)", 0.2, 5.0, 1.0),
+            ParamSpec("damping", "damping c", 0.0, 12.0, 0.5),
+            ParamSpec("stiffness", "stiffness k (N/m)", 0.5, 20.0, 4.0),
+            ParamSpec("initial_position", "x(0) (m)", -2.0, 2.0, 1.0),
+            ParamSpec("t_end", "duration (s)", 5.0, 60.0, 20.0),
+        ),
+        supports_taylor=True,
+        default_method="dopri5",
+        plot_kind="phase",
+        phase_axes=(0, 1),
+        labels=("x (m)", "v (m/s)"),
+        autonomous_2d=True,
+    ),
+]
+
+
 CATALOG: dict[str, CatalogEntry] = {e.key: e for e in _ENTRIES}
 
 
