@@ -30,8 +30,6 @@ All notable changes to this project are documented here. The format follows
   to before the split. A navigation change must not disturb what it navigates
   to.
 
-### Added
-
 - **`euler` and `rk4` are real methods.** The method list previously started at
   Bogacki–Shampine, so a learner could not select either of the two methods they
   had just been taught. Both are tableaux like every other explicit method, and
