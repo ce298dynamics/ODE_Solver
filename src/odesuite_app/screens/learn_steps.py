@@ -6,10 +6,16 @@ screen is the same capability aimed at a different question: not *what is the
 answer* but *how is this kind of equation solved*, and *is what I wrote
 correct*.
 
-At present it names the technique, shows the closed form and checks a typed
-answer. The narrated derivation -- the actual steps of separation, integrating
-factors, undetermined coefficients -- lands here next, which is why the layout
-leaves room for it.
+The derivation leads, because it is the point: separation of variables,
+integrating factors, characteristic roots, undetermined coefficients and
+Cauchy-Euler, written out a step at a time with each step checked. The closed
+form and the answer box sit beside it -- useful, but they are the answer, and
+this screen is about the method.
+
+Note which panel is which when they disagree. `steps` derives the answer itself
+and verifies it independently, so on an equation `dsolve` cannot finish -- it
+hangs outright on ``y' = sin(y)`` -- the derivation can still arrive at a
+checked solution while the closed form beside it reports a timeout.
 """
 
 from __future__ import annotations
@@ -29,6 +35,7 @@ from ..symbolic import ParsedEquation, check_answer
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
 from ..widgets.equationeditor import EquationEditor
+from ..widgets.stepspanel import StepsPanel
 from ..widgets.symbolicpanel import SymbolicPanel
 
 __all__ = ["StepsScreen"]
@@ -64,17 +71,37 @@ class StepsScreen(QWidget):
         return panel
 
     def _build_body(self) -> QWidget:
-        frame = QFrame()
-        frame.setProperty("role", "panel")
-        outer = QVBoxLayout(frame)
-        outer.setContentsMargins(12, 10, 12, 10)
-        outer.setSpacing(10)
+        """The derivation beside the answer, rather than above or below it.
 
+        Two scrolling regions stacked would put the answer below the fold on a
+        long derivation, and the answer box is what a student reaches for after
+        reading the steps.
+        """
+        body = QWidget()
+        layout = QHBoxLayout(body)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(14)
+
+        derivation = QFrame()
+        derivation.setProperty("role", "panel")
+        left = QVBoxLayout(derivation)
+        left.setContentsMargins(2, 2, 2, 2)
+        self.steps = StepsPanel(self.palette_obj)
+        left.addWidget(self.steps)
+        layout.addWidget(derivation, 3)
+
+        answer = QFrame()
+        answer.setProperty("role", "panel")
+        right = QVBoxLayout(answer)
+        right.setContentsMargins(12, 10, 12, 10)
+        right.setSpacing(10)
         self.symbolic = SymbolicPanel(self.palette_obj)
-        outer.addWidget(self.symbolic, 1)
-
-        outer.addWidget(self._build_check())
-        return frame
+        self.symbolic.narrate = True          # this screen displays the steps
+        self.symbolic.solved.connect(self._on_solved)
+        right.addWidget(self.symbolic, 1)
+        right.addWidget(self._build_check())
+        layout.addWidget(answer, 2)
+        return body
 
     def _build_check(self) -> QWidget:
         box = QFrame()
@@ -142,13 +169,19 @@ class StepsScreen(QWidget):
             self.editor.show_message(str(exc), error=True)
             return
 
+        self.steps.clear("working out how this one is solved…")
         self.symbolic.solve_for(self._parsed)
         self._set_enabled(True)
         self.verdict.setText("")
 
+    def _on_solved(self, solution) -> None:
+        """The worker is done; show whatever derivation came back with it."""
+        self.steps.show_derivation(getattr(solution, "derivation", None))
+
     def _on_failed(self, message: str) -> None:
         self._parsed = None
         self._set_enabled(False)
+        self.steps.clear()
 
     def check(self) -> None:
         """Substitute the typed answer and report the residual."""

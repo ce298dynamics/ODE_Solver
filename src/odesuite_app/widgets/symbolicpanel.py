@@ -51,17 +51,19 @@ class _SymbolicJob(QRunnable):
     """Runs `solve_symbolically` off the GUI thread."""
 
     def __init__(self, token: int, parsed: ParsedEquation, timeout: float,
-                 signals: _Signals) -> None:
+                 signals: _Signals, steps: bool = False) -> None:
         super().__init__()
         self.token = token
         self.parsed = parsed
         self.timeout = timeout
         self.signals = signals
+        self.steps = steps
         self.setAutoDelete(True)
 
     def run(self) -> None:
         try:
-            result = solve_symbolically(self.parsed, timeout=self.timeout)
+            result = solve_symbolically(self.parsed, timeout=self.timeout,
+                                        steps=self.steps)
         except Exception as exc:                      # surfaced, never swallowed
             result = exc
         try:
@@ -81,6 +83,10 @@ class SymbolicPanel(QWidget):
         self._token = 0
         self._parsed: ParsedEquation | None = None
         self.solution: SymbolicSolution | None = None
+        #: Ask the worker to narrate the derivation too. Off here because only
+        #: the Learning Hub displays one, and the Studio should not pay for
+        #: work it does not show.
+        self.narrate = False
 
         self._signals = _Signals()
         self._signals.done.connect(self._on_done)
@@ -157,7 +163,8 @@ class SymbolicPanel(QWidget):
             f"no closed form, and sympy cannot always tell quickly)"
         )
         QThreadPool.globalInstance().start(
-            _SymbolicJob(self._token, parsed, timeout, self._signals)
+            _SymbolicJob(self._token, parsed, timeout, self._signals,
+                         steps=self.narrate)
         )
         return self._token
 

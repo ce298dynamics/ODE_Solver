@@ -21,8 +21,40 @@ import sys
 __all__ = ["run", "solve_payload"]
 
 
-def solve_payload(payload: dict) -> dict:
-    """Do the symbolic work described by `payload` and return a plain-dict reply."""
+def derivation_reply(equation, function, ics: dict) -> dict | None:
+    """`steps.derive` reduced to plain JSON-able data, or None if nothing applies."""
+    import sympy as sp
+
+    from .steps import derive
+
+    hints = sp.classify_ode(equation, function)
+    derivation = derive(equation, function.func, hints=hints, ics=ics)
+    if derivation is None:
+        return None
+    return {
+        "technique": derivation.technique,
+        "title": derivation.title,
+        "message": derivation.message,
+        "verified": derivation.verified,
+        "result": None if derivation.result is None else sp.srepr(derivation.result),
+        "steps": [
+            {"title": s.title, "latex": s.latex, "note": s.note,
+             "verified": s.verified}
+            for s in derivation.steps
+        ],
+    }
+
+
+def solve_payload(payload: dict, emit=None) -> dict:
+    """Do the symbolic work described by `payload` and return a plain-dict reply.
+
+    `emit`, when given, is called with the reply as soon as the classification
+    and any derivation are ready and **before** `dsolve` is attempted. That
+    ordering is deliberate: `dsolve` is the part that hangs, and a derivation
+    already computed should not die with it. ``y' = sin(y)`` is the case that
+    motivates it -- `dsolve` never returns, while separation of variables
+    solves it in a few seconds.
+    """
     import sympy as sp
 
     equations = [sp.sympify(text) for text in payload["equations"]]
@@ -37,12 +69,36 @@ def solve_payload(payload: dict) -> dict:
     # Classification first: it is fast, it is useful even when no closed form
     # comes out, and it is what tells the user *why* their equation is easy or
     # hard.
+    #
+    # The whole tuple is returned, not just its head. `classify_ode` orders
+    # hints by what sympy would rather solve with, which is not the order a
+    # course teaches: `y'' + 3y' + 2y = 0` leads with `factorable` and
+    # `y' + 2y = t` with `1st_exact`. Choosing among them is the caller's job
+    # (`symbolic.preferred_hint`), and it cannot choose from one string.
     if len(equations) == 1:
         try:
             hints = sp.classify_ode(equations[0], functions[0])
+            reply["hints"] = [h for h in hints if not h.endswith("_Integral")]
             reply["classification"] = hints[0] if hints else ""
         except Exception:
+            reply["hints"] = []
             reply["classification"] = ""
+
+    # Published in two stages, cheapest first. Classification takes
+    # milliseconds and narration can take seconds, so emitting only once -- at
+    # the end of both -- meant that asking for steps could lose the
+    # classification a caller would otherwise have kept when the timeout fired.
+    if emit is not None:
+        emit(dict(reply, partial=True))
+
+    if payload.get("steps") and len(equations) == 1:
+        try:
+            reply["derivation"] = derivation_reply(equations[0], functions[0], ics)
+        except Exception as exc:                  # narration is never fatal
+            reply["derivation"] = None
+            reply["derivation_error"] = f"{type(exc).__name__}: {exc}"
+        if emit is not None:
+            emit(dict(reply, partial=True))
 
     try:
         if len(equations) == 1:
@@ -83,8 +139,16 @@ def run() -> int:
         print(json.dumps({"ok": False, "error": f"bad request: {exc}"}))
         return 1
 
+    def emit(partial: dict) -> None:
+        """Publish what is already known, in case `dsolve` never returns.
+
+        Flushed immediately: the parent reads this back out of the killed
+        process's captured output when the timeout fires.
+        """
+        print(json.dumps(partial), flush=True)
+
     try:
-        reply = solve_payload(payload)
+        reply = solve_payload(payload, emit=emit)
     except Exception as exc:                              # never crash silently
         reply = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 

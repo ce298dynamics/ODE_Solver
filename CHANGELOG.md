@@ -8,6 +8,42 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Learning Hub: `Solve Step by Step` narrates the derivation.** Five techniques
+  — separation of variables, integrating factors, characteristic roots,
+  undetermined coefficients, Cauchy–Euler — written out a move at a time, with
+  the reason each move is legal. That is what a first course is about, and it is
+  the one thing `dsolve` cannot be asked for: it returns an answer and does not
+  expose the moves it made.
+
+  **Every step is checked, not merely printed.** The antiderivatives are
+  differentiated back and compared with their integrands; each basis function is
+  substituted into the equation and required to give exactly zero; the
+  particular solution has to reproduce the forcing term. A card carries a tick
+  only where its own claim was verified, and a step that fails verification is
+  shown failing rather than hidden. A derivation that quietly prints a wrong
+  line is the one thing worse than no derivation.
+
+  Equations outside the five get no derivation at all rather than a vague one —
+  the same degradation `SymbolicSolution` already makes between *timed out*, *no
+  method*, and *found but unverified*.
+
+- **The technique is now named the way a course names it.** This was the finding
+  the whole phase turned on. `classify_ode` orders its hints by what sympy would
+  rather *solve* with, which is not the order a course *teaches*:
+
+  | equation | sympy's first hint | what it is called |
+  |---|---|---|
+  | `T' = -k(T - 20)` | `factorable` | separable |
+  | `y' + 2y = t` | `1st_exact` | integrating factor |
+  | `y'' + 3y' + 2y = 0` | `factorable` | characteristic roots |
+  | `t²y'' + ty' - y = 0` | `factorable` | Cauchy–Euler |
+
+  The app stored `hints[0]`, so **four of the five techniques would never have
+  dispatched**. The worker now returns the whole tuple and the teaching name is
+  preferred. That also fixes the Solver Studio's Symbolic tab, which had been
+  labelling `y'' + 3y' + 2y = 0` as "factorable" — true, and useless.
+
+
 - **The app is split into two sections: Learning Hub and Solver Studio**, over a
   shared Home. The Studio holds the five screens that already existed — Solver
   Lab, Phase Portrait, Stiffness Explorer, Method Race, Accuracy Lab — and the
@@ -66,6 +102,27 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **A derivation now outlives a `dsolve` that hangs.** The worker publishes the
+  classification and the derivation *before* attempting `dsolve`, and the parent
+  recovers that line from the killed process's captured output when the timeout
+  fires. `y' = sin(y)` is the case: it is the equation this project records
+  `dsolve` hanging on — not stalling, hanging — and separation of variables
+  solves it in about four seconds. The Hub shows a complete verified derivation
+  where the Studio can only report a timeout.
+
+  What is published happens in two stages, cheapest first: the classification
+  costs milliseconds, the derivation can cost seconds. Emitting only once, at
+  the end of both, was a regression found by the test for it — a slow
+  derivation took the classification down with it, so *asking* for steps made
+  the reply worse than not asking.
+
+  The remaining cost is stated rather than hidden: narration and `dsolve` share
+  one hard budget, so a derivation slower than the timeout is lost with it. On
+  a busy machine that happens — narrating `y' = sin(y)` takes about four
+  seconds idle and can exceed thirty under a fully parallel test run. The
+  classification always survives; the derivation is best-effort.
+
+
 - **`driver.solve` split into the loop and its bookkeeping.** It had reached 408
   lines: the loop plus argument validation, step-endpoint arithmetic, output
   accumulation and event tracking. Those four now live in `odesuite/_loop.py`
@@ -121,6 +178,21 @@ All notable changes to this project are documented here. The format follows
 
   Gated on 42 offscreen renders — every screen, both palettes, whole and
   per-panel — hashing **pixel-identically**.
+
+### Fixed
+
+- **A decimal initial condition poisoned the answer.** `y(0) = 0.1` parses to a
+  float, which propagates through `solve` into a constant whose imaginary part
+  is the *number* 3.14159… rather than `pi`. sympy cannot recognise that as pi,
+  so `e^(t + 3.14159…i)` never collapsed to `-e^t`: the built-in logistic example
+  displayed a complex exponential it did not need, and its conditions step was
+  marked **failed** — a red cross on a correct step. Conditions are rationalised
+  before solving, and the logistic now reads `e^t / (e^t + 9)`.
+
+- **"Cannot decide" is no longer reported as "wrong"** when checking that a
+  solution meets its initial conditions, matching the rule `check_answer`
+  already follows. False has to mean demonstrably wrong; a floating-point
+  residual or an unresolved parameter means undecided, and says so.
 
 ## [0.3.0] — 2026-08-17
 

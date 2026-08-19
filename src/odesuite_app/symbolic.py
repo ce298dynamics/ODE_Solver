@@ -47,6 +47,7 @@ __all__ = [
     "parse_initial_conditions",
     "solve_symbolically",
     "characteristic_analysis",
+    "analyse_linear",
     "describe_roots",
     "with_parameters",
     "to_first_order",
@@ -127,7 +128,15 @@ class SymbolicSolution:
 
     general: sp.Expr | list[sp.Expr] | None = None
     particular: sp.Expr | list[sp.Expr] | None = None
+    #: The technique named to the user. This is the *teaching* choice among
+    #: `hints`, not sympy's first: `classify_ode` leads `y'' + 3y' + 2y = 0`
+    #: with `factorable` and `y' + 2y = t` with `1st_exact`, neither of which
+    #: is what the equation is called in a course.
     classification: str = ""
+    #: Every hint `classify_ode` returned, in its order.
+    hints: tuple[str, ...] = ()
+    #: The narrated derivation, when a technique in `steps` applies.
+    derivation: object | None = None
     order: int = 0
     linear: bool = False
     homogeneous: bool = False
@@ -365,16 +374,27 @@ def characteristic_analysis(parsed: ParsedEquation) -> dict:
     ``t^k`` for each repetition, and ``e^{at}cos(bt)``/``e^{at}sin(bt)`` for a
     complex pair.
     """
-    result = {
+    if parsed.is_system:
+        return _no_analysis()
+    return analyse_linear(parsed.equation, parsed.function, parsed.order)
+
+
+def _no_analysis() -> dict:
+    return {
         "linear": False, "homogeneous": False, "constant_coefficients": False,
         "poly": None, "roots": [], "fundamental_set": [], "forcing": None,
     }
-    if parsed.is_system:
-        return result
 
-    equation, function = parsed.equation, parsed.function
+
+def analyse_linear(equation: sp.Eq, function: sp.Function, order: int) -> dict:
+    """`characteristic_analysis` on plain sympy, without a `ParsedEquation`.
+
+    Split out so `steps` can narrate the same working from inside the solver
+    subprocess, which has the equation but not the app's dataclasses.
+    """
+    result = _no_analysis()
     expression = sp.expand(equation.lhs - equation.rhs)
-    derivatives = [function(_T).diff(_T, k) for k in range(parsed.order + 1)]
+    derivatives = [function(_T).diff(_T, k) for k in range(order + 1)]
 
     try:
         poly = sp.Poly(expression, *derivatives)
@@ -385,8 +405,8 @@ def characteristic_analysis(parsed: ParsedEquation) -> dict:
     result["linear"] = True
 
     coefficients = []
-    for k in range(parsed.order + 1):
-        exponents = [0] * (parsed.order + 1)
+    for k in range(order + 1):
+        exponents = [0] * (order + 1)
         exponents[k] = 1
         coefficients.append(poly.coeff_monomial(sp.prod(
             [d**e for d, e in zip(derivatives, exponents)]
@@ -402,7 +422,7 @@ def characteristic_analysis(parsed: ParsedEquation) -> dict:
 
     r = sp.Symbol("r")
     characteristic = sum(
-        (coefficients[k] or 0) * r**k for k in range(parsed.order + 1)
+        (coefficients[k] or 0) * r**k for k in range(order + 1)
     )
     characteristic = sp.expand(characteristic)
     if characteristic == 0:
@@ -558,27 +578,92 @@ def _run_dsolve(payload: dict, timeout: float) -> dict:
             timeout=timeout,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "timeout": True,
-                "error": f"no closed form found within {timeout:g} s"}
+    except subprocess.TimeoutExpired as expired:
+        # The worker publishes the classification and any derivation *before*
+        # attempting `dsolve`, so a killed process usually still left something
+        # on stdout. ``y' = sin(y)`` is the case that matters: `dsolve` never
+        # returns, while separation of variables solves it outright, and losing
+        # that to the timeout would be discarding a complete answer.
+        partial = _last_reply(expired.stdout)
+        message = f"no closed form found within {timeout:g} s"
+        if partial is not None:
+            return dict(partial, ok=False, timeout=True, error=message)
+        return {"ok": False, "timeout": True, "error": message}
     except Exception as exc:
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
     if completed.returncode != 0 and not completed.stdout.strip():
         return {"ok": False,
                 "error": (completed.stderr or "the solver process failed").strip()[-200:]}
-    try:
-        return json.loads(completed.stdout.strip().splitlines()[-1])
-    except Exception:
+    reply = _last_reply(completed.stdout)
+    if reply is None:
         return {"ok": False, "error": "could not read the solver's reply"}
+    return reply
 
 
-def solve_symbolically(parsed: ParsedEquation,
-                       timeout: float | None = None) -> SymbolicSolution:
+def _last_reply(stream) -> dict | None:
+    """The last complete JSON object the worker wrote, if any.
+
+    Scans backwards rather than taking the final line outright: a killed
+    process can be cut off mid-write, leaving a truncated last line above an
+    intact earlier one.
+    """
+    if not stream:
+        return None
+    text = stream if isinstance(stream, str) else stream.decode("utf-8", "replace")
+    for line in reversed(text.strip().splitlines()):
+        try:
+            parsed = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
+
+
+def _label(hints, first: str) -> str:
+    """What to call the equation: the technique a course teaches, if there is one.
+
+    `classify_ode` orders its hints by what sympy would rather solve with, and
+    that order buries the teaching name -- ``y'' + 3y' + 2y = 0`` comes back
+    led by `factorable`. Where one of the narrated techniques applies, it is the
+    better label whether or not a derivation is asked for.
+    """
+    from .steps import preferred_hint
+
+    return preferred_hint(hints) or first
+
+
+def _restore_derivation(blob):
+    """Rebuild a `steps.Derivation` from the worker's plain-dict form."""
+    if not blob:
+        return None
+    from .steps import Derivation, Step
+
+    return Derivation(
+        technique=blob.get("technique", ""),
+        title=blob.get("title", ""),
+        steps=[
+            Step(title=s.get("title", ""), latex=s.get("latex", ""),
+                 note=s.get("note", ""), verified=s.get("verified"))
+            for s in blob.get("steps", [])
+        ],
+        result=(sp.sympify(blob["result"]) if blob.get("result") else None),
+        verified=blob.get("verified"),
+        message=blob.get("message", ""),
+    )
+
+
+def solve_symbolically(parsed: ParsedEquation, timeout: float | None = None,
+                       steps: bool = False) -> SymbolicSolution:
     """Find a closed form, verify it, and describe the equation.
 
     `timeout` defaults to `DSOLVE_TIMEOUT`, read at call time so the module
     attribute can be raised on a slow or heavily loaded machine.
+
+    `steps` asks the worker to narrate the derivation as well. Off by default:
+    only the Learning Hub displays it, and the Solver Studio should not pay for
+    work it does not show.
     """
     timeout = DSOLVE_TIMEOUT if timeout is None else timeout
     analysis = characteristic_analysis(parsed)
@@ -596,10 +681,14 @@ def solve_symbolically(parsed: ParsedEquation,
         "equations": [sp.srepr(equation) for equation in parsed.equations],
         "functions": [sp.srepr(f(_T)) for f in parsed.functions],
         "ics": {sp.srepr(k): sp.srepr(v) for k, v in parsed.ics.items()},
+        "steps": bool(steps),
     }
     reply = _run_dsolve(payload, timeout)
 
-    solution.classification = reply.get("classification", "")
+    solution.hints = tuple(reply.get("hints") or ())
+    solution.classification = _label(solution.hints,
+                                     reply.get("classification", ""))
+    solution.derivation = _restore_derivation(reply.get("derivation"))
     if not reply.get("ok"):
         solution.timed_out = bool(reply.get("timeout"))
         solution.message = reply.get("error", "no closed form found")

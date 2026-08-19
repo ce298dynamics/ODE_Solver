@@ -225,11 +225,23 @@ linear part imposes no step restriction at all.
 ## The studio
 
 A PySide6 desktop application over the same library — `odesuite-gui`, or
-`python -m odesuite_app`. Six screens, dark and light themes, everything solved on a
-worker thread so the interface never blocks.
+`python -m odesuite_app`. Dark and light themes, everything solved on a worker thread so
+the interface never blocks.
 
-The guiding idea is to show **what the solver is doing**, not just the answer. That is
-what a generic plotting front-end cannot do, and what this library has the data for.
+It has two sections over a shared home, because it serves two audiences.
+
+**Solver Studio** is the original one, and its guiding idea is to show **what the solver
+is doing**, not just the answer: the step-size timeline, the stability regions, the
+work-precision sweeps. That is what a generic plotting front-end cannot do, and what this
+library has the data for. It aims at someone learning *numerical methods*.
+
+**Learning Hub** aims at someone taking a *first ODE course*, which is a different
+subject: separable equations, integrating factors, characteristic roots, Laplace
+transforms, and modelling. It shows technique rather than answers — see
+[Learning Hub](#learning-hub) below.
+
+The split is presentation only. Both sections drive the same session and select from the
+same catalogue by key, which is what lets an equation you typed appear on either side.
 
 ### Solver Lab
 
@@ -315,6 +327,64 @@ in scope, so `sympify("__import__('os').system(...)")` runs the command — a ho
 project had until a test caught it. Expressions now go through `parse_expr` with an
 explicitly emptied `__builtins__` (explicitly, because an absent key makes Python
 reinstate the real one) and a whitelist of elementary functions.
+
+### Learning Hub
+
+A first ODE course is not about adaptive step control. It is about knowing that
+`y'' + 3y' + 2y = 0` is solved by characteristic roots and being able to carry that out.
+The Studio shows answers; this section shows **technique**.
+
+**Solve Step by Step** narrates the derivation. Five techniques — separation of
+variables, integrating factors, characteristic roots, undetermined coefficients,
+Cauchy–Euler — written out a move at a time, with the reason each move is legal.
+
+Every step is **checked, not merely printed**. The antiderivatives are differentiated
+back and compared with their integrands; each basis function is substituted into the
+equation and required to give exactly zero; the particular solution has to reproduce the
+forcing term. A tick on a card means that card's claim was verified symbolically, and a
+step that fails is shown failing rather than hidden — a derivation that quietly prints a
+wrong line is the one thing worse than no derivation.
+
+Getting this to dispatch at all turned on a measurement. `sympy.classify_ode` returns its
+hints ordered by what sympy would rather *solve* with, which is not the order a course
+*teaches*:
+
+| equation | sympy's first hint | what a course calls it |
+|---|---|---|
+| `T' = -k(T - 20)` | `factorable` | separable |
+| `y' + 2y = t` | `1st_exact` | integrating factor |
+| `y'' + 3y' + 2y = 0` | `factorable` | characteristic roots |
+| `t²y'' + ty' - y = 0` | `factorable` | Cauchy–Euler |
+
+Taking the first hint — which the app did — would have left four of the five techniques
+never selected. The whole tuple is read and the teaching name preferred, which also fixed
+the Studio's label: `y'' + 3y' + 2y = 0` no longer reads "factorable", which is true and
+useless.
+
+Because the derivation is computed independently of `dsolve` and published *before* it,
+the two can disagree usefully. `y' = sin(y)` is the equation `dsolve` hangs on outright —
+and separation of variables solves it in about five seconds. The worker writes the
+derivation to its output before starting `dsolve`, so when the hard timeout kills the
+process the parent reads a complete, verified solution back out of what it left behind.
+The Hub shows the working where the Studio can only report a timeout.
+
+Alongside it, **check your answer**: type your own `y(t)` and it is substituted into your
+equation and simplified. Equivalent forms pass, because the check never compares against
+sympy's spelling; initial conditions are judged separately from the equation; and "cannot
+decide" is reported as such rather than as "wrong".
+
+**Methods by Hand** is the bridge back to the numerical half. Euler and RK4 written out
+as a course teaches them — one row per step with the slope, the stages, the increment,
+the new value and the error — plus a halve-the-step table whose ratio column *is* the
+order, measured. The rows come from the library's own stepper and a test asserts they
+match `solve` at the same step size bit-for-bit; a teaching aid that quietly computed
+something else would be worse than none. (Writing it reintroduced recorded bug #4:
+accumulating `t` by repeated addition. The bit-for-bit test caught it.)
+
+**Worked Problems** leads with the situation rather than the equation: a mixing tank, an
+RC circuit, a skydiver, a harvested population, a spring and damper. Each says where its
+equation comes from and what the letters mean, in real units. They are ordinary catalogue
+entries, so they also appear in every Studio picker.
 
 ### Packaging
 
@@ -525,11 +595,14 @@ src/odesuite_app/                                    the studio
   analysis.py custom.py                              phase-plane maths, sympy systems
   symbolic.py dsolve_worker.py                       closed forms, in a killable process
   equationmodel.py mathrender.py                     typed equations, LaTeX typesetting
-  screens/   home lab portrait stiffness
-             race accuracy                           the six screens
+  steps.py byhand.py                                 derivations, RK by hand
+  screens/   home                                    shared landing
+             lab portrait stiffness race accuracy    Solver Studio
+             learn_steps learn_byhand
+             learn_problems learn_laplace            Learning Hub
   widgets/                                           sliders, cards, plots, maths
 
-tests/         998 tests
+tests/         1400 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```
