@@ -39,6 +39,97 @@ All notable changes to this project are documented here. The format follows
   failure this project already documents. So `parse_equation` takes an explicit
   widening and exactly one caller passes it.
 
+- **Learning Hub: `Solve Step by Step` narrates the derivation.** Five techniques
+  — separation of variables, integrating factors, characteristic roots,
+  undetermined coefficients, Cauchy–Euler — written out a move at a time, with
+  the reason each move is legal. That is what a first course is about, and it is
+  the one thing `dsolve` cannot be asked for: it returns an answer and does not
+  expose the moves it made.
+
+  **Every step is checked, not merely printed.** The antiderivatives are
+  differentiated back and compared with their integrands; each basis function is
+  substituted into the equation and required to give exactly zero; the
+  particular solution has to reproduce the forcing term. A card carries a tick
+  only where its own claim was verified, and a step that fails verification is
+  shown failing rather than hidden. A derivation that quietly prints a wrong
+  line is the one thing worse than no derivation.
+
+  Equations outside the five get no derivation at all rather than a vague one —
+  the same degradation `SymbolicSolution` already makes between *timed out*, *no
+  method*, and *found but unverified*.
+
+- **The technique is now named the way a course names it.** This was the finding
+  the whole phase turned on. `classify_ode` orders its hints by what sympy would
+  rather *solve* with, which is not the order a course *teaches*:
+
+  | equation | sympy's first hint | what it is called |
+  |---|---|---|
+  | `T' = -k(T - 20)` | `factorable` | separable |
+  | `y' + 2y = t` | `1st_exact` | integrating factor |
+  | `y'' + 3y' + 2y = 0` | `factorable` | characteristic roots |
+  | `t²y'' + ty' - y = 0` | `factorable` | Cauchy–Euler |
+
+  The app stored `hints[0]`, so **four of the five techniques would never have
+  dispatched**. The worker now returns the whole tuple and the teaching name is
+  preferred. That also fixes the Solver Studio's Symbolic tab, which had been
+  labelling `y'' + 3y' + 2y = 0` as "factorable" — true, and useless.
+
+- **The app is split into two sections: Learning Hub and Solver Studio**, over a
+  shared Home. The Studio holds the five screens that already existed — Solver
+  Lab, Phase Portrait, Stiffness Explorer, Method Race, Accuracy Lab — and the
+  Hub is a new section for learning to solve ODEs, currently four placeholders
+  being filled in by phase: Solve Step by Step, Laplace Transforms, Methods by
+  Hand, Worked Problems.
+
+  The split is presentation only. Both sections drive the same `SessionState`
+  and select from the same catalogue by key, which is what lets a problem —
+  including one the user typed — appear on either side without either knowing
+  about the other.
+
+  `go(key)` still takes a bare screen key and now resolves the section itself,
+  because every caller passes one that way: `cli.py --screen`, the Home tiles,
+  and the tests. Shortcuts stay globally unique rather than restarting per
+  section, so one never means two different screens.
+
+  Verified by the same 42-render offscreen comparison used for the
+  control-panel refactor: the five existing screens render **pixel-identically**
+  to before the split. A navigation change must not disturb what it navigates
+  to.
+
+- **`euler` and `rk4` are real methods.** The method list previously started at
+  Bogacki–Shampine, so a learner could not select either of the two methods they
+  had just been taught. Both are tableaux like every other explicit method, and
+  both are verified by the machinery that already existed: the rooted-tree order
+  conditions hold at their claimed order and *fail* one higher, and the measured
+  slopes are 1.00 and 4.00.
+
+  Neither carries an embedded pair, so `ButcherTableau.e` may now be None and
+  such a method runs fixed-step — the driver requires `n_steps` or `first_step`,
+  exactly as it does for the symplectic methods. Inventing an error estimate for
+  them would have let the controller adapt on a meaningless number, which is the
+  failure this project has a recorded bug for.
+
+- **Learning Hub: `Methods by Hand`.** Euler and RK4 written out the way a course
+  teaches them — one row per step with the slope, the stages, the increment, the
+  new value and the error — plus a halve-the-step table whose ratio column is the
+  order, measured. Every number comes from the library's own stepper, and
+  `tests/test_byhand.py` asserts the walkthrough matches `solve` at the same step
+  size bit-for-bit.
+
+- **Learning Hub: `Solve Step by Step`**, with **"check your answer"**. A student
+  types their own solution; it is substituted into their equation and simplified.
+  The same check the library already applies to sympy's answer, pointed at the
+  user's instead — so equivalent forms pass, initial conditions are checked
+  separately from the equation, and "cannot decide" is reported as such rather
+  than as "wrong".
+
+- **Learning Hub: `Worked Problems`**, and six textbook models behind it: mixing
+  tank, Newton's cooling, RC circuit, falling with drag, harvested population,
+  spring–mass–damper. The catalogue previously held only integrator benchmarks;
+  these are what a first course is actually about, and each carries where its
+  equation comes from and what the letters mean, in real units. They are ordinary
+  catalogue entries, so they appear in the Solver Studio's pickers too.
+
 ### Changed
 
 - **A check is never named unless it is the one performed.** Most answers in the
@@ -159,99 +250,6 @@ All notable changes to this project are documented here. The format follows
   editor only checks that a derivative is present, so anything it does not know
   about reaches `parse_equation` and fails there; this was reachable by typing.
   Shipped in L2 and found by writing the equivalent test for the Laplace screen.
-
-- **Learning Hub: `Solve Step by Step` narrates the derivation.** Five techniques
-  — separation of variables, integrating factors, characteristic roots,
-  undetermined coefficients, Cauchy–Euler — written out a move at a time, with
-  the reason each move is legal. That is what a first course is about, and it is
-  the one thing `dsolve` cannot be asked for: it returns an answer and does not
-  expose the moves it made.
-
-  **Every step is checked, not merely printed.** The antiderivatives are
-  differentiated back and compared with their integrands; each basis function is
-  substituted into the equation and required to give exactly zero; the
-  particular solution has to reproduce the forcing term. A card carries a tick
-  only where its own claim was verified, and a step that fails verification is
-  shown failing rather than hidden. A derivation that quietly prints a wrong
-  line is the one thing worse than no derivation.
-
-  Equations outside the five get no derivation at all rather than a vague one —
-  the same degradation `SymbolicSolution` already makes between *timed out*, *no
-  method*, and *found but unverified*.
-
-- **The technique is now named the way a course names it.** This was the finding
-  the whole phase turned on. `classify_ode` orders its hints by what sympy would
-  rather *solve* with, which is not the order a course *teaches*:
-
-  | equation | sympy's first hint | what it is called |
-  |---|---|---|
-  | `T' = -k(T - 20)` | `factorable` | separable |
-  | `y' + 2y = t` | `1st_exact` | integrating factor |
-  | `y'' + 3y' + 2y = 0` | `factorable` | characteristic roots |
-  | `t²y'' + ty' - y = 0` | `factorable` | Cauchy–Euler |
-
-  The app stored `hints[0]`, so **four of the five techniques would never have
-  dispatched**. The worker now returns the whole tuple and the teaching name is
-  preferred. That also fixes the Solver Studio's Symbolic tab, which had been
-  labelling `y'' + 3y' + 2y = 0` as "factorable" — true, and useless.
-
-
-- **The app is split into two sections: Learning Hub and Solver Studio**, over a
-  shared Home. The Studio holds the five screens that already existed — Solver
-  Lab, Phase Portrait, Stiffness Explorer, Method Race, Accuracy Lab — and the
-  Hub is a new section for learning to solve ODEs, currently four placeholders
-  being filled in by phase: Solve Step by Step, Laplace Transforms, Methods by
-  Hand, Worked Problems.
-
-  The split is presentation only. Both sections drive the same `SessionState`
-  and select from the same catalogue by key, which is what lets a problem —
-  including one the user typed — appear on either side without either knowing
-  about the other.
-
-  `go(key)` still takes a bare screen key and now resolves the section itself,
-  because every caller passes one that way: `cli.py --screen`, the Home tiles,
-  and the tests. Shortcuts stay globally unique rather than restarting per
-  section, so one never means two different screens.
-
-  Verified by the same 42-render offscreen comparison used for the
-  control-panel refactor: the five existing screens render **pixel-identically**
-  to before the split. A navigation change must not disturb what it navigates
-  to.
-
-- **`euler` and `rk4` are real methods.** The method list previously started at
-  Bogacki–Shampine, so a learner could not select either of the two methods they
-  had just been taught. Both are tableaux like every other explicit method, and
-  both are verified by the machinery that already existed: the rooted-tree order
-  conditions hold at their claimed order and *fail* one higher, and the measured
-  slopes are 1.00 and 4.00.
-
-  Neither carries an embedded pair, so `ButcherTableau.e` may now be None and
-  such a method runs fixed-step — the driver requires `n_steps` or `first_step`,
-  exactly as it does for the symplectic methods. Inventing an error estimate for
-  them would have let the controller adapt on a meaningless number, which is the
-  failure this project has a recorded bug for.
-
-- **Learning Hub: `Methods by Hand`.** Euler and RK4 written out the way a course
-  teaches them — one row per step with the slope, the stages, the increment, the
-  new value and the error — plus a halve-the-step table whose ratio column is the
-  order, measured. Every number comes from the library's own stepper, and
-  `tests/test_byhand.py` asserts the walkthrough matches `solve` at the same step
-  size bit-for-bit.
-
-- **Learning Hub: `Solve Step by Step`**, with **"check your answer"**. A student
-  types their own solution; it is substituted into their equation and simplified.
-  The same check the library already applies to sympy's answer, pointed at the
-  user's instead — so equivalent forms pass, initial conditions are checked
-  separately from the equation, and "cannot decide" is reported as such rather
-  than as "wrong".
-
-- **Learning Hub: `Worked Problems`**, and six textbook models behind it: mixing
-  tank, Newton's cooling, RC circuit, falling with drag, harvested population,
-  spring–mass–damper. The catalogue previously held only integrator benchmarks;
-  these are what a first course is actually about, and each carries where its
-  equation comes from and what the letters mean, in real units. They are ordinary
-  catalogue entries, so they appear in the Solver Studio's pickers too.
-
 
 - **A decimal initial condition poisoned the answer.** `y(0) = 0.1` parses to a
   float, which propagates through `solve` into a constant whose imaginary part
