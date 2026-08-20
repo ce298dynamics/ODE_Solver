@@ -38,25 +38,33 @@ SECTIONS = [
         "learn",
         "Learning Hub",
         [
-            ("steps", "Solve Step by Step", "Ctrl+1"),
-            ("laplace", "Laplace Transforms", "Ctrl+2"),
-            ("byhand", "Methods by Hand", "Ctrl+3"),
-            ("worked", "Worked Problems", "Ctrl+4"),
+            ("lessons", "Lessons", "Ctrl+1"),
+            ("steps", "Solve Step by Step", "Ctrl+2"),
+            ("laplace", "Laplace Transforms", "Ctrl+3"),
+            ("byhand", "Methods by Hand", "Ctrl+4"),
+            ("worked", "Worked Problems", "Ctrl+5"),
         ],
     ),
     (
         "studio",
         "Solver Studio",
         [
-            ("lab", "Solver Lab", "Ctrl+5"),
-            ("portrait", "Phase Portrait", "Ctrl+6"),
-            ("stiffness", "Stiffness Explorer", "Ctrl+7"),
-            ("race", "Method Race", "Ctrl+8"),
-            ("accuracy", "Accuracy Lab", "Ctrl+9"),
+            ("lab", "Solver Lab", "Ctrl+Shift+1"),
+            ("portrait", "Phase Portrait", "Ctrl+Shift+2"),
+            ("stiffness", "Stiffness Explorer", "Ctrl+Shift+3"),
+            ("race", "Method Race", "Ctrl+Shift+4"),
+            ("accuracy", "Accuracy Lab", "Ctrl+Shift+5"),
         ],
     ),
 ]
 
+#: Shortcuts number each section from 1 and the modifier picks the section:
+#: `Ctrl+N` for the Learning Hub, `Ctrl+Shift+N` for Solver Studio. Ten screens
+#: plus Home no longer fit a single run of digits, and a flat run had the odd
+#: effect that `Ctrl+5` jumped out of the section you were in. Every binding is
+#: still globally unique, which is the property that matters: a shortcut never
+#: means two different screens.
+#:
 #: Home sits above the split and belongs to neither section.
 HOME = ("home", "Home", "Ctrl+0")
 
@@ -234,6 +242,11 @@ class MainWindow(QWidget):
         self._add("home", home)
 
         # The Learning Hub.
+        from .screens.learn_lessons import LessonsScreen
+
+        lessons = LessonsScreen(self.state, self.palette_obj)
+        lessons.open_tool.connect(self.go)
+        self._add("lessons", lessons)
         from .screens.learn_steps import StepsScreen
 
         self._add("steps", StepsScreen(self.state, self.palette_obj))

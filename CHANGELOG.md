@@ -6,6 +6,60 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Learning Hub: `Lessons`** — notes and practice for seven topics: separable
+  equations, integrating factors, characteristic roots, undetermined
+  coefficients, Cauchy–Euler, Laplace transforms, and the numerical methods.
+  The other four Hub screens are tools that work on an equation you bring; this
+  is the part for someone who does not yet know which equation to bring.
+
+  **Practice is graded by mathematics, not by an answer key.** A typed solution
+  is substituted into the equation and simplified, through the same
+  `check_answer` the Solve Step by Step screen uses, so every correct form
+  passes and nothing is marked wrong for being spelled differently.
+  Multiple-choice questions exist only for what that cannot reach — *which
+  technique solves this* is what a course actually tests — and each one shows
+  its reasoning whether you were right or wrong.
+
+  **The worked examples are generated, not transcribed.** Each runs through the
+  same narrator that powers the tool it belongs to, so a lesson cannot drift out
+  of step with the screen that explains it, and `tests/test_lessons.py` runs the
+  real narrator over every question to prove each has an answer the app can
+  produce — and that the grader accepts the app's own answer, which is the worst
+  failure this screen has available.
+
+- **Progress is remembered between sessions**, in a small JSON file in the
+  platform's config directory, with a reset button beside it. The first thing
+  this application has ever stored on disk, so it is careful about it: a
+  corrupt, hand-edited or truncated file reads as "nothing recorded" rather than
+  raising, writes are atomic, and answering correctly and then mistyping does
+  not take the tick away.
+
+### Changed
+
+- **Shortcuts are numbered per section**, `Ctrl+N` for the Learning Hub and
+  `Ctrl+Shift+N` for Solver Studio. Eleven screens no longer fit a single run of
+  digits, and the flat run had the odd effect that `Ctrl+5` jumped out of the
+  section you were in. Every binding is still globally unique, which is the
+  property that mattered.
+
+### Fixed
+
+- **A separable equation with two branches showed the wrong one.** ``y' = t/y``
+  with ``y(0) = 2`` rearranges to ±√(t² + 2C), and the first root was taken
+  regardless — the negative branch, which satisfies the equation but passes
+  through no point the condition allows. Nothing complained, because the answer
+  *was* a solution. The branch the condition sits on is now the one shown.
+
+- **A decimal coefficient poisoned the answer**, the same way a decimal initial
+  condition did before it. ``y' = 2 - 0.05*y`` produced a constant whose
+  imaginary part was the *number* 3.14159… rather than `pi`, which sympy cannot
+  cancel, so a mixing-tank answer that should read ``40 - 35e^{-t/20}`` came out
+  carrying a complex exponential. Coefficients are rationalised along with the
+  conditions.
+
+
 ## [0.4.0] — 2026-08-19
 
 ### Added

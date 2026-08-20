@@ -152,6 +152,7 @@ def derive(equation: sp.Eq, function: sp.Function, *,
     if not technique:
         return None
 
+    equation = _exact(equation)
     builder = _BUILDERS[technique]
     derivation = Derivation(technique=technique, title=TITLES[technique])
     try:
@@ -283,11 +284,13 @@ def _apply_conditions(candidate, ics: dict, derivation: Derivation,
 def _exact(value):
     """``0.1`` as one tenth rather than as a float.
 
-    A condition is typed as ``y(0) = 0.1`` and parses to a `Float`, which then
-    propagates through `solve` into constants like ``log(-1/9)`` whose imaginary
-    part is the *number* 3.14159… rather than `pi`. sympy cannot recognise that
-    as pi, so ``e^{t + i·3.14159…}`` never collapses to ``-e^t`` and the answer
-    is shown carrying a complex exponential it does not need.
+    Floats reach here from two places -- a condition typed as ``y(0) = 0.1``,
+    and a coefficient typed as ``y' = 2 - 0.05*y`` -- and both cause the same
+    damage. They propagate through `solve` into constants like ``log(-7/4)``
+    whose imaginary part is the *number* 3.14159… rather than `pi`. sympy
+    cannot recognise that as pi, so ``e^{-t/20 + i·3.14159…}`` never collapses
+    to ``-e^{-t/20}`` and a mixing-tank answer that should read
+    ``40 - 35e^{-t/20}`` is shown carrying a complex exponential instead.
 
     `rational=True` rationalises and nothing more -- it will not decide that a
     float was secretly pi, which would be inventing precision the user did not
@@ -422,15 +425,55 @@ def _separable(equation: sp.Eq, function: sp.Function, ics: dict,
             "the integrated form is correct but cannot be rearranged for y"
         )
         return
-    general = sp.simplify(solutions[0])
+    general = sp.simplify(_pick_branch(solutions, ics))
     derivation.steps.append(Step(
         title="Solve for y",
         latex=_eq("y(t)", general),
         note="The general solution: one arbitrary constant, as a first-order "
-             "equation must have.",
+             "equation must have."
+             + ("" if len(solutions) < 2 else
+                "  Rearranging gave two branches; this is the one the initial "
+                "condition sits on." if ics else
+                "  Rearranging gave two branches — which one applies depends on "
+                "the initial condition."),
         verified=_satisfies(equation, function, general),
     ))
     _apply_conditions(general, ics, derivation, _constants_in(general))
+
+
+def _pick_branch(solutions, ics: dict):
+    """The branch the initial condition actually sits on.
+
+    Solving ``y²/2 = t²/2 + C`` for y gives a positive and a negative root, and
+    taking the first was picking the negative one regardless. With ``y(0) = 2``
+    that is the wrong half of the curve: the answer still satisfies the
+    equation, so nothing complained, but no choice of C makes it pass through
+    the given point.
+    """
+    if len(solutions) < 2 or not ics:
+        return solutions[0]
+    for candidate in solutions:
+        constants = _constants_in(candidate)
+        if not constants:
+            if _conditions_hold(candidate, ics):
+                return candidate
+            continue
+        try:
+            equations = []
+            for key, value in ics.items():
+                point, order = _condition_point(key)
+                if point is None:
+                    continue
+                expression = (candidate.diff(_T, order) if order else candidate)
+                equations.append(
+                    sp.Eq(expression.subs(_T, _exact(point)), _exact(value))
+                )
+            found = sp.solve(equations, list(constants), dict=True)
+        except Exception:
+            continue
+        if found and _conditions_hold(candidate.subs(found[0]), ics):
+            return candidate
+    return solutions[0]
 
 
 # ---------------------------------------------------------------------------
