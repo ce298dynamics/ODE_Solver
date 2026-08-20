@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-19
+
 ### Added
 
 - **Learning Hub: `Laplace Transforms`**, and with it the Learning Hub is
