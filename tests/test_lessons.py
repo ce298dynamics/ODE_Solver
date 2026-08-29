@@ -32,6 +32,7 @@ from odesuite_app.lessons import (  # noqa: E402
     Choice,
     Solve,
     by_key,
+    generate,
 )
 
 T = sp.Symbol("t", real=True)
@@ -435,8 +436,10 @@ def test_an_answer_survives_being_written_and_read(store):
     store.record("separable", "q1", store.State.CORRECT)
     store.record("separable", "q2", store.State.ATTEMPTED)
     kept = store.load()["separable"]
-    assert kept["q1"] == store.Answer("correct", right=1, tries=1)
-    assert kept["q2"] == store.Answer("attempted", right=0, tries=1)
+    assert kept["q1"] == store.Answer("correct", right=1, tries=1,
+                                      streak=1)
+    assert kept["q2"] == store.Answer("attempted", right=0, tries=1,
+                                      streak=0)
     assert store.counts("separable", 5) == (1, 5)
     assert store.mastery("separable", 5) == pytest.approx(0.2)
 
@@ -508,7 +511,10 @@ def test_partly_valid_content_keeps_the_valid_part(store):
     store.path().write_text(
         '{"roots": {"q1": "correct", "q2": "nonsense"}, "bad": 7}',
         encoding="utf-8")
-    assert store.load() == {"roots": {"q1": store.Answer("correct", 1, 1)}}
+    assert store.load() == {
+        "roots": {"q1": store.Answer("correct", right=1, tries=1,
+                                     streak=1)}
+    }
 
 
 def test_an_unknown_state_is_refused_rather_than_stored(store):
@@ -579,6 +585,25 @@ def _row_text(screen, key: str) -> str:
         if lesson.key == key:
             return item.text(0)
     raise AssertionError(f"{key} is not in the tree")
+
+
+def _page_text(screen) -> str:
+    """Everything the reading column is currently showing."""
+    from PySide6.QtWidgets import QLabel
+
+    return "\n".join(label.text() for label in screen._page.findChildren(QLabel)
+                     if label.isVisibleTo(screen))
+
+
+def _press(screen, caption: str) -> None:
+    """Click the first visible button with this caption."""
+    from PySide6.QtWidgets import QPushButton
+
+    for button in screen._page.findChildren(QPushButton):
+        if button.text().startswith(caption) and button.isEnabled():
+            button.click()
+            return
+    raise AssertionError(f"no enabled {caption!r} button on the page")
 
 
 @pytest.mark.parametrize("palette", ["dark", "light"])
@@ -961,3 +986,162 @@ def test_every_lesson_has_a_row_that_opens_it(course, qapp):
     for button in opens:
         button.click()
     assert seen == [lesson.key for lesson in LESSONS]
+
+
+# ---------------------------------------------------------------------------
+# The Drill segment
+# ---------------------------------------------------------------------------
+
+
+def _drill(screen, qapp, key: str):
+    lesson = _open(screen, qapp, key, "Drill")
+    assert screen._segment == "Drill", f"{key} has no drill to open"
+    return lesson
+
+
+def test_drill_is_offered_only_where_the_lesson_has_templates(screen, qapp):
+    """A lesson with no templates loses the button rather than opening an
+    empty page. Euler and RK4 have no closed form for the grader to substitute
+    into, so a drill there could never say "right"."""
+    _open(screen, qapp, "separable", "Learn")
+    assert screen.segment_buttons["Drill"].isVisibleTo(screen)
+
+    _open(screen, qapp, "numerical", "Learn")
+    assert not screen.segment_buttons["Drill"].isVisibleTo(screen)
+
+
+def test_choosing_drill_on_a_lesson_without_one_falls_back(screen, qapp):
+    _drill(screen, qapp, "separable")
+    _open(screen, qapp, "numerical", "Drill")
+    assert screen._segment == "Practice"
+    assert screen.segment_buttons["Practice"].isChecked()
+
+
+def test_the_drill_page_offers_every_template(screen, qapp):
+    lesson = _drill(screen, qapp, "separable")
+    assert set(screen._verdicts) == {t.key for t in lesson.templates}
+    for template in lesson.templates:
+        assert str(generate.combinations(template)) in _page_text(screen), (
+            "the drill does not say how many versions there are"
+        )
+
+
+def test_a_new_question_is_a_different_question(screen, qapp):
+    lesson = _drill(screen, qapp, "separable")
+    template = lesson.templates[0]
+
+    first = generate.draw(template, screen._drill_seed[template.key])
+    _press(screen, "New question")
+    qapp.processEvents()
+    second = generate.draw(template, screen._drill_seed[template.key])
+
+    assert (first.equation, first.conditions) != (second.equation,
+                                                  second.conditions)
+    assert first.equation in _page_text(screen) or \
+        second.equation in _page_text(screen)
+
+
+def test_the_question_survives_leaving_the_lesson_and_coming_back(screen,
+                                                                 qapp):
+    """The seed is remembered, so an answer half typed is not thrown away by a
+    glance at the notes."""
+    lesson = _drill(screen, qapp, "separable")
+    template = lesson.templates[0]
+    _press(screen, "New question")
+    qapp.processEvents()
+    seed = screen._drill_seed[template.key]
+
+    _open(screen, qapp, "roots", "Learn")
+    _drill(screen, qapp, "separable")
+    assert screen._drill_seed[template.key] == seed
+
+
+def test_a_drill_is_mastered_by_three_in_a_row(screen, qapp, store):
+    from PySide6.QtWidgets import QLineEdit
+
+    lesson = _drill(screen, qapp, "separable")
+    template = lesson.templates[0]
+    bucket = store.drill_key(lesson.key)
+
+    for expected in range(1, store.MASTERED_STREAK + 1):
+        question = generate.draw(template, screen._drill_seed[template.key])
+        derivation = _work_out(lesson, question.equation, question.conditions)
+        box = screen._page.findChildren(QLineEdit)[0]
+        box.setText(sp.sstr(derivation.result))
+        screen._check_solve(lesson, question, box,
+                            screen._verdicts[template.key],
+                            bucket=bucket, key=template.key)
+        answer = store.load()[bucket][template.key]
+        assert answer.streak == expected
+        _press(screen, "New question")
+        qapp.processEvents()
+
+    assert store.load()[bucket][template.key].mastered
+    assert "mastered" in _page_text(screen)
+
+
+def test_a_wrong_drill_answer_starts_the_count_again(screen, qapp, store):
+    from PySide6.QtWidgets import QLineEdit
+
+    lesson = _drill(screen, qapp, "separable")
+    template = lesson.templates[0]
+    bucket = store.drill_key(lesson.key)
+
+    question = generate.draw(template, screen._drill_seed[template.key])
+    derivation = _work_out(lesson, question.equation, question.conditions)
+    box = screen._page.findChildren(QLineEdit)[0]
+    box.setText(sp.sstr(derivation.result))
+    screen._check_solve(lesson, question, box, screen._verdicts[template.key],
+                        bucket=bucket, key=template.key)
+    assert store.load()[bucket][template.key].streak == 1
+
+    box.setText("t**7 + 5")
+    screen._check_solve(lesson, question, box, screen._verdicts[template.key],
+                        bucket=bucket, key=template.key)
+    assert store.load()[bucket][template.key].streak == 0
+    assert "✗" in screen._verdicts[template.key].text()
+
+
+def test_drilling_does_not_move_the_lessons_own_count(screen, qapp, store):
+    """The two numbers mean different things and must not be added together."""
+    from PySide6.QtWidgets import QLineEdit
+
+    lesson = _drill(screen, qapp, "separable")
+    template = lesson.templates[0]
+    question = generate.draw(template, screen._drill_seed[template.key])
+    derivation = _work_out(lesson, question.equation, question.conditions)
+
+    box = screen._page.findChildren(QLineEdit)[0]
+    box.setText(sp.sstr(derivation.result))
+    screen._check_solve(lesson, question, box, screen._verdicts[template.key],
+                        bucket=store.drill_key(lesson.key), key=template.key)
+
+    assert "(0/" in _row_text(screen, lesson.key)
+    assert store.counts(lesson.key, len(lesson.questions), store.load()) == (
+        0, len(lesson.questions)
+    )
+
+
+def test_the_drill_hint_ladder_behaves_like_the_practice_one(screen, qapp):
+    lesson = _drill(screen, qapp, "separable")
+    template = lesson.templates[0]
+    question = generate.draw(template, screen._drill_seed[template.key])
+
+    _press(screen, "Hint")
+    qapp.processEvents()
+    text = _page_text(screen)
+    assert question.hints[0] in text
+    assert question.hints[1] not in text, (
+        "the second rung was given away with the first"
+    )
+
+
+def test_the_course_map_counts_mastered_drills(course, qapp, store):
+    lesson = by_key("separable")
+    for _ in range(store.MASTERED_STREAK):
+        store.record(store.drill_key(lesson.key), lesson.templates[0].key,
+                     store.State.CORRECT)
+    course.refresh()
+    qapp.processEvents()
+    assert "1 of" in course.overall_detail.text()
+    assert "drills mastered" in course.overall_detail.text()

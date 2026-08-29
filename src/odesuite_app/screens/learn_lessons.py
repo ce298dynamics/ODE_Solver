@@ -48,6 +48,7 @@ from PySide6.QtWidgets import (
 
 from .. import lessons as content
 from .. import progress
+from ..lessons import generate
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
 from ..widgets.mathlabel import MathLabel
@@ -55,8 +56,9 @@ from ..widgets.stepspanel import StepsPanel
 
 __all__ = ["LessonsScreen", "SEGMENTS"]
 
-#: The three parts of a lesson, in the order they are meant to be met.
-SEGMENTS = ("Learn", "Examples", "Practice")
+#: The parts of a lesson, in the order they are meant to be met. `Drill` is
+#: offered only where the lesson has templates -- see `_build_drill`.
+SEGMENTS = ("Learn", "Examples", "Practice", "Drill")
 
 
 class _Signals(QObject):
@@ -119,6 +121,9 @@ class LessonsScreen(QWidget):
         self._token = 0
         self._answered = progress.load()
         self._segment = SEGMENTS[0]
+        #: Template key -> which draw is on screen. In memory rather than on
+        #: disk: the streak is the thing worth keeping, not the question.
+        self._drill_seed: dict[str, int] = {}
         #: Question key -> the label that shows its verdict.
         self._verdicts: dict[str, QLabel] = {}
         #: Token -> the panel and button waiting on it. Keyed rather than held
@@ -334,8 +339,17 @@ class LessonsScreen(QWidget):
                 button.setEnabled(False)
             return
 
-        for button in self.segment_buttons.values():
+        for name, button in self.segment_buttons.items():
             button.setEnabled(True)
+            # A lesson with no templates has no Drill, and the button goes
+            # rather than opening an empty page. Euler and RK4 have no closed
+            # form for the grader to substitute into, so a drill there could
+            # never say "right" — which is worse than not offering one.
+            button.setVisible(name != "Drill" or bool(lesson.templates))
+        if self._segment == "Drill" and not lesson.templates:
+            self._segment = "Practice"
+            self.segment_buttons["Practice"].setChecked(True)
+
         self.title_label.setText(lesson.title)
         self.summary_label.setText(lesson.summary)
         unit = content.unit_of(lesson)
@@ -349,6 +363,8 @@ class LessonsScreen(QWidget):
             self._build_learn(lesson)
         elif self._segment == "Examples":
             self._build_examples(lesson)
+        elif self._segment == "Drill":
+            self._build_drill(lesson)
         else:
             self._build_practice(lesson)
         self._layout.addStretch(1)
@@ -375,6 +391,19 @@ class LessonsScreen(QWidget):
     def _build_practice(self, lesson) -> None:
         for number, question in enumerate(lesson.questions, start=1):
             self._layout.addWidget(self._question_card(lesson, number, question))
+
+    def _build_drill(self, lesson) -> None:
+        blurb = QLabel(
+            "Fresh numbers every time, graded the same way — your answer is "
+            "substituted into its own equation, so any correct form passes. "
+            f"{progress.MASTERED_STREAK} right in a row and the drill is "
+            "mastered; one wrong answer starts the count again."
+        )
+        blurb.setProperty("role", "muted")
+        blurb.setWordWrap(True)
+        self._layout.addWidget(blurb)
+        for template in lesson.templates:
+            self._layout.addWidget(self._drill_card(lesson, template))
 
     # -- cards -----------------------------------------------------------
 
@@ -483,6 +512,129 @@ class LessonsScreen(QWidget):
         )
         return frame
 
+    def _streak_of(self, lesson, template):
+        """The recorded streak for one drill, and whether it is mastered."""
+        answers = self._answered.get(progress.drill_key(lesson.key), {})
+        answer = answers.get(template.key)
+        return (answer.streak if answer else 0), bool(answer and answer.mastered)
+
+    def _streak_text(self, streak: int, mastered: bool) -> str:
+        run = min(streak, progress.MASTERED_STREAK)
+        dots = "●" * run + "○" * (progress.MASTERED_STREAK - run)
+        if mastered:
+            return f"{dots}   mastered"
+        if streak == 0:
+            return f"{dots}   {progress.MASTERED_STREAK} in a row to master"
+        left = progress.MASTERED_STREAK - streak
+        return (f"{dots}   {streak} in a row, {left} more"
+                if left > 0 else f"{dots}   mastered")
+
+    def _drill_card(self, lesson, template) -> QWidget:
+        palette = self.palette_obj
+        seed = self._drill_seed.setdefault(template.key, 0)
+        question = generate.draw(template, seed)
+        streak, mastered = self._streak_of(lesson, template)
+
+        frame, layout = self._panel(palette.success if mastered else "")
+
+        head = QHBoxLayout()
+        heading = QLabel(template.title)
+        heading.setProperty("role", "heading")
+        heading.setWordWrap(True)
+        head.addWidget(heading, 1)
+
+        run = QLabel(self._streak_text(streak, mastered))
+        run.setProperty("role", "muted")
+        run.setStyleSheet(
+            f"color: {palette.success if mastered else palette.text_muted};"
+        )
+        head.addWidget(run, 0, Qt.AlignRight | Qt.AlignTop)
+        layout.addLayout(head)
+
+        prompt = QLabel(
+            f"{question.prompt}   ·   one of "
+            f"{generate.combinations(template)} versions"
+        )
+        prompt.setProperty("role", "muted")
+        prompt.setWordWrap(True)
+        layout.addWidget(prompt)
+
+        shown = question.equation + (
+            f",   {question.conditions}" if question.conditions else ""
+        )
+        equation = QLabel(shown)
+        equation.setStyleSheet("font-family: Cascadia Mono, Consolas, monospace;")
+        equation.setWordWrap(True)
+        layout.addWidget(equation)
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        answer = QLineEdit()
+        answer.setPlaceholderText("y = ...")
+        answer.setClearButtonEnabled(True)
+        row.addWidget(answer, 1)
+
+        check = QPushButton("Check")
+        check.setProperty("role", "primary")
+        check.setCursor(Qt.PointingHandCursor)
+        row.addWidget(check)
+
+        hint_button = QPushButton("Hint")
+        hint_button.setCursor(Qt.PointingHandCursor)
+        hint_button.setEnabled(bool(question.hints))
+        row.addWidget(hint_button)
+
+        show = QPushButton("Show me")
+        show.setCursor(Qt.PointingHandCursor)
+        row.addWidget(show)
+
+        again = QPushButton("New question")
+        again.setCursor(Qt.PointingHandCursor)
+        row.addWidget(again)
+        layout.addLayout(row)
+
+        verdict = QLabel("")
+        verdict.setWordWrap(True)
+        verdict.setTextFormat(Qt.RichText)
+        layout.addWidget(verdict)
+        self._verdicts[template.key] = verdict
+
+        hints = QLabel("")
+        hints.setProperty("role", "muted")
+        hints.setWordWrap(True)
+        hints.setVisible(False)
+        layout.addWidget(hints)
+
+        working = StepsPanel(palette)
+        working.setMinimumHeight(240)
+        working.setVisible(False)
+        layout.addWidget(working)
+
+        self._wire_hints(question, hints, hint_button)
+
+        def graded() -> None:
+            self._check_solve(lesson, question, answer, verdict,
+                              bucket=progress.drill_key(lesson.key),
+                              key=template.key)
+            now, done = self._streak_of(lesson, template)
+            run.setText(self._streak_text(now, done))
+            run.setStyleSheet(
+                f"color: {palette.success if done else palette.text_muted};"
+            )
+
+        def next_question() -> None:
+            self._drill_seed[template.key] = seed + 1
+            self._show()
+
+        check.clicked.connect(graded)
+        answer.returnPressed.connect(graded)
+        show.clicked.connect(
+            lambda: self._work(question.equation, question.conditions,
+                               template.narrator, working, show)
+        )
+        again.clicked.connect(next_question)
+        return frame
+
     def _question_card(self, lesson, number: int, question) -> QWidget:
         frame, layout = self._panel()
 
@@ -581,23 +733,7 @@ class LessonsScreen(QWidget):
         working.setVisible(False)
         layout.addWidget(working)
 
-        shown_hints: list[str] = []
-
-        def next_hint() -> None:
-            ladder = question.hints
-            if len(shown_hints) >= len(ladder):
-                hint_button.setEnabled(False)
-                return
-            shown_hints.append(ladder[len(shown_hints)])
-            hints.setText("\n\n".join(
-                f"{number}.  {text}"
-                for number, text in enumerate(shown_hints, start=1)
-            ))
-            hints.setVisible(True)
-            remaining = len(ladder) - len(shown_hints)
-            hint_button.setText(f"Next hint ({remaining} left)" if remaining
-                                else "That is every hint")
-            hint_button.setEnabled(bool(remaining))
+        self._wire_hints(question, hints, hint_button)
 
         check.clicked.connect(
             lambda: self._check_solve(lesson, question, answer, verdict)
@@ -605,12 +741,38 @@ class LessonsScreen(QWidget):
         answer.returnPressed.connect(
             lambda: self._check_solve(lesson, question, answer, verdict)
         )
-        hint_button.clicked.connect(next_hint)
         show.clicked.connect(
             lambda: self._work(question.equation, question.conditions,
                                lesson.narrator, working, show)
         )
         self._restore(lesson, question, verdict)
+
+    def _wire_hints(self, question, hints: QLabel,
+                    hint_button: QPushButton) -> None:
+        """One rung per press, and the button says how many are left.
+
+        Shared by Practice and Drill, because a generated question *is* an
+        ordinary question and its ladder had better behave identically.
+        """
+        shown: list[str] = []
+
+        def next_hint() -> None:
+            ladder = question.hints
+            if len(shown) >= len(ladder):
+                hint_button.setEnabled(False)
+                return
+            shown.append(ladder[len(shown)])
+            hints.setText("\n\n".join(
+                f"{number}.  {text}"
+                for number, text in enumerate(shown, start=1)
+            ))
+            hints.setVisible(True)
+            remaining = len(ladder) - len(shown)
+            hint_button.setText(f"Next hint ({remaining} left)" if remaining
+                                else "That is every hint")
+            hint_button.setEnabled(bool(remaining))
+
+        hint_button.clicked.connect(next_hint)
 
     # -- grading ---------------------------------------------------------
 
@@ -627,8 +789,15 @@ class LessonsScreen(QWidget):
             verdict.setStyleSheet(f"color: {self.palette_obj.text_muted};")
             verdict.setText("attempted" + tally)
 
-    def _record(self, lesson, question, state: str) -> None:
-        self._answered = progress.record(lesson.key, question.key, state)
+    def _record(self, bucket: str, key: str, state: str) -> None:
+        """Note one answer.
+
+        `bucket` is the lesson's own key for its practice questions, and
+        `progress.drill_key(lesson)` for its drills -- a separate bucket, so
+        that an unbounded number of generated answers cannot disturb the
+        "3 of 5" the practice questions mean.
+        """
+        self._answered = progress.record(bucket, key, state)
         self._refresh_labels()
 
     def _check_choice(self, lesson, question, group, verdict: QLabel) -> None:
@@ -649,11 +818,12 @@ class LessonsScreen(QWidget):
         reason = (question.becauses[picked]
                   if picked < len(question.becauses) else question.because)
         verdict.setText(("✓ Right. " if right else "✗ Not quite. ") + reason)
-        self._record(lesson, question,
+        self._record(lesson.key, question.key,
                      progress.State.CORRECT if right else progress.State.ATTEMPTED)
 
     def _check_solve(self, lesson, question, answer: QLineEdit,
-                     verdict: QLabel) -> None:
+                     verdict: QLabel, *, bucket: str = "",
+                     key: str = "") -> None:
         from ..laplace import EXTRA_FUNCTIONS
         from ..symbolic import EquationSpec, check_answer, parse_equation
 
@@ -687,7 +857,7 @@ class LessonsScreen(QWidget):
                       f"{result.residual}</span>")
         verdict.setStyleSheet("")
         verdict.setText(f'<span style="color:{colour};">{text}</span>{detail}')
-        self._record(lesson, question, state)
+        self._record(bucket or lesson.key, key or question.key, state)
 
     # -- the worked solution ---------------------------------------------
 

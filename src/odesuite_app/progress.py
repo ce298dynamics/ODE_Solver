@@ -50,19 +50,27 @@ from pathlib import Path
 
 __all__ = [
     "VERSION",
+    "MASTERED_STREAK",
     "State",
     "Answer",
     "directory",
     "path",
+    "drill_key",
     "load",
     "record",
     "reset",
     "counts",
     "mastery",
+    "drills",
 ]
 
 #: The format written. Older files are read; nothing writes an older one.
 VERSION = 2
+
+#: Correct answers in a row before a drill counts as mastered. Three is Khan
+#: Academy's rule and a defensible one: one is luck, two is a coincidence, and
+#: a drill draws fresh numbers each time so three is three different questions.
+MASTERED_STREAK = 3
 
 
 class State:
@@ -81,10 +89,18 @@ class Answer:
     right: int = 0
     #: How many times it has been answered at all.
     tries: int = 0
+    #: Correct answers in a row, right now. Reset by a wrong one -- which is
+    #: the point: a drill is mastered by getting it right repeatedly, not by
+    #: getting it right eventually.
+    streak: int = 0
 
     @property
     def correct(self) -> bool:
         return self.state == State.CORRECT
+
+    @property
+    def mastered(self) -> bool:
+        return self.streak >= MASTERED_STREAK
 
 
 #: Everything valid that may appear as a state. Anything else is discarded on
@@ -109,6 +125,16 @@ def path() -> Path:
     return directory() / _FILENAME
 
 
+def drill_key(lesson: str) -> str:
+    """Where a lesson's drill answers live.
+
+    A separate bucket, because a drill never runs out and a lesson's practice
+    questions do. Counting both in one place would make "3 of 5" mean nothing:
+    the denominator is fixed and the numerator would not be.
+    """
+    return f"{lesson}/drill"
+
+
 def _count(value: object) -> int:
     """A non-negative integer, or 0 for anything else.
 
@@ -126,13 +152,16 @@ def _answer(value: object) -> Answer | None:
         if value not in _STATES:
             return None
         right = 1 if value == State.CORRECT else 0
-        return Answer(state=value, right=right, tries=1)
+        return Answer(state=value, right=right, tries=1, streak=right)
     if isinstance(value, dict):                     # version 2
         state = value.get("state")
         if state not in _STATES:
             return None
+        # `streak` arrived after the rest of version 2, so a file written
+        # between the two reads as "no streak yet" rather than as broken.
         return Answer(state=state, right=_count(value.get("right")),
-                      tries=_count(value.get("tries")))
+                      tries=_count(value.get("tries")),
+                      streak=_count(value.get("streak")))
     return None
 
 
@@ -185,10 +214,13 @@ def record(lesson: str, question: str,
     everything = load()
     answers = everything.setdefault(lesson, {})
     before = answers.get(question)
-    right = (before.right if before else 0) + (state == State.CORRECT)
+    was_right = state == State.CORRECT
+    right = (before.right if before else 0) + was_right
     tries = (before.tries if before else 0) + 1
     kept = State.CORRECT if (before and before.correct) else state
-    answers[question] = Answer(state=kept, right=right, tries=tries)
+    streak = ((before.streak if before else 0) + 1) if was_right else 0
+    answers[question] = Answer(state=kept, right=right, tries=tries,
+                               streak=streak)
     _save(everything)
     return everything
 
@@ -223,6 +255,23 @@ def mastery(lesson: str, questions: int,
     return done / total
 
 
+def drills(lesson: str, templates, everything=None) -> tuple[int, int]:
+    """``(mastered, total)`` for one lesson's drills.
+
+    `templates` is the lesson's templates, or just their keys. Mastery is a
+    streak rather than an ever-answered-correctly, so this number can go down;
+    that is deliberate, and it is what makes it worth showing.
+    """
+    keys = [getattr(item, "key", item) for item in templates]
+    if not keys:
+        return 0, 0
+    answers = (load() if everything is None
+               else everything).get(drill_key(lesson), {})
+    done = sum(1 for key in keys
+               if key in answers and answers[key].mastered)
+    return done, len(keys)
+
+
 def _save(everything: dict[str, dict[str, Answer]]) -> None:
     """Write atomically, and treat failure as not worth interrupting anyone for.
 
@@ -236,7 +285,7 @@ def _save(everything: dict[str, dict[str, Answer]]) -> None:
         "answers": {
             lesson: {
                 question: {"state": answer.state, "right": answer.right,
-                           "tries": answer.tries}
+                           "tries": answer.tries, "streak": answer.streak}
                 for question, answer in answers.items()
             }
             for lesson, answers in everything.items()

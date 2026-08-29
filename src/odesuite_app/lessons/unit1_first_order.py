@@ -10,7 +10,7 @@ with the narrators that can work them.
 
 from __future__ import annotations
 
-from .model import Choice, Example, Lesson, Note, Solve
+from .model import Choice, Example, Lesson, Note, Solve, Template
 
 __all__ = ["SEPARABLE", "LINEAR", "LESSONS"]
 
@@ -178,6 +178,42 @@ SEPARABLE = Lesson(
             ),
         ),
     ),
+    templates=(
+        Template(
+            key="growth",
+            title="Separate, integrate, apply the condition",
+            prompt="Separate it, integrate both sides, and use the condition.",
+            equation="y' = {a}*t**{k}*y",
+            conditions="y(0) = {c}",
+            technique="separable",
+            hints=(
+                "Everything in t sits in one factor and everything in y "
+                "in the other, so it separates.",
+                "Divide by y and multiply by dt. The left side integrates to "
+                "ln|y|; integrate the t side as a power.",
+                "Exponentiate both sides, then y(0) = {c} fixes the constant "
+                "multiplying the exponential.",
+            ),
+            slots=(("a", (1, 2, 3)), ("k", (0, 1, 2)), ("c", (1, 2))),
+        ),
+        Template(
+            key="cooling",
+            title="A decay towards an equilibrium",
+            prompt="Solve it, and check the answer settles where it should.",
+            equation="y' = -{a}*(y - {b})",
+            conditions="y(0) = {c}",
+            technique="separable",
+            hints=(
+                "Setting y' = 0 gives y = {b}. That is where the answer must "
+                "end up, whatever else happens.",
+                "Separate to dy/(y − {b}) = −{a} dt; the left integrates to "
+                "ln|y − {b}|.",
+                "The answer is {b} plus a decaying exponential, and "
+                "y(0) = {c} fixes the coefficient in front of it.",
+            ),
+            slots=(("a", (1, 2, 3)), ("b", (5, 10, 20)), ("c", (0, 30, 50))),
+        ),
+    ),
 )
 
 
@@ -328,6 +364,64 @@ LINEAR = Lesson(
                 "y′ = 0 gives y = 40.",
                 "y = 40 + Ae^{−0.05t}, and y(0) = 5 gives A = −35.",
             ),
+        ),
+    ),
+    templates=(
+        Template(
+            key="constant-p",
+            title="Constant p, polynomial forcing",
+            prompt="Standard form, integrating factor, integrate, divide.",
+            equation="y' + {a}*y = {b}*t",
+            conditions="y(0) = {c}",
+            technique="1st_linear",
+            hints=(
+                "It is already in standard form, with p = {a} and a "
+                "forcing term that is a multiple of t.",
+                "μ = e^(pt) with p = {a}, which turns the left side into "
+                "the derivative of a single product.",
+                "The integral on the right needs integration by parts. Divide "
+                "by μ at the end, and the constant comes with it.",
+            ),
+            slots=(("a", (1, 2, 3)), ("b", (1, 2, 3)), ("c", (0, 1))),
+        ),
+        Template(
+            key="variable-p",
+            title="p is not constant — divide first",
+            prompt="Careful: y′ has a coefficient. Standard form comes first.",
+            equation="t*y' + {a}*y = {b}*t**{k}",
+            conditions="y(1) = {c}",
+            technique="1st_linear",
+            hints=(
+                "Divide by t before reading anything off. That gives "
+                "p = {a}/t.",
+                "∫p dt is a multiple of ln t, so μ is a power of t — and the "
+                "left side becomes the derivative of that power times y.",
+                "Integrate the right, divide μ back out, then y(1) = {c} "
+                "fixes the constant.",
+            ),
+            slots=(("a", (1, 2)), ("b", (1, 2)), ("k", (1, 2)), ("c", (0, 1))),
+        ),
+        Template(
+            key="exponential-forcing",
+            title="Exponential forcing, off resonance",
+            prompt="The forcing decays too. Watch what the integral becomes.",
+            equation="y' + {a}*y = {b}*exp(-{c}*t)",
+            conditions="y(0) = 0",
+            technique="1st_linear",
+            hints=(
+                "p is the constant {a}, so μ is e^(pt); the forcing decays "
+                "at the different rate {c}.",
+                "Multiplying gives a single exponential to integrate, because "
+                "the two rates differ — had they matched, the integral would "
+                "have been t instead.",
+                "Divide by μ: the answer is a difference of two exponentials, "
+                "and y(0) = 0 makes them cancel at t = 0.",
+            ),
+            slots=(("a", (1, 2, 3)), ("b", (1, 2)), ("c", (1, 2, 3))),
+            # a == c is resonance for a first-order equation: mu*q becomes a
+            # constant and the integral is t, not an exponential. A different
+            # answer shape, and not what this drill is practising.
+            reject=lambda s: s["a"] == s["c"],
         ),
     ),
 )

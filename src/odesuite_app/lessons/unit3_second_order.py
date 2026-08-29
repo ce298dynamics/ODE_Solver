@@ -11,7 +11,7 @@ case belong here too, and arrive with the narrator each needs.
 
 from __future__ import annotations
 
-from .model import Choice, Example, Lesson, Note, Solve
+from .model import Choice, Example, Lesson, Note, Solve, Template
 
 __all__ = ["ROOTS", "UNDETERMINED", "CAUCHY", "LESSONS"]
 
@@ -175,6 +175,32 @@ ROOTS = Lesson(
                 "y = C₁cos 3t + C₂sin 3t.",
                 "y(0) = 0 kills the cosine; y′(0) = 3 gives 3C₂ = 3, so "
                 "y = sin 3t.",
+            ),
+        ),
+    ),
+    templates=(
+        Template(
+            key="three-cases",
+            title="All three root cases, mixed",
+            prompt="Characteristic polynomial, roots, then the two conditions.",
+            equation="y'' + {b}*y' + {c}*y = 0",
+            conditions="y(0) = {p}, y'(0) = {v}",
+            technique="nth_linear_constant_coeff_homogeneous",
+            hints=(
+                "Substitute y = e^(rt) and read the characteristic "
+                "polynomial straight off the coefficients.",
+                "Work out the discriminant. Its sign is what decides which of "
+                "the three shapes you are about to write down.",
+                "Write the general solution for that case, then use the two "
+                "conditions to pin both constants — differentiate before "
+                "putting the second one in.",
+            ),
+            # Paired, so the discriminant always lands on a case a course
+            # would set: rational roots, a perfect square, or a clean pair.
+            slots=(
+                ("b,c", ((3, 2), (4, 4), (2, 5), (5, 6), (2, 1), (0, 9),
+                         (6, 9), (4, 13), (0, 4), (7, 12), (2, 10), (8, 16))),
+                ("p,v", ((1, 0), (0, 1), (1, 1), (2, 0))),
             ),
         ),
     ),
@@ -350,6 +376,53 @@ UNDETERMINED = Lesson(
             ),
         ),
     ),
+    templates=(
+        Template(
+            key="cosine-forcing",
+            title="Cosine forcing — sometimes resonant",
+            prompt="Check the driving frequency against the natural one first.",
+            equation="y'' + {w2}*y = {b}*cos({w}*t)",
+            conditions="y(0) = 0, y'(0) = 0",
+            technique="nth_linear_constant_coeff_undetermined_coefficients",
+            hints=(
+                "The homogeneous roots are purely imaginary, so the natural "
+                "frequency is the square root of the coefficient of y. "
+                "Compare it with the frequency you are driving at.",
+                "If those agree, the obvious guess solves the homogeneous "
+                "equation and substitutes to zero — multiply it by t.",
+                "Guess the corrected form, substitute, match the coefficients, "
+                "then add y_h and use the two conditions.",
+            ),
+            # Paired so that resonance is drawn as often as not: (4,2), (1,1)
+            # and (9,3) are the cases where the guess has to be corrected.
+            slots=(
+                ("w2,w", ((4, 1), (4, 2), (1, 1), (1, 2), (9, 1), (9, 3),
+                          (16, 2))),
+                ("b", (1, 2, 3)),
+            ),
+        ),
+        Template(
+            key="polynomial-forcing",
+            title="Polynomial forcing on a damped system",
+            prompt="Guess the whole family, not just the top power.",
+            equation="y'' + {b}*y' + {c}*y = {d}*t",
+            conditions="y(0) = 0, y'(0) = 0",
+            technique="nth_linear_constant_coeff_undetermined_coefficients",
+            hints=(
+                "Do the homogeneous part first: characteristic polynomial, "
+                "roots, general solution.",
+                "The forcing is a multiple of t, so guess At + B — the "
+                "derivative of the guess produces a constant that needs "
+                "somewhere to go.",
+                "Substitute, match the t terms and the constant terms "
+                "separately, then fit C₁ and C₂ to the conditions.",
+            ),
+            slots=(
+                ("b,c", ((3, 2), (4, 4), (2, 5), (5, 6), (2, 1))),
+                ("d", (1, 2, 3)),
+            ),
+        ),
+    ),
 )
 
 
@@ -495,6 +568,28 @@ CAUCHY = Lesson(
                 "That is r² − 4r + 4 = (r−2)², a repeated root at 2.",
                 "A repeated indicial root brings in ln t: "
                 "y = t²(C₁ + C₂ ln t).",
+            ),
+        ),
+    ),
+    templates=(
+        Template(
+            key="indicial",
+            title="Substitute a power, read the indicial roots",
+            prompt="y = t^r, then whichever of the three cases you land in.",
+            equation="t**2*y'' + {b}*t*y' + {c}*y = 0",
+            conditions="",
+            technique="nth_linear_euler_eq_homogeneous",
+            hints=(
+                "Substituting y = t^r turns every term into a multiple of "
+                "t^r. Watch the second derivative: it gives r(r−1), not r².",
+                "Collect what is left into a quadratic in r — the indicial "
+                "equation — and solve it.",
+                "Distinct roots give two powers; a repeated root brings in "
+                "ln t; a complex pair gives cos and sin of ln t.",
+            ),
+            slots=(
+                ("b,c", ((1, -1), (-3, 4), (2, -2), (-1, 1), (3, 1), (5, 4),
+                         (1, -4), (-5, 9), (1, 1), (-1, 5))),
             ),
         ),
     ),

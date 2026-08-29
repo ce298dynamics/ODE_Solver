@@ -36,6 +36,33 @@ All notable changes to this project are documented here. The format follows
   raising, writes are atomic, and answering correctly and then mistyping does
   not take the tick away.
 
+- **Learning Hub: `Drill` — practice that does not run out.** A fourth part of
+  every lesson that has one, beside Learn, Examples and Practice. Each drill is
+  a question with its numbers left open, so it can ask the same *method* in
+  eleven to forty-eight different versions; three right in a row masters it, and
+  one wrong answer starts the count again.
+
+  **A generated question is an ordinary practice question.** `draw(template,
+  seed)` returns the same `Solve` the hand-written questions use, so it is
+  graded by the same substitution, hinted by the same ladder and worked by the
+  same narrator. The drill adds no mathematics of its own and so cannot
+  disagree with the rest of the Hub about what is correct.
+
+  **Draws are enumerated, not sampled**, which is what makes the guarantee
+  checkable rather than merely likely: `tests/test_templates.py` runs the real
+  narrator over **every draw of every template** — 215 of them — and requires
+  each to be narrated by the technique the drill claims to teach, to have every
+  step verify, and to have its answer accepted by the grader. Nobody wrote
+  these questions, so nobody read them either; that sweep is what stands in for
+  having read them. Enumerating also means the same seed always gives the same
+  question, so pressing Check cannot change it underneath you, and the drill can
+  say "one of 18 versions" because it knows.
+
+  Eleven drills across six lessons. The numerical lesson deliberately has none —
+  Euler and RK4 have no closed form for the grader to substitute into, so a
+  drill there could never say "right", and its button is absent rather than
+  opening a page that cannot work.
+
 - **Learning Hub: a `Course Map`, and lessons organised into units.** Seven
   lessons in a flat list was navigable; the whole of a first course is not. The
   lessons are now filed under the chapters of Edwards, Penney and Calvis —
@@ -86,6 +113,11 @@ All notable changes to this project are documented here. The format follows
 - **`lessons.py` is now a package**, one module per unit plus the shared model.
   Seven lessons was 837 lines; a whole course is not something one file should
   carry. Nothing that imported it needs to change.
+
+- **Drill progress is kept in its own bucket**, `<lesson>/drill`, and counted by
+  a streak rather than by an ever-answered-correctly. Mixing it with the
+  practice questions would have made "3 of 5" meaningless: one number is out of
+  a fixed denominator and the other is not.
 
 - **The progress file records attempts as well as outcomes** (format version 2),
   because a course map that can only say "answered" cannot tell steady work from

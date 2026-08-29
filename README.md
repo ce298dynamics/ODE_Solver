@@ -355,6 +355,29 @@ Hints come **one rung at a time** — a nudge, then the first move, then the nex
 "Show me", the real narrator, sits at the end of the ladder. A hint that hands over the
 whole method on the first press is not a hint.
 
+**Drill** is practice that does not run out. Each drill is a question with its numbers
+left open — `y' + a·y = b·t` with `a`, `b` and the initial value drawn from a fixed set —
+so it can ask the same *method* in eleven to forty-eight different versions. Three right
+in a row and it is mastered; one wrong answer starts the count again.
+
+The design is one sentence: **a generated question is an ordinary practice question.**
+`draw(template, seed)` returns the same `Solve` type the hand-written questions use, so
+it is graded by the same substitution, hinted by the same ladder, and worked by the same
+narrator — the drill contributes no mathematics of its own and cannot disagree with the
+rest of the Hub about what is correct.
+
+Draws are **enumerated rather than sampled**, which is what makes the guarantee
+checkable: `tests/test_templates.py` runs the real narrator over **every draw of every
+template** — 215 of them — and requires each to be narrated by the technique the drill
+claims to be practice at, to have every step verify, and to have its answer accepted by
+the grader. Nobody wrote those questions, so nobody read them either; that sweep is what
+stands in for having read them. It is also why the drill can honestly say "one of 18
+versions", and why pressing Check cannot change the question under you.
+
+Drills are counted separately from the practice questions, because the two numbers mean
+different things: one is out of a fixed denominator, and the other is a streak that can
+go back down.
+
 The practice is graded by mathematics rather than by an answer key. A typed solution is
 substituted into the equation and simplified, through the same check the tools use, so
 `3*sin(3t)/3` and `-sin(-3t)` and `sin(3t)` are all one answer and none of them is marked
@@ -669,7 +692,8 @@ src/odesuite_app/                                    the studio
   analysis.py custom.py                              phase-plane maths, sympy systems
   symbolic.py dsolve_worker.py                       closed forms, in a killable process
   equationmodel.py mathrender.py                     typed equations, LaTeX typesetting
-  lessons/   model.py unit1..unit5                  the course: units, notes, practice
+  lessons/   model.py generate.py                  the course: units, notes, practice
+             unit1..unit5                          and drills with the numbers open
   progress.py                                        what you answered, on disk
   steps.py laplace.py byhand.py                      derivations, transforms, RK by hand
   screens/   home                                    shared landing
@@ -679,7 +703,7 @@ src/odesuite_app/                                    the studio
              learn_problems                          Learning Hub
   widgets/                                           sliders, cards, plots, maths
 
-tests/         1654 tests
+tests/         1804 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```

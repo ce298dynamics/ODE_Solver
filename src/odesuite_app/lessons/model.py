@@ -21,10 +21,16 @@ usually the thing the student actually got wrong.
 **`Example`s are equations a narrator can work through**, never transcribed
 working. An example that drifted out of step with the tool that explains it
 would be worse than none.
+
+**A `Template` is a factory for `Solve`s**, and that is the whole of the drill
+design: a generated question *is* an ordinary practice question, so the grading,
+the hint ladder, "Show me" and the recording of progress are all reused rather
+than rebuilt for it.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 __all__ = [
@@ -33,6 +39,7 @@ __all__ = [
     "Example",
     "Choice",
     "Solve",
+    "Template",
     "Lesson",
     "Unit",
     "grade_choice",
@@ -117,6 +124,47 @@ class Solve:
 
 
 @dataclass(frozen=True)
+class Template:
+    """A practice question with its numbers left open.
+
+    Generated questions come out as ordinary `Solve`s, so nothing downstream
+    knows the difference: the same grader, the same hint ladder, the same
+    "Show me". A template only decides which numbers go in.
+
+    `slots` is a tuple of `(names, values)` pairs rather than a mapping, so a
+    template stays hashable and its draws stay in a fixed order. A name holding
+    a comma binds several at once from one tuple::
+
+        slots=(("b,c", ((3, 2), (4, 4), (2, 5))),)
+
+    which is what the second-order templates need: drawing `b` and `c`
+    independently produces discriminants whose roots are irrational, and the
+    point of a drill is repetition of the method rather than of the arithmetic.
+    """
+
+    key: str
+    #: What this drill is, in the header: "Integrating factor, constant p".
+    title: str
+    #: All four of these are format strings over the slot names.
+    prompt: str
+    equation: str
+    conditions: str = ""
+    hints: tuple[str, ...] = ()
+    slots: tuple[tuple[str, tuple], ...] = ()
+    #: Draws to throw away, as a predicate over the drawn values. Keeps a
+    #: template from producing the degenerate case it was not written for.
+    reject: Callable[[Mapping[str, object]], bool] | None = None
+    #: The technique the generated question must be narrated by. Asserted in
+    #: the tests, so a template that quietly starts producing something else is
+    #: a failure rather than a surprise.
+    technique: str = ""
+    #: Which narrator works it: "steps" or "laplace".
+    narrator: str = "steps"
+
+    kind: str = field(default="template", init=False)
+
+
+@dataclass(frozen=True)
 class Lesson:
     key: str
     title: str
@@ -131,6 +179,10 @@ class Lesson:
     objectives: tuple[str, ...] = ()
     #: Worked through by the narrator, in the order they should be read.
     examples: tuple[Example, ...] = ()
+    #: Practice that never runs out. A lesson with none simply has no Drill —
+    #: Euler and RK4 have no closed form to substitute into, and a drill whose
+    #: verdict could never be "right" would be worse than no drill.
+    templates: tuple[Template, ...] = ()
     #: Lesson keys worth having met first. Advisory: nothing is locked.
     prerequisites: tuple[str, ...] = ()
     #: Where this sits in Edwards, Penney and Calvis, 6e.

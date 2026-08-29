@@ -12,7 +12,7 @@ narrates end to end.
 
 from __future__ import annotations
 
-from .model import Choice, Example, Lesson, Note, Solve
+from .model import Choice, Example, Lesson, Note, Solve, Template
 
 __all__ = ["LAPLACE", "LESSONS"]
 
@@ -191,6 +191,42 @@ LAPLACE = Lesson(
                 "Then shift it: multiply by u(t−2) and replace t by t−2, "
                 "giving u(t−2)(1 − e^{−(t−2)}).",
             ),
+        ),
+    ),
+    templates=(
+        Template(
+            key="first-order",
+            title="Transform, solve for Y(s), split, invert",
+            prompt="The routine case: it needs partial fractions coming back.",
+            equation="y' + {a}*y = {b}*t",
+            conditions="y(0) = {c}",
+            narrator="laplace",
+            hints=(
+                "L{{y'}} = sY − y(0), and the forcing is a multiple of t, "
+                "whose transform is that multiple over s².",
+                "Collect the Y terms and solve for Y(s) — it is only algebra "
+                "from here.",
+                "Split Y into pieces in 1/s, 1/s² and 1/(s + {a}), then read "
+                "each one backwards off the table.",
+            ),
+            slots=(("a", (1, 2, 3)), ("b", (1, 2, 3)), ("c", (0, 1))),
+        ),
+        Template(
+            key="second-order",
+            title="A second-order transform, conditions at the start",
+            prompt="Both conditions enter through the transform of y''.",
+            equation="y'' + {w2}*y = 0",
+            conditions="y(0) = {p}, y'(0) = {v}",
+            narrator="laplace",
+            hints=(
+                "L{{y''}} = s²Y − s·y(0) − y'(0). Put both conditions in, "
+                "remembering that it is y(0) that carries the factor of s.",
+                "Collect and solve for Y(s). It comes out as a sum of two "
+                "rows of the table.",
+                "s/(s² + w²) inverts to cos(wt) and w/(s² + w²) to sin(wt); "
+                "here w² is the coefficient of y.",
+            ),
+            slots=(("w2", (1, 4, 9)), ("p", (0, 1)), ("v", (1, 2))),
         ),
     ),
 )

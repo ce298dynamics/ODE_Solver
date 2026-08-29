@@ -205,6 +205,19 @@ class CourseScreen(QWidget):
             tally.setStyleSheet(f"color: {palette.success};")
         layout.addWidget(tally, 0)
 
+        # Drills are counted separately from the practice questions, and shown
+        # separately: one number is out of a fixed denominator and the other is
+        # a streak that can go back down.
+        drilled, drillable = progress.drills(lesson.key, lesson.templates,
+                                             self._answered)
+        drill = QLabel(f"{drilled}/{drillable} drills" if drillable else "")
+        drill.setProperty("role", "muted")
+        drill.setFixedWidth(72)
+        drill.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        if drillable and drilled == drillable:
+            drill.setStyleSheet(f"color: {palette.success};")
+        layout.addWidget(drill, 0)
+
         button = QPushButton("Open")
         button.setCursor(Qt.PointingHandCursor)
         button.clicked.connect(lambda _=False, k=lesson.key:
@@ -223,9 +236,17 @@ class CourseScreen(QWidget):
         self.overall_label.setText(f"{done} of {total}")
         self.overall_bar.setRange(0, max(total, 1))
         self.overall_bar.setValue(done)
+        mastered = drillable = 0
+        for lesson in content.LESSONS:
+            one, many = progress.drills(lesson.key, lesson.templates,
+                                        self._answered)
+            mastered += one
+            drillable += many
         self.overall_detail.setText(
             f"questions answered correctly, across "
             f"{len(content.LESSONS)} lessons in {len(content.UNITS)} units."
+            + (f"  {mastered} of {drillable} drills mastered."
+               if drillable else "")
         )
 
         nxt = self._next_lesson()
