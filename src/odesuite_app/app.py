@@ -38,11 +38,12 @@ SECTIONS = [
         "learn",
         "Learning Hub",
         [
-            ("lessons", "Lessons", "Ctrl+1"),
-            ("steps", "Solve Step by Step", "Ctrl+2"),
-            ("laplace", "Laplace Transforms", "Ctrl+3"),
-            ("byhand", "Methods by Hand", "Ctrl+4"),
-            ("worked", "Worked Problems", "Ctrl+5"),
+            ("course", "Course Map", "Ctrl+1"),
+            ("lessons", "Lessons", "Ctrl+2"),
+            ("steps", "Solve Step by Step", "Ctrl+3"),
+            ("laplace", "Laplace Transforms", "Ctrl+4"),
+            ("byhand", "Methods by Hand", "Ctrl+5"),
+            ("worked", "Worked Problems", "Ctrl+6"),
         ],
     ),
     (
@@ -242,11 +243,16 @@ class MainWindow(QWidget):
         self._add("home", home)
 
         # The Learning Hub.
+        from .screens.learn_course import CourseScreen
         from .screens.learn_lessons import LessonsScreen
 
         lessons = LessonsScreen(self.state, self.palette_obj)
         lessons.open_tool.connect(self.go)
         self._add("lessons", lessons)
+
+        course = CourseScreen(self.state, self.palette_obj)
+        course.open_lesson.connect(self._open_lesson)
+        self._add("course", course)
         from .screens.learn_steps import StepsScreen
 
         self._add("steps", StepsScreen(self.state, self.palette_obj))
@@ -311,6 +317,13 @@ class MainWindow(QWidget):
         if lab is not None and hasattr(lab, "sync"):
             lab.sync()
         self.go("lab")
+
+    def _open_lesson(self, key: str) -> None:
+        """Open `Lessons` at one lesson, for the Course Map's rows."""
+        lessons = self._screens.get("lessons")
+        if lessons is not None and hasattr(lessons, "select"):
+            lessons.select(key)
+        self.go("lessons")
 
     def _on_result(self, result) -> None:
         if result.error:

@@ -111,15 +111,20 @@ class HomeScreen(QWidget):
         # -- showcase tiles, one group per section -----------------------
         groups = [
             ("Learning Hub", [
+                ("Course Map", "Every unit and lesson, and how far through "
+                 "you are. Start here.", palette.accent, "course"),
+                ("Lessons", "One technique at a time: what it is, examples "
+                 "worked through, and practice that grades your own answer.",
+                 palette.success, "lessons"),
                 ("Solve Step by Step", "See which technique solves your "
                  "equation, worked a line at a time — and check your own answer.",
-                 palette.accent, "steps"),
+                 palette.warning, "steps"),
                 ("Laplace Transforms", "Transform the equation, solve for "
-                 "Y(s), and invert it back.", palette.success, "laplace"),
+                 "Y(s), and invert it back.", palette.danger, "laplace"),
                 ("Methods by Hand", "Euler and RK4 as they are taught: the "
-                 "arithmetic, beside the exact answer.", palette.warning, "byhand"),
+                 "arithmetic, beside the exact answer.", palette.accent, "byhand"),
                 ("Worked Problems", "Mixing tanks, circuits and cooling — "
-                 "where the equation comes from.", palette.danger, "worked"),
+                 "where the equation comes from.", palette.success, "worked"),
             ]),
             ("Solver Studio", [
                 ("Solver Lab", "Solve anything, and watch the step size adapt "

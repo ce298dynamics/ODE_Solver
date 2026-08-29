@@ -36,7 +36,71 @@ All notable changes to this project are documented here. The format follows
   raising, writes are atomic, and answering correctly and then mistyping does
   not take the tick away.
 
+- **Learning Hub: a `Course Map`, and lessons organised into units.** Seven
+  lessons in a flat list was navigable; the whole of a first course is not. The
+  lessons are now filed under the chapters of Edwards, Penney and Calvis —
+  first-order equations, models and numerical methods, second-order linear
+  equations, Laplace transforms — and the new screen shows the units, the
+  lessons inside them, how far through each you are, and a *Continue* button
+  that opens the earliest lesson with a question left.
+
+  A unit appears on the map once it has lessons. There is no stand-in for a unit
+  still to be written: this application removed its last placeholder
+  deliberately, and a course map advertising empty units would put them back.
+
+- **A lesson is now three parts rather than one page** — *Learn*, *Examples* and
+  *Practice* — with the lesson's title and the part you are in staying put while
+  the rest scrolls. Each lesson also states what you should be able to do
+  afterwards, cites its textbook section, and names the lessons worth having met
+  first. The prerequisites are advice, not a gate; nothing is locked.
+
+- **Notes come in kinds, and a common mistake does not read like an idea.** The
+  same card, with a warning stripe down it and a label above it, because the
+  thing that catches people is worth setting apart from the thing that is merely
+  true. Five of them are new: reading `p` off an equation whose `y'` still
+  carries a coefficient, the two branches a rearrangement can produce, `r(r−1)`
+  rather than `r²` in the indicial equation, `y(0)` carrying the factor of `s`
+  and `y'(0)` not, and guessing only the top power of a polynomial.
+
+- **Hints come one rung at a time.** A nudge, then the first move, then the
+  next, with "Show me" — the real narrator — at the end of the ladder. Every
+  practice question has at least two rungs; a single hint is either useless or
+  the answer.
+
+- **Every multiple-choice question explains every option**, not just the right
+  one, and the reason shown is the reason for the option *picked*. Explaining
+  the right answer back at somebody who did not choose it teaches nothing: the
+  reason a wrong option was tempting is usually what was actually
+  misunderstood.
+
+- **Six more worked examples**, so most lessons now show a plain case and then
+  one that breaks the plain rule — `y' = y²` running to infinity in finite time,
+  a complex root pair becoming a cosine and a sine, a repeated indicial root
+  bringing in `ln t`, a switch thrown at two seconds. Each says what it is there
+  to show, and all thirteen are generated and checked by the narrator, which
+  `tests/test_lessons.py` now verifies for every example rather than only the
+  first.
+
 ### Changed
+
+- **`lessons.py` is now a package**, one module per unit plus the shared model.
+  Seven lessons was 837 lines; a whole course is not something one file should
+  carry. Nothing that imported it needs to change.
+
+- **The progress file records attempts as well as outcomes** (format version 2),
+  because a course map that can only say "answered" cannot tell steady work from
+  a lucky guess. A version 1 file — one written by any earlier build — still
+  loads with its ticks intact and is rewritten in the new shape; refusing to
+  read it, or quietly dropping it, would take away work already done. Answering
+  correctly and then mistyping still keeps the tick, and now counts the attempt,
+  because it happened.
+
+- **The Learning Hub takes `Ctrl+1` to `Ctrl+6`**, the Course Map first. Solver
+  Studio is unchanged on `Ctrl+Shift+N`.
+
+- **Home offers every Learning Hub screen.** `Lessons` never had a tile and was
+  reachable only from the sidebar, a shortcut or `--screen`; it and the Course
+  Map now have one.
 
 - **Shortcuts are numbered per section**, `Ctrl+N` for the Learning Hub and
   `Ctrl+Shift+N` for Solver Studio. Eleven screens no longer fit a single run of

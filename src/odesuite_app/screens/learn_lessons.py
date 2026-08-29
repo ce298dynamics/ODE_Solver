@@ -1,8 +1,10 @@
-"""Lessons: read the technique, then try it.
+"""Lessons: read the technique, watch it worked, then try it.
 
-The other four Hub screens are tools — you bring an equation and they work on
-it. This one assumes you do not yet know which equation to bring. A topic list,
-then notes, a worked example, and practice.
+The other Hub screens are tools — you bring an equation and they work on it.
+This one assumes you do not yet know which equation to bring. A course on the
+left, and on the right one lesson at a time in three parts: **Learn** (what the
+technique is), **Examples** (it worked through, by the narrator), and
+**Practice** (your turn).
 
 The practice is the part worth being careful about, and it works the way the
 rest of this application works: a typed solution is **substituted into the
@@ -13,12 +15,17 @@ Where sympy cannot decide, the verdict says so rather than guessing.
 
 Multiple-choice questions do have a stored answer, because *which technique
 solves this* is not something a substitution check can grade — and each one
-carries its reason, shown whether you got it right or wrong.
+carries a reason for every option, shown for whichever was picked. The reason a
+wrong option was tempting is usually the thing that was actually misunderstood.
+
+Hints come one rung at a time rather than all at once: a nudge, then the first
+move, then the next, and "Show me" — the real narrator — at the end of the
+ladder. A hint that gives the answer away on the first press is not a hint.
 
 Progress is recorded on disk (see `progress`), so the ticks survive closing the
-application. Everything expensive — the worked example, and the model solution
-for a practice question — happens on the thread pool and only when asked for,
-so switching topics stays instant.
+application. Everything expensive — a worked example, a model answer — happens
+on the thread pool and only when asked for, so switching lesson or segment
+stays instant.
 """
 
 from __future__ import annotations
@@ -30,11 +37,11 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QPushButton,
     QRadioButton,
     QScrollArea,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -46,7 +53,10 @@ from ..widgets.controls import add_heading, control_panel
 from ..widgets.mathlabel import MathLabel
 from ..widgets.stepspanel import StepsPanel
 
-__all__ = ["LessonsScreen"]
+__all__ = ["LessonsScreen", "SEGMENTS"]
+
+#: The three parts of a lesson, in the order they are meant to be met.
+SEGMENTS = ("Learn", "Examples", "Practice")
 
 
 class _Signals(QObject):
@@ -97,7 +107,7 @@ def _work_out(equation: str, conditions: str, narrator: str):
 
 
 class LessonsScreen(QWidget):
-    """Notes, a worked example, and practice, for each technique in turn."""
+    """One lesson at a time: what it is, worked examples, and practice."""
 
     #: Asks the window to open the tool a lesson belongs to.
     open_tool = Signal(str)
@@ -108,8 +118,13 @@ class LessonsScreen(QWidget):
         self.palette_obj = palette
         self._token = 0
         self._answered = progress.load()
-        #: Question key -> the widgets that show its verdict.
+        self._segment = SEGMENTS[0]
+        #: Question key -> the label that shows its verdict.
         self._verdicts: dict[str, QLabel] = {}
+        #: Token -> the panel and button waiting on it. Keyed rather than held
+        #: singly, so a superseded request can still re-enable its own button
+        #: instead of leaving it disabled for good.
+        self._pending: dict[int, tuple[StepsPanel, QPushButton]] = {}
 
         self._signals = _Signals()
         self._signals.done.connect(self._on_worked)
@@ -120,29 +135,41 @@ class LessonsScreen(QWidget):
         layout.addWidget(self._build_controls())
         layout.addWidget(self._build_body(), 1)
 
-        if self.listing.count():
-            self.listing.setCurrentRow(0)
+        self.select(content.LESSONS[0].key if content.LESSONS else "")
 
     # -- construction ----------------------------------------------------
 
     def _build_controls(self) -> QWidget:
         panel, layout = control_panel(276)
 
-        add_heading(layout, "Topics")
+        add_heading(layout, "Course")
         note = QLabel(
-            "Each one has notes, a worked example, and questions. The count is "
-            "how many you have answered correctly."
+            "Each lesson has notes, worked examples and questions. The count "
+            "is how many you have answered correctly."
         )
         note.setProperty("role", "muted")
         note.setWordWrap(True)
         layout.addWidget(note)
 
-        self.listing = QListWidget()
-        self.listing.setMinimumHeight(180)
-        for lesson in content.LESSONS:
-            item = QListWidgetItem(self._label_for(lesson))
-            item.setData(Qt.UserRole, lesson.key)
-            self.listing.addItem(item)
+        # A tree rather than a list: the units are what make thirty-odd
+        # lessons navigable, and a flat list of them is a wall.
+        self.listing = QTreeWidget()
+        self.listing.setHeaderHidden(True)
+        self.listing.setIndentation(12)
+        self.listing.setMinimumHeight(260)
+        self.listing.setRootIsDecorated(True)
+        for unit in content.UNITS:
+            parent = QTreeWidgetItem([unit.title])
+            parent.setData(0, Qt.UserRole, "")     # a unit is not a lesson
+            font = parent.font(0)
+            font.setBold(True)
+            parent.setFont(0, font)
+            for lesson in unit.lessons:
+                child = QTreeWidgetItem([self._label_for(lesson)])
+                child.setData(0, Qt.UserRole, lesson.key)
+                parent.addChild(child)
+            self.listing.addTopLevelItem(parent)
+            parent.setExpanded(True)
         layout.addWidget(self.listing)
 
         self.tool_button = QPushButton("Open the tool for this topic")
@@ -162,7 +189,7 @@ class LessonsScreen(QWidget):
         where.setStyleSheet("font-size: 10px;")
         layout.addWidget(where)
 
-        self.listing.currentRowChanged.connect(lambda _: self._show())
+        self.listing.currentItemChanged.connect(lambda *_: self._show())
         self.tool_button.clicked.connect(self._open_tool)
         self.reset_button.clicked.connect(self._reset)
         return panel
@@ -172,11 +199,59 @@ class LessonsScreen(QWidget):
         frame.setProperty("role", "panel")
         outer = QVBoxLayout(frame)
         outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # The heading and the segment bar stay put while the part below them
+        # scrolls: which lesson you are in, and which part of it, should not be
+        # something you have to scroll back up to find out.
+        head = QWidget()
+        head_layout = QVBoxLayout(head)
+        head_layout.setContentsMargins(24, 18, 24, 10)
+        head_layout.setSpacing(6)
+
+        self.title_label = QLabel("")
+        self.title_label.setProperty("role", "title")
+        self.title_label.setWordWrap(True)
+        head_layout.addWidget(self.title_label)
+
+        self.summary_label = QLabel("")
+        self.summary_label.setProperty("role", "subtitle")
+        self.summary_label.setWordWrap(True)
+        head_layout.addWidget(self.summary_label)
+
+        self.reference_label = QLabel("")
+        self.reference_label.setProperty("role", "muted")
+        self.reference_label.setWordWrap(True)
+        head_layout.addWidget(self.reference_label)
+
+        bar = QHBoxLayout()
+        bar.setSpacing(6)
+        bar.setContentsMargins(0, 8, 0, 0)
+        self.segment_buttons: dict[str, QPushButton] = {}
+        self._segment_group = QButtonGroup(head)
+        self._segment_group.setExclusive(True)
+        for index, name in enumerate(SEGMENTS):
+            button = QPushButton(name)
+            button.setProperty("role", "section")
+            button.setCheckable(True)
+            button.setCursor(Qt.PointingHandCursor)
+            button.setChecked(index == 0)
+            self._segment_group.addButton(button, index)
+            self.segment_buttons[name] = button
+            bar.addWidget(button)
+            button.clicked.connect(
+                lambda _=False, n=name: self._choose_segment(n)
+            )
+        bar.addStretch(1)
+        head_layout.addLayout(bar)
+        outer.addWidget(head)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        outer.addWidget(scroll)
+        scroll.setFrameShape(QFrame.NoFrame)
+        outer.addWidget(scroll, 1)
+        self._scroll = scroll
 
         # A reading column, not the full width of the window. Notes set across
         # 1400 pixels are genuinely hard to read -- the eye loses the line on
@@ -195,66 +270,165 @@ class LessonsScreen(QWidget):
         across.addStretch(0)
 
         self._layout = QVBoxLayout(self._page)
-        self._layout.setContentsMargins(24, 20, 24, 24)
+        self._layout.setContentsMargins(24, 14, 24, 24)
         self._layout.setSpacing(14)
         return frame
 
-    # -- behaviour -------------------------------------------------------
+    # -- navigation ------------------------------------------------------
 
     def _label_for(self, lesson) -> str:
         done, total = progress.counts(lesson.key, len(lesson.questions),
                                       self._answered)
         return f"{lesson.title}   ({done}/{total})"
 
+    def _lesson_items(self):
+        """Every tree item that stands for a lesson, with its lesson."""
+        for index in range(self.listing.topLevelItemCount()):
+            unit_item = self.listing.topLevelItem(index)
+            for child in range(unit_item.childCount()):
+                item = unit_item.child(child)
+                lesson = content.by_key(item.data(0, Qt.UserRole))
+                if lesson is not None:
+                    yield item, lesson
+
     def _refresh_labels(self) -> None:
-        for row, lesson in enumerate(content.LESSONS):
-            item = self.listing.item(row)
-            if item is not None:
-                item.setText(self._label_for(lesson))
+        for item, lesson in self._lesson_items():
+            item.setText(0, self._label_for(lesson))
 
     def current_lesson(self):
         item = self.listing.currentItem()
-        return None if item is None else content.by_key(item.data(Qt.UserRole))
+        if item is None:
+            return None
+        return content.by_key(item.data(0, Qt.UserRole) or "")
+
+    def select(self, key: str) -> None:
+        """Open a lesson by key. Used by the Course Map to jump straight in."""
+        for item, lesson in self._lesson_items():
+            if lesson.key == key:
+                self.listing.setCurrentItem(item)
+                return
+
+    def _choose_segment(self, name: str) -> None:
+        self._segment = name
+        button = self.segment_buttons.get(name)
+        if button is not None:
+            button.setChecked(True)
+        self._show()
+
+    # -- the page --------------------------------------------------------
 
     def _show(self) -> None:
         lesson = self.current_lesson()
-        if lesson is None:
-            return
-        self._token += 1                          # abandon anything in flight
         self._clear()
         self._verdicts = {}
-        palette = self.palette_obj
+        self._abandon()
 
-        title = QLabel(lesson.title)
-        title.setProperty("role", "title")
-        title.setWordWrap(True)
-        self._layout.addWidget(title)
+        if lesson is None:
+            # A unit heading is selected rather than a lesson. Say so instead
+            # of leaving the reading column blank.
+            self.title_label.setText("")
+            self.summary_label.setText("Choose a lesson from the unit on the "
+                                       "left.")
+            self.reference_label.setText("")
+            for button in self.segment_buttons.values():
+                button.setEnabled(False)
+            return
 
-        summary = QLabel(lesson.summary)
-        summary.setProperty("role", "subtitle")
-        summary.setWordWrap(True)
-        self._layout.addWidget(summary)
+        for button in self.segment_buttons.values():
+            button.setEnabled(True)
+        self.title_label.setText(lesson.title)
+        self.summary_label.setText(lesson.summary)
+        unit = content.unit_of(lesson)
+        trail = " · ".join(
+            part for part in (unit.title if unit else "", lesson.reference)
+            if part
+        )
+        self.reference_label.setText(trail)
 
+        if self._segment == "Learn":
+            self._build_learn(lesson)
+        elif self._segment == "Examples":
+            self._build_examples(lesson)
+        else:
+            self._build_practice(lesson)
+        self._layout.addStretch(1)
+        self._scroll.verticalScrollBar().setValue(0)
+
+    def _build_learn(self, lesson) -> None:
+        if lesson.objectives:
+            self._layout.addWidget(self._objectives_card(lesson))
         for note in lesson.notes:
             self._layout.addWidget(self._note_card(note))
 
-        self._layout.addWidget(self._example_card(lesson))
-
-        heading = QLabel("Practice")
-        heading.setProperty("role", "heading")
-        heading.setStyleSheet(f"color: {palette.text}; padding-top: 8px;")
+    def _build_examples(self, lesson) -> None:
+        heading = QLabel(
+            "Worked by the same narrator that powers the tool for this topic, "
+            "so what you see here is what that screen would show — generated "
+            "and checked, not transcribed."
+        )
+        heading.setProperty("role", "muted")
+        heading.setWordWrap(True)
         self._layout.addWidget(heading)
+        for number, example in enumerate(lesson.examples, start=1):
+            self._layout.addWidget(self._example_card(number, example))
 
+    def _build_practice(self, lesson) -> None:
         for number, question in enumerate(lesson.questions, start=1):
             self._layout.addWidget(self._question_card(lesson, number, question))
-        self._layout.addStretch(1)
 
-    def _note_card(self, note) -> QWidget:
+    # -- cards -----------------------------------------------------------
+
+    def _panel(self, accent: str = "") -> tuple[QFrame, QVBoxLayout]:
         frame = QFrame()
         frame.setProperty("role", "panel")
+        if accent:
+            frame.setStyleSheet(f"QFrame {{ border-left: 3px solid {accent}; }}")
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(16, 13, 16, 14)
         layout.setSpacing(8)
+        return frame, layout
+
+    def _objectives_card(self, lesson) -> QWidget:
+        frame, layout = self._panel(self.palette_obj.accent)
+
+        heading = QLabel("What you should be able to do")
+        heading.setProperty("role", "heading")
+        layout.addWidget(heading)
+
+        for objective in lesson.objectives:
+            row = QLabel(f"·  {objective}")
+            row.setWordWrap(True)
+            layout.addWidget(row)
+
+        if lesson.prerequisites:
+            names = [
+                found.title for found in
+                (content.by_key(key) for key in lesson.prerequisites)
+                if found is not None
+            ]
+            if names:
+                before = QLabel("Worth having met first: " + ", ".join(names))
+                before.setProperty("role", "muted")
+                before.setWordWrap(True)
+                layout.addWidget(before)
+        return frame
+
+    def _note_card(self, note) -> QWidget:
+        palette = self.palette_obj
+        # A pitfall should not read like an idea. The colour is the whole
+        # difference: same card, same typography, a warning stripe down it.
+        accent = {"pitfall": palette.warning, "formula": palette.accent_soft}
+        frame, layout = self._panel(accent.get(note.kind, ""))
+
+        label = {"pitfall": "Common mistake", "aside": "Aside"}.get(note.kind)
+        if label:
+            tag = QLabel(label.upper())
+            tag.setProperty("role", "muted")
+            tag.setStyleSheet(
+                f"color: {palette.warning if note.kind == 'pitfall' else palette.text_muted};"
+                "font-size: 10px; letter-spacing: 1px;"
+            )
+            layout.addWidget(tag)
 
         heading = QLabel(note.heading)
         heading.setProperty("role", "heading")
@@ -266,23 +440,24 @@ class LessonsScreen(QWidget):
         layout.addWidget(body)
 
         if note.latex:
-            maths = MathLabel(self.palette_obj, note.latex, point_size=15)
-            layout.addWidget(maths)
+            layout.addWidget(MathLabel(palette, note.latex, point_size=15))
         return frame
 
-    def _example_card(self, lesson) -> QWidget:
-        frame = QFrame()
-        frame.setProperty("role", "panel")
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(16, 13, 16, 14)
-        layout.setSpacing(8)
+    def _example_card(self, number: int, example) -> QWidget:
+        frame, layout = self._panel()
 
-        heading = QLabel("Worked example")
+        heading = QLabel(f"Example {number}")
         heading.setProperty("role", "heading")
         layout.addWidget(heading)
 
-        shown = lesson.example + (
-            f",   {lesson.example_conditions}" if lesson.example_conditions else ""
+        if example.why:
+            why = QLabel(example.why)
+            why.setProperty("role", "muted")
+            why.setWordWrap(True)
+            layout.addWidget(why)
+
+        shown = example.equation + (
+            f",   {example.conditions}" if example.conditions else ""
         )
         equation = QLabel(shown)
         equation.setStyleSheet("font-family: Cascadia Mono, Consolas, monospace;")
@@ -290,31 +465,26 @@ class LessonsScreen(QWidget):
         layout.addWidget(equation)
 
         row = QHBoxLayout()
-        self.example_button = QPushButton("Work it through")
-        self.example_button.setProperty("role", "primary")
-        self.example_button.setCursor(Qt.PointingHandCursor)
-        row.addWidget(self.example_button)
+        button = QPushButton("Work it through")
+        button.setProperty("role", "primary")
+        button.setCursor(Qt.PointingHandCursor)
+        row.addWidget(button)
         row.addStretch(1)
         layout.addLayout(row)
 
-        self.example_steps = StepsPanel(self.palette_obj)
-        self.example_steps.setMinimumHeight(260)
-        self.example_steps.setVisible(False)
-        layout.addWidget(self.example_steps)
+        steps = StepsPanel(self.palette_obj)
+        steps.setMinimumHeight(260)
+        steps.setVisible(False)
+        layout.addWidget(steps)
 
-        self.example_button.clicked.connect(
-            lambda: self._work(lesson.example, lesson.example_conditions,
-                               lesson.narrator, self.example_steps,
-                               self.example_button)
+        button.clicked.connect(
+            lambda: self._work(example.equation, example.conditions,
+                               example.narrator, steps, button)
         )
         return frame
 
     def _question_card(self, lesson, number: int, question) -> QWidget:
-        frame = QFrame()
-        frame.setProperty("role", "panel")
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(16, 13, 16, 14)
-        layout.setSpacing(8)
+        frame, layout = self._panel()
 
         prompt = QLabel(f"{number}.  {question.prompt}")
         prompt.setProperty("role", "heading")
@@ -332,9 +502,9 @@ class LessonsScreen(QWidget):
             layout.addWidget(MathLabel(self.palette_obj, question.latex,
                                        point_size=15))
 
-        # Parented to the card, not to the screen: switching topics deletes the
-        # cards, and a group owned by the screen would outlive its own radio
-        # buttons and accumulate one dead set per topic visited.
+        # Parented to the card, not to the screen: switching lesson or segment
+        # deletes the cards, and a group owned by the screen would outlive its
+        # own radio buttons and accumulate one dead set per visit.
         group = QButtonGroup(layout.parentWidget())
         group.setExclusive(True)
         for index, option in enumerate(question.options):
@@ -384,6 +554,7 @@ class LessonsScreen(QWidget):
 
         hint_button = QPushButton("Hint")
         hint_button.setCursor(Qt.PointingHandCursor)
+        hint_button.setEnabled(bool(question.hints))
         row.addWidget(hint_button)
 
         show = QPushButton("Show me")
@@ -397,16 +568,36 @@ class LessonsScreen(QWidget):
         layout.addWidget(verdict)
         self._verdicts[question.key] = verdict
 
-        hint = QLabel(question.hint)
-        hint.setProperty("role", "muted")
-        hint.setWordWrap(True)
-        hint.setVisible(False)
-        layout.addWidget(hint)
+        # One rung at a time. A hint that hands over the whole method on the
+        # first press is not a hint, and the last rung is the narrator itself.
+        hints = QLabel("")
+        hints.setProperty("role", "muted")
+        hints.setWordWrap(True)
+        hints.setVisible(False)
+        layout.addWidget(hints)
 
         working = StepsPanel(self.palette_obj)
         working.setMinimumHeight(240)
         working.setVisible(False)
         layout.addWidget(working)
+
+        shown_hints: list[str] = []
+
+        def next_hint() -> None:
+            ladder = question.hints
+            if len(shown_hints) >= len(ladder):
+                hint_button.setEnabled(False)
+                return
+            shown_hints.append(ladder[len(shown_hints)])
+            hints.setText("\n\n".join(
+                f"{number}.  {text}"
+                for number, text in enumerate(shown_hints, start=1)
+            ))
+            hints.setVisible(True)
+            remaining = len(ladder) - len(shown_hints)
+            hint_button.setText(f"Next hint ({remaining} left)" if remaining
+                                else "That is every hint")
+            hint_button.setEnabled(bool(remaining))
 
         check.clicked.connect(
             lambda: self._check_solve(lesson, question, answer, verdict)
@@ -414,7 +605,7 @@ class LessonsScreen(QWidget):
         answer.returnPressed.connect(
             lambda: self._check_solve(lesson, question, answer, verdict)
         )
-        hint_button.clicked.connect(lambda: hint.setVisible(True))
+        hint_button.clicked.connect(next_hint)
         show.clicked.connect(
             lambda: self._work(question.equation, question.conditions,
                                lesson.narrator, working, show)
@@ -425,13 +616,16 @@ class LessonsScreen(QWidget):
 
     def _restore(self, lesson, question, verdict: QLabel) -> None:
         """Show what was recorded last time, so a tick survives a restart."""
-        state = self._answered.get(lesson.key, {}).get(question.key)
-        if state == progress.State.CORRECT:
+        answer = self._answered.get(lesson.key, {}).get(question.key)
+        if answer is None:
+            return
+        tally = "" if answer.tries < 2 else f"  ({answer.tries} attempts)"
+        if answer.correct:
             verdict.setStyleSheet(f"color: {self.palette_obj.success};")
-            verdict.setText("✓ answered correctly")
-        elif state == progress.State.ATTEMPTED:
+            verdict.setText("✓ answered correctly" + tally)
+        else:
             verdict.setStyleSheet(f"color: {self.palette_obj.text_muted};")
-            verdict.setText("attempted")
+            verdict.setText("attempted" + tally)
 
     def _record(self, lesson, question, state: str) -> None:
         self._answered = progress.record(lesson.key, question.key, state)
@@ -449,10 +643,12 @@ class LessonsScreen(QWidget):
         verdict.setStyleSheet(
             f"color: {palette.success if right else palette.danger};"
         )
-        # The reason is shown either way: a tick that does not say why teaches
-        # nothing, and a cross without one teaches less.
-        verdict.setText(("✓ Right. " if right else "✗ Not quite. ")
-                        + question.because)
+        # The reason for the option *picked*, not for the right one. A tick
+        # that does not say why teaches nothing, and a cross that explains
+        # someone else's answer teaches less than nothing.
+        reason = (question.becauses[picked]
+                  if picked < len(question.becauses) else question.because)
+        verdict.setText(("✓ Right. " if right else "✗ Not quite. ") + reason)
         self._record(lesson, question,
                      progress.State.CORRECT if right else progress.State.ATTEMPTED)
 
@@ -495,24 +691,35 @@ class LessonsScreen(QWidget):
 
     # -- the worked solution ---------------------------------------------
 
+    def _abandon(self) -> None:
+        """Give up on anything in flight, and free the buttons waiting on it."""
+        self._token += 1
+        self._pending.clear()
+
     def _work(self, equation: str, conditions: str, narrator: str,
               panel: StepsPanel, button: QPushButton) -> None:
         self._token += 1
+        # Whatever else was waiting will never be delivered now, so hand its
+        # button back rather than leaving it disabled for the rest of the visit.
+        for stale_panel, stale_button in self._pending.values():
+            stale_button.setEnabled(True)
+            stale_panel.clear("superseded")
+        self._pending.clear()
+
         panel.setVisible(True)
         panel.clear("working it through…")
         button.setEnabled(False)
-        self._pending = (panel, button)
+        self._pending[self._token] = (panel, button)
         QThreadPool.globalInstance().start(
             _WorkingJob(self._token, equation, conditions, narrator,
                         self._signals)
         )
 
     def _on_worked(self, token: int, result) -> None:
-        if token != self._token:
-            return                                # superseded
-        panel, button = getattr(self, "_pending", (None, None))
-        if panel is None:
-            return
+        waiting = self._pending.pop(token, None)
+        if waiting is None:
+            return                                # superseded, or not ours
+        panel, button = waiting
         button.setEnabled(True)
         if isinstance(result, Exception):
             panel.clear(f"{type(result).__name__}: {result}")
