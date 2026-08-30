@@ -2,9 +2,10 @@
 
 The other Hub screens are tools — you bring an equation and they work on it.
 This one assumes you do not yet know which equation to bring. A course on the
-left, and on the right one lesson at a time in three parts: **Learn** (what the
-technique is), **Examples** (it worked through, by the narrator), and
-**Practice** (your turn).
+left, and on the right one lesson at a time in four parts: **Learn** (what the
+technique is, with a figure to move where the topic has one), **Examples** (it
+worked through, by the narrator), **Practice** (your turn), and **Drill**
+(more of it, with fresh numbers).
 
 The practice is the part worth being careful about, and it works the way the
 rest of this application works: a typed solution is **substituted into the
@@ -51,6 +52,7 @@ from .. import progress
 from ..lessons import generate
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
+from ..widgets.lessonfigure import build_figure
 from ..widgets.mathlabel import MathLabel
 from ..widgets.stepspanel import StepsPanel
 
@@ -373,6 +375,12 @@ class LessonsScreen(QWidget):
     def _build_learn(self, lesson) -> None:
         if lesson.objectives:
             self._layout.addWidget(self._objectives_card(lesson))
+        # After the objectives and before the notes: a figure is a thing to
+        # play with while reading, not a summary of what was read.
+        if lesson.figure:
+            figure = build_figure(lesson.figure, self.palette_obj)
+            if figure is not None:
+                self._layout.addWidget(figure)
         for note in lesson.notes:
             self._layout.addWidget(self._note_card(note))
 

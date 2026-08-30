@@ -13,6 +13,7 @@ wrong answer rather than an ugly picture.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -22,12 +23,14 @@ from odesuite.linalg import forward_diff_jacobian
 
 __all__ = [
     "FixedPoint",
+    "Equilibrium",
     "PortraitData",
     "vector_field",
     "slope_field",
     "jacobian_at",
     "classify",
     "find_fixed_points",
+    "phase_line",
     "nullclines",
     "separatrices",
     "trajectory_through",
@@ -309,6 +312,191 @@ def find_fixed_points(problem: ODEProblem, xlim, ylim, seeds: int = 11,
         kind, stability = classify(values)
         results.append(FixedPoint(point, values, vectors, kind, stability))
     return results
+
+
+# ---------------------------------------------------------------------------
+# The phase line
+#
+# One dimension, not two, and deliberately not `find_fixed_points` with a
+# degenerate second axis. That routine is a planar Newton sweep classified by
+# the eigenvalues of a 2x2 Jacobian; a scalar autonomous equation has no such
+# thing. It also has something better available: on a line, "which way does a
+# solution move from here" is settled by the *sign* of f on either side, which
+# is what a course draws and what stays right where the linearisation says
+# nothing at all.
+#
+# That last case is not a curiosity. `y' = y**2` has one equilibrium, at 0,
+# with f'(0) = 0, and it is semi-stable -- attracting from below, repelling
+# from above. Classifying it by the derivative would call it neutral and lose
+# both arrows; classifying it by the signs gets it right, and gets an ordinary
+# crossing right too.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Equilibrium:
+    """A constant solution of a scalar autonomous equation, and its arrows."""
+
+    value: float
+    #: f'(y*), the linearisation a course teaches beside the picture. Zero at
+    #: a touch -- which is exactly when `stability` is the thing to trust.
+    slope: float
+    #: The sign of f immediately below and above the equilibrium: -1, 0 or +1.
+    below: int
+    above: int
+    stability: str                  # STABLE / UNSTABLE / NEUTRAL
+
+    @property
+    def is_semistable(self) -> bool:
+        """Attracting from one side and repelling from the other."""
+        return self.stability == NEUTRAL and self.below * self.above > 0
+
+    def __repr__(self) -> str:
+        return f"Equilibrium({self.value:.4g}, {self.stability})"
+
+
+def _scalar_f(problem: ODEProblem):
+    """``f(y)`` as a plain float function, for an autonomous scalar problem."""
+    if problem.y0.size != 1:
+        raise ValueError("a phase line is only defined for a scalar equation")
+
+    def f(y: float) -> float:
+        return float(np.asarray(problem.f(0.0, np.array([float(y)])))[0])
+
+    return f
+
+
+def phase_line(problem: ODEProblem, ylim, samples: int = 801,
+               tolerance: float = 1e-9) -> list[Equilibrium]:
+    """The equilibria of a scalar autonomous ``y' = f(y)``, in increasing order.
+
+    Found by scanning `f` across `ylim` and refining every local minimum of
+    ``|f|``, not only the sign changes. Sign changes alone would miss a root
+    the curve touches without crossing, and those are the ones a lesson on
+    stability is most interested in.
+
+    `f` is evaluated at ``t = 0`` throughout: the equation is assumed
+    autonomous, which is what makes a phase line meaningful in the first place.
+    """
+    f = _scalar_f(problem)
+    low, high = float(ylim[0]), float(ylim[1])
+    if not high > low:
+        raise ValueError("ylim must be increasing")
+
+    grid = np.linspace(low, high, max(int(samples), 3))
+    values = np.array([f(y) for y in grid], dtype=float)
+    finite = np.isfinite(values)
+    span = high - low
+    scale = float(np.max(np.abs(values[finite]))) if finite.any() else 1.0
+    near_zero = max(tolerance, tolerance * scale)
+
+    roots: list[float] = []
+    for i in range(len(grid) - 1):
+        if not (finite[i] and finite[i + 1]):
+            continue
+        if values[i] == 0.0:
+            roots.append(float(grid[i]))
+        elif values[i] * values[i + 1] < 0:
+            roots.append(_bisect(f, float(grid[i]), float(grid[i + 1]), span))
+
+    # Touches. Bisection cannot reach these: there is no sign change to
+    # bracket, so what is refined is the nearest local minimum of |f| instead.
+    magnitude = np.where(finite, np.abs(values), np.inf)
+    for i in range(1, len(grid) - 1):
+        if not (magnitude[i] <= magnitude[i - 1]
+                and magnitude[i] <= magnitude[i + 1]):
+            continue
+        candidate = _minimise(f, float(grid[i - 1]), float(grid[i + 1]))
+        if abs(f(candidate)) <= near_zero:
+            roots.append(candidate)
+
+    merged: list[float] = []
+    for root in sorted(roots):
+        if not merged or abs(root - merged[-1]) > 1e-6 * span:
+            merged.append(root)
+
+    out = []
+    for index, root in enumerate(merged):
+        # Far enough out to be clear of the root itself, never so far as to
+        # reach the next equilibrium -- where the sign would be about that one.
+        reach = span / 200.0
+        if index:
+            reach = min(reach, 0.4 * (root - merged[index - 1]))
+        if index + 1 < len(merged):
+            reach = min(reach, 0.4 * (merged[index + 1] - root))
+        below, above = _sign(f, root - reach), _sign(f, root + reach)
+        out.append(Equilibrium(
+            value=root,
+            slope=(f(root + reach) - f(root - reach)) / (2 * reach),
+            below=below,
+            above=above,
+            stability=_stability_on_a_line(below, above),
+        ))
+    return out
+
+
+def _stability_on_a_line(below: int, above: int) -> str:
+    """Arrows in from both sides is stable, out on both is unstable.
+
+    Anything else -- a touch, or a flat stretch -- is neither, and saying so is
+    more useful than picking one of the two.
+    """
+    if below > 0 and above < 0:
+        return STABLE
+    if below < 0 and above > 0:
+        return UNSTABLE
+    return NEUTRAL
+
+
+def _sign(f, y: float, tolerance: float = 1e-12) -> int:
+    value = f(y)
+    if not np.isfinite(value) or abs(value) <= tolerance:
+        return 0
+    return 1 if value > 0 else -1
+
+
+def _bisect(f, low: float, high: float, span: float, steps: int = 80) -> float:
+    """A root bracketed by a sign change.
+
+    Plain bisection: the bracket is one grid cell wide to begin with, so this
+    is a handful of halvings, and it cannot wander out of the bracket the way
+    a secant step can.
+    """
+    f_low = f(low)
+    for _ in range(steps):
+        if high - low < 1e-15 * max(span, 1.0):
+            break
+        middle = 0.5 * (low + high)
+        f_mid = f(middle)
+        if f_mid == 0.0:
+            return middle
+        if (f_low > 0) != (f_mid > 0):
+            high = middle
+        else:
+            low, f_low = middle, f_mid
+    return 0.5 * (low + high)
+
+
+def _minimise(f, low: float, high: float, steps: int = 60) -> float:
+    """Golden-section minimum of ``|f|`` on ``[low, high]``.
+
+    Bracketed and derivative-free, because the case this exists for is exactly
+    the one where the derivative vanishes.
+    """
+    ratio = 0.5 * (math.sqrt(5.0) - 1.0)
+    left = high - ratio * (high - low)
+    right = low + ratio * (high - low)
+    f_left, f_right = abs(f(left)), abs(f(right))
+    for _ in range(steps):
+        if f_left <= f_right:
+            high, right, f_right = right, left, f_left
+            left = high - ratio * (high - low)
+            f_left = abs(f(left))
+        else:
+            low, left, f_left = left, right, f_right
+            right = low + ratio * (high - low)
+            f_right = abs(f(right))
+    return 0.5 * (low + high)
 
 
 # ---------------------------------------------------------------------------

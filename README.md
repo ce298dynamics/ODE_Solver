@@ -77,7 +77,7 @@ gains nothing from it. `scipy.integrate.solve_ivp` has no equivalent.
 ## Verification
 
 Correctness evidence is the point of this project, so it is worth being specific about
-what is actually checked. **2077 tests**, of which the load-bearing ones are:
+what is actually checked. **2099 tests**, of which the load-bearing ones are:
 
 **Order conditions, algebraically.** `tests/test_tableaux.py` evaluates the rooted-tree
 order conditions through order 5 for every Butcher tableau, and asserts that the
@@ -115,7 +115,7 @@ controller running blind, was the wrong place to have a gap.
 oracle only — never as the basis of an order or accuracy claim.
 
 ```
-py -3.10 -m pytest tests/ -q          # 2058 passed, 19 skipped, ~6 min
+py -3.10 -m pytest tests/ -q          # 2080 passed, 19 skipped, ~6 min
 py -3.10 -m pytest tests/ -q -m 'not slow'   # the fast loop, ~3.5 min
 py -3.10 -m ruff check . && py -3.10 -m mypy # lint and types, both clean
 py -3.10 benchmarks/run_all.py        # regenerate every static figure below
@@ -362,6 +362,42 @@ Notes come in kinds, and a **common mistake** does not read like an idea: it is 
 card with a warning stripe down it, because the thing that catches people is worth
 setting apart from the thing that is merely true. Reading `p` straight off `t·y' + y = t`
 is one; forgetting the factor of `t` on a repeated root is another.
+
+**Three lessons have a figure you can move**, at the top of *Learn*. A note can say
+that raising the harvest rate eventually wipes out both equilibria; a figure lets you
+raise it and watch the two dots slide together and vanish, which is a different kind of
+knowing.
+
+- **Slope fields** draws the dashes `y' = a·y + b·t` demands at each point — no solving
+  involved — and integrates a solution through anywhere you click. The curve comes out
+  tangent to every dash it passes, and two curves never cross, which is uniqueness shown
+  rather than stated.
+- **Equilibria** plots `f(y)` for the harvested logistic equation `y' = r·y(1 − y/K) − h`,
+  marks each equilibrium filled or hollow by which way the arrows point, and puts an
+  arrow in each interval between them. Push `h` past `r·K/4` and both equilibria are
+  gone.
+- **Euler's method** runs Euler and RK4 on `y' = y`, whose answer nobody has to take on
+  trust, and reports both endpoint errors against `eᵗ`. Halving `h` roughly halves
+  Euler's error and cuts RK4's by about sixteen — and the ratios are printed as
+  measured, not as theory: 1.8 and 14.7 at `h = 0.2`, climbing towards 2 and 16 as `h`
+  shrinks. That limit is what *order* claims, and watching it approached says more than
+  either number arriving exactly.
+
+None of them computes any mathematics of its own. The dashes come from
+`analysis.slope_field`, the equilibria from `analysis.phase_line`, the steps from
+`byhand.walk` and `byhand.refinement`, and the curves from the library's own `solve` —
+so a figure cannot disagree with the tool that teaches the same thing.
+
+`analysis.phase_line` is the one piece of mathematics this needed, and it is not
+`find_fixed_points` with an axis thrown away: that routine classifies a planar
+equilibrium by the eigenvalues of a 2×2 Jacobian, and a scalar equation has no such
+thing. It has something better — on a line, the sign of `f` on either side settles which
+way solutions move, which is what a course draws and what stays right where the
+linearisation says nothing. `y' = y²` is the case that makes the difference: `f'(0) = 0`,
+so the derivative test calls it neutral and loses both arrows, while the signs correctly
+call it semi-stable. Equilibria are found by refining every local minimum of `|f|` rather
+than only the sign changes, for the same reason — a root the curve touches without
+crossing has no sign change to bracket.
 
 Hints come **one rung at a time** — a nudge, then the first move, then the next — and
 "Show me", the real narrator, sits at the end of the ladder. A hint that hands over the
@@ -746,9 +782,9 @@ src/odesuite_app/                                    the studio
              learn_course learn_lessons learn_steps
              learn_laplace learn_byhand
              learn_problems                          Learning Hub
-  widgets/                                           sliders, cards, plots, maths
+  widgets/                                           sliders, cards, plots, figures, maths
 
-tests/         2077 tests
+tests/         2099 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```

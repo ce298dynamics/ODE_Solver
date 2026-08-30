@@ -365,3 +365,93 @@ def test_nullclines_pass_through_the_equilibria():
             assert closest < 0.06, (
                 f"{point} is {closest:.3f} from the nearest nullcline"
             )
+
+
+# ---------------------------------------------------------------------------
+# The phase line
+# ---------------------------------------------------------------------------
+
+
+def _scalar(f, y0: float = 1.0):
+    from odesuite import ODEProblem
+
+    return ODEProblem(f=lambda t, y: np.array([f(y[0])]), t_span=(0.0, 1.0),
+                      y0=np.array([float(y0)]))
+
+
+def test_the_logistic_equilibria_are_the_two_it_should_have():
+    """y' = r·y(1 - y/K): zero is unstable, the capacity is stable. Both are
+    known exactly, so this is a closed form rather than a self-comparison."""
+    found = analysis.phase_line(_scalar(lambda y: 0.8 * y * (1 - y / 5.0)),
+                                (-3.0, 9.0))
+
+    assert [point.value for point in found] == pytest.approx([0.0, 5.0],
+                                                             abs=1e-8)
+    assert [point.stability for point in found] == [analysis.UNSTABLE,
+                                                    analysis.STABLE]
+    # f'(0) = r and f'(K) = -r, which is the linearisation a course computes
+    # beside the picture.
+    assert [point.slope for point in found] == pytest.approx([0.8, -0.8],
+                                                             abs=1e-6)
+
+
+def test_a_cubic_alternates_stable_and_unstable():
+    """y' = -(y+2)(y-1)(y-3). Three simple roots, and on a line the arrows
+    have no choice but to alternate."""
+    found = analysis.phase_line(
+        _scalar(lambda y: -(y + 2) * (y - 1) * (y - 3)), (-5.0, 6.0),
+    )
+
+    assert [point.value for point in found] == pytest.approx([-2.0, 1.0, 3.0],
+                                                             abs=1e-8)
+    assert [point.stability for point in found] == [
+        analysis.STABLE, analysis.UNSTABLE, analysis.STABLE,
+    ]
+
+
+def test_a_root_the_curve_only_touches_is_found_and_called_semi_stable():
+    """y' = y² is the case that decides the method.
+
+    There is no sign change to bracket, so scanning for one finds nothing, and
+    f'(0) = 0 so the linearisation says nothing either. The equilibrium is
+    real and it is semi-stable: solutions below it rise towards zero, and
+    solutions above it run away.
+    """
+    found = analysis.phase_line(_scalar(lambda y: y**2), (-2.0, 2.0))
+
+    assert len(found) == 1
+    assert found[0].value == pytest.approx(0.0, abs=1e-6)
+    assert found[0].slope == pytest.approx(0.0, abs=1e-6)
+    assert found[0].stability == analysis.NEUTRAL
+    assert found[0].is_semistable
+    assert (found[0].below, found[0].above) == (1, 1)
+
+
+def test_harvesting_past_the_fold_leaves_no_equilibrium_at_all():
+    """y' = r·y(1 - y/K) - h. The parabola's maximum is r·K/4, so above that
+    harvest rate f is negative everywhere and every population collapses.
+    Checked either side of the fold, since the interesting claim is that the
+    equilibria genuinely disappear rather than drift off the window."""
+    r, k = 1.0, 6.0
+    fold = r * k / 4.0
+
+    below = analysis.phase_line(
+        _scalar(lambda y: r * y * (1 - y / k) - (fold - 0.2)), (-2.0, 10.0))
+    above = analysis.phase_line(
+        _scalar(lambda y: r * y * (1 - y / k) - (fold + 0.2)), (-2.0, 10.0))
+
+    assert len(below) == 2
+    assert [point.stability for point in below] == [analysis.UNSTABLE,
+                                                    analysis.STABLE]
+    assert above == []
+
+
+def test_equilibria_outside_the_window_are_not_reported():
+    found = analysis.phase_line(_scalar(lambda y: y * (1 - y / 5.0)),
+                                (1.0, 3.0))
+    assert found == []
+
+
+def test_a_phase_line_needs_a_scalar_equation():
+    with pytest.raises(ValueError, match="scalar"):
+        analysis.phase_line(lotka_volterra().problem, (0.0, 3.0))

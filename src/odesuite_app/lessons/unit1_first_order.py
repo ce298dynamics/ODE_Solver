@@ -599,6 +599,7 @@ SLOPEFIELDS = Lesson(
     tool="steps",
     reference="Edwards 1.3",
     prerequisites=("basics",),
+    figure="slope_field",
     objectives=(
         "Read the shape of a solution off a slope field without solving.",
         "State what existence and uniqueness require, and check it.",

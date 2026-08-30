@@ -185,6 +185,12 @@ class Lesson:
     templates: tuple[Template, ...] = ()
     #: Lesson keys worth having met first. Advisory: nothing is locked.
     prerequisites: tuple[str, ...] = ()
+    #: A figure to put at the top of Learn, named by key rather than built
+    #: here: this module is content and holds no Qt, which is what lets the
+    #: whole course be read and tested without an interface. The keys live in
+    #: `widgets.lessonfigure.FIGURES`, and the tests require every one used
+    #: here to be found there.
+    figure: str = ""
     #: Where this sits in Edwards, Penney and Calvis, 6e.
     reference: str = ""
 

@@ -18,6 +18,7 @@ index is in range, the reason is present, and no option is duplicated.
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -1163,3 +1164,169 @@ def test_the_course_map_counts_mastered_drills(course, qapp, store):
     qapp.processEvents()
     assert "1 of" in course.overall_detail.text()
     assert "drills mastered" in course.overall_detail.text()
+
+
+# ---------------------------------------------------------------------------
+# Lesson figures
+# ---------------------------------------------------------------------------
+
+
+def test_every_figure_a_lesson_names_exists():
+    """A lesson names its figure by key, because `lessons/` holds no Qt. That
+    indirection is what makes a typo silent -- the lesson would simply lose
+    its picture -- so the two ends are checked against each other here."""
+    from odesuite_app.widgets.lessonfigure import FIGURES
+
+    for lesson in LESSONS:
+        if lesson.figure:
+            assert lesson.figure in FIGURES, (
+                f"{lesson.key} names a figure that does not exist: "
+                f"{lesson.figure!r}"
+            )
+
+
+def test_the_figures_are_all_used():
+    """The other direction: a figure nobody shows is code that cannot rot
+    visibly, because nobody would see it break."""
+    from odesuite_app.widgets.lessonfigure import FIGURES
+
+    used = {lesson.figure for lesson in LESSONS if lesson.figure}
+    assert set(FIGURES) == used
+
+
+def _figure(key: str, palette: str = "dark"):
+    from odesuite_app.theme import PALETTES
+    from odesuite_app.widgets.lessonfigure import build_figure
+
+    made = build_figure(key, PALETTES[palette])
+    assert made is not None, key
+    return made
+
+
+@pytest.mark.parametrize("key", ["slope_field", "phase_line", "euler_error"])
+@pytest.mark.parametrize("palette", ["dark", "light"])
+def test_every_figure_draws_in_both_palettes(qapp, key, palette):
+    made = _figure(key, palette)
+    made.resize(700, 480)
+    qapp.processEvents()
+    assert not made.grab().isNull()
+    assert made.readout.text(), f"{key} drew nothing in words"
+    made.deleteLater()
+
+
+def test_an_unknown_figure_key_is_declined_rather_than_raising(qapp):
+    from odesuite_app.theme import PALETTES
+    from odesuite_app.widgets.lessonfigure import build_figure
+
+    assert build_figure("no-such-figure", PALETTES["dark"]) is None
+
+
+def _plotted(figure) -> list:
+    """The y-data of every curve currently on the plot."""
+    import pyqtgraph as pg
+
+    return [item.getData()[1] for item in figure.plot.plotItem.items
+            if isinstance(item, pg.PlotDataItem) and item.getData()[1] is not None]
+
+
+@pytest.mark.parametrize("key,slider", [
+    ("slope_field", "a"),
+    ("phase_line", "h"),
+    ("euler_error", "h"),
+])
+def test_moving_a_slider_changes_what_is_drawn(qapp, key, slider):
+    """The point of a figure is that it responds. Comparing the drawn data
+    rather than merely checking that nothing raised, because a figure wired to
+    the wrong signal would pass that weaker test while sitting perfectly
+    still."""
+    import numpy as np
+
+    made = _figure(key)
+    made.resize(700, 480)
+    qapp.processEvents()
+    before = _plotted(made)
+
+    control = made.sliders[slider]
+    control.set_value(0.5 * (control.low + control.high) if slider != "a"
+                      else control.high, notify=True)
+    qapp.processEvents()
+    after = _plotted(made)
+
+    changed = len(before) != len(after) or any(
+        first.shape != second.shape or not np.allclose(first, second)
+        for first, second in zip(before, after)
+    )
+    assert changed, f"{key} drew the same thing after moving {slider}"
+    made.deleteLater()
+
+
+def test_the_phase_line_loses_its_equilibria_when_the_harvest_is_too_high(qapp):
+    """The figure's whole reason for existing: past h = r·K/4 the two
+    equilibria merge and vanish, and the readout has to say so rather than
+    quietly drawing nothing."""
+    made = _figure("phase_line")
+    made.sliders["r"].set_value(1.0)
+    made.sliders["K"].set_value(6.0)
+
+    made.sliders["h"].set_value(0.0, notify=True)
+    qapp.processEvents()
+    assert "stable" in made.readout.text()
+
+    made.sliders["h"].set_value(2.5, notify=True)     # r·K/4 = 1.5
+    qapp.processEvents()
+    assert "No equilibria" in made.readout.text()
+    made.deleteLater()
+
+
+def test_clicking_the_slope_field_drops_a_solution_through_the_point(qapp):
+    """Clicking is the part that shows uniqueness, so it is checked as
+    behaviour rather than left to be discovered broken on screen."""
+    made = _figure("slope_field")
+    made.resize(700, 480)
+    qapp.processEvents()
+    before = len(_plotted(made))
+
+    made._points.append((1.0, 0.5))
+    made.draw()
+    qapp.processEvents()
+
+    assert len(_plotted(made)) > before, "no curve was added"
+    assert "1 condition" in made.readout.text()
+    made.deleteLater()
+
+
+def test_the_two_orders_are_reported_as_measured_ratios(qapp):
+    """First order against fourth is the lesson, and it is a number rather
+    than an impression: the readout carries the ratio the next halving
+    actually gives, from the same `byhand.refinement` the by-hand screen uses.
+
+    Measured rather than asserted, and the difference shows -- at h = 0.2 the
+    ratios are 1.8 and 14.7, not 2 and 16. Printing the theory instead would
+    be printing something the figure had not checked."""
+    made = _figure("euler_error")
+    made.sliders["h"].set_value(0.2, notify=True)
+    qapp.processEvents()
+
+    text = made.readout.text()
+    assert "Euler error" in text and "RK4 error" in text
+    ratios = [float(part) for part in re.findall(r"÷([0-9.]+) when h halves",
+                                                 text)]
+    assert len(ratios) == 2, text
+    euler, rk4 = ratios
+    assert 1.5 < euler < 2.0, f"Euler should be nearing 2, not {euler}"
+    assert 12.0 < rk4 < 16.0, f"RK4 should be nearing 16, not {rk4}"
+    made.deleteLater()
+
+
+def test_a_lesson_with_a_figure_shows_it_and_one_without_does_not(screen, qapp):
+    from odesuite_app.widgets.lessonfigure import LessonFigure
+
+    _open(screen, qapp, "slopefields", "Learn")
+    assert screen._page.findChildren(LessonFigure), "the figure is missing"
+
+    # And it belongs to Learn only: the same lesson's Practice is questions.
+    _open(screen, qapp, "slopefields", "Practice")
+    assert not screen._page.findChildren(LessonFigure)
+
+    _open(screen, qapp, "separable", "Learn")
+    assert not screen._page.findChildren(LessonFigure)

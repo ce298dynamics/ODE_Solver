@@ -8,6 +8,43 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Lesson figures: three pictures you can move.** At the top of *Learn*,
+  where the topic has one. A note can say that raising the harvest rate
+  eventually wipes out both equilibria; a figure lets you raise it and watch
+  the two dots slide together and vanish, which is a different kind of knowing.
+
+  *Slope fields* draws the dashes `y' = a·y + b·t` demands at each point — no
+  solving involved — and integrates a solution through anywhere you click,
+  forwards and backwards. The curve comes out tangent to every dash it passes,
+  and two curves never cross: uniqueness shown rather than stated.
+  *Equilibria* plots `f(y)` for the harvested logistic equation, marks each
+  equilibrium filled or hollow by which way its arrows point, and puts an arrow
+  in every interval between them; push `h` past `r·K/4` and both equilibria are
+  gone. *Euler's method* runs Euler and RK4 on `y' = y`, whose answer nobody
+  has to take on trust, and reports both endpoint errors — printed as
+  measured rather than as theory: 1.8 and 14.7 at `h = 0.2`, climbing towards
+  2 and 16 as `h` shrinks, which is what an order statement actually claims.
+
+  **No figure computes mathematics of its own.** The dashes come from
+  `analysis.slope_field`, the equilibria from `analysis.phase_line`, the steps
+  from `byhand.walk` and `byhand.refinement`, and the curves from the library's
+  own `solve`, so a figure cannot disagree with the tool that teaches the same
+  thing. A lesson names its figure by key, because `lessons/` holds content and
+  no Qt; the tests check both directions of that indirection, so a typo is a
+  failure rather than a lesson that silently lost its picture.
+
+- **`analysis.phase_line`** — the equilibria of a scalar autonomous equation,
+  with the sign of `f` on either side and the linearisation beside it.
+  Deliberately not `find_fixed_points` with an axis thrown away: that routine
+  classifies a planar equilibrium by the eigenvalues of a 2×2 Jacobian, and a
+  scalar equation has no such thing. On a line the sign of `f` either side
+  settles which way solutions move, which is what a course draws and what stays
+  right where the linearisation says nothing — `y' = y²` has `f'(0) = 0`, so
+  the derivative test calls it neutral and loses both arrows while the signs
+  correctly call it semi-stable. Roots are found by refining every local
+  minimum of `|f|` rather than only the sign changes, for the same reason: a
+  root the curve touches without crossing has no sign change to bracket.
+
 - **Three more techniques the Hub can narrate: exact equations, the
   homogeneous substitution `y = v·t`, and Bernoulli.** With them the first two
   units of the course are complete, and *Solve Step by Step* now writes out

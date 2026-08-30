@@ -221,6 +221,7 @@ EQUILIBRIA = Lesson(
     tool="worked",
     reference="Edwards 2.2",
     prerequisites=("population",),
+    figure="phase_line",
     objectives=(
         "Find the equilibria of an autonomous equation.",
         "Decide the stability of each from the sign of f on either side.",
@@ -560,6 +561,7 @@ NUMERICAL = Lesson(
     tool="byhand",
     reference="Edwards 2.4–2.5",
     prerequisites=("basics", "separable"),
+    figure="euler_error",
     objectives=(
         "Take an Euler step by hand, and say what it approximates.",
         "Explain where the error in one step comes from.",
