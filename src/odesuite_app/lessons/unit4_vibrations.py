@@ -26,6 +26,7 @@ FREE = Lesson(
     tool="steps",
     reference="Edwards 3.4",
     prerequisites=("roots",),
+    figure="damping",
     objectives=(
         "Write the equation of a mass on a spring with a dashpot.",
         "Compute the critical damping coefficient for given m and k.",
@@ -227,6 +228,7 @@ FORCED = Lesson(
     tool="steps",
     reference="Edwards 3.6",
     prerequisites=("undetermined", "free-vibration"),
+    figure="resonance",
     objectives=(
         "Split a forced response into transient and steady state.",
         "Recognise beats, and say what frequency difference produces them.",

@@ -366,7 +366,7 @@ card with a warning stripe down it, because the thing that catches people is wor
 setting apart from the thing that is merely true. Reading `p` straight off `t·y' + y = t`
 is one; forgetting the factor of `t` on a repeated root is another.
 
-**Three lessons have a figure you can move**, at the top of *Learn*. A note can say
+**Five lessons have a figure you can move**, at the top of *Learn*. A note can say
 that raising the harvest rate eventually wipes out both equilibria; a figure lets you
 raise it and watch the two dots slide together and vanish, which is a different kind of
 knowing.
@@ -385,6 +385,20 @@ knowing.
   measured, not as theory: 1.8 and 14.7 at `h = 0.2`, climbing towards 2 and 16 as `h`
   shrinks. That limit is what *order* claims, and watching it approached says more than
   either number arriving exactly.
+- **Damping** puts the characteristic roots of `m x'' + c x' + k x = 0` beside the
+  motion they produce. Drag `c` and a complex pair slides together, meets on the real
+  axis at `2√(mk)`, and separates — and the curve alongside stops crossing zero at the
+  same moment. The regime is named by the same `symbolic.describe_roots` the Studio's
+  root table uses. A slider quantises to 1000 steps and so can essentially never land on
+  a single point of a continuum, which left the middle regime unreachable; the damping
+  now snaps to critical within half a step, so the number shown is the number used.
+- **Resonance** drives an undamped oscillator at `ω` from rest. Off resonance the
+  response is a difference of cosines — a fast oscillation inside a slow envelope — and
+  as `ω` approaches `ω₀` the envelope stretches and grows: measured, the amplitude runs
+  0.69 at `ω = 1.6`, 2.56 at 1.9 and **25.1 at 1.99**. At `ω = ω₀` exactly there is no
+  dividing by zero to do, because the closed form is the secular `t·sin(ω₀t)/(2ω₀)` and
+  the envelope becomes a straight line. Beside it, what damping does to the same story:
+  the blow-up becomes a peak, lower and further left the more damping there is.
 
 None of them computes any mathematics of its own. The dashes come from
 `analysis.slope_field`, the equilibria from `analysis.phase_line`, the steps from

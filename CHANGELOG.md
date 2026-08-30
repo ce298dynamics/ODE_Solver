@@ -17,6 +17,30 @@ All notable changes to this project are documented here. The format follows
   vibration is undetermined coefficients, and a circuit is the same equation
   with different letters. Twenty-one lessons across five units.
 
+- **Two more figures to move.** *Damping* puts the characteristic roots in the
+  complex plane beside the motion they produce, so dragging `c` through
+  `2√(mk)` collides the pair on the real axis and stops the oscillation in the
+  same gesture. *Resonance* drives an undamped oscillator from rest: the beats
+  envelope stretches and grows as `ω` approaches `ω₀` — measured, the
+  amplitude runs 0.69, 2.56 and 25.1 at `ω` = 1.6, 1.9 and 1.99 — and at
+  `ω = ω₀` the closed form becomes the secular `t·sin(ω₀t)/(2ω₀)` rather than
+  a division by zero. A second pane shows what damping does to the same story.
+
+  A slider quantises to 1000 steps, so it can essentially never land on a
+  single point of a continuum: asking for critical damping gave 3.996, which
+  is genuinely underdamped, and the middle of the three regimes never appeared
+  in a figure whose whole subject is the moment the roots collide. The damping
+  now snaps to critical within half a step, so the regime named is the regime
+  drawn.
+
+- **A driven spring in the problem gallery.** `forced_spring` —
+  `m x'' + c x' + k x = F cos(ωt)` — with a closed form that is the steady
+  state plus a transient matched to the initial conditions, agreeing with the
+  numerical solution to 1e-11 across all three damping regimes and at
+  resonance. Unit 4 had no forced model to open; now it does, and the
+  transient giving way to the steady state is visible by dragging the driving
+  frequency past `√(k/m)`.
+
 - **`sec`, `csc` and `cot` can be typed** into any equation the app parses.
   They are exactly the forcing terms variation of parameters exists for, so
   `y'' + y = sec(t)` had to be expressible — it was rejected as unparseable

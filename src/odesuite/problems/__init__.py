@@ -1289,6 +1289,101 @@ ANALYTIC = (exponential_decay, linear_system, sine_cosine, logistic)
 
 #: Models a first course is actually about, as opposed to the integrator
 #: torture tests that make up the rest of this module.
+def forced_spring(mass: float = 1.0, damping: float = 0.4,
+                  stiffness: float = 4.0, amplitude: float = 1.0,
+                  frequency: float = 1.8, initial_position: float = 0.0,
+                  initial_velocity: float = 0.0,
+                  t_end: float = 40.0) -> Benchmark:
+    """``m x'' + c x' + k x = F cos(wt)``: the spring with something driving it.
+
+    The forced counterpart of `spring_mass_damper`, and the model Unit 4 of the
+    course is about. Two things are visible here that the unforced problem
+    cannot show. The **transient** dies away and the **steady state** does not,
+    so the long-run motion is set by the forcing rather than by how the system
+    started; and sweeping `frequency` past ``sqrt(k/m)`` walks through
+    resonance, where the steady amplitude peaks.
+
+    The closed form is the steady state plus a transient matched to the initial
+    conditions, which is the same three-regime formula as the unforced case
+    with different starting values -- the amplitude and phase below simply move
+    where the transient has to begin. Damping is kept positive by the parameter
+    range: at ``c = 0`` and ``w = sqrt(k/m)`` the steady amplitude is not
+    finite, and that case belongs in the lesson rather than in a benchmark.
+    """
+    omega = float(frequency)
+    # Steady-state amplitude and phase lag: the standard response of a driven
+    # linear oscillator, and the two numbers a vibration table is designed for.
+    reactance = stiffness - mass * omega**2
+    steady = amplitude / np.hypot(reactance, damping * omega)
+    phase = np.arctan2(damping * omega, reactance)
+
+    prob = ODEProblem(
+        f=lambda t, y: np.array([
+            y[1],
+            (amplitude * np.cos(omega * t)
+             - damping * y[1] - stiffness * y[0]) / mass,
+        ]),
+        t_span=(0.0, t_end),
+        y0=[initial_position, initial_velocity],
+        jac=lambda t, y: np.array([
+            [0.0, 1.0],
+            [-stiffness / mass, -damping / mass],
+        ]),
+    )
+
+    omega0 = np.sqrt(stiffness / mass)
+    zeta = damping / (2.0 * np.sqrt(mass * stiffness))
+    # Where the transient has to start, once the steady state has claimed its
+    # share of the initial position and velocity.
+    x0 = initial_position - steady * np.cos(phase)
+    v0 = initial_velocity - steady * omega * np.sin(phase)
+
+    def exact(t):
+        t = np.asarray(t, dtype=float)
+        decay = np.exp(-zeta * omega0 * t)
+        if zeta < 1.0:                                   # under-damped
+            wd = omega0 * np.sqrt(1.0 - zeta**2)
+            a = x0
+            b = (v0 + zeta * omega0 * x0) / wd
+            shape = a * np.cos(wd * t) + b * np.sin(wd * t)
+            x = decay * shape
+            v = decay * (
+                (-zeta * omega0) * shape
+                + wd * (-a * np.sin(wd * t) + b * np.cos(wd * t))
+            )
+        elif np.isclose(zeta, 1.0):                      # critically damped
+            a, b = x0, v0 + omega0 * x0
+            x = decay * (a + b * t)
+            v = decay * (b - omega0 * (a + b * t))
+        else:                                            # over-damped
+            root = omega0 * np.sqrt(zeta**2 - 1.0)
+            r1, r2 = -zeta * omega0 + root, -zeta * omega0 - root
+            b = (v0 - r1 * x0) / (r2 - r1)
+            a = x0 - b
+            x = a * np.exp(r1 * t) + b * np.exp(r2 * t)
+            v = a * r1 * np.exp(r1 * t) + b * r2 * np.exp(r2 * t)
+
+        x = x + steady * np.cos(omega * t - phase)
+        v = v - steady * omega * np.sin(omega * t - phase)
+        return np.stack([np.atleast_1d(x), np.atleast_1d(v)],
+                        axis=0).reshape(2, -1).squeeze()
+
+    return Benchmark(
+        name="forced_spring",
+        problem=prob,
+        exact=exact,
+        description=(
+            "m x'' + c x' + k x = F cos(wt): a driven mass on a spring. The "
+            "transient dies away and the steady state does not, so the long "
+            "run depends on the forcing rather than on how it started. "
+            "Sweeping the driving frequency past sqrt(k/m) passes through "
+            "resonance."
+        ),
+        tags=("analytic", "linear", "second-order", "oscillator", "forced",
+              "textbook", "2d"),
+    )
+
+
 TEXTBOOK = (
     mixing_tank,
     newton_cooling,
@@ -1296,6 +1391,7 @@ TEXTBOOK = (
     falling_with_drag,
     harvested_population,
     spring_mass_damper,
+    forced_spring,
 )
 
 #: Non-stiff benchmarks for the work-precision diagrams.

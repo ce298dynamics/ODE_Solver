@@ -1331,3 +1331,135 @@ def test_a_lesson_with_a_figure_shows_it_and_one_without_does_not(screen, qapp):
     _open(screen, qapp, "separable", "Learn")
     assert not screen._page.findChildren(LessonFigure)
 
+
+# ---------------------------------------------------------------------------
+# The vibration figures
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("c,expected", [
+    (1.0, "underdamped"),
+    (4.0, "critically damped"),
+    (8.0, "overdamped"),
+])
+def test_the_damping_figure_names_all_three_regimes(qapp, c, expected):
+    """m = 1, k = 4, so critical damping is exactly 4. All three regimes have
+    to be reachable, or the figure fails at the one thing it is for."""
+    made = _figure("damping")
+    made.sliders["m"].set_value(1.0)
+    made.sliders["k"].set_value(4.0)
+    made.sliders["c"].set_value(c, notify=True)
+    qapp.processEvents()
+
+    assert expected in made.readout.text()
+    made.deleteLater()
+
+
+def test_critical_damping_is_reachable_at_all(qapp):
+    """A slider quantises to 1000 steps, so it can essentially never land on a
+    single point of a continuum: asking for c = 4 gave 3.996, which really is
+    underdamped, and the middle regime never appeared. The damping snaps to
+    critical within half a step, so the number shown is the number used."""
+    made = _figure("damping")
+    made.sliders["m"].set_value(1.0)
+    made.sliders["k"].set_value(4.0)
+    made.sliders["c"].set_value(4.0, notify=True)
+    qapp.processEvents()
+
+    used, critical = made.damping()
+    # Every slider quantises, m and k included, so the critical value itself
+    # lands near 4 rather than on it. What has to hold exactly is that the
+    # damping in use *is* the critical value, whatever that value turned out
+    # to be -- otherwise the regime named and the regime drawn disagree.
+    assert critical == pytest.approx(4.0, abs=0.02)
+    assert used == critical, "the slider missed critical again"
+    # And it does not snap from far away.
+    made.sliders["c"].set_value(3.0, notify=True)
+    assert made.damping()[0] == pytest.approx(3.0, abs=0.02)
+    made.deleteLater()
+
+
+def test_the_roots_collide_as_the_damping_rises(qapp):
+    """The picture's whole claim: a complex pair slides together, meets on the
+    real axis, and separates along it."""
+    made = _figure("damping")
+    made.sliders["m"].set_value(1.0)
+    made.sliders["k"].set_value(4.0)
+
+    made.sliders["c"].set_value(1.0, notify=True)
+    under = made._roots(1.0, 1.0, 4.0)
+    assert all(sp.im(root) != 0 for root, _ in under)
+
+    critical = made._roots(1.0, 4.0, 4.0)
+    assert len(critical) == 1 and critical[0][1] == 2, "not a repeated root"
+
+    over = made._roots(1.0, 8.0, 4.0)
+    assert len(over) == 2
+    assert all(sp.im(root) == 0 for root, _ in over)
+    made.deleteLater()
+
+
+def test_the_resonance_figure_switches_to_the_secular_form(qapp):
+    """At ω = ω₀ the beats amplitude 1/(ω₀²−ω²) divides by zero. The closed
+    form there is t·sin(ω₀t)/(2ω₀), and the figure has to use it rather than
+    producing infinities."""
+    import numpy as np
+
+    made = _figure("resonance")
+    times = np.linspace(0.0, 20.0, 200)
+
+    values, resonant = made._response(times, made._W0)
+    assert resonant
+    assert np.all(np.isfinite(values))
+    # The envelope grows linearly, which is what resonance means.
+    assert abs(values).max() > 4.0
+    expected = times * np.sin(made._W0 * times) / (2 * made._W0)
+    assert np.allclose(values, expected)
+
+    off, resonant = made._response(times, 1.6)
+    assert not resonant
+    assert np.all(np.isfinite(off))
+    made.deleteLater()
+
+
+def test_near_resonance_is_large_but_still_bounded(qapp):
+    """Measured: the beats amplitude is 0.69 at ω = 1.6, 2.56 at 1.9 and 25.1
+    at 1.99. Growing without becoming infinite is the distinction the lesson
+    turns on, so the figure has to keep getting it right."""
+    import numpy as np
+
+    made = _figure("resonance")
+    times = np.linspace(0.0, 200.0, 4000)
+    peaks = [abs(made._response(times, w)[0]).max() for w in (1.6, 1.9, 1.99)]
+
+    assert all(np.isfinite(peak) for peak in peaks)
+    assert peaks[0] < peaks[1] < peaks[2]
+    assert peaks[2] > 10 * peaks[0]
+    made.deleteLater()
+
+
+def test_the_readout_says_which_case_it_is_in(qapp):
+    made = _figure("resonance")
+    made.sliders["w"].set_value(1.5, notify=True)
+    qapp.processEvents()
+    assert "beats" in made.readout.text()
+
+    made.sliders["w"].set_value(2.0, notify=True)
+    qapp.processEvents()
+    assert "resonance" in made.readout.text()
+    made.deleteLater()
+
+
+def test_a_two_pane_figure_really_has_two_panes(qapp):
+    """The base class gained a second plot for these, and the three figures
+    written before it must be untouched by that."""
+    for key in ("damping", "resonance"):
+        made = _figure(key)
+        assert len(made.panes) == 2, key
+        assert made.plot is made.panes[0]
+        made.deleteLater()
+
+    for key in ("slope_field", "phase_line", "euler_error"):
+        made = _figure(key)
+        assert len(made.panes) == 1, key
+        made.deleteLater()

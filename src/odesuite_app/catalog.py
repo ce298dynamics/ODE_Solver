@@ -633,6 +633,35 @@ _ENTRIES += [
         labels=("x (m)", "v (m/s)"),
         autonomous_2d=True,
     ),
+    _entry(
+        key="forced_spring",
+        title="Driven spring, mass and damper",
+        blurb="The same mass, with something shaking it: "
+              "m·x'' + c·x' + k·x = F·cos(ωt). The transient dies away and "
+              "the steady state does not, so after a few swings the motion "
+              "depends on the forcing rather than on how it started. Sweep "
+              "the driving frequency up through √(k/m) and watch the "
+              "amplitude peak — that is resonance, and lowering c makes the "
+              "peak taller and narrower.",
+        tags=("textbook", "linear", "second-order", "oscillator", "forced",
+              "analytic", "2d"),
+        factory=problems.forced_spring,
+        params=(
+            ParamSpec("mass", "mass m (kg)", 0.2, 5.0, 1.0),
+            ParamSpec("damping", "damping c", 0.1, 6.0, 0.4),
+            ParamSpec("stiffness", "stiffness k (N/m)", 0.5, 20.0, 4.0),
+            ParamSpec("amplitude", "forcing F (N)", 0.1, 5.0, 1.0),
+            ParamSpec("frequency", "driving ω (rad/s)", 0.2, 6.0, 1.8),
+            ParamSpec("t_end", "duration (s)", 10.0, 120.0, 40.0),
+        ),
+        supports_taylor=True,
+        default_method="dopri5",
+        # Time rather than phase: the point is the transient giving way to the
+        # steady state, and a phase portrait of a driven system is a spiral
+        # settling onto a loop, which tells that story far less directly.
+        plot_kind="time",
+        labels=("x (m)", "v (m/s)"),
+    ),
 ]
 
 
