@@ -8,6 +8,39 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Six more lessons, and Units 3 and 4 finished.** Unit 3 gains superposition
+  and the Wronskian, variation of parameters, and higher-order equations, so
+  it now runs the length of Edwards chapter 3. Unit 4 is new — free vibration
+  and the three damping regimes, forced oscillation with beats and resonance,
+  and the RLC circuit analogy — and needs no new narrator, which is the point
+  of placing it after Unit 3: free vibration is characteristic roots, forced
+  vibration is undetermined coefficients, and a circuit is the same equation
+  with different letters. Twenty-one lessons across five units.
+
+- **`sec`, `csc` and `cot` can be typed** into any equation the app parses.
+  They are exactly the forcing terms variation of parameters exists for, so
+  `y'' + y = sec(t)` had to be expressible — it was rejected as unparseable
+  before.
+
+- **Variation of parameters**, the ninth technique the Hub can narrate and the
+  one that reaches forcing undetermined coefficients cannot touch. `sec t`,
+  `tan t` and `eᵗ/t` have no finite trial set to guess, so the other technique
+  has nothing to say about them; before this, *Solve Step by Step* returned no
+  derivation at all for any of them.
+
+  **Where it sits in the order is measured.** sympy names the hint on *every*
+  constant-coefficient forced equation — `y'' + 4y = sin t` as much as
+  `y'' + y = sec t` — so listing it before undetermined coefficients would
+  narrate Wronskians for every equation a first course solves by guessing.
+  Listed after, it takes exactly the equations where sympy names it alone.
+
+  **Written for order *n*, not for two.** The familiar `u₁' = −y₂g/W` pair is
+  Cramer's rule on the *n*×*n* system, and writing the system costs nothing
+  extra: `y''' + y' = tan t` is narrated by the same builder in 0.09 s rather
+  than by a second implementation saying the same thing less generally. The
+  Wronskian is shown as a step and checked non-zero, because dividing by it is
+  the technique and its being non-zero is what makes the basis a basis.
+
 - **Lesson figures: three pictures you can move.** At the top of *Learn*,
   where the topic has one. A note can say that raising the harvest rate
   eventually wipes out both equilibria; a figure lets you raise it and watch
@@ -126,7 +159,7 @@ All notable changes to this project are documented here. The format follows
 
   **Draws are enumerated, not sampled**, which is what makes the guarantee
   checkable rather than merely likely: `tests/test_templates.py` runs the real
-  narrator over **every draw of every template** — 275 of them — and requires
+  narrator over **every draw of every template** — 384 of them — and requires
   each to be narrated by the technique the drill claims to teach, to have every
   step verify, and to have its answer accepted by the grader. Nobody wrote
   these questions, so nobody read them either; that sweep is what stands in for
@@ -134,7 +167,8 @@ All notable changes to this project are documented here. The format follows
   question, so pressing Check cannot change it underneath you, and the drill can
   say "one of 18 versions" because it knows.
 
-  Eleven drills across six lessons. The numerical lesson deliberately has none —
+  Twenty-two drills across fifteen lessons. The numerical lesson deliberately
+  has none —
   Euler and RK4 have no closed form for the grader to substitute into, so a
   drill there could never say "right", and its button is absent rather than
   opening a page that cannot work.
@@ -217,6 +251,17 @@ All notable changes to this project are documented here. The format follows
   property that mattered.
 
 ### Fixed
+
+- **A forced Cauchy–Euler equation produced an empty derivation.**
+  `t²y'' + ty' − y = t³` substituted `y = tʳ` into `lhs − rhs` with the forcing
+  term still in it, so `t` survived the division by `tʳ`, the indicial equation
+  was rejected, and the builder gave up having appended *no steps at all* — the
+  screen showed a technique name with nothing under it. The forcing is now set
+  aside first and the Euler basis handed to variation of parameters, which is
+  what Edwards 3.6 does: guessing a form has no theory behind it once the
+  coefficients stop being constant. Fixed in passing: the fundamental set was
+  checked against the *forced* equation, which would have reported a correct
+  basis as wrong.
 
 - **A `dsolve` answer with several branches is no longer thrown away.** Where
   solving for `y` leaves branches — `y' + y = t·y³` comes back as the plus and

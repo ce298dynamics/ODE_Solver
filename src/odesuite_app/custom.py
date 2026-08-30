@@ -44,6 +44,11 @@ ALLOWED_FUNCTIONS: dict[str, object] = {
     name: getattr(sp, name)
     for name in (
         "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+        # The reciprocal three are here because they are exactly the forcing
+        # terms variation of parameters exists for: sec t, csc t and cot t
+        # have no finite trial set, so they are the equations that technique
+        # is taught on -- and `y'' + y = sec(t)` has to be typeable.
+        "sec", "csc", "cot",
         "sinh", "cosh", "tanh", "exp", "log", "sqrt", "Abs",
         "sign", "Min", "Max", "erf", "floor", "ceiling",
     )

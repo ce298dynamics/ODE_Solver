@@ -60,6 +60,11 @@ CANONICAL = {
     "1st_homogeneous_coeff_best":
         _eq(Y(T).diff(T), (T**2 + Y(T) ** 2) / (T * Y(T))),
     "Bernoulli": _eq(Y(T).diff(T) + Y(T), T * Y(T) ** 3),
+    # sec t has no finite trial set to guess, which is precisely why this
+    # technique exists -- and why sympy names it here without naming
+    # undetermined coefficients.
+    "nth_linear_constant_coeff_variation_of_parameters":
+        _eq(Y(T).diff(T, 2) + Y(T), sp.sec(T)),
     "nth_linear_euler_eq_homogeneous":
         _eq(T**2 * Y(T).diff(T, 2) + T * Y(T).diff(T) - Y(T)),
 }
@@ -122,6 +127,32 @@ def test_the_preference_order_is_the_teaching_order():
     assert (TECHNIQUES.index("nth_linear_constant_coeff_homogeneous")
             < TECHNIQUES.index(
                 "nth_linear_constant_coeff_undetermined_coefficients"))
+    assert (TECHNIQUES.index("nth_linear_constant_coeff_undetermined_coefficients")
+            < TECHNIQUES.index(
+                "nth_linear_constant_coeff_variation_of_parameters"))
+
+
+def test_guessing_is_preferred_wherever_there_is_something_to_guess():
+    """Variation of parameters solves every constant-coefficient forced
+    equation, and sympy says so -- it names the hint on `y'' + 4y = sin t` as
+    well as on `y'' + y = sec t`. A course reaches for it only in the second
+    case, so the premise is asserted here rather than assumed: if sympy ever
+    stopped offering both, the ordering above would stop mattering and this
+    test should be the one that says so.
+    """
+    guessable = _eq(Y(T).diff(T, 2) + 4 * Y(T), sp.sin(T))
+    hints = set(sp.classify_ode(guessable, Y(T)))
+    assert {"nth_linear_constant_coeff_undetermined_coefficients",
+            "nth_linear_constant_coeff_variation_of_parameters"} <= hints
+    assert (preferred_hint(hints)
+            == "nth_linear_constant_coeff_undetermined_coefficients")
+
+    # And where there is nothing to guess, sympy names variation alone.
+    hopeless = sp.classify_ode(CANONICAL[
+        "nth_linear_constant_coeff_variation_of_parameters"], Y(T))
+    assert "nth_linear_constant_coeff_undetermined_coefficients" not in hopeless
+    assert (preferred_hint(hopeless)
+            == "nth_linear_constant_coeff_variation_of_parameters")
 
 
 # ---------------------------------------------------------------------------
@@ -189,6 +220,12 @@ EXPECTED = {
          "Form the integrating factor", "Multiply through by it",
          "The left side is a product rule", "Integrate both sides",
          "Divide by the integrating factor", "Undo the substitution"],
+    "nth_linear_constant_coeff_variation_of_parameters":
+        ["Try an exponential", "The characteristic equation", "Its roots",
+         "The fundamental set", "That is the homogeneous solution",
+         "Guessing a form will not work here", "The Wronskian",
+         "Solve for the derivatives of the coefficients", "Integrate",
+         "Assemble the particular solution", "The general solution"],
     "nth_linear_euler_eq_homogeneous":
         ["Try a power of t", "The indicial equation", "Its roots",
          "The fundamental set", "The general solution"],
@@ -983,3 +1020,123 @@ def test_a_dsolve_answer_with_several_branches_is_not_thrown_away():
     assert isinstance(solved, list), "the premise of this test has changed"
     restored = sp.sympify(_right_hand_side(solved))
     assert restored == solved[0].rhs
+
+
+# ---------------------------------------------------------------------------
+# Variation of parameters, and the forcing Cauchy-Euler used to drop
+# ---------------------------------------------------------------------------
+
+
+def test_the_technique_reaches_forcing_that_cannot_be_guessed_at():
+    """The three standard cases, none of which has a finite trial set. Before
+    this builder existed `derive` returned None for every one of them."""
+    for equation in (
+        _eq(Y(T).diff(T, 2) + Y(T), sp.sec(T)),
+        _eq(Y(T).diff(T, 2) + Y(T), sp.tan(T)),
+        _eq(Y(T).diff(T, 2) - 2 * Y(T).diff(T) + Y(T), sp.exp(T) / T),
+    ):
+        derivation = _derive(equation)
+        assert derivation is not None, equation
+        assert derivation.technique == (
+            "nth_linear_constant_coeff_variation_of_parameters"
+        )
+        assert derivation.verified is True, equation
+        assert derivation.complete
+
+
+def test_the_wronskian_is_shown_and_checked_non_zero():
+    """It is not scaffolding. Dividing by it is the technique, and its being
+    non-zero is what says the fundamental set really is one."""
+    step = next(s for s in _derive(CANONICAL[
+        "nth_linear_constant_coeff_variation_of_parameters"]).steps
+        if s.title == "The Wronskian")
+    assert step.verified is True
+    # cos t, sin t has Wronskian 1 -- and `sin²t + cos²t` is what comes back
+    # without the simplify, which would be showing the arithmetic not the answer.
+    assert step.latex.endswith("1")
+
+
+def test_the_answer_is_the_one_a_textbook_gives():
+    derivation = _derive(_eq(Y(T).diff(T, 2) + Y(T), sp.sec(T)))
+    expected = (sp.Symbol("C1") * sp.cos(T) + sp.Symbol("C2") * sp.sin(T)
+                + T * sp.sin(T) + sp.log(sp.cos(T)) * sp.cos(T))
+    assert sp.simplify(derivation.result - expected) == 0
+
+
+def test_it_is_written_for_any_order_rather_than_only_two():
+    """`y''' + y' = tan t`. The 2x2 formulas are Cramer's rule on the n x n
+    system, so writing the system covers the higher-order lesson too rather
+    than needing a second implementation that says the same thing."""
+    derivation = _derive(_eq(Y(T).diff(T, 3) + Y(T).diff(T), sp.tan(T)))
+
+    assert derivation.verified is True
+    assert derivation.result is not None
+    step = next(s for s in derivation.steps
+                if s.title == "Solve for the derivatives of the coefficients")
+    assert step.verified is True
+    assert "u_{3}'" in step.latex, "the third coefficient was not solved for"
+
+
+def test_dividing_by_the_leading_coefficient_is_a_step_where_it_matters():
+    """`t²y'' + ty' - y = t³` has forcing t in the formula, not t³. Skipping
+    that division is the classic way to get this technique wrong, so it is
+    shown -- and only shown where the coefficient is not already 1."""
+    forced = _eq(T**2 * Y(T).diff(T, 2) + T * Y(T).diff(T) - Y(T), T**3)
+    titles = [s.title for s in _derive(forced).steps]
+    assert "Divide by the leading coefficient" in titles
+
+    plain = [s.title for s in _derive(CANONICAL[
+        "nth_linear_constant_coeff_variation_of_parameters"]).steps]
+    assert "Divide by the leading coefficient" not in plain
+
+
+@pytest.mark.parametrize("forcing,answer", [
+    (T**3, T**3 / 8),
+    (sp.log(T), sp.log(T) / 4 + sp.Rational(1, 4)),
+])
+def test_a_forced_cauchy_euler_is_narrated_rather_than_abandoned(forcing,
+                                                                 answer):
+    """It used to produce an *empty* derivation. `lhs - rhs` was substituted
+    into y = t^r with the forcing still in it, so t survived the division and
+    the builder bailed before appending a single step."""
+    left = (T**2 * Y(T).diff(T, 2) + T * Y(T).diff(T) - Y(T)
+            if forcing == T**3 else
+            T**2 * Y(T).diff(T, 2) - 3 * T * Y(T).diff(T) + 4 * Y(T))
+    derivation = _derive(_eq(left, forcing))
+
+    assert derivation.technique == "nth_linear_euler_eq_homogeneous"
+    assert derivation.steps, "the derivation is empty again"
+    assert derivation.steps[0].title == "Set the forcing aside first"
+    assert derivation.verified is True
+    assert not [s for s in derivation.steps if s.verified is False]
+    # The particular part is the textbook one; the constants are free.
+    free = derivation.result.subs({sp.Symbol("C1"): 0, sp.Symbol("C2"): 0})
+    assert sp.simplify(free - answer) == 0
+
+
+def test_an_unforced_cauchy_euler_is_unchanged_by_the_fix():
+    """The forcing branch must not disturb the equation that worked before."""
+    titles = [s.title for s in
+              _derive(CANONICAL["nth_linear_euler_eq_homogeneous"]).steps]
+    assert titles == EXPECTED["nth_linear_euler_eq_homogeneous"]
+    assert "Set the forcing aside first" not in titles
+
+
+def test_the_fundamental_set_of_a_forced_euler_is_judged_against_its_own_equation():
+    """The basis solves the homogeneous equation, not the forced one. Checking
+    it against the forced equation reported a correct fundamental set as
+    wrong -- the same trap `_characteristic_steps` documents."""
+    forced = _eq(T**2 * Y(T).diff(T, 2) + T * Y(T).diff(T) - Y(T), T**3)
+    step = next(s for s in _derive(forced).steps
+                if s.title == "The fundamental set")
+    assert step.verified is True
+
+
+def test_conditions_still_apply_after_a_forced_euler():
+    derivation = _derive(
+        _eq(T**2 * Y(T).diff(T, 2) + T * Y(T).diff(T) - Y(T), T**3),
+        ics={Y(1): 0, Y(T).diff(T).subs(T, 1): 0},
+    )
+    assert derivation.complete
+    assert not derivation.result.free_symbols - {T}
+    assert float(derivation.result.subs(T, 1)) == pytest.approx(0.0, abs=1e-12)

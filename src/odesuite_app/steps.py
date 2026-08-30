@@ -5,10 +5,11 @@ it made, and a first ODE course is almost entirely about those moves. This
 module narrates them: given an equation and the techniques that apply to it, it
 writes out the derivation a student would produce on paper.
 
-Five techniques, which is what a first course uses:
+Nine techniques, which is what a first course uses:
 
-    separable · integrating factor · characteristic roots ·
-    undetermined coefficients · Cauchy-Euler
+    separable · integrating factor · exact · homogeneous substitution ·
+    Bernoulli · characteristic roots · undetermined coefficients ·
+    variation of parameters · Cauchy-Euler
 
 Two things about the design matter more than the narration itself.
 
@@ -69,6 +70,15 @@ _C = sp.Symbol("C")
 #: Homogeneous comes before Bernoulli because a textbook meets it first, and
 #: because equations that are both -- ``y' = (t² + y²)/(t y)`` is the standard
 #: example of one -- are taught as homogeneous.
+#:
+#: Variation of parameters comes after undetermined coefficients for the same
+#: reason, and the measurement is even more one-sided: sympy names *both* on
+#: every constant-coefficient forced equation tried -- ``y'' + 4y = sin t`` and
+#: ``y'' + 3y' + 2y = e^t`` among them. Listing variation earlier would narrate
+#: Wronskians for every equation a first course solves by guessing a form.
+#: Variation is reached only where guessing has nothing to offer, which is
+#: exactly when sympy names it alone: ``y'' + y = sec t`` carries no
+#: undetermined-coefficients hint at all.
 TECHNIQUES = (
     "separable",
     "1st_linear",
@@ -76,6 +86,7 @@ TECHNIQUES = (
     "Bernoulli",
     "nth_linear_constant_coeff_homogeneous",
     "nth_linear_constant_coeff_undetermined_coefficients",
+    "nth_linear_constant_coeff_variation_of_parameters",
     "nth_linear_euler_eq_homogeneous",
 )
 
@@ -89,6 +100,8 @@ TITLES = {
     "nth_linear_constant_coeff_homogeneous": "Characteristic roots",
     "nth_linear_constant_coeff_undetermined_coefficients":
         "Undetermined coefficients",
+    "nth_linear_constant_coeff_variation_of_parameters":
+        "Variation of parameters",
     "nth_linear_euler_eq_homogeneous": "Cauchy-Euler equation",
 }
 
@@ -150,6 +163,11 @@ _ALIASES = (
     # `Bernoulli_Integral` is the same technique with the integral left
     # unevaluated.
     ("Bernoulli", "Bernoulli"),
+    # `..._variation_of_parameters_Integral`, likewise. Our own narration
+    # evaluates the integrals where sympy can, and says so where it cannot,
+    # so the two spellings are one technique here.
+    ("nth_linear_constant_coeff_variation_of_parameters",
+     "nth_linear_constant_coeff_variation_of_parameters"),
 )
 
 
@@ -896,6 +914,201 @@ def _particular_by_guessing(equation, function, derivation, forcing, basis,
 
 
 # ---------------------------------------------------------------------------
+# Variation of parameters
+#
+# The technique that finishes the job undetermined coefficients starts. Guessing
+# a form needs the forcing term to be closed under differentiation, and `sec t`,
+# `tan t` and `e^t/t` are not -- there is no finite trial set to guess, so the
+# other technique has nothing to say about them. Measured: sympy names
+# `..._variation_of_parameters` alone on all three, and names it *alongside*
+# undetermined coefficients on every forced equation that does have a trial set.
+# See `TECHNIQUES` for why that decides the ordering.
+#
+# Written for order n rather than the usual two. The 2x2 formulas
+# ``u1' = -y2 g / W``, ``u2' = y1 g / W`` are Cramer's rule on the n x n system
+# below, and the system costs no more to write: measured on the third-order
+# ``y''' + y' = tan t``, solving it took 0.05 s and integrating 0.04 s. Hard-
+# coding the pair would have meant a second implementation for the higher-order
+# lesson, saying the same thing less generally.
+# ---------------------------------------------------------------------------
+
+
+def _wronskian(basis: list):
+    """``W(y1..yn)``, simplified.
+
+    The simplify is load-bearing rather than cosmetic: on ``cos t, sin t`` the
+    determinant comes back as ``sin²t + cos²t``, and a step showing that as the
+    Wronskian would be showing its arithmetic instead of its answer.
+    """
+    rows = [[b.diff(_T, k) for b in basis] for k in range(len(basis))]
+    return sp.simplify(sp.Matrix(rows).det())
+
+
+def _standard_form(equation: sp.Eq, function: sp.Function, order: int):
+    """``(g, lead)``: the forcing once the leading coefficient is divided out.
+
+    The step everybody skips and then gets wrong. ``t²y'' + ty' - y = t³`` has
+    forcing ``t`` in the formula, not ``t³``, and every u' after it inherits
+    the error.
+    """
+    expression = sp.expand(equation.lhs - equation.rhs)
+    lead = sp.simplify(expression.coeff(function(_T).diff(_T, order)))
+    if lead == 0:
+        return None, None
+    forcing = sp.simplify(
+        -sum(term for term in sp.Add.make_args(expression)
+             if not term.has(function(_T)))
+    )
+    return sp.simplify(forcing / lead), lead
+
+
+def _variation_particular(equation: sp.Eq, function: sp.Function,
+                          basis: list, derivation: Derivation):
+    """``y_p`` by varying the constants of `basis`, or None having said why.
+
+    `basis` solves the homogeneous equation; this finds the one solution of the
+    forced one that the general solution is missing. Shared by the
+    constant-coefficient builder and by `_cauchy_euler`, which reaches the same
+    point by a different route and then needs exactly this.
+    """
+    order = len(basis)
+    g, lead = _standard_form(equation, function, order)
+    if g is None:
+        derivation.message = "the leading coefficient could not be read off"
+        return None
+
+    if lead != 1:
+        derivation.steps.append(Step(
+            title="Divide by the leading coefficient",
+            latex=_eq("g(t)", g),
+            note="The formula below is stated for y⁽ⁿ⁾ + … = g(t). Using the "
+                 "forcing term before dividing is the most common way to get "
+                 "this technique wrong.",
+        ))
+
+    wronskian = _wronskian(basis)
+    derivation.steps.append(Step(
+        title="The Wronskian",
+        latex=_eq("W", wronskian),
+        note="The determinant of the basis and its derivatives. That it is "
+             "non-zero is what says these solutions are independent — and it "
+             "is what the system below is divided by, so it has to be.",
+        verified=bool(wronskian != 0),
+    ))
+    if wronskian == 0:
+        derivation.message = "the Wronskian is zero, so the basis is dependent"
+        return None
+
+    # Sum(u_i' y_i^(k)) = 0 for every derivative but the last, and = g for it.
+    # Those n-1 zeros are a choice, not a consequence: they are what keeps the
+    # derivatives of y_p from growing new u'' terms, and they are why the
+    # technique is only n equations rather than a mess.
+    matrix = sp.Matrix([[b.diff(_T, k) for b in basis] for k in range(order)])
+    target = sp.Matrix([0] * (order - 1) + [g])
+    try:
+        primes = [sp.simplify(value) for value in matrix.solve(target)]
+    except Exception:
+        derivation.message = "the system for the u' could not be solved"
+        return None
+
+    derivation.steps.append(Step(
+        title="Solve for the derivatives of the coefficients",
+        latex=r",\qquad ".join(
+            _eq(f"u_{{{i + 1}}}'", value) for i, value in enumerate(primes)
+        ),
+        note="Let the constants vary, and impose that their derivatives "
+             "contribute nothing to the first n−1 derivatives of y_p. That "
+             "leaves one equation per unknown.",
+        verified=_is_zero(sp.simplify(
+            sum(u * b.diff(_T, order - 1) for u, b in zip(primes, basis)) - g
+        )),
+    ))
+
+    integrals = [sp.integrate(value, _T) for value in primes]
+    if any(item.has(sp.Integral) for item in integrals):
+        derivation.message = (
+            "the formula is right but the integrals for u have no closed form"
+        )
+        return None
+
+    derivation.steps.append(Step(
+        title="Integrate",
+        latex=r",\qquad ".join(
+            _eq(f"u_{{{i + 1}}}", value) for i, value in enumerate(integrals)
+        ),
+        note="No constants of integration here — they would only rebuild the "
+             "homogeneous solution, which is already accounted for.",
+        verified=all(_is_zero(sp.simplify(item.diff(_T) - prime))
+                     for item, prime in zip(integrals, primes)),
+    ))
+
+    y_p = sp.simplify(sum(u * b for u, b in zip(integrals, basis)))
+    derivation.steps.append(Step(
+        title="Assemble the particular solution",
+        latex=_eq("y_p(t)", y_p),
+        note="Each basis function carried by its own coefficient rather than "
+             "a constant. That is the whole idea, and it is where the name "
+             "comes from.",
+        verified=_is_zero(sp.simplify(
+            (equation.lhs - equation.rhs).subs(function(_T), y_p).doit()
+        )),
+    ))
+    return y_p
+
+
+def _variation(equation: sp.Eq, function: sp.Function, ics: dict,
+               derivation: Derivation) -> None:
+    from .symbolic import analyse_linear
+
+    order = _order_of(equation, function)
+    analysis = analyse_linear(equation, function, order)
+    forcing = analysis["forcing"]
+    if not analysis["poly"] or forcing in (None, 0):
+        derivation.message = "no characteristic polynomial could be formed"
+        return
+
+    homogeneous_expr = sp.expand(equation.lhs - equation.rhs + forcing)
+    basis = _characteristic_steps(
+        sp.Eq(homogeneous_expr, 0), function, derivation, analysis
+    )
+    if not basis:
+        derivation.message = "no fundamental set could be read off the roots"
+        return
+
+    constants = [sp.Symbol(f"C{i + 1}") for i in range(len(basis))]
+    y_h = sum(c * b for c, b in zip(constants, basis))
+    derivation.steps.append(Step(
+        title="That is the homogeneous solution",
+        latex=_eq("y_h(t)", y_h),
+        note="As with undetermined coefficients, the forced equation is "
+             "solved by this plus any one solution of the full equation.",
+        verified=_satisfies(sp.Eq(homogeneous_expr, 0), function, y_h),
+    ))
+    derivation.steps.append(Step(
+        title="Guessing a form will not work here",
+        latex=_eq("g(t)", forcing),
+        note="Undetermined coefficients needs a forcing term whose derivatives "
+             "close up into a finite list. This one's do not, so there is "
+             "nothing to guess — and that is exactly when this technique is "
+             "reached for.",
+    ))
+
+    y_p = _variation_particular(equation, function, basis, derivation)
+    if y_p is None:
+        return
+
+    general = sp.simplify(y_h + y_p)
+    derivation.steps.append(Step(
+        title="The general solution",
+        latex=_eq("y(t)", general),
+        note="Homogeneous plus particular, as before. The constants stay "
+             "arbitrary until initial conditions are applied.",
+        verified=_satisfies(equation, function, general),
+    ))
+    _apply_conditions(general, ics, derivation, constants)
+
+
+# ---------------------------------------------------------------------------
 # Cauchy-Euler
 # ---------------------------------------------------------------------------
 
@@ -930,11 +1143,38 @@ def _euler_basis(roots) -> list:
 def _cauchy_euler(equation: sp.Eq, function: sp.Function, ics: dict,
                   derivation: Derivation) -> None:
     expression = sp.expand(equation.lhs - equation.rhs)
-    substituted = sp.expand(expression.subs(function(_T), _T**_R).doit())
+
+    # The forcing term has to come off before the substitution, not after.
+    # Leaving it in put a bare `t³` alongside the `t^r` terms, so `indicial`
+    # still contained t and the builder gave up having appended *no steps at
+    # all* -- a forced Cauchy-Euler used to produce an empty derivation.
+    # Splitting on `has(y(t))` is exact here because the equation is linear in
+    # y and its derivatives; measured, `t³` and `log t` both come off cleanly.
+    homogeneous_expr = sp.expand(
+        sum(term for term in sp.Add.make_args(expression)
+            if term.has(function(_T)))
+    )
+    forcing = sp.simplify(homogeneous_expr - expression)
+
+    substituted = sp.expand(
+        homogeneous_expr.subs(function(_T), _T**_R).doit()
+    )
     indicial = sp.simplify(sp.expand(substituted / _T**_R))
     if indicial.has(_T):
         derivation.message = "the substitution y = t^r did not clear t"
         return
+
+    homogeneous_eq = sp.Eq(homogeneous_expr, 0)
+    if forcing != 0:
+        derivation.steps.append(Step(
+            title="Set the forcing aside first",
+            latex=_eq("g(t)", forcing),
+            note="A power of t only balances the left side when the right is "
+                 "zero, so solve the homogeneous equation first and come back "
+                 "for one solution of the forced one.",
+            verified=_is_zero(sp.expand(homogeneous_expr - forcing
+                                        - expression)),
+        ))
 
     derivation.steps.append(Step(
         title="Try a power of t",
@@ -979,16 +1219,41 @@ def _cauchy_euler(equation: sp.Eq, function: sp.Function, ics: dict,
         note="A repeated root brings in ln t rather than t, and a complex pair "
              "gives cos(b ln t) and sin(b ln t) — the substitution t = e^s "
              "turns this into the constant-coefficient case.",
-        verified=all(_satisfies(equation, function, b) is True for b in basis),
+        # Against the homogeneous equation, which is what the basis solves.
+        # Checking it against a forced equation would report a correct
+        # fundamental set as wrong.
+        verified=all(_satisfies(homogeneous_eq, function, b) is True
+                     for b in basis),
     ))
 
     constants = [sp.Symbol(f"C{i + 1}") for i in range(len(basis))]
     general = sum(c * b for c, b in zip(constants, basis))
-    derivation.steps.append(Step(
-        title="The general solution",
-        latex=_eq("y(t)", general),
-        verified=_satisfies(equation, function, general),
-    ))
+
+    if forcing != 0:
+        derivation.steps.append(Step(
+            title="That is the homogeneous solution",
+            latex=_eq("y_h(t)", general),
+            note="Now for one solution of the forced equation. Guessing a "
+                 "form has no theory behind it here — the coefficients are "
+                 "not constant — so the constants are varied instead.",
+            verified=_satisfies(homogeneous_eq, function, general),
+        ))
+        y_p = _variation_particular(equation, function, basis, derivation)
+        if y_p is None:
+            return
+        general = sp.simplify(general + y_p)
+        derivation.steps.append(Step(
+            title="The general solution",
+            latex=_eq("y(t)", general),
+            note="Homogeneous plus particular, as for any linear equation.",
+            verified=_satisfies(equation, function, general),
+        ))
+    else:
+        derivation.steps.append(Step(
+            title="The general solution",
+            latex=_eq("y(t)", general),
+            verified=_satisfies(equation, function, general),
+        ))
     _apply_conditions(general, ics, derivation, constants)
 
 
@@ -1329,6 +1594,7 @@ _BUILDERS = {
     "1st_exact": _exact_equation,
     "nth_linear_constant_coeff_homogeneous": _homogeneous,
     "nth_linear_constant_coeff_undetermined_coefficients": _undetermined,
+    "nth_linear_constant_coeff_variation_of_parameters": _variation,
     "nth_linear_euler_eq_homogeneous": _cauchy_euler,
 }
 

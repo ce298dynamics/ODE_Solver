@@ -13,7 +13,8 @@ from __future__ import annotations
 
 from .model import Choice, Example, Lesson, Note, Solve, Template
 
-__all__ = ["ROOTS", "UNDETERMINED", "CAUCHY", "LESSONS"]
+__all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED", "VARIATION",
+           "CAUCHY", "HIGHER", "LESSONS"]
 
 
 ROOTS = Lesson(
@@ -596,4 +597,584 @@ CAUCHY = Lesson(
 )
 
 
-LESSONS = (ROOTS, UNDETERMINED, CAUCHY)
+SUPERPOSITION = Lesson(
+    key="superposition",
+    title="Superposition, the Wronskian, and the general solution",
+    summary="Why two solutions are enough for a second-order equation, and how "
+            "to tell whether the two you have will do.",
+    tool="steps",
+    reference="Edwards 3.1",
+    prerequisites=("basics",),
+    objectives=(
+        "State what makes an equation linear, and check whether one is.",
+        "Add two solutions of a homogeneous linear equation and explain why "
+        "the sum is one too.",
+        "Compute a Wronskian and say what its being non-zero buys you.",
+        "Say why a second-order equation needs exactly two arbitrary "
+        "constants, and no more.",
+    ),
+    examples=(
+        Example(
+            equation="y'' - y = 0",
+            why="The plainest case. e^t and e^{-t} both solve it, their "
+                "Wronskian is −2, and every solution is a combination of "
+                "them — there is nothing else out there.",
+        ),
+        Example(
+            equation="y'' + 4*y = 0",
+            conditions="y(0) = 1, y'(0) = 2",
+            why="cos 2t and sin 2t, Wronskian 2. The two conditions pick one "
+                "member of the family, which is what two constants are for.",
+        ),
+    ),
+    notes=(
+        Note(
+            "Linear means the unknown appears plainly",
+            "Every term is a coefficient times y or one of its derivatives, "
+            "and nothing else. y'' + p(t)y' + q(t)y = g(t) is the whole shape. "
+            "No y², no sin y, no y·y'. The coefficients may be as messy as "
+            "they like — it is what happens to y that decides linearity.",
+            r"y'' + p(t)\,y' + q(t)\,y = g(t)",
+        ),
+        Note(
+            "Superposition",
+            "If y₁ and y₂ both solve the homogeneous equation, so does any "
+            "combination of them. This is the whole reason the answer to a "
+            "second-order equation is a two-parameter family rather than a "
+            "list of solutions found one at a time.",
+            r"L[c_1 y_1 + c_2 y_2] = c_1 L[y_1] + c_2 L[y_2] = 0",
+            "formula",
+        ),
+        Note(
+            "It fails the moment the equation is nonlinear",
+            "Superposition is a property of linear equations and nothing else. "
+            "y = 1/(1−t) solves y' = y², but 2y does not. Adding two solutions "
+            "of a nonlinear equation and expecting a solution is the most "
+            "expensive habit to carry out of this chapter.",
+            r"y' = y^{2}:\quad y_1 + y_2 \ \text{is not a solution}",
+            "pitfall",
+        ),
+        Note(
+            "The Wronskian tests independence",
+            "Two solutions are only worth two constants if neither is a "
+            "multiple of the other. The Wronskian is the determinant that "
+            "checks it: non-zero at a single point is enough, because for "
+            "solutions of the same linear equation it is either always zero "
+            "or never zero.",
+            r"W(y_1,y_2) = \begin{vmatrix} y_1 & y_2 \\ y_1' & y_2' "
+            r"\end{vmatrix} = y_1 y_2' - y_2 y_1'",
+            "formula",
+        ),
+        Note(
+            "What “general solution” actually claims",
+            "Not \"a solution with constants in it\" — it claims that every "
+            "solution of the equation is in the family, with no exceptions "
+            "waiting to be discovered. Existence and uniqueness is what makes "
+            "that claim safe: two initial conditions determine one solution, "
+            "and two independent solutions can meet any pair of conditions.",
+            r"y = C_1 y_1 + C_2 y_2",
+            "aside",
+        ),
+    ),
+    questions=(
+        Choice(
+            key="q1",
+            prompt="Which of these is a linear equation?",
+            options=(
+                "y'' + t²y' − y = cos t",
+                "y'' + y·y' = 0",
+                "y'' + sin(y) = 0",
+                "(y')² + y = t",
+            ),
+            answer=0,
+            becauses=(
+                "Every term is a coefficient times y or a derivative of it. "
+                "t² is a messy coefficient, and cos t a messy forcing term, "
+                "but neither touches how y itself appears — which is what "
+                "linearity is about.",
+                "y·y' is the unknown multiplied by its own derivative. That is "
+                "a product of unknowns, so the equation is nonlinear.",
+                "sin(y) puts the unknown inside a function. This is the "
+                "pendulum, and it is the standard example of a nonlinear "
+                "equation.",
+                "Squaring y' makes the equation nonlinear in the derivative. "
+                "Linear means degree one in y and every derivative.",
+            ),
+        ),
+        Choice(
+            key="q2",
+            prompt="y₁ and y₂ both solve y'' + 3y' + 2y = 0. Which is also a "
+                   "solution?",
+            options=(
+                "y₁·y₂",
+                "5y₁ − 2y₂",
+                "y₁/y₂",
+                "y₁ + 1",
+            ),
+            answer=1,
+            becauses=(
+                "A product of two solutions is not generally a solution. "
+                "Superposition covers sums and scalar multiples, not products "
+                "— those would need the operator to be multiplicative, which "
+                "it is not.",
+                "Any linear combination of solutions of a homogeneous linear "
+                "equation is a solution. That is superposition, and it is why "
+                "the general solution is C₁y₁ + C₂y₂.",
+                "A quotient is no better than a product. Neither is a linear "
+                "combination.",
+                "Adding a constant would only work if the constant itself "
+                "solved the equation, and 2·1 = 2 ≠ 0 here. The equation has "
+                "no constant solution but zero.",
+            ),
+        ),
+        Choice(
+            key="q3",
+            prompt="W(y₁, y₂) = 0 for every t, and both solve the same "
+                   "second-order linear homogeneous equation. What follows?",
+            options=(
+                "They are dependent, so they cannot give the general solution",
+                "The equation has no solutions",
+                "They are independent",
+                "Nothing follows without more information",
+            ),
+            answer=0,
+            becauses=(
+                "A vanishing Wronskian means one is a constant multiple of the "
+                "other. They span a one-parameter family, not a two-parameter "
+                "one, so they cannot meet an arbitrary pair of initial "
+                "conditions.",
+                "The equation is fine. It is the *pair* that is inadequate — a "
+                "linear homogeneous equation always has two independent "
+                "solutions somewhere.",
+                "That is backwards: a non-zero Wronskian shows independence. "
+                "Zero shows the opposite here.",
+                "For two solutions of the *same* linear equation it does "
+                "follow, by Abel's theorem: the Wronskian is either "
+                "identically zero or never zero.",
+            ),
+        ),
+        Solve(
+            key="q4",
+            prompt="Check the pair, then write the general solution.",
+            equation="y'' - y = 0",
+            conditions="y(0) = 2, y'(0) = 0",
+            hints=(
+                "The roots are ±1, so e^t and e^{−t} are the candidates.",
+                "W = e^t·(−e^{−t}) − e^{−t}·e^t = −2, which is never zero — so "
+                "the pair is independent and the general solution is all of "
+                "them.",
+                "y = C₁e^t + C₂e^{−t}. Both conditions give C₁ = C₂ = 1, so "
+                "y = 2cosh t.",
+            ),
+        ),
+        Solve(
+            key="q5",
+            prompt="Two constants, two conditions.",
+            equation="y'' + 4*y = 0",
+            conditions="y(0) = 1, y'(0) = 2",
+            hints=(
+                "Roots ±2i, so the fundamental set is cos 2t and sin 2t.",
+                "Their Wronskian is 2cos²2t + 2sin²2t = 2 — independent "
+                "everywhere, so two constants really are enough.",
+                "y(0) = 1 gives C₁ = 1, and y′(0) = 2 gives 2C₂ = 2.",
+            ),
+        ),
+    ),
+    templates=(
+        Template(
+            key="independent-pair",
+            title="Two conditions on a two-parameter family",
+            prompt="Write the general solution, then pin both constants.",
+            equation="y'' - {c}*y = 0",
+            conditions="y(0) = {p}, y'(0) = {v}",
+            technique="nth_linear_constant_coeff_homogeneous",
+            hints=(
+                "Substitute y = e^(rt). With a bare y'' and y the "
+                "characteristic polynomial is r² − c.",
+                "Two real roots ±√c, so the fundamental set is a growing and "
+                "a decaying exponential. Their Wronskian is a non-zero "
+                "constant, which is what says two constants suffice.",
+                "Write y = C₁e^(rt) + C₂e^(−rt), differentiate, and solve the "
+                "two-by-two system the conditions give.",
+            ),
+            slots=(
+                ("c", (1, 4, 9, 16, 25)),
+                ("p,v", ((2, 0), (0, 1), (1, 1), (1, 0))),
+            ),
+        ),
+    ),
+)
+
+
+VARIATION = Lesson(
+    key="variation",
+    title="Variation of parameters",
+    summary="What to do when the forcing term is not something you could ever "
+            "guess.",
+    tool="steps",
+    reference="Edwards 3.5",
+    prerequisites=("roots", "undetermined"),
+    objectives=(
+        "Say why undetermined coefficients cannot touch sec t or ln t.",
+        "Put an equation in standard form before quoting the formula.",
+        "Compute the Wronskian of a fundamental set and use it.",
+        "Assemble a particular solution by integrating u₁' and u₂'.",
+    ),
+    examples=(
+        Example(
+            equation="y'' + y = sec(t)",
+            why="The standard example, and the one undetermined coefficients "
+                "cannot begin: differentiating sec t produces sec t·tan t, "
+                "then more, and the list never closes. Watch log(cos t) "
+                "appear — nothing you would have guessed.",
+        ),
+        Example(
+            equation="y'' - 2*y' + y = exp(t)/t",
+            why="A repeated root, so the basis is e^t and t·e^t, and the "
+                "forcing is an exponential divided by t. Dividing is what "
+                "puts it out of reach of a trial set.",
+        ),
+    ),
+    notes=(
+        Note(
+            "When guessing runs out",
+            "Undetermined coefficients needs the forcing term's derivatives to "
+            "close into a finite list — polynomials, exponentials, sines and "
+            "cosines do. sec t, tan t, ln t and e^t/t do not: differentiate "
+            "them and the list grows forever, so there is no finite form to "
+            "guess. This technique needs no guess at all.",
+            r"g(t) = \sec t,\ \tan t,\ \ln t,\ e^{t}/t",
+        ),
+        Note(
+            "Let the constants vary",
+            "Take the homogeneous solution C₁y₁ + C₂y₂ and let the constants "
+            "become functions. Requiring u₁'y₁ + u₂'y₂ = 0 keeps the second "
+            "derivative from growing u'' terms, and what is left is a "
+            "two-by-two system for u₁' and u₂'.",
+            r"y_p = u_1(t)\,y_1 + u_2(t)\,y_2",
+            "formula",
+        ),
+        Note(
+            "The formula",
+            "Solving that system by Cramer's rule gives the pair everyone "
+            "memorises. The Wronskian in the denominator is exactly why the "
+            "fundamental set has to be independent — a dependent pair would "
+            "divide by zero.",
+            r"u_1' = -\frac{y_2\,g}{W},\qquad u_2' = \frac{y_1\,g}{W}",
+            "formula",
+        ),
+        Note(
+            "Divide by the leading coefficient first",
+            "The formula is stated for y'' + p y' + q y = g. If the equation "
+            "starts 3y'' or t²y'', then g is *not* the right-hand side you "
+            "were given — it is that divided by the leading coefficient. "
+            "Skipping this is the most common way to get the technique wrong, "
+            "and everything after it inherits the error.",
+            r"t^{2}y'' + ty' - y = t^{3} \;\Longrightarrow\; g = t",
+            "pitfall",
+        ),
+        Note(
+            "No constants when you integrate",
+            "Integrating u₁' and u₂' needs no +C. Those constants would only "
+            "add multiples of y₁ and y₂ back in, and the homogeneous solution "
+            "already carries both with arbitrary coefficients.",
+            r"y = C_1 y_1 + C_2 y_2 + u_1 y_1 + u_2 y_2",
+            "aside",
+        ),
+    ),
+    questions=(
+        Choice(
+            key="q1",
+            prompt="Which forcing term rules out undetermined coefficients?",
+            options=(
+                "t²e^{3t}",
+                "tan t",
+                "sin 2t − 4cos 2t",
+                "5t³ + 1",
+            ),
+            answer=1,
+            becauses=(
+                "Polynomial times exponential: differentiating stays inside "
+                "the same finite family, so there is a trial set to guess.",
+                "Differentiating tan t gives sec²t, then 2sec²t·tan t, and the "
+                "list never closes. There is no finite form to guess, which is "
+                "exactly when variation of parameters is the technique.",
+                "Sines and cosines cycle between each other. Two terms in the "
+                "trial set, and guessing works.",
+                "A polynomial's derivatives terminate at zero. The trial set "
+                "is finite and short.",
+            ),
+        ),
+        Choice(
+            key="q2",
+            prompt="For 2y'' + 8y = tan t, what is g in the formula?",
+            latex=r"2y'' + 8y = \tan t",
+            options=(
+                "tan t",
+                "(tan t)/2",
+                "2tan t",
+                "tan t − 8y",
+            ),
+            answer=1,
+            becauses=(
+                "That is the right-hand side as given, before the equation is "
+                "in standard form. Using it here is the classic error.",
+                "The formula assumes y'' + py' + qy = g, so divide everything "
+                "by the leading 2 first: y'' + 4y = (tan t)/2.",
+                "Multiplying goes the wrong way. You divide by the leading "
+                "coefficient, not by its reciprocal.",
+                "g is what is left on the right after the y terms are on the "
+                "left. It never contains y.",
+            ),
+        ),
+        Choice(
+            key="q3",
+            prompt="The fundamental set of y'' + y = 0 is cos t, sin t. What "
+                   "is its Wronskian?",
+            options=("0", "1", "cos 2t", "sin t · cos t"),
+            answer=1,
+            becauses=(
+                "Zero would mean the pair is dependent, and cos t is plainly "
+                "not a multiple of sin t. It would also make the formula "
+                "divide by zero.",
+                "W = cos t·cos t − sin t·(−sin t) = cos²t + sin²t = 1. Being "
+                "constant and non-zero is what makes this the tidiest example "
+                "in the chapter.",
+                "That is cos²t − sin²t, which is what you get from a sign slip "
+                "in the determinant.",
+                "That is the product of the two functions, not the "
+                "determinant of the matrix with their derivatives.",
+            ),
+        ),
+        Solve(
+            key="q4",
+            prompt="The standard example.",
+            equation="y'' + y = sec(t)",
+            hints=(
+                "The homogeneous solution is C₁cos t + C₂sin t, and W = 1.",
+                "u₁' = −sin t·sec t/1 = −tan t and u₂' = cos t·sec t/1 = 1.",
+                "Integrate: u₁ = ln|cos t| and u₂ = t. So "
+                "y_p = cos t·ln|cos t| + t·sin t.",
+            ),
+        ),
+        Solve(
+            key="q5",
+            prompt="A repeated root, and forcing you cannot guess.",
+            equation="y'' - 2*y' + y = exp(t)/t",
+            hints=(
+                "(r − 1)² = 0, so the basis is e^t and t·e^t.",
+                "W = e^t·(e^t + te^t) − te^t·e^t = e^{2t}.",
+                "u₁' = −t e^t·(e^t/t)/e^{2t} = −1 and u₂' = 1/t, so "
+                "y_p = te^t(ln t − 1).",
+            ),
+        ),
+    ),
+    templates=(
+        Template(
+            key="secant-family",
+            title="Forcing with no trial set",
+            prompt="Homogeneous solution, Wronskian, then integrate.",
+            equation="y'' + y = {g}",
+            technique="nth_linear_constant_coeff_variation_of_parameters",
+            hints=(
+                "The homogeneous part is the same every time: r² + 1 = 0 "
+                "gives cos t and sin t.",
+                "Their Wronskian is 1, which makes u₁' = −y₂g and "
+                "u₂' = y₁g with nothing to divide by.",
+                "Integrate both, assemble u₁y₁ + u₂y₂, and add it to the "
+                "homogeneous solution.",
+            ),
+            slots=(
+                ("g", ("sec(t)", "tan(t)", "csc(t)", "cot(t)",
+                       "sec(t)*tan(t)", "1/cos(t)**2")),
+            ),
+        ),
+    ),
+)
+
+
+HIGHER = Lesson(
+    key="higher",
+    title="Higher-order linear equations",
+    summary="Everything from second order, with more roots to keep track of "
+            "and multiplicity to respect.",
+    tool="steps",
+    reference="Edwards 3.2–3.3",
+    prerequisites=("roots", "undetermined"),
+    objectives=(
+        "Factor a cubic or quartic characteristic polynomial.",
+        "Write the basis a root of multiplicity k contributes.",
+        "Handle a repeated complex pair without losing terms.",
+        "Say how many arbitrary constants an nth-order equation has, and why.",
+    ),
+    examples=(
+        Example(
+            equation="y''' - 6*y'' + 11*y' - 6*y = 0",
+            why="Three distinct real roots, 1, 2 and 3 — the plainest "
+                "higher-order case, and a reminder that the machinery does "
+                "not change, only the bookkeeping.",
+        ),
+        Example(
+            equation="y''' + y'' = t",
+            why="A root at zero with multiplicity two, so the homogeneous "
+                "part carries a constant and a t. The forcing is a "
+                "polynomial that resonates with both, which is where the "
+                "correction matters most.",
+        ),
+    ),
+    notes=(
+        Note(
+            "Nothing new, only more of it",
+            "The exponential substitution works at any order: y = e^{rt} "
+            "turns an nth-order constant-coefficient equation into an "
+            "nth-degree polynomial. The work moves from calculus to "
+            "factoring, which is the only genuinely harder part.",
+            r"a_n y^{(n)} + \cdots + a_0 y = 0 \;\Longrightarrow\; "
+            r"a_n r^{n} + \cdots + a_0 = 0",
+        ),
+        Note(
+            "Multiplicity brings powers of t",
+            "A root repeated k times contributes k solutions, each the "
+            "previous one multiplied by t. This is the repeated-root rule "
+            "from second order, continued as far as the multiplicity goes.",
+            r"e^{rt},\ t e^{rt},\ t^{2} e^{rt},\ \ldots,\ t^{k-1} e^{rt}",
+            "formula",
+        ),
+        Note(
+            "A repeated complex pair repeats both halves",
+            "a ± bi with multiplicity two contributes four solutions, not "
+            "two: the cosine and the sine, and then t times each of them. "
+            "Dropping the second pair is the easiest way to end up one "
+            "constant short of the order.",
+            r"e^{at}\cos bt,\ e^{at}\sin bt,\ te^{at}\cos bt,\ te^{at}\sin bt",
+            "pitfall",
+        ),
+        Note(
+            "Count the constants",
+            "An nth-order equation has exactly n arbitrary constants, and "
+            "multiplicities have to sum to n. If your fundamental set is "
+            "shorter than the order, a repeated root lost a power of t "
+            "somewhere — counting is the quickest check there is.",
+            r"\sum_i m_i = n",
+            "aside",
+        ),
+        Note(
+            "Forcing works exactly as before",
+            "Undetermined coefficients and variation of parameters both apply "
+            "unchanged. The resonance correction multiplies by t as many "
+            "times as the multiplicity requires, and the Wronskian is simply "
+            "an n×n determinant.",
+            r"y = y_h + y_p",
+            "aside",
+        ),
+    ),
+    questions=(
+        Choice(
+            key="q1",
+            prompt="r = −2 has multiplicity 3. What does it contribute?",
+            options=(
+                "e^{−2t} only",
+                "e^{−2t}, te^{−2t}, t²e^{−2t}",
+                "e^{−2t}, e^{−4t}, e^{−6t}",
+                "e^{−2t}, te^{−2t}",
+            ),
+            answer=1,
+            becauses=(
+                "One solution per root would leave the fundamental set short "
+                "of the order, and the remaining conditions could not be met.",
+                "Multiplicity k gives k solutions: the exponential and then "
+                "successive powers of t times it, up to t^{k−1}.",
+                "Multiplicity does not multiply the root. There is one root "
+                "here, at −2, occurring three times.",
+                "That is multiplicity two. A triple root needs the t² term as "
+                "well.",
+            ),
+        ),
+        Choice(
+            key="q2",
+            prompt="How many arbitrary constants does a fourth-order linear "
+                   "homogeneous equation have?",
+            options=("2", "4", "It depends on the roots", "1 per distinct root"),
+            answer=1,
+            becauses=(
+                "Two is the second-order answer. The number of constants "
+                "follows the order, not the chapter it was met in.",
+                "Exactly n for an nth-order equation, because n initial "
+                "conditions are needed to pick a single solution. "
+                "Multiplicities always sum to the order.",
+                "The roots decide what the solutions look like, not how many "
+                "there are. Repeated roots supply their extra solutions with "
+                "powers of t.",
+                "That would be too few whenever a root repeats — which is "
+                "precisely what the powers of t exist to fix.",
+            ),
+        ),
+        Solve(
+            key="q3",
+            prompt="Three distinct real roots.",
+            equation="y''' - 6*y'' + 11*y' - 6*y = 0",
+            conditions="y(0) = 0, y'(0) = 1, y''(0) = 3",
+            hints=(
+                "r³ − 6r² + 11r − 6 factors with r = 1 as an obvious root.",
+                "Dividing out gives (r − 1)(r − 2)(r − 3).",
+                "y = C₁e^t + C₂e^{2t} + C₃e^{3t}, and three conditions give a "
+                "three-by-three system for the constants.",
+            ),
+        ),
+        Solve(
+            key="q4",
+            prompt="A repeated root at higher order.",
+            equation="y''' + 3*y'' + 3*y' + y = 0",
+            conditions="y(0) = 1, y'(0) = 0, y''(0) = 0",
+            hints=(
+                "The coefficients 1, 3, 3, 1 should look familiar: the "
+                "polynomial is (r + 1)³.",
+                "A triple root at −1 contributes e^{−t}, te^{−t} and t²e^{−t}.",
+                "y = (C₁ + C₂t + C₃t²)e^{−t}; differentiate twice and apply "
+                "all three conditions.",
+            ),
+        ),
+        Solve(
+            key="q5",
+            prompt="Fourth order, two pairs.",
+            equation="y'''' - y = 0",
+            conditions="y(0) = 1, y'(0) = 0, y''(0) = 1, y'''(0) = 0",
+            hints=(
+                "r⁴ − 1 = (r² − 1)(r² + 1).",
+                "Roots ±1 and ±i, so the basis is e^t, e^{−t}, cos t, sin t "
+                "— four solutions for a fourth-order equation.",
+                "The conditions are symmetric enough that the oscillating part "
+                "drops out entirely.",
+            ),
+        ),
+    ),
+    templates=(
+        Template(
+            key="third-order",
+            title="Third order, three conditions",
+            prompt="Factor the cubic, write the basis, pin three constants.",
+            equation="y''' - {a}*y'' + {b}*y' - {c}*y = 0",
+            conditions="y(0) = {p}, y'(0) = {v}, y''(0) = {w}",
+            technique="nth_linear_constant_coeff_homogeneous",
+            hints=(
+                "Substitute y = e^(rt) to get a cubic in r.",
+                "Try small integers first — these are built to factor over "
+                "the integers, so one of ±1, ±2, ±3 is a root.",
+                "Divide it out, factor the remaining quadratic, and write one "
+                "exponential per root before applying the conditions.",
+            ),
+            # (a, b, c) are the elementary symmetric functions of the roots,
+            # so every draw factors over the integers -- which is what a
+            # course would set, and what keeps the answer readable.
+            slots=(
+                ("a,b,c", ((6, 11, 6), (4, 5, 2), (3, 2, 0), (2, -1, -2),
+                           (0, -1, 0), (5, 8, 4), (1, -4, -4), (7, 14, 8))),
+                ("p,v,w", ((0, 1, 3), (1, 0, 0), (1, 1, 1))),
+            ),
+        ),
+    ),
+)
+
+
+LESSONS = (SUPERPOSITION, ROOTS, UNDETERMINED, VARIATION, CAUCHY,
+           HIGHER)

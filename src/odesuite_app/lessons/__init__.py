@@ -38,6 +38,7 @@ from . import (
     unit1_first_order,
     unit2_models_numerics,
     unit3_second_order,
+    unit4_vibrations,
     unit5_laplace,
 )
 from .model import (
@@ -99,6 +100,15 @@ UNITS: tuple[Unit, ...] = (
                 "that still comes out in closed form.",
         reference="Edwards ch. 3",
         lessons=unit3_second_order.LESSONS,
+    ),
+    Unit(
+        key="vibrations",
+        title="Vibrations and forcing",
+        summary="Where the second-order machinery stops being an exercise and "
+                "becomes a mass on a spring, a shock absorber and a tuning "
+                "circuit.",
+        reference="Edwards 3.4, 3.6–3.7",
+        lessons=unit4_vibrations.LESSONS,
     ),
     Unit(
         key="laplace",

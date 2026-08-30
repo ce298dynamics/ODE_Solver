@@ -77,7 +77,7 @@ gains nothing from it. `scipy.integrate.solve_ivp` has no equivalent.
 ## Verification
 
 Correctness evidence is the point of this project, so it is worth being specific about
-what is actually checked. **2099 tests**, of which the load-bearing ones are:
+what is actually checked. **2336 tests**, of which the load-bearing ones are:
 
 **Order conditions, algebraically.** `tests/test_tableaux.py` evaluates the rooted-tree
 order conditions through order 5 for every Butcher tableau, and asserts that the
@@ -115,7 +115,7 @@ controller running blind, was the wrong place to have a gap.
 oracle only — never as the basis of an order or accuracy claim.
 
 ```
-py -3.10 -m pytest tests/ -q          # 2080 passed, 19 skipped, ~6 min
+py -3.10 -m pytest tests/ -q          # 2317 passed, 19 skipped, ~6 min
 py -3.10 -m pytest tests/ -q -m 'not slow'   # the fast loop, ~3.5 min
 py -3.10 -m ruff check . && py -3.10 -m mypy # lint and types, both clean
 py -3.10 benchmarks/run_all.py        # regenerate every static figure below
@@ -342,8 +342,8 @@ be written.
 **Lessons** is where the work happens. One lesson at a time, in four parts: **Learn**
 (what you should be able to do afterwards, then the notes), **Examples** (each worked
 through by the narrator, on request), **Practice** (your turn), and **Drill** (below).
-Fifteen lessons today, filed under the chapters of Edwards, Penney and Calvis, which is
-the course this follows:
+Twenty-one lessons today, filed under the chapters of Edwards, Penney and Calvis, which
+is the course this follows:
 
 - **First-order equations** — what a differential equation is; slope fields, existence
   and uniqueness; separable equations; integrating factors; exact equations;
@@ -351,11 +351,14 @@ the course this follows:
 - **Models and numerical methods** — population models and the logistic equation;
   equilibria, stability and the phase line; acceleration, velocity and drag; Euler's
   method; Runge–Kutta, and what order buys.
-- **Second-order linear equations** — characteristic roots; undetermined coefficients;
-  Cauchy–Euler.
+- **Second-order linear equations** — superposition and the Wronskian; characteristic
+  roots; undetermined coefficients; variation of parameters; Cauchy–Euler; higher-order
+  equations.
+- **Vibrations and forcing** — free vibration and the three damping regimes; forced
+  oscillation, beats and resonance; the RLC circuit analogy.
 - **Laplace transforms** — the transform, and solving an initial-value problem with it.
 
-Units 1 and 2 are complete; the rest are being filled in, and a unit appears on the
+Units 1 to 4 are complete; the rest are being filled in, and a unit appears on the
 Course Map once it has lessons.
 
 Notes come in kinds, and a **common mistake** does not read like an idea: it is the same
@@ -416,7 +419,7 @@ rest of the Hub about what is correct.
 
 Draws are **enumerated rather than sampled**, which is what makes the guarantee
 checkable: `tests/test_templates.py` runs the real narrator over **every draw of every
-template** — 275 of them — and requires each to be narrated by the technique the drill
+template** — 384 of them — and requires each to be narrated by the technique the drill
 claims to be practice at, to have every step verify, and to have its answer accepted by
 the grader. Nobody wrote those questions, so nobody read them either; that sweep is what
 stands in for having read them. It is also why the drill can honestly say "one of 18
@@ -451,10 +454,10 @@ records how many times a question was attempted as well as how it ended, so the 
 tell steady work from a lucky guess — and a file written by an earlier version still
 loads, with its ticks intact.
 
-**Solve Step by Step** narrates the derivation. Eight techniques — separation of
+**Solve Step by Step** narrates the derivation. Nine techniques — separation of
 variables, integrating factors, exact equations, the homogeneous substitution `y = v·t`,
-Bernoulli, characteristic roots, undetermined coefficients, Cauchy–Euler — written out a
-move at a time, with the reason each move is legal.
+Bernoulli, characteristic roots, undetermined coefficients, variation of parameters,
+Cauchy–Euler — written out a move at a time, with the reason each move is legal.
 
 Every step is **checked, not merely printed**. The antiderivatives are differentiated
 back and compared with their integrands; each basis function is substituted into the
@@ -497,6 +500,24 @@ neither half of that is a sympy bug. It does mean the hint cannot be trusted, so
 exactness is decided here, by the test a course teaches, and the detector is consulted
 only where no named technique applies. An equation that is both exact and linear keeps
 the integrating factor, which is the method it is met by first.
+
+**Variation of parameters is reached only where guessing has nothing to offer**, and the
+ordering that arranges is measured rather than assumed. sympy names
+`..._variation_of_parameters` on *every* constant-coefficient forced equation — `y'' + 4y
+= sin t` and `y'' + 3y' + 2y = eᵗ` included — so listing it before undetermined
+coefficients would narrate Wronskians for every equation a first course solves by
+guessing a form. Listed after, it takes only the equations where sympy names it alone:
+`sec t`, `tan t`, `eᵗ/t`, whose derivatives never close into a finite trial set. It is
+written for order *n* rather than the usual two, because the 2×2 formulas are Cramer's
+rule on that system anyway — `y''' + y' = tan t` is narrated by the same builder, in
+0.09 s.
+
+The same builder repaired a defect worth naming. A **forced Cauchy–Euler produced an
+empty derivation**: `t²y'' + ty' − y = t³` substituted `y = tʳ` into `lhs − rhs` with the
+forcing still in it, so `t` survived the division and the builder gave up before
+appending a single step. The forcing now comes off first and the Euler basis is handed to
+variation of parameters — guessing has no theory behind it once the coefficients stop
+being constant — giving `C₁/t + C₂t + t³/8`, verified.
 
 The two substitutions **reuse** the separable and integrating-factor narrators rather
 than copying them: `_bernoulli` builds a real equation in a real `v` and hands it over,
@@ -784,7 +805,7 @@ src/odesuite_app/                                    the studio
              learn_problems                          Learning Hub
   widgets/                                           sliders, cards, plots, figures, maths
 
-tests/         2099 tests
+tests/         2336 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```
