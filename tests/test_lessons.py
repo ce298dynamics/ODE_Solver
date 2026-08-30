@@ -77,11 +77,24 @@ def _work_out(lesson, equation: str, conditions: str):
 
 
 def test_the_lessons_cover_the_techniques_the_app_can_teach():
-    """A lesson on something no tool here explains would be notes with nothing
-    behind them."""
-    keys = {lesson.key for lesson in LESSONS}
-    assert keys == {"separable", "linear", "roots", "undetermined", "cauchy",
-                    "laplace", "numerical"}
+    """Every technique the narrator can explain is drilled by some lesson.
+
+    Stated in this direction rather than by listing the lessons, because this
+    is the direction with teeth: a narrator added without the lesson to go
+    with it is the failure the course order exists to prevent, and it is a
+    silent one -- the app would simply be able to explain something it never
+    offers to teach. The converse, a lesson on something no tool explains, is
+    what `test_every_lesson_is_complete` checks by pinning `tool` and
+    `narrator`.
+    """
+    from odesuite_app.steps import TITLES
+
+    drilled = {template.technique for lesson in LESSONS
+               for template in lesson.templates if template.technique}
+    missing = set(TITLES) - drilled
+    assert not missing, (
+        f"the narrator explains these but nothing drills them: {sorted(missing)}"
+    )
 
 
 def test_every_lesson_is_complete():
@@ -101,7 +114,12 @@ def test_keys_are_unique():
 
 
 def test_by_key_finds_them_and_declines_the_rest():
-    assert by_key("separable") is LESSONS[0]
+    # By its own key, not by position: the course grows at the front as much
+    # as at the end -- `basics` and `slopefields` went in before `separable`
+    # when Unit 1 was filled out -- and a lookup test that tracks the order is
+    # testing the order.
+    for lesson in LESSONS:
+        assert by_key(lesson.key) is lesson
     assert by_key("nonexistent") is None
 
 
@@ -402,7 +420,7 @@ def test_lessons_needs_no_interface_toolkit():
 
     code = (
         "import sys; sys.modules['PySide6'] = None\n"
-        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 7\n"
+        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 15\n"
     )
     done = subprocess.run([sys.executable, "-c", code], capture_output=True,
                           text=True)

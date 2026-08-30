@@ -8,6 +8,45 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Three more techniques the Hub can narrate: exact equations, the
+  homogeneous substitution `y = v·t`, and Bernoulli.** With them the first two
+  units of the course are complete, and *Solve Step by Step* now writes out
+  eight methods a move at a time rather than five.
+
+  **Exactness is decided structurally, never from a hint.** Six exact equations
+  were split into `M dt + N dy` and tested against `∂M/∂y = ∂N/∂t`:
+  `classify_ode` misses `1st_exact` on three of them — precisely the three an
+  exact-equations lesson is about, including `y' = −(2t+y)/(t+3y²)` — and
+  offers it on `y' = −y/t²`, which that test says is not exact. It normalises
+  `M` and `N` differently, so neither half is a sympy bug; it does mean the
+  hint cannot be trusted, so the detector runs here, and only where no named
+  technique applies. An equation that is both exact and linear therefore keeps
+  the integrating factor, which is the method a course meets it by first.
+
+  **The two substitutions reuse the narrators they reduce to** rather than
+  copying them: each builds a real equation in a real `v`, hands it to the
+  separable or integrating-factor narrator, then undoes the substitution and
+  applies the initial condition once, to the answer in `y`. Those two narrators
+  grew a parameter naming the letter to print, because a derivation that called
+  `v` "y" while solving for `v` would misreport what it had just done. Where
+  undoing an even root leaves a sign, the initial condition chooses it — and
+  the negated branch is offered only once it has been checked to solve the
+  equation too.
+
+  **`dsolve` is no longer asked to reproduce an answer it had no hint for.** On
+  `y' = −(2t+y)/(t+3y²)` it runs past forty seconds trying `lie_group`, so the
+  whole twelve-second budget bought a timeout; the narrated answer has by then
+  been substituted back and simplified to zero, which is a stronger warrant
+  than `dsolve` returning would have been. The guard is narrow by design: where
+  the hint list does name the technique, sympy is asked exactly as before.
+
+- **Eight more lessons, and Units 1 and 2 finished.** What a differential
+  equation is; slope fields, existence and uniqueness; exact equations;
+  substitutions (homogeneous and Bernoulli); population models and the logistic
+  equation; equilibria, stability and the phase line; acceleration, velocity
+  and drag; and Runge–Kutta, split out of the numerical lesson so that Euler's
+  method and what order buys are no longer one page. Fifteen lessons now.
+
 - **Learning Hub: `Lessons`** — notes and practice for seven topics: separable
   equations, integrating factors, characteristic roots, undetermined
   coefficients, Cauchy–Euler, Laplace transforms, and the numerical methods.
@@ -50,7 +89,7 @@ All notable changes to this project are documented here. The format follows
 
   **Draws are enumerated, not sampled**, which is what makes the guarantee
   checkable rather than merely likely: `tests/test_templates.py` runs the real
-  narrator over **every draw of every template** — 215 of them — and requires
+  narrator over **every draw of every template** — 275 of them — and requires
   each to be narrated by the technique the drill claims to teach, to have every
   step verify, and to have its answer accepted by the grader. Nobody wrote
   these questions, so nobody read them either; that sweep is what stands in for
@@ -141,6 +180,13 @@ All notable changes to this project are documented here. The format follows
   property that mattered.
 
 ### Fixed
+
+- **A `dsolve` answer with several branches is no longer thrown away.** Where
+  solving for `y` leaves branches — `y' + y = t·y³` comes back as the plus and
+  minus square roots — `dsolve` returns a *list* rather than one equation, and
+  reading `.rhs` off the list raised `AttributeError`. The worker reported that
+  as "sympy has no method for this equation", discarding an answer sympy had
+  actually found.
 
 - **A separable equation with two branches showed the wrong one.** ``y' = t/y``
   with ``y(0) = 2`` rearranges to ±√(t² + 2C), and the first root was taken

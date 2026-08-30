@@ -59,9 +59,21 @@ _C = sp.Symbol("C")
 #: `1st_exact`. Picking the first hint would leave four of these five never
 #: dispatched. Where several apply -- Newton's cooling is both separable and
 #: linear -- the earlier one wins, which is the one met first on paper.
+#: The two substitutions come *after* the two plain first-order techniques
+#: deliberately. Measured: ``y' + 2y = t``, ``y' = (t+y)/t`` and
+#: ``y' = -(3t²+2y)/(2t+1)`` all carry `Bernoulli` in their hint tuples, and
+#: the second carries `1st_homogeneous_coeff_best` too. Listing either earlier
+#: would start narrating equations a course solves by integrating factor as
+#: substitutions instead.
+#:
+#: Homogeneous comes before Bernoulli because a textbook meets it first, and
+#: because equations that are both -- ``y' = (t² + y²)/(t y)`` is the standard
+#: example of one -- are taught as homogeneous.
 TECHNIQUES = (
     "separable",
     "1st_linear",
+    "1st_homogeneous_coeff_best",
+    "Bernoulli",
     "nth_linear_constant_coeff_homogeneous",
     "nth_linear_constant_coeff_undetermined_coefficients",
     "nth_linear_euler_eq_homogeneous",
@@ -71,6 +83,9 @@ TECHNIQUES = (
 TITLES = {
     "separable": "Separation of variables",
     "1st_linear": "Integrating factor",
+    "Bernoulli": "Bernoulli substitution",
+    "1st_homogeneous_coeff_best": "Homogeneous substitution",
+    "1st_exact": "Exact equation",
     "nth_linear_constant_coeff_homogeneous": "Characteristic roots",
     "nth_linear_constant_coeff_undetermined_coefficients":
         "Undetermined coefficients",
@@ -121,18 +136,49 @@ class Derivation:
         return self.result is not None and self.verified is True
 
 
+#: Where sympy spells one technique several ways, and every spelling narrates
+#: identically. Prefix -> the technique to use. Scanned in order, after the
+#: exact names in `TECHNIQUES`, so a hint tuple naming both still gets the
+#: earlier technique.
+_ALIASES = (
+    # Nonhomogeneous Cauchy-Euler is spelled differently, and both start from
+    # the same substitution.
+    ("nth_linear_euler_eq", "nth_linear_euler_eq_homogeneous"),
+    # `..._subs_dep_div_indep` and `..._subs_indep_div_dep` are the same
+    # substitution written the two ways round.
+    ("1st_homogeneous_coeff", "1st_homogeneous_coeff_best"),
+    # `Bernoulli_Integral` is the same technique with the integral left
+    # unevaluated.
+    ("Bernoulli", "Bernoulli"),
+)
+
+
 def preferred_hint(hints) -> str:
-    """The technique to narrate, or "" if none of the five applies."""
+    """The technique to narrate, or "" if none of them applies."""
     available = set(hints or ())
     for technique in TECHNIQUES:
         if technique in available:
             return technique
-    # sympy spells the nonhomogeneous Cauchy-Euler hints differently, and both
-    # of them start from the same substitution, so they narrate the homogeneous
-    # part identically.
     for hint in hints or ():
-        if hint.startswith("nth_linear_euler_eq"):
-            return "nth_linear_euler_eq_homogeneous"
+        for prefix, technique in _ALIASES:
+            if hint.startswith(prefix):
+                return technique
+    return ""
+
+
+def detected(equation: sp.Eq, function: sp.Function) -> str:
+    """A technique recognised structurally, or "".
+
+    `classify_ode` is authoritative about the techniques it names well, and it
+    is not authoritative about exactness -- see `_DETECTORS`. This is only ever
+    consulted once the hints have been exhausted.
+    """
+    for technique, detector in _DETECTORS:
+        try:
+            if detector(equation, function):
+                return technique
+        except Exception:
+            continue
     return ""
 
 
@@ -147,12 +193,14 @@ def derive(equation: sp.Eq, function: sp.Function, *,
 
     `hints` is the whole tuple from `classify_ode`, not its first element --
     see `TECHNIQUES` for why that distinction decides whether this works at all.
+    Where the hints name nothing, the equation is examined directly; today that
+    finds exact equations, which `classify_ode` cannot be trusted about.
     """
-    technique = preferred_hint(hints)
+    equation = _exact(equation)
+    technique = preferred_hint(hints) or detected(equation, function)
     if not technique:
         return None
 
-    equation = _exact(equation)
     builder = _BUILDERS[technique]
     derivation = Derivation(technique=technique, title=TITLES[technique])
     try:
@@ -374,7 +422,14 @@ def _constants_in(expr) -> list[sp.Symbol]:
 
 
 def _separable(equation: sp.Eq, function: sp.Function, ics: dict,
-               derivation: Derivation) -> None:
+               derivation: Derivation, *, variable: str = "y") -> None:
+    """Separate, integrate, rearrange.
+
+    `variable` names the unknown in the *displayed* mathematics. It is "y" for
+    an equation somebody typed, and "v" when a substitution builder hands its
+    own equation here: the moves are identical and the letters are not, and a
+    derivation that called v "y" would misreport what it had just done.
+    """
     rhs = _rhs_of(equation, function)
 
     # `separatevars` needs atoms, so `y(t)` stands in as a plain symbol for the
@@ -387,21 +442,23 @@ def _separable(equation: sp.Eq, function: sp.Function, ics: dict,
     f_t = sp.simplify(parts["coeff"] * parts[_T])
     g_y = sp.simplify(parts[Y])
 
-    # `Y` is scaffolding for `separatevars` and must never reach the reader.
-    plain = sp.Symbol("y")
+    # `Y` is scaffolding for `separatevars` and must never reach the reader --
+    # and what replaces it is the variable actually being solved for, which is
+    # `v` when a substitution builder handed this equation over.
+    plain = sp.Symbol(variable)
     g_shown = g_y.subs(Y, plain)
     product = (sp.Mul(f_t, g_shown, evaluate=False) if f_t != 1 else g_shown)
 
     derivation.steps.append(Step(
         title="Write it as a product",
-        latex=_eq(r"\frac{dy}{dt}", product),
+        latex=_eq(rf"\frac{{d{variable}}}{{dt}}", product),
         note="Everything in t in one factor, everything in y in the other. "
              "This is what makes the equation separable.",
         verified=_is_zero(sp.expand(f_t * g_y.subs(Y, function(_T)) - rhs)),
     ))
     derivation.steps.append(Step(
         title="Separate the variables",
-        latex=(rf"\frac{{dy}}{{{sp.latex(g_shown)}}} = "
+        latex=(rf"\frac{{d{variable}}}{{{sp.latex(g_shown)}}} = "
                + ("dt" if f_t == 1 else rf"{sp.latex(f_t)}\, dt")),
         note="Divide by g(y) and multiply by dt. Dividing assumes g(y) is not "
              "zero — where it is, y is a constant solution in its own right.",
@@ -418,8 +475,16 @@ def _separable(equation: sp.Eq, function: sp.Function, ics: dict,
                   and _is_zero(sp.diff(right, _T) - f_t)),
     ))
 
-    solutions = sp.solve(sp.Eq(left.subs(Y, function(_T)), right + _C),
-                         function(_T))
+    # `solve` raises rather than returning nothing on a transcendental
+    # rearrangement -- ``atan(v) + ln(v²+1)/2 = -ln t + C`` is a real one,
+    # reached by the homogeneous substitution. The integrated form above is
+    # still correct and still worth showing, so this degrades to the message
+    # below rather than losing the whole derivation to an exception.
+    try:
+        solutions = sp.solve(sp.Eq(left.subs(Y, function(_T)), right + _C),
+                             function(_T))
+    except (NotImplementedError, sp.PolynomialError):
+        solutions = []
     if not solutions:
         derivation.message = (
             "the integrated form is correct but cannot be rearranged for y"
@@ -427,8 +492,8 @@ def _separable(equation: sp.Eq, function: sp.Function, ics: dict,
         return
     general = sp.simplify(_pick_branch(solutions, ics))
     derivation.steps.append(Step(
-        title="Solve for y",
-        latex=_eq("y(t)", general),
+        title=f"Solve for {variable}",
+        latex=_eq(f"{variable}(t)", general),
         note="The general solution: one arbitrary constant, as a first-order "
              "equation must have."
              + ("" if len(solutions) < 2 else
@@ -482,13 +547,20 @@ def _pick_branch(solutions, ics: dict):
 
 
 def _integrating_factor(equation: sp.Eq, function: sp.Function, ics: dict,
-                        derivation: Derivation) -> None:
+                        derivation: Derivation, *,
+                        variable: str = "y") -> None:
+    """Standard form, integrating factor, integrate, divide.
+
+    `variable` names the unknown in the displayed mathematics; see
+    `_separable`, which takes it for the same reason.
+    """
     p, q, lead = _first_order_coefficients(equation, function)
     y = function(_T)
 
     derivation.steps.append(Step(
         title="Put it in standard form",
-        latex=rf"y' + \left({sp.latex(p)}\right) y = {sp.latex(q)}",
+        latex=rf"{variable}' + \left({sp.latex(p)}\right) {variable}"
+              rf" = {sp.latex(q)}",
         note="Divide through by the coefficient of y'. The technique needs the "
              "equation in exactly this shape.",
         # Dividing the original by that same coefficient has to give back
@@ -508,15 +580,16 @@ def _integrating_factor(equation: sp.Eq, function: sp.Function, ics: dict,
     ))
     derivation.steps.append(Step(
         title="Multiply through by it",
-        latex=rf"{sp.latex(mu)}\, y' + {sp.latex(sp.simplify(p * mu))}\, y"
+        latex=rf"{sp.latex(mu)}\, {variable}' + "
+              rf"{sp.latex(sp.simplify(p * mu))}\, {variable}"
               rf" = {sp.latex(sp.simplify(q * mu))}",
     ))
     derivation.steps.append(Step(
         title="The left side is a product rule",
-        latex=_eq(rf"\frac{{d}}{{dt}}\left[{sp.latex(mu)}\, y\right]",
-                  sp.simplify(q * mu)),
-        note="Because mu' = p·mu, the two terms on the left are exactly the "
-             "expansion of (mu·y)'.",
+        latex=_eq(rf"\frac{{d}}{{dt}}\left[{sp.latex(mu)}\, {variable}"
+                  rf"\right]", sp.simplify(q * mu)),
+        note=f"Because mu' = p·mu, the two terms on the left are exactly "
+             f"the expansion of (mu·{variable})'.",
         verified=_is_zero(sp.expand(
             sp.diff(mu * y, _T) - (mu * y.diff(_T) + p * mu * y)
         )),
@@ -525,7 +598,7 @@ def _integrating_factor(equation: sp.Eq, function: sp.Function, ics: dict,
     integral = sp.integrate(sp.simplify(mu * q), _T)
     derivation.steps.append(Step(
         title="Integrate both sides",
-        latex=_eq(rf"{sp.latex(mu)}\, y",
+        latex=_eq(rf"{sp.latex(mu)}\, {variable}",
                   sp.Add(integral, _C, evaluate=False)),
         note="The left side integrates by inspection — it was arranged to.",
         verified=_is_zero(sp.diff(integral, _T) - sp.simplify(mu * q)),
@@ -534,7 +607,7 @@ def _integrating_factor(equation: sp.Eq, function: sp.Function, ics: dict,
     general = sp.simplify((integral + _C) / mu)
     derivation.steps.append(Step(
         title="Divide by the integrating factor",
-        latex=_eq("y(t)", general),
+        latex=_eq(f"{variable}(t)", general),
         note="The general solution.",
         verified=_satisfies(equation, function, general),
     ))
@@ -919,10 +992,350 @@ def _cauchy_euler(equation: sp.Eq, function: sp.Function, ics: dict,
     _apply_conditions(general, ics, derivation, constants)
 
 
+# ---------------------------------------------------------------------------
+# Exact equations
+#
+# The one technique here that `classify_ode` cannot be asked for. Measured on
+# this sympy: of six exact equations, it named `1st_exact` for three, missed it
+# entirely on the three the lesson exists for -- `y' = -(2t+y)/(t+3y^2)` comes
+# back as `1st_power_series, lie_group` -- and *offered* it on `y' = -y/t^2`,
+# which is not exact under this splitting. So exactness is decided here, by the
+# test a course teaches, and never taken from a hint.
+# ---------------------------------------------------------------------------
+
+
+def _split_exact(equation: sp.Eq, function: sp.Function):
+    """``y' = -M/N`` as ``(M, N, Y)``, with `Y` standing in for y.
+
+    The plain symbol is needed because the exactness test differentiates with
+    respect to y as a *variable*, which `y(t)` is not.
+    """
+    Y = sp.Symbol("Y")
+    rhs = _rhs_of(equation, function).subs(function(_T), Y)
+    numerator, denominator = sp.fraction(sp.together(-rhs))
+    return sp.expand(numerator), sp.expand(denominator), Y
+
+
+def _degree_in(expression, symbol) -> int:
+    """The polynomial degree in `symbol`, or -1 if it is not polynomial."""
+    try:
+        return int(sp.Poly(expression, symbol).degree())
+    except (sp.PolynomialError, sp.GeneratorsNeeded, TypeError, ValueError):
+        return -1
+
+
+def _is_exact(equation: sp.Eq, function: sp.Function) -> bool:
+    """Whether ``M dt + N dy = 0`` has ∂M/∂y = ∂N/∂t.
+
+    Never raises: it is asked about every equation no named technique fits.
+    """
+    try:
+        M, N, Y = _split_exact(equation, function)
+    except Exception:
+        return False
+    if N == 0 or not (M.has(Y) or N.has(Y)):
+        return False              # nothing to be exact about
+    return _is_zero(sp.diff(M, Y) - sp.diff(N, _T))
+
+
+def _exact_equation(equation: sp.Eq, function: sp.Function, ics: dict,
+                    derivation: Derivation) -> None:
+    M, N, Y = _split_exact(equation, function)
+    plain = sp.Symbol("y")
+
+    derivation.steps.append(Step(
+        title="Write it as M dt + N dy = 0",
+        latex=(rf"\left({sp.latex(M.subs(Y, plain))}\right) dt + "
+               rf"\left({sp.latex(N.subs(Y, plain))}\right) dy = 0"),
+        note="Clear the fraction and put everything on one side. M is what "
+             "multiplies dt, N what multiplies dy.",
+        verified=_is_zero(sp.simplify(
+            _rhs_of(equation, function) + (M / N).subs(Y, function(_T))
+        )),
+    ))
+
+    dM, dN = sp.simplify(sp.diff(M, Y)), sp.simplify(sp.diff(N, _T))
+    derivation.steps.append(Step(
+        title="Test for exactness",
+        latex=(rf"\frac{{\partial M}}{{\partial y}} = "
+               rf"{sp.latex(dM.subs(Y, plain))} = "
+               rf"{sp.latex(dN.subs(Y, plain))} = "
+               rf"\frac{{\partial N}}{{\partial t}}"),
+        note="These agreeing is what says the left side is already the "
+             "derivative of something. If they differed, no ψ would exist and "
+             "the method would not apply.",
+        verified=_is_zero(dM - dN),
+    ))
+
+    partial = sp.integrate(M, _T)
+    derivation.steps.append(Step(
+        title="Integrate M with respect to t",
+        latex=(rf"\psi(t, y) = {sp.latex(partial.subs(Y, plain))} + h(y)"),
+        note="Holding y fixed. The constant of integration may depend on y, "
+             "which is what h(y) is for.",
+        verified=_is_zero(sp.diff(partial, _T) - M),
+    ))
+
+    remainder = sp.simplify(N - sp.diff(partial, Y))
+    h = sp.integrate(remainder, Y)
+    derivation.steps.append(Step(
+        title="Pin h(y) by matching N",
+        latex=(rf"h'(y) = {sp.latex(remainder.subs(Y, plain))}"
+               rf"\quad\Longrightarrow\quad h(y) = {sp.latex(h.subs(Y, plain))}"),
+        note="∂ψ/∂y has to equal N. What is left over involves y alone — and "
+             "that it does is exactly what the exactness test bought.",
+        # Two claims: the leftover really is free of t, and h integrates back.
+        verified=(not remainder.has(_T)
+                  and _is_zero(sp.diff(h, Y) - remainder)),
+    ))
+
+    psi = sp.simplify(partial + h)
+    derivation.steps.append(Step(
+        title="The solution is ψ = C",
+        latex=_eq(sp.latex(psi.subs(Y, plain)), _C),
+        note="Along a solution curve ψ does not change, because dψ = M dt + "
+             "N dy is zero. That is the whole method.",
+        verified=(_is_zero(sp.diff(psi, _T) - M)
+                  and _is_zero(sp.diff(psi, Y) - N)),
+    ))
+
+    # Only rearrange where rearranging helps. Measured: a ψ quartic in y sends
+    # `solve` past sixty seconds, and a cubic one returns in under a second but
+    # as three lines of nested radicals nobody would write down. A textbook
+    # leaves those implicit, and so does this.
+    if _degree_in(psi, Y) > 2:
+        derivation.message = (
+            "ψ(t, y) = C is the answer, and is left in that form: solving it "
+            "for y would give radicals rather than anything worth reading"
+        )
+        return
+
+    solutions = sp.solve(sp.Eq(psi, _C), Y)
+    if not solutions:
+        derivation.message = (
+            "the answer is correct but implicit: ψ(t, y) = C cannot be "
+            "rearranged for y"
+        )
+        return
+    general = sp.simplify(_pick_branch(solutions, ics))
+    derivation.steps.append(Step(
+        title="Solve for y",
+        latex=_eq("y(t)", general),
+        note="The general solution."
+             + ("" if len(solutions) < 2 else
+                "  Rearranging gave several branches; this is the one the "
+                "initial condition sits on." if ics else
+                "  Rearranging gave several branches — which one applies "
+                "depends on the initial condition."),
+        verified=_satisfies(equation, function, general),
+    ))
+    _apply_conditions(general, ics, derivation, _constants_in(general))
+
+
+# ---------------------------------------------------------------------------
+# Bernoulli
+# ---------------------------------------------------------------------------
+
+
+def _signed_branch(candidate, equation: sp.Eq, function: sp.Function,
+                   ics: dict):
+    """The sign of `candidate` the initial condition sits on.
+
+    Both substitution builders end by undoing a root -- ``y = v^{1/(1-n)}``,
+    or ``y = t·v`` where v came out of a square -- and an even root leaves a
+    sign that nothing before the condition can settle. The inner builder never
+    saw the condition (it was solving in v), so this is the first point at
+    which the question can be asked.
+
+    The negated branch is offered only once it has been checked to solve the
+    equation too, so an odd root -- where there is no second branch -- cannot
+    be handed a wrong answer that merely happens to pass through the point.
+    """
+    if not ics:
+        return candidate
+    candidates = [candidate]
+    if _satisfies(equation, function, -candidate) is True:
+        candidates.append(-candidate)
+    return _pick_branch(candidates, ics)
+
+
+def _bernoulli_parts(equation: sp.Eq, function: sp.Function):
+    """``(p, q, n)`` for ``y' + p y = q y^n``, or None if it is not that.
+
+    `n` may be negative -- ``y' = (t² + y²)/(t y)`` is ``y' - y/t = t·y^{-1}``
+    -- so the powers are read off term by term rather than through `Poly`,
+    which refuses a negative exponent.
+    """
+    Y = sp.Symbol("Y")
+    rhs = sp.expand(_rhs_of(equation, function).subs(function(_T), Y))
+    powers: dict[int, sp.Expr] = {}
+    for term in sp.Add.make_args(rhs):
+        coefficient, exponent = term.as_coeff_exponent(Y)
+        if coefficient.has(Y) or not exponent.is_Integer:
+            return None
+        index = int(exponent)
+        powers[index] = powers.get(index, sp.Integer(0)) + coefficient
+
+    powers = {index: value for index, value in powers.items() if value != 0}
+    if len(powers) != 2 or 1 not in powers:
+        return None
+    n = next(index for index in powers if index != 1)
+    if n in (0, 1):
+        return None
+    return -powers[1], powers[n], sp.Integer(n)
+
+
+def _bernoulli(equation: sp.Eq, function: sp.Function, ics: dict,
+               derivation: Derivation) -> None:
+    parts = _bernoulli_parts(equation, function)
+    if parts is None:
+        derivation.message = "this is not y' + p(t)y = q(t)y^n"
+        return
+    p, q, n = parts
+    power = sp.Integer(1) - n
+
+    derivation.steps.append(Step(
+        title="Put it in Bernoulli form",
+        latex=(rf"y' + \left({sp.latex(p)}\right) y = "
+               rf"\left({sp.latex(q)}\right) y^{{{sp.latex(n)}}}"),
+        note="Linear except for the power on the right. That single term is "
+             "the whole difficulty, and the substitution below removes it.",
+        verified=_is_zero(sp.simplify(
+            _rhs_of(equation, function)
+            - (-p * function(_T) + q * function(_T) ** n)
+        )),
+    ))
+    derivation.steps.append(Step(
+        title=f"Substitute v = y^{{{sp.latex(power)}}}",
+        latex=(rf"v = y^{{{sp.latex(power)}}}, \qquad "
+               rf"v' = {sp.latex(power)}\, y^{{{sp.latex(-n)}}}\, y'"),
+        note="Chosen so that dividing the equation by y^n turns every term "
+             "into one in v. The exponent is 1 − n, and nothing else works.",
+    ))
+
+    v = sp.Function("v")
+    v_equation = sp.Eq(v(_T).diff(_T) + power * p * v(_T), power * q)
+    derivation.steps.append(Step(
+        title="It is linear in v",
+        latex=(rf"v' + \left({sp.latex(sp.simplify(power * p))}\right) v = "
+               rf"{sp.latex(sp.simplify(power * q))}"),
+        note="The same equation, in a variable that makes it linear. From "
+             "here it is the integrating factor, exactly as usual.",
+        # Substituting v = y^{1-n} back has to reproduce the original equation
+        # divided by y^n -- the division that motivated the substitution.
+        verified=_is_zero(sp.simplify(
+            ((v_equation.lhs - v_equation.rhs)
+             .subs(v(_T), function(_T) ** power).doit())
+            - power * function(_T) ** (-n)
+            * (function(_T).diff(_T) + p * function(_T)
+               - q * function(_T) ** n)
+        )),
+    ))
+
+    # `ics` are conditions on y, not on v, so the hand-off gets none of them:
+    # they are applied once, at the end, to the answer in y.
+    _integrating_factor(v_equation, v, {}, derivation, variable="v")
+    v_general = derivation.result
+    if v_general is None:
+        derivation.message = derivation.message or "the linear step failed"
+        return
+
+    general = _signed_branch(
+        sp.simplify(sp.Pow(v_general, sp.Rational(1, int(power)))),
+        equation, function, ics,
+    )
+    derivation.steps.append(Step(
+        title="Undo the substitution",
+        latex=_eq("y(t)", general),
+        note=f"y = v^(1/({sp.sstr(power)})), which is where the root in the "
+             "answer comes from."
+             + ("  An even root leaves a sign to choose, and the initial "
+                "condition is what chooses it." if ics else ""),
+        verified=_satisfies(equation, function, general),
+    ))
+    derivation.result = None            # `_apply_conditions` sets it properly
+    _apply_conditions(general, ics, derivation, _constants_in(general))
+
+
+# ---------------------------------------------------------------------------
+# Homogeneous substitution
+# ---------------------------------------------------------------------------
+
+
+def _homogeneous_substitution(equation: sp.Eq, function: sp.Function,
+                              ics: dict, derivation: Derivation) -> None:
+    V = sp.Symbol("V")
+    rhs = _rhs_of(equation, function)
+    in_v = sp.simplify(rhs.subs(function(_T), V * _T))
+    if in_v.has(_T):
+        derivation.message = "the right-hand side does not depend on y/t alone"
+        return
+
+    derivation.steps.append(Step(
+        title="Everything depends on y/t",
+        latex=_eq("y'", in_v.subs(V, sp.Symbol("y/t"))),
+        note="t and y appear only in that ratio. An equation of this shape is "
+             "called homogeneous, and the ratio is what to substitute for.",
+        verified=not in_v.has(_T),
+    ))
+    derivation.steps.append(Step(
+        title="Substitute y = v·t",
+        latex=r"y = v\,t, \qquad y' = v + t\,v'",
+        note="Differentiate the substitution by the product rule. The v on "
+             "the right is what will cancel against the equation.",
+    ))
+
+    v = sp.Function("v")
+    v_rhs = sp.simplify((in_v - V) / _T).subs(V, v(_T))
+    v_equation = sp.Eq(v(_T).diff(_T), v_rhs)
+    derivation.steps.append(Step(
+        title="Now it separates",
+        latex=_eq("v'", sp.simplify((in_v - V) / _T).subs(V, sp.Symbol("v"))),
+        note="v + t·v' = F(v), so t·v' = F(v) − v. The variables come apart, "
+             "which they did not before.",
+        verified=_is_zero(sp.simplify(
+            v_rhs.subs(v(_T), function(_T) / _T)
+            - (rhs - function(_T) / _T) / _T
+        )),
+    ))
+
+    # As in `_bernoulli`: the conditions are on y, so they are applied once, at
+    # the end, and never to the answer in v.
+    _separable(v_equation, v, {}, derivation, variable="v")
+    v_general = derivation.result
+    if v_general is None:
+        derivation.message = derivation.message or "the separable step failed"
+        return
+
+    general = _signed_branch(sp.simplify(_T * v_general),
+                             equation, function, ics)
+    derivation.steps.append(Step(
+        title="Undo the substitution",
+        latex=_eq("y(t)", general),
+        note="y = v·t, so multiply the answer in v by t."
+             + ("  Separating left a square root, and the initial condition "
+                "is what decides its sign." if ics else ""),
+        verified=_satisfies(equation, function, general),
+    ))
+    derivation.result = None            # `_apply_conditions` sets it properly
+    _apply_conditions(general, ics, derivation, _constants_in(general))
+
+
 _BUILDERS = {
     "separable": _separable,
     "1st_linear": _integrating_factor,
+    "Bernoulli": _bernoulli,
+    "1st_homogeneous_coeff_best": _homogeneous_substitution,
+    "1st_exact": _exact_equation,
     "nth_linear_constant_coeff_homogeneous": _homogeneous,
     "nth_linear_constant_coeff_undetermined_coefficients": _undetermined,
     "nth_linear_euler_eq_homogeneous": _cauchy_euler,
 }
+
+#: Techniques `classify_ode` cannot be relied on to name, and how to recognise
+#: them ourselves. Consulted by `derive` only when no named technique applies,
+#: so an equation a course would solve by separation or an integrating factor
+#: still gets the method it is met by first.
+_DETECTORS = (
+    ("1st_exact", _is_exact),
+)

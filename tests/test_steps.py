@@ -57,9 +57,16 @@ CANONICAL = {
         _eq(Y(T).diff(T, 2) + 3 * Y(T).diff(T) + 2 * Y(T)),
     "nth_linear_constant_coeff_undetermined_coefficients":
         _eq(Y(T).diff(T, 2) + 4 * Y(T), sp.sin(T)),
+    "1st_homogeneous_coeff_best":
+        _eq(Y(T).diff(T), (T**2 + Y(T) ** 2) / (T * Y(T))),
+    "Bernoulli": _eq(Y(T).diff(T) + Y(T), T * Y(T) ** 3),
     "nth_linear_euler_eq_homogeneous":
         _eq(T**2 * Y(T).diff(T, 2) + T * Y(T).diff(T) - Y(T)),
 }
+
+#: Exact equations are deliberately absent from `CANONICAL`: they are not
+#: dispatched from a hint at all. See the exactness tests below.
+EXACT = _eq(Y(T).diff(T), -(sp.cos(T) + Y(T)) / (T + 2 * Y(T)))
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +178,17 @@ EXPECTED = {
          "The fundamental set", "That is the homogeneous solution",
          "Guess a form from the forcing term", "Substitute the guess",
          "Solve for the coefficients", "The general solution"],
+    "1st_homogeneous_coeff_best":
+        ["Everything depends on y/t", "Substitute y = v·t",
+         "Now it separates", "Write it as a product",
+         "Separate the variables", "Integrate both sides", "Solve for v",
+         "Undo the substitution"],
+    "Bernoulli":
+        ["Put it in Bernoulli form", "Substitute v = y^{-2}",
+         "It is linear in v", "Put it in standard form",
+         "Form the integrating factor", "Multiply through by it",
+         "The left side is a product rule", "Integrate both sides",
+         "Divide by the integrating factor", "Undo the substitution"],
     "nth_linear_euler_eq_homogeneous":
         ["Try a power of t", "The indicial equation", "Its roots",
          "The fundamental set", "The general solution"],
@@ -298,9 +316,9 @@ def test_without_conditions_the_constants_stay():
 @pytest.mark.parametrize("equation", [
     _eq(Y(T).diff(T, 2) - T * Y(T)),                    # Airy
     _eq(Y(T).diff(T), Y(T) ** 2 + T**2),                # Riccati
-    _eq(Y(T).diff(T), Y(T) + T * Y(T) ** 2),            # Bernoulli
+    _eq(Y(T).diff(T, 2) + sp.sin(Y(T))),                # the pendulum
 ])
-def test_an_equation_outside_the_five_gets_no_derivation(equation):
+def test_an_equation_outside_the_techniques_gets_no_derivation(equation):
     """None, not a vague derivation. The interface then shows exactly what it
     showed before this feature existed."""
     assert _derive(equation) is None
@@ -718,3 +736,250 @@ def test_an_equation_the_editor_accepts_but_the_parser_rejects_is_reported(qapp)
 
     assert "cannot parse" in screen.editor.message.text()
     screen.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Exact equations: the one technique not taken from a hint
+# ---------------------------------------------------------------------------
+
+
+def test_exactness_is_decided_here_and_not_by_classify_ode():
+    """The measurement this builder exists because of.
+
+    On the equations an exact-equations lesson is actually about, sympy does
+    not offer `1st_exact` at all -- and it *does* offer it on an equation that
+    is not exact under this splitting. Neither half of that is a sympy bug; it
+    normalises M and N differently. It does mean the hint cannot be trusted,
+    which is why `derive` tests for exactness itself.
+    """
+    from odesuite_app.steps import _is_exact
+
+    missed = _eq(Y(T).diff(T), -(2 * T + Y(T)) / (T + 3 * Y(T) ** 2))
+    assert "1st_exact" not in sp.classify_ode(missed, Y(T))
+    assert _is_exact(missed, Y)
+
+    offered = _eq(Y(T).diff(T), -Y(T) / T**2)
+    assert "1st_exact" in sp.classify_ode(offered, Y(T))
+    assert not _is_exact(offered, Y)
+
+    # And `1st_exact` is never in the hint-driven table, so it cannot be
+    # dispatched from a hint even when sympy offers one.
+    assert "1st_exact" not in TECHNIQUES
+
+
+def test_an_exact_equation_is_narrated():
+    derivation = _derive(EXACT)
+    assert derivation is not None
+    assert derivation.technique == "1st_exact"
+    assert derivation.title == "Exact equation"
+    assert derivation.verified is True
+    assert derivation.complete
+
+
+def test_the_exact_steps_are_the_ones_a_course_writes():
+    assert [step.title for step in _derive(EXACT).steps] == [
+        "Write it as M dt + N dy = 0",
+        "Test for exactness",
+        "Integrate M with respect to t",
+        "Pin h(y) by matching N",
+        "The solution is ψ = C",
+        "Solve for y",
+    ]
+
+
+def test_every_exact_step_passes_its_own_check():
+    failed = [s.title for s in _derive(EXACT).steps if s.verified is False]
+    assert not failed, f"these steps did not verify: {failed}"
+
+
+def test_the_exactness_test_is_shown_as_the_test():
+    """∂M/∂y = ∂N/∂t is not scaffolding, it is the step that decides whether
+    the method applies at all, so it has to be on screen and checked."""
+    step = next(s for s in _derive(EXACT).steps
+                if s.title == "Test for exactness")
+    assert step.verified is True
+    assert "partial" in step.latex
+
+
+def test_an_equation_that_is_not_exact_is_not_claimed_to_be():
+    from odesuite_app.steps import _is_exact
+
+    assert not _is_exact(_eq(Y(T).diff(T), -(T + Y(T) ** 2) / (2 * T)), Y)
+    assert _derive(_eq(Y(T).diff(T), -(T + Y(T) ** 2) / (2 * T))) is None
+
+
+@pytest.mark.parametrize("equation,expected", [
+    # Exact *and* linear: a course reaches for the integrating factor.
+    (_eq(Y(T).diff(T), -(3 * T**2 + 2 * Y(T)) / (2 * T + 1)), "1st_linear"),
+    # Exact *and* homogeneous: a course substitutes.
+    (_eq(Y(T).diff(T), -(2 * T + 3 * Y(T)) / (3 * T + 4 * Y(T))),
+     "1st_homogeneous_coeff_best"),
+])
+def test_exactness_never_displaces_a_technique_met_earlier(equation, expected):
+    """The detector runs only where the hints named nothing, so an equation
+    with an earlier method keeps it."""
+    from odesuite_app.steps import _is_exact
+
+    assert _is_exact(equation, Y), "the premise of this test has changed"
+    assert _derive(equation).technique == expected
+
+
+def test_a_high_degree_psi_is_left_implicit_rather_than_solved():
+    """Measured: a ψ quartic in y sends `solve` past sixty seconds, and a cubic
+    one returns nested radicals nobody would write down. A textbook leaves
+    those as ψ = C, and so does this."""
+    import time
+
+    quartic = _eq(Y(T).diff(T), -(2 * T * Y(T) + 1) / (T**2 + 4 * Y(T) ** 3))
+    start = time.perf_counter()
+    derivation = _derive(quartic)
+    took = time.perf_counter() - start
+
+    assert took < 15, f"solving was attempted anyway ({took:.0f}s)"
+    assert derivation.technique == "1st_exact"
+    assert derivation.result is None
+    assert "implicit" in derivation.message or "left in that form" in \
+        derivation.message
+    # The working is still shown, and every step of it still checks out.
+    assert [s.title for s in derivation.steps][-1] == "The solution is ψ = C"
+    assert not [s for s in derivation.steps if s.verified is False]
+
+
+# ---------------------------------------------------------------------------
+# The substitutions
+# ---------------------------------------------------------------------------
+
+
+def test_a_substitution_says_v_where_it_means_v():
+    """The hand-off shares the two first-order builders rather than copying
+    them, so the letters have to follow the substitution or the derivation
+    would claim to be solving for y while solving for v."""
+    steps = _derive(CANONICAL["Bernoulli"]).steps
+    standard = next(s for s in steps if s.title == "Put it in standard form")
+    assert standard.latex.startswith("v'")
+    assert "y" not in standard.latex
+
+    divided = next(s for s in steps
+                   if s.title == "Divide by the integrating factor")
+    assert divided.latex.startswith("v(t)")
+
+
+def test_a_substitution_ends_in_y_and_is_checked_against_the_original():
+    for technique in ("Bernoulli", "1st_homogeneous_coeff_best"):
+        derivation = _derive(CANONICAL[technique])
+        last = derivation.steps[-1]
+        assert last.title == "Undo the substitution"
+        assert last.latex.startswith("y(t)")
+        assert last.verified is True, technique
+        assert derivation.verified is True, technique
+
+
+def test_bernoulli_handles_a_negative_power():
+    """`y' = (t² + y²)/(ty)` is Bernoulli with n = −1, which `Poly` refuses to
+    read. It is also homogeneous, and that is the technique a course teaches
+    it by -- so the negative power is checked directly."""
+    from odesuite_app.steps import _bernoulli_parts
+
+    parts = _bernoulli_parts(_eq(Y(T).diff(T), (T**2 + Y(T) ** 2) / (T * Y(T))),
+                             Y)
+    assert parts is not None
+    p, q, n = parts
+    assert n == -1
+    assert sp.simplify(p + 1 / T) == 0
+    assert sp.simplify(q - T) == 0
+
+
+def test_the_initial_condition_chooses_the_sign_after_a_root():
+    """Undoing an even root leaves ±, and the inner builder never saw the
+    condition because it was solving in v. Taking the first branch regardless
+    gave `y = -t·sqrt(...)`, which cannot pass through y(1) = 2 at all."""
+    derivation = _derive(
+        _eq(Y(T).diff(T), (T**2 + Y(T) ** 2) / (T * Y(T))),
+        ics={Y(1): 2},
+    )
+    assert derivation.verified is True
+    assert derivation.result is not None
+    assert float(derivation.result.subs(T, 1)) == pytest.approx(2.0)
+
+
+def test_a_transcendental_rearrangement_degrades_rather_than_raising():
+    """`atan(v) + ln(v²+1)/2 = -ln t + C` is where the homogeneous substitution
+    lands on `y' = (y-t)/(y+t)`, and `solve` raises NotImplementedError there
+    rather than returning nothing. The integrated form is still correct and
+    still worth showing."""
+    derivation = _derive(_eq(Y(T).diff(T), (Y(T) - T) / (Y(T) + T)))
+    assert derivation is not None
+    assert derivation.technique == "1st_homogeneous_coeff_best"
+    assert derivation.result is None
+    assert "cannot be rearranged" in derivation.message
+    assert "stopped early" not in derivation.message
+    assert len(derivation.steps) >= 5
+    assert not [s for s in derivation.steps if s.verified is False]
+
+
+# ---------------------------------------------------------------------------
+# The worker: not asking `dsolve` what has already been answered
+# ---------------------------------------------------------------------------
+
+
+def _payload(equation, ics=None):
+    return {
+        "equations": [sp.srepr(equation)],
+        "functions": [sp.srepr(Y(T))],
+        "ics": {sp.srepr(k): sp.srepr(v) for k, v in (ics or {}).items()},
+        "steps": True,
+    }
+
+
+def test_a_technique_sympy_never_named_is_not_handed_back_to_dsolve():
+    """Measured: `dsolve` on `y' = -(2t+y)/(t+3y²)` runs past forty seconds
+    trying `lie_group`, so the whole twelve-second budget buys a timeout. The
+    derivation has already substituted its answer back and simplified it to
+    zero, which is a stronger warrant than `dsolve` returning would have
+    been."""
+    import time
+
+    from odesuite_app.dsolve_worker import solve_payload
+
+    start = time.perf_counter()
+    reply = solve_payload(_payload(EXACT))
+    took = time.perf_counter() - start
+
+    assert took < 10, f"dsolve was asked anyway ({took:.0f}s)"
+    assert reply["ok"]
+    assert reply["derivation"]["technique"] == "1st_exact"
+    assert "1st_exact" not in reply["hints"], "the premise has changed"
+    assert reply["general"], "the verified answer was not handed over"
+
+
+def test_the_handover_uses_particular_when_there_are_conditions():
+    from odesuite_app.dsolve_worker import solve_payload
+
+    reply = solve_payload(_payload(EXACT, {Y(0): 1}))
+    assert reply["ok"]
+    assert reply.get("particular")
+    assert "general" not in reply
+
+
+def test_a_technique_sympy_does_name_is_still_asked_of_dsolve():
+    """The guard is deliberately narrow. Where the hint list names the
+    technique, sympy knows it too and nothing changes."""
+    from odesuite_app.dsolve_worker import solve_payload
+
+    reply = solve_payload(_payload(_eq(Y(T).diff(T) + 2 * Y(T), T)))
+    assert reply["ok"]
+    assert "1st_linear" in reply["hints"]
+    assert reply["general"]
+
+
+def test_a_dsolve_answer_with_several_branches_is_not_thrown_away():
+    """`dsolve` returns a *list* where solving for y leaves branches, and
+    reading `.rhs` off the list raised AttributeError -- which the caller then
+    reported as "no method", discarding an answer sympy had found."""
+    from odesuite_app.dsolve_worker import _right_hand_side
+
+    equation = _eq(Y(T).diff(T) + Y(T), T * Y(T) ** 3)
+    solved = sp.dsolve(equation, Y(T))
+    assert isinstance(solved, list), "the premise of this test has changed"
+    restored = sp.sympify(_right_hand_side(solved))
+    assert restored == solved[0].rhs

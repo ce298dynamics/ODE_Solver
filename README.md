@@ -77,7 +77,7 @@ gains nothing from it. `scipy.integrate.solve_ivp` has no equivalent.
 ## Verification
 
 Correctness evidence is the point of this project, so it is worth being specific about
-what is actually checked. **998 tests**, of which the load-bearing ones are:
+what is actually checked. **2077 tests**, of which the load-bearing ones are:
 
 **Order conditions, algebraically.** `tests/test_tableaux.py` evaluates the rooted-tree
 order conditions through order 5 for every Butcher tableau, and asserts that the
@@ -115,7 +115,7 @@ controller running blind, was the wrong place to have a gap.
 oracle only — never as the basis of an order or accuracy claim.
 
 ```
-py -3.10 -m pytest tests/ -q          # 988 passed, 10 skipped, ~6 min
+py -3.10 -m pytest tests/ -q          # 2058 passed, 19 skipped, ~6 min
 py -3.10 -m pytest tests/ -q -m 'not slow'   # the fast loop, ~3.5 min
 py -3.10 -m ruff check . && py -3.10 -m mypy # lint and types, both clean
 py -3.10 benchmarks/run_all.py        # regenerate every static figure below
@@ -339,12 +339,24 @@ through you are, and a *Continue* button that opens the earliest lesson with a q
 left. A unit appears there once it has lessons — there is no placeholder for one still to
 be written.
 
-**Lessons** is where the work happens. One lesson at a time, in three parts: **Learn**
+**Lessons** is where the work happens. One lesson at a time, in four parts: **Learn**
 (what you should be able to do afterwards, then the notes), **Examples** (each worked
-through by the narrator, on request), and **Practice** (your turn). Seven lessons today —
-separable, integrating factors, characteristic roots, undetermined coefficients,
-Cauchy–Euler, Laplace, and the numerical methods — filed under the chapters of Edwards,
-Penney and Calvis, which is the course this follows.
+through by the narrator, on request), **Practice** (your turn), and **Drill** (below).
+Fifteen lessons today, filed under the chapters of Edwards, Penney and Calvis, which is
+the course this follows:
+
+- **First-order equations** — what a differential equation is; slope fields, existence
+  and uniqueness; separable equations; integrating factors; exact equations;
+  substitutions (homogeneous and Bernoulli).
+- **Models and numerical methods** — population models and the logistic equation;
+  equilibria, stability and the phase line; acceleration, velocity and drag; Euler's
+  method; Runge–Kutta, and what order buys.
+- **Second-order linear equations** — characteristic roots; undetermined coefficients;
+  Cauchy–Euler.
+- **Laplace transforms** — the transform, and solving an initial-value problem with it.
+
+Units 1 and 2 are complete; the rest are being filled in, and a unit appears on the
+Course Map once it has lessons.
 
 Notes come in kinds, and a **common mistake** does not read like an idea: it is the same
 card with a warning stripe down it, because the thing that catches people is worth
@@ -368,7 +380,7 @@ rest of the Hub about what is correct.
 
 Draws are **enumerated rather than sampled**, which is what makes the guarantee
 checkable: `tests/test_templates.py` runs the real narrator over **every draw of every
-template** — 215 of them — and requires each to be narrated by the technique the drill
+template** — 275 of them — and requires each to be narrated by the technique the drill
 claims to be practice at, to have every step verify, and to have its answer accepted by
 the grader. Nobody wrote those questions, so nobody read them either; that sweep is what
 stands in for having read them. It is also why the drill can honestly say "one of 18
@@ -403,9 +415,10 @@ records how many times a question was attempted as well as how it ended, so the 
 tell steady work from a lucky guess — and a file written by an earlier version still
 loads, with its ticks intact.
 
-**Solve Step by Step** narrates the derivation. Five techniques — separation of
-variables, integrating factors, characteristic roots, undetermined coefficients,
-Cauchy–Euler — written out a move at a time, with the reason each move is legal.
+**Solve Step by Step** narrates the derivation. Eight techniques — separation of
+variables, integrating factors, exact equations, the homogeneous substitution `y = v·t`,
+Bernoulli, characteristic roots, undetermined coefficients, Cauchy–Euler — written out a
+move at a time, with the reason each move is legal.
 
 Every step is **checked, not merely printed**. The antiderivatives are differentiated
 back and compared with their integrands; each basis function is substituted into the
@@ -426,9 +439,34 @@ hints ordered by what sympy would rather *solve* with, which is not the order a 
 | `t²y'' + ty' - y = 0` | `factorable` | Cauchy–Euler |
 
 Taking the first hint — which the app did — would have left four of the five techniques
-never selected. The whole tuple is read and the teaching name preferred, which also fixed
-the Studio's label: `y'' + 3y' + 2y = 0` no longer reads "factorable", which is true and
-useless.
+then implemented never selected. The whole tuple is read and the teaching name preferred,
+which also fixed the Studio's label: `y'' + 3y' + 2y = 0` no longer reads "factorable",
+which is true and useless.
+
+**Exactness is the one thing not taken from a hint at all.** Six exact equations were
+split into `M dt + N dy` and tested by hand against `∂M/∂y = ∂N/∂t`:
+
+| equation | the test | `classify_ode` |
+|---|---|---|
+| `y' = −(2t+y)/(t+3y²)` | exact | `1st_power_series`, `lie_group` |
+| `y' = −(2ty+1)/(t²+4y³)` | exact | `1st_power_series`, `lie_group` |
+| `y' = −(cos t + y)/(t+2y)` | exact | `factorable`, `1st_power_series`, `lie_group` |
+| `y' = −(3t²+2y)/(2t+1)` | exact | `1st_exact`, `1st_linear`, … |
+| `y' = −(2t+3y)/(3t+4y)` | exact | `1st_homogeneous_coeff_best`, … |
+| `y' = −y/t²` | **not** exact | `separable`, **`1st_exact`**, … |
+
+sympy misses it on exactly the three equations an exact-equations lesson is *about*, and
+offers it on one the test says is not exact — it normalises `M` and `N` differently, so
+neither half of that is a sympy bug. It does mean the hint cannot be trusted, so
+exactness is decided here, by the test a course teaches, and the detector is consulted
+only where no named technique applies. An equation that is both exact and linear keeps
+the integrating factor, which is the method it is met by first.
+
+The two substitutions **reuse** the separable and integrating-factor narrators rather
+than copying them: `_bernoulli` builds a real equation in a real `v` and hands it over,
+then undoes the substitution and applies the initial condition once, to the answer in
+`y`. That is why those two narrators take the letter to print — a derivation that called
+`v` "y" while solving for `v` would misreport what it had just done.
 
 Because the derivation is computed independently of `dsolve` and published *before* it,
 the two can disagree usefully. `y' = sin(y)` is the equation `dsolve` hangs on outright —
@@ -436,6 +474,13 @@ and separation of variables solves it in about five seconds. The worker writes t
 derivation to its output before starting `dsolve`, so when the hard timeout kills the
 process the parent reads a complete, verified solution back out of what it left behind.
 The Hub shows the working where the Studio can only report a timeout.
+
+Where a technique was found *without* a hint, `dsolve` is not asked at all. On
+`y' = −(2t+y)/(t+3y²)` — a plain exact equation — it runs past forty seconds trying
+`lie_group`, so the entire twelve-second budget buys a timeout; meanwhile the narrated
+answer has already been substituted back and simplified to zero, which is a stronger
+warrant than `dsolve` returning would have been. The guard is deliberately narrow: where
+the hint list does name the technique, sympy knows it too and is asked as usual.
 
 Alongside it, **check your answer**: type your own `y(t)` and it is substituted into your
 equation and simplified. Equivalent forms pass, because the check never compares against
@@ -703,7 +748,7 @@ src/odesuite_app/                                    the studio
              learn_problems                          Learning Hub
   widgets/                                           sliders, cards, plots, maths
 
-tests/         1804 tests
+tests/         2077 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```

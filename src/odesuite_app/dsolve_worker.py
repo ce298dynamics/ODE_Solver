@@ -62,6 +62,25 @@ def _as_dict(derivation) -> dict | None:
     }
 
 
+def _right_hand_side(solved) -> str:
+    """`sp.srepr` of a `dsolve` answer, which is not always one equation.
+
+    For a single equation `dsolve` usually returns one `Eq`, but where solving
+    for y leaves branches it returns a *list* of them -- ``y' + y = t*y**3``
+    comes back as the plus and minus square roots. Reading `.rhs` off the list
+    raised `AttributeError`, which the caller then reported as "no method",
+    throwing away an answer sympy had actually found. The first branch is the
+    one taken, as everywhere else here that a rearrangement produces two.
+    """
+    import sympy as sp
+
+    if isinstance(solved, (list, tuple)):
+        if not solved:
+            raise ValueError("dsolve returned no solutions")
+        solved = solved[0]
+    return sp.srepr(solved.rhs)
+
+
 def solve_payload(payload: dict, emit=None) -> dict:
     """Do the symbolic work described by `payload` and return a plain-dict reply.
 
@@ -131,19 +150,49 @@ def solve_payload(payload: dict, emit=None) -> dict:
         if emit is not None:
             emit(dict(reply, partial=True))
 
+    # Where the derivation found and *verified* an answer by a technique
+    # `classify_ode` never named, asking `dsolve` is asking the one part of
+    # this module that can hang to reproduce something already in hand.
+    #
+    # This is not hypothetical. Exact equations are recognised structurally
+    # rather than from a hint, because sympy misses them; and on
+    # `y' = -(2t + y)/(t + 3y²)` -- a plain exact equation -- `dsolve` runs
+    # past forty seconds trying `lie_group`, so the entire twelve-second
+    # budget buys a timeout. The narrated answer was substituted back and
+    # simplified to zero before it got here, which is a stronger warrant than
+    # `dsolve` returning would have been.
+    #
+    # Deliberately narrow: if the technique *is* in the hint list, sympy knows
+    # it too and is asked as usual, so nothing that worked before changes.
+    found = reply.get("derivation")
+    if found and found.get("technique") not in set(reply.get("hints") or ()):
+        if found.get("verified") is True and found.get("result"):
+            reply["particular" if ics else "general"] = found["result"]
+            reply["ok"] = True
+        else:
+            # No answer to hand over, but the same fact holds: sympy named no
+            # technique, so `dsolve` is being asked to find something out of
+            # nowhere, and on these equations that means the full timeout.
+            reply["error"] = (
+                "sympy has no method for this equation; the working shown was "
+                "produced without it"
+            )
+        return reply
+
     try:
         if len(equations) == 1:
             general = sp.dsolve(equations[0], functions[0])
-            reply["general"] = sp.srepr(general.rhs)
+            reply["general"] = _right_hand_side(general)
             if ics:
                 particular = sp.dsolve(equations[0], functions[0], ics=ics)
-                reply["particular"] = sp.srepr(particular.rhs)
+                reply["particular"] = _right_hand_side(particular)
         else:
             general = sp.dsolve(equations)
-            reply["general"] = [sp.srepr(item.rhs) for item in general]
+            reply["general"] = [_right_hand_side(item) for item in general]
             if ics:
                 particular = sp.dsolve(equations, ics=ics)
-                reply["particular"] = [sp.srepr(item.rhs) for item in particular]
+                reply["particular"] = [_right_hand_side(item)
+                                       for item in particular]
         reply["ok"] = True
     except NotImplementedError:
         reply["error"] = "sympy has no method for this equation"
