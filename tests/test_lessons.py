@@ -421,7 +421,7 @@ def test_lessons_needs_no_interface_toolkit():
 
     code = (
         "import sys; sys.modules['PySide6'] = None\n"
-        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 21\n"
+        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 26\n"
     )
     done = subprocess.run([sys.executable, "-c", code], capture_output=True,
                           text=True)

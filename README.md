@@ -77,7 +77,7 @@ gains nothing from it. `scipy.integrate.solve_ivp` has no equivalent.
 ## Verification
 
 Correctness evidence is the point of this project, so it is worth being specific about
-what is actually checked. **2336 tests**, of which the load-bearing ones are:
+what is actually checked. **2473 tests**, of which the load-bearing ones are:
 
 **Order conditions, algebraically.** `tests/test_tableaux.py` evaluates the rooted-tree
 order conditions through order 5 for every Butcher tableau, and asserts that the
@@ -115,7 +115,7 @@ controller running blind, was the wrong place to have a gap.
 oracle only — never as the basis of an order or accuracy claim.
 
 ```
-py -3.10 -m pytest tests/ -q          # 2317 passed, 19 skipped, ~6 min
+py -3.10 -m pytest tests/ -q          # 2454 passed, 19 skipped, ~8 min
 py -3.10 -m pytest tests/ -q -m 'not slow'   # the fast loop, ~3.5 min
 py -3.10 -m ruff check . && py -3.10 -m mypy # lint and types, both clean
 py -3.10 benchmarks/run_all.py        # regenerate every static figure below
@@ -342,7 +342,7 @@ be written.
 **Lessons** is where the work happens. One lesson at a time, in four parts: **Learn**
 (what you should be able to do afterwards, then the notes), **Examples** (each worked
 through by the narrator, on request), **Practice** (your turn), and **Drill** (below).
-Twenty-one lessons today, filed under the chapters of Edwards, Penney and Calvis, which
+Twenty-six lessons today, filed under the chapters of Edwards, Penney and Calvis, which
 is the course this follows:
 
 - **First-order equations** — what a differential equation is; slope fields, existence
@@ -356,10 +356,12 @@ is the course this follows:
   equations.
 - **Vibrations and forcing** — free vibration and the three damping regimes; forced
   oscillation, beats and resonance; the RLC circuit analogy.
-- **Laplace transforms** — the transform, and solving an initial-value problem with it.
+- **Laplace transforms** — the transform and reading the table; solving an
+  initial-value problem; shifting theorems and partial fractions; convolution; step
+  functions and piecewise forcing; impulses and the delta function.
 
-Units 1 to 4 are complete; the rest are being filled in, and a unit appears on the
-Course Map once it has lessons.
+Units 1 to 5 are complete. Systems and series are still to come, and a unit appears on
+the Course Map once it has lessons.
 
 Notes come in kinds, and a **common mistake** does not read like an idea: it is the same
 card with a warning stripe down it, because the thing that catches people is worth
@@ -433,7 +435,7 @@ rest of the Hub about what is correct.
 
 Draws are **enumerated rather than sampled**, which is what makes the guarantee
 checkable: `tests/test_templates.py` runs the real narrator over **every draw of every
-template** — 384 of them — and requires each to be narrated by the technique the drill
+template** — 432 of them — and requires each to be narrated by the technique the drill
 claims to be practice at, to have every step verify, and to have its answer accepted by
 the grader. Nobody wrote those questions, so nobody read them either; that sweep is what
 stands in for having read them. It is also why the drill can honestly say "one of 18
@@ -448,6 +450,14 @@ substituted into the equation and simplified, through the same check the tools u
 `3*sin(3t)/3` and `-sin(-3t)` and `sin(3t)` are all one answer and none of them is marked
 wrong for being spelled unexpectedly. Where sympy cannot decide, the verdict says so
 rather than guessing.
+
+**Three lessons carry no drill, and the reason is measured.** Grading works by
+substituting an answer back and simplifying to zero; a switched or impulsive answer
+differentiated twice leaves `Heaviside` and `δ` terms that never cancel, so the verdict
+is *cannot tell* — correct, and useless as a drill, because a verdict that can never be
+"right" can never advance a streak. Step forcing and impulses therefore have practice
+questions but no drill, and convolution has none either: its integrals cost seconds
+apiece, and the exhaustive sweep runs every draw of every template.
 
 Multiple-choice questions exist for the thing that check cannot reach — *which technique
 solves this* is what a course actually tests, and a substitution check has nothing to say
@@ -819,7 +829,7 @@ src/odesuite_app/                                    the studio
              learn_problems                          Learning Hub
   widgets/                                           sliders, cards, plots, figures, maths
 
-tests/         2336 tests
+tests/         2473 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```

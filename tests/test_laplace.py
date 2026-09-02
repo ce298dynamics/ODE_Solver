@@ -570,3 +570,131 @@ def test_an_unspecified_condition_is_named_after_the_users_variable(name):
     assert name in symbols
     for other in {"y", "x", "v"} - {name}:
         assert other not in symbols, f"{other}(0) leaked into a {name} equation"
+
+
+# ---------------------------------------------------------------------------
+# Convolution: the route taken when Y(s) will not split
+# ---------------------------------------------------------------------------
+
+
+def _at_rest(equation: str):
+    """The derivation for `equation` with y(0) = y'(0) = 0."""
+    from odesuite_app.symbolic import EquationSpec, parse_equation
+
+    parsed = parse_equation(
+        EquationSpec(equations=[equation],
+                     initial_conditions="y(0) = 0, y'(0) = 0"),
+        extra_functions=EXTRA_FUNCTIONS,
+    )
+    return derive(parsed.equation, parsed.function, ics=parsed.ics)
+
+
+def test_an_unevaluated_inverse_is_never_shown_as_the_answer():
+    """The defect this branch exists for.
+
+    sympy cannot invert these, and says so in two different ways: `e^{-t^2}`
+    comes back as an unevaluated `InverseLaplaceTransform` object, and
+    `1/(1+t)` raises `NotImplementedError` instead. The object used to reach
+    the screen *as the answer*, marked unverified -- a student was shown sympy
+    giving up, dressed as mathematics.
+    """
+    for equation in ("y'' + y = exp(-t**2)", "y'' + y = 1/(1+t)"):
+        derivation = _at_rest(equation)
+        assert derivation.result is None or not derivation.result.has(
+            sp.InverseLaplaceTransform
+        ), equation
+        for step in derivation.steps:
+            assert "InverseLaplaceTransform" not in step.latex, equation
+
+
+def test_the_convolution_theorem_is_narrated_where_nothing_splits():
+    derivation = _at_rest("y'' + y = exp(-t**2)")
+    titles = [step.title for step in derivation.steps]
+
+    assert "Y(s) is a product, not a sum" in titles
+    assert "Invert the transfer function alone" in titles
+    assert "The convolution theorem" in titles
+    # And the partial-fractions step is *not* there: it would contradict the
+    # step that says nothing splits.
+    assert "Split into partial fractions" not in titles
+    assert "Split off the delay" not in titles
+
+
+def test_the_impulse_response_is_checked_against_the_equation():
+    """g = L^-1{1/P(s)} has to solve the homogeneous equation. That is the
+    claim the step makes, so it is the claim that gets verified."""
+    derivation = _at_rest("y'' + y = exp(-t**2)")
+    step = next(s for s in derivation.steps
+                if s.title == "Invert the transfer function alone")
+
+    assert step.verified is True
+    assert "sin" in step.latex, "the impulse response of y'' + y is sin t"
+
+
+def test_a_convolution_that_evaluates_is_carried_through_and_verified():
+    """`1/(1+t)` integrates into Si and Ci. Not a pretty answer, but a correct
+    one, and the substitution check confirms it."""
+    derivation = _at_rest("y'' + y = 1/(1+t)")
+
+    assert derivation.verified is True
+    assert derivation.result is not None
+    assert derivation.complete
+    assert [s.title for s in derivation.steps][-1] == "Evaluate the integral"
+    assert not [s for s in derivation.steps if s.verified is False]
+
+
+def test_a_convolution_that_does_not_evaluate_is_still_a_complete_answer():
+    """A textbook writes the integral down and stops, and so does this. The
+    integral is shown, and the message says why it was left alone rather than
+    implying the method failed."""
+    derivation = _at_rest("y'' + y = exp(-t**2)")
+
+    assert derivation.result is None
+    assert "convolution integral is the answer" in derivation.message
+    step = next(s for s in derivation.steps
+                if s.title == "The convolution theorem")
+    assert r"\int_0^{t}" in step.latex
+    assert "tau" in step.latex or r"\tau" in step.latex
+
+
+def test_convolution_is_a_last_resort_and_not_a_first_one():
+    """Partial fractions is what a course tries first and what it should be
+    shown doing. Anything sympy can invert term by term still is."""
+    from odesuite_app.symbolic import EquationSpec, parse_equation
+
+    parsed = parse_equation(
+        EquationSpec(equations=["y'' + 3*y' + 2*y = exp(-t)"],
+                     initial_conditions="y(0) = 0, y'(0) = 0"),
+        extra_functions=EXTRA_FUNCTIONS,
+    )
+    titles = [s.title for s in
+              derive(parsed.equation, parsed.function, ics=parsed.ics).steps]
+
+    assert "Split into partial fractions" in titles
+    assert "Y(s) is a product, not a sum" not in titles
+
+
+def test_convolution_declines_where_the_system_is_not_at_rest():
+    """With non-zero conditions the transformed equation carries extra
+    polynomial terms, Y(s) is not a single product, and the theorem is not
+    what a course would reach for."""
+    from odesuite_app.laplace import _transfer_and_forcing
+    from odesuite_app.symbolic import EquationSpec, parse_equation
+
+    parsed = parse_equation(
+        EquationSpec(equations=["y'' + y = exp(-t**2)"],
+                     initial_conditions="y(0) = 1, y'(0) = 0"),
+        extra_functions=EXTRA_FUNCTIONS,
+    )
+    assert _transfer_and_forcing(parsed.equation, parsed.function,
+                                 parsed.ics, 2) is None
+
+
+def test_the_table_gained_the_two_structural_rows():
+    keys = {pair.key for pair in TABLE}
+    assert {"convolution", "periodic"} <= keys
+    # And they are deliberately not detectable from an answer's shape -- see
+    # the comment on `_DETECT`. Highlighting the wrong row is worse than
+    # highlighting none.
+    assert "convolution" not in pairs_used(sp.sin(T))
+    assert "periodic" not in pairs_used(sp.sin(T))

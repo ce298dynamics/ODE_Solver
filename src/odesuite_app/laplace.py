@@ -114,9 +114,25 @@ TABLE: tuple[Pair, ...] = (
          "A unit impulse at t = a. Not a function at all, which is part of "
          "why the transform is the natural way to handle one."),
     Pair("tf", r"t\,f(t)", r"-F'(s)"),
+    Pair("convolution", r"\int_0^{t} f(t-\tau)\,g(\tau)\,d\tau", r"F(s)G(s)",
+         "A product of transforms is never the transform of a product — it "
+         "is the transform of a convolution. The row to reach for when Y(s) "
+         "will not split."),
+    Pair("periodic", r"f(t+T) = f(t)",
+         r"\frac{1}{1-e^{-Ts}}\int_0^{T}\! f(t)e^{-st}\,dt",
+         "A periodic forcing term only has to be integrated over one period; "
+         "the factor in front sums the rest of them."),
 )
 
 #: How to recognise, in a time-domain answer, that a row was needed.
+#:
+#: The last two table rows are deliberately absent. `convolution` and
+#: `periodic` describe a *route* rather than a shape -- an answer reached by
+#: convolution looks like any other answer, and one left as an integral has no
+#: `result` to inspect at all -- so there is nothing in the time domain to
+#: recognise them by. A detector that guessed would highlight the wrong row,
+#: which is worse than highlighting none: the table is meant to read as a
+#: reference being consulted.
 _DETECT = {
     "one": lambda e: e.is_number and e != 0,
     "power": lambda e: e.has(_T) and _is_polynomial_in_t(e),
@@ -318,11 +334,13 @@ def _build(equation: sp.Eq, function: sp.Function, ics: dict,
                  "below is the general solution written in terms of them.",
         ))
 
-    _solve_and_invert(equation, function, ics, with_conditions, derivation)
+    _solve_and_invert(equation, function, ics, with_conditions, derivation,
+                      order)
 
 
 def _solve_and_invert(equation: sp.Eq, function: sp.Function, ics: dict,
-                      with_conditions, derivation: Derivation) -> None:
+                      with_conditions, derivation: Derivation,
+                      order: int) -> None:
     """The second half: algebra in s, then the journey back to t.
 
     Split from `_build` along the seam the method itself has -- everything up to
@@ -344,11 +362,43 @@ def _solve_and_invert(equation: sp.Eq, function: sp.Function, ics: dict,
     ))
 
     # -- partial fractions ----------------------------------------------
+    # Where the split ends, so the convolution branch below can take back any
+    # step it is about to contradict.
+    before_split = len(derivation.steps)
     pieces, delay = _split(transform, derivation)
 
     # -- invert ---------------------------------------------------------
-    inverse = inverse_laplace_transform(pieces, _S, _T, noconds=True)
-    answer = sp.simplify(_strip_unit_step(inverse))
+    #
+    # Two ways this fails, and both mean the same thing. sympy either returns
+    # an unevaluated `InverseLaplaceTransform` or raises `NotImplementedError`,
+    # depending on the forcing term: `e^{-t^2}` gives the object, `1/(1+t)`
+    # raises. The object used to reach the screen *as the answer*, marked
+    # unverified -- a student was shown sympy giving up, dressed as
+    # mathematics.
+    #
+    # Both cases have the same shape: Y(s) is a product whose second factor has
+    # no tabulated inverse. That is precisely when a course reaches for the
+    # convolution theorem, so it is tried before the derivation is allowed to
+    # fail -- and the integral it writes down is a complete answer whether or
+    # not it evaluates.
+    try:
+        inverse = inverse_laplace_transform(pieces, _S, _T, noconds=True)
+        answer = sp.simplify(_strip_unit_step(inverse))
+        stuck = answer.has(sp.InverseLaplaceTransform)
+    except (NotImplementedError, ValueError):
+        answer, stuck = None, True
+
+    if stuck:
+        # Anything the split appended is about to be contradicted by "nothing
+        # here splits into partial fractions", so it comes back off.
+        del derivation.steps[before_split:]
+        if _convolution(equation, function, ics, order, derivation):
+            return
+        derivation.message = (
+            derivation.message
+            or "the inverse transform has no elementary form"
+        )
+        return
     if delay is not None:
         answer = sp.simplify(_strip_unit_step(answer))
     derivation.steps.append(Step(
@@ -364,6 +414,139 @@ def _solve_and_invert(equation: sp.Eq, function: sp.Function, ics: dict,
     (derivation.verified, derivation.check,
      derivation.message) = _check(equation, function, answer, ics,
                                   derivation.message)
+
+
+def _transfer_and_forcing(equation: sp.Eq, function: sp.Function, ics: dict,
+                          order: int):
+    """``(P(s), f(t))`` for ``P(s)Y(s) = F(s)``, or None if it is not that.
+
+    The convolution route needs the equation split the way the theorem is
+    stated: a transfer function on one side and a forcing term on the other.
+    It only applies from rest -- with non-zero initial conditions the
+    transformed equation carries extra polynomial terms, the answer is not a
+    single product, and the theorem is not what a course would reach for.
+    """
+    if any(value != 0 for value in ics.values()):
+        return None
+    y = function(_T)
+    expression = sp.expand(equation.lhs - equation.rhs)
+    forcing = sp.simplify(-sum(term for term in sp.Add.make_args(expression)
+                               if not term.has(y)))
+    if forcing == 0 or not forcing.has(_T):
+        return None
+
+    # P(s) is read off the homogeneous side: each y^{(k)} becomes s^k, which
+    # is exactly the derivative rule at rest.
+    polynomial = sp.Integer(0)
+    for term in sp.Add.make_args(sp.expand(expression + forcing)):
+        for k in range(order, -1, -1):
+            derivative = y.diff(_T, k) if k else y
+            coefficient = term.coeff(derivative)
+            if coefficient != 0 and not coefficient.has(y):
+                if coefficient.has(_T):
+                    return None          # not constant-coefficient
+                polynomial += coefficient * _S**k
+                break
+        else:
+            return None
+    return sp.simplify(polynomial), forcing
+
+
+def _convolution(equation: sp.Eq, function: sp.Function, ics: dict,
+                 order: int, derivation: Derivation) -> bool:
+    """Narrate ``y = g * f`` where inverting term by term will not work.
+
+    Reached only once the ordinary route has failed, because partial fractions
+    are what a course tries first and what it should be shown doing. When the
+    forcing has no rational transform -- ``1/(1+t)``, ``e^{-t^2}``, ``ln t`` --
+    there is nothing to split, and sympy's `inverse_laplace_transform` returns
+    an unevaluated `InverseLaplaceTransform` object. That object used to reach
+    the screen as the answer, marked unverified: a student was shown sympy
+    giving up, dressed as mathematics.
+
+    The convolution theorem is the textbook response, and it is a better answer
+    than the one it replaces even when the integral does not evaluate, because
+    the integral *is* what a textbook writes down.
+
+    Returns whether it managed to say anything.
+    """
+    from sympy.integrals.laplace import inverse_laplace_transform
+
+    parts = _transfer_and_forcing(equation, function, ics, order)
+    if parts is None:
+        return False
+    polynomial, forcing = parts
+
+    derivation.steps.append(Step(
+        title="Y(s) is a product, not a sum",
+        latex=(rf"Y(s) = \underbrace{{\frac{{1}}{{{sp.latex(polynomial)}}}}}"
+               rf"_{{G(s)}}\; \underbrace{{F(s)}}_{{\mathcal{{L}}\{{"
+               rf"{sp.latex(forcing)}\}}}}"),
+        note="Nothing here splits into partial fractions — the forcing term "
+             "has no rational transform to split. A product of two transforms "
+             "is a convolution, which is what the theorem is for.",
+        verified=bool(polynomial != 0),
+    ))
+
+    impulse = sp.simplify(_strip_unit_step(
+        inverse_laplace_transform(1 / polynomial, _S, _T, noconds=True)
+    ))
+    if impulse.has(sp.InverseLaplaceTransform):
+        derivation.message = (
+            "the transfer function itself could not be inverted"
+        )
+        return False
+    derivation.steps.append(Step(
+        title="Invert the transfer function alone",
+        latex=_eq("g(t)", impulse),
+        note="G(s) is rational, so this half comes straight off the table. "
+             "g is the impulse response — what the system does when struck "
+             "once — and the convolution below is that response smeared over "
+             "the whole history of the forcing.",
+        # g solves the homogeneous equation, which is the claim being made.
+        verified=_is_zero(sp.simplify(
+            (equation.lhs - equation.rhs + forcing)
+            .subs(function(_T), impulse).doit()
+        )),
+    ))
+
+    tau = sp.Symbol("tau", positive=True)
+    integrand = sp.simplify(impulse.subs(_T, _T - tau) * forcing.subs(_T, tau))
+    derivation.steps.append(Step(
+        title="The convolution theorem",
+        latex=(rf"y(t) = (g * f)(t) = \int_0^{{t}} "
+               rf"{sp.latex(integrand)}\, d\tau"),
+        note="A product of transforms is the transform of a convolution. Note "
+             "the order: g is shifted and reversed, f is not, and the "
+             "integral runs over the interval from 0 to t.",
+    ))
+
+    evaluated = sp.integrate(integrand, (tau, 0, _T))
+    if evaluated.has(sp.Integral):
+        derivation.result = None
+        derivation.message = (
+            "the convolution integral is the answer, and is left in that "
+            "form: it has no elementary closed form"
+        )
+        return True
+
+    answer = sp.simplify(evaluated)
+    derivation.steps.append(Step(
+        title="Evaluate the integral",
+        latex=_eq("y(t)", answer),
+        note="This one comes out in closed form. Many do not, and a "
+             "convolution integral left unevaluated is still a complete "
+             "answer.",
+        verified=_round_trip(answer, sp.simplify(1 / polynomial
+                                                 * sp.laplace_transform(
+                                                     forcing, _T, _S,
+                                                     noconds=True))),
+    ))
+    derivation.result = answer
+    (derivation.verified, derivation.check,
+     derivation.message) = _check(equation, function, answer, ics,
+                                  derivation.message)
+    return True
 
 
 def _split(transform, derivation: Derivation):

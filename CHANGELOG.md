@@ -8,6 +8,32 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Convolution, and Unit 5 finished.** Five more Laplace lessons — the
+  transform and reading the table, the shifting theorems with partial
+  fractions, convolution, step functions and piecewise forcing, and impulses
+  and the delta function. Twenty-six lessons across five units, and every unit
+  before systems is now complete.
+
+  **The convolution theorem is narrated where nothing splits.** `1/(1+t)`,
+  `e^{-t²}` and `ln t` have no tabulated transform, so partial fractions has
+  nothing to break apart. The derivation now recognises that Y(s) is a
+  product, inverts the transfer function alone to get the impulse response,
+  and writes the convolution integral — evaluating it where it evaluates
+  (`y'' + y = 1/(1+t)` comes out in sine and cosine integrals, verified) and
+  leaving it where it does not, which is what a textbook does and is a
+  complete answer either way.
+
+  Two rows joined the table: `F(s)G(s) ↔ (f*g)(t)`, and the periodic-forcing
+  formula. Neither is auto-highlighted beside a derivation, deliberately —
+  they describe a *route* rather than a shape, so there is nothing in a
+  time-domain answer to recognise them by, and highlighting the wrong row
+  would be worse than highlighting none.
+
+  **Three lessons carry no drill, for a measured reason.** A switched or
+  impulsive answer substituted back leaves `Heaviside` and `δ` terms that
+  never cancel, so `check_answer` returns *cannot tell* — correct behaviour,
+  but a verdict that is never "right" can never advance a mastery streak.
+
 - **Six more lessons, and Units 3 and 4 finished.** Unit 3 gains superposition
   and the Wronskian, variation of parameters, and higher-order equations, so
   it now runs the length of Edwards chapter 3. Unit 4 is new — free vibration
@@ -183,7 +209,7 @@ All notable changes to this project are documented here. The format follows
 
   **Draws are enumerated, not sampled**, which is what makes the guarantee
   checkable rather than merely likely: `tests/test_templates.py` runs the real
-  narrator over **every draw of every template** — 384 of them — and requires
+  narrator over **every draw of every template** — 432 of them — and requires
   each to be narrated by the technique the drill claims to teach, to have every
   step verify, and to have its answer accepted by the grader. Nobody wrote
   these questions, so nobody read them either; that sweep is what stands in for
@@ -191,7 +217,7 @@ All notable changes to this project are documented here. The format follows
   question, so pressing Check cannot change it underneath you, and the drill can
   say "one of 18 versions" because it knows.
 
-  Twenty-two drills across fifteen lessons. The numerical lesson deliberately
+  Twenty-four drills across seventeen lessons. The numerical lesson deliberately
   has none —
   Euler and RK4 have no closed form for the grader to substitute into, so a
   drill there could never say "right", and its button is absent rather than
@@ -275,6 +301,15 @@ All notable changes to this project are documented here. The format follows
   property that mattered.
 
 ### Fixed
+
+- **sympy's unevaluated `InverseLaplaceTransform` was shown as the answer.**
+  Where the inverse transform has no elementary form, sympy either returns
+  that object or raises `NotImplementedError`, depending on the forcing term:
+  `e^{-t²}` gave the object, `1/(1+t)` raised. The object reached the screen
+  as the solution, marked unverified — a student was shown sympy giving up,
+  dressed as mathematics. Both routes now fall through to the convolution
+  theorem, and `y'' + y = 1/(1+t)` produces a verified closed form where it
+  previously produced nothing usable at all.
 
 - **A forced Cauchy–Euler equation produced an empty derivation.**
   `t²y'' + ty' − y = t³` substituted `y = tʳ` into `lhs − rhs` with the forcing
