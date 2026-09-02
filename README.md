@@ -77,7 +77,7 @@ gains nothing from it. `scipy.integrate.solve_ivp` has no equivalent.
 ## Verification
 
 Correctness evidence is the point of this project, so it is worth being specific about
-what is actually checked. **2473 tests**, of which the load-bearing ones are:
+what is actually checked. **2655 tests**, of which the load-bearing ones are:
 
 **Order conditions, algebraically.** `tests/test_tableaux.py` evaluates the rooted-tree
 order conditions through order 5 for every Butcher tableau, and asserts that the
@@ -115,7 +115,7 @@ controller running blind, was the wrong place to have a gap.
 oracle only — never as the basis of an order or accuracy claim.
 
 ```
-py -3.10 -m pytest tests/ -q          # 2454 passed, 19 skipped, ~8 min
+py -3.10 -m pytest tests/ -q          # 2636 passed, 19 skipped, ~7 min
 py -3.10 -m pytest tests/ -q -m 'not slow'   # the fast loop, ~3.5 min
 py -3.10 -m ruff check . && py -3.10 -m mypy # lint and types, both clean
 py -3.10 benchmarks/run_all.py        # regenerate every static figure below
@@ -342,7 +342,7 @@ be written.
 **Lessons** is where the work happens. One lesson at a time, in four parts: **Learn**
 (what you should be able to do afterwards, then the notes), **Examples** (each worked
 through by the narrator, on request), **Practice** (your turn), and **Drill** (below).
-Twenty-six lessons today, filed under the chapters of Edwards, Penney and Calvis, which
+Thirty-one lessons today, filed under the chapters of Edwards, Penney and Calvis, which
 is the course this follows:
 
 - **First-order equations** — what a differential equation is; slope fields, existence
@@ -360,15 +360,19 @@ is the course this follows:
   initial-value problem; shifting theorems and partial fractions; convolution; step
   functions and piecewise forcing; impulses and the delta function.
 
-Units 1 to 5 are complete. Systems and series are still to come, and a unit appears on
-the Course Map once it has lessons.
+- **Linear systems** — first-order systems and how everything becomes one; the
+  eigenvalue method with real distinct eigenvalues; complex eigenvalues; repeated
+  eigenvalues and defective matrices; phase portraits.
+
+Units 1 to 6 are complete. Series solutions are still to come, and a unit appears on the
+Course Map once it has lessons.
 
 Notes come in kinds, and a **common mistake** does not read like an idea: it is the same
 card with a warning stripe down it, because the thing that catches people is worth
 setting apart from the thing that is merely true. Reading `p` straight off `t·y' + y = t`
 is one; forgetting the factor of `t` on a repeated root is another.
 
-**Five lessons have a figure you can move**, at the top of *Learn*. A note can say
+**Six lessons have a figure you can move**, at the top of *Learn*. A note can say
 that raising the harvest rate eventually wipes out both equilibria; a figure lets you
 raise it and watch the two dots slide together and vanish, which is a different kind of
 knowing.
@@ -401,6 +405,14 @@ knowing.
   dividing by zero to do, because the closed form is the secular `t·sin(ω₀t)/(2ω₀)` and
   the envelope becomes a straight line. Beside it, what damping does to the same story:
   the blow-up becomes a peak, lower and further left the more damping there is.
+
+- **Eigendirections** draws the vector field of `x′ = Ax` for a 2×2 matrix you change
+  entry by entry, with the eigenvectors drawn on as the only straight-line
+  trajectories and an arrow showing which way the flow runs along each. Move an entry
+  until the two lines collide and they vanish — past that the eigenvalues are complex
+  and nothing travels in a straight line. The origin is named by `systems.classify`,
+  the same function the narrator ends its derivation with, so the picture and the
+  working cannot disagree.
 
 None of them computes any mathematics of its own. The dashes come from
 `analysis.slope_field`, the equilibria from `analysis.phase_line`, the steps from
@@ -435,7 +447,7 @@ rest of the Hub about what is correct.
 
 Draws are **enumerated rather than sampled**, which is what makes the guarantee
 checkable: `tests/test_templates.py` runs the real narrator over **every draw of every
-template** — 432 of them — and requires each to be narrated by the technique the drill
+template** — 476 of them — and requires each to be narrated by the technique the drill
 claims to be practice at, to have every step verify, and to have its answer accepted by
 the grader. Nobody wrote those questions, so nobody read them either; that sweep is what
 stands in for having read them. It is also why the drill can honestly say "one of 18
@@ -477,6 +489,29 @@ with a reset button beside it. It is the only thing this application stores on d
 records how many times a question was attempted as well as how it ended, so the map can
 tell steady work from a lucky guess — and a file written by an earlier version still
 loads, with its ticks intact.
+
+**Systems are narrated too**, by a different route. `classify_ode` has nothing to say
+about a system, so the technique is not chosen from a hint list but from the shape of
+the equations: `systems.derive` writes the pair as `x′ = Ax`, forms `det(A − λI) = 0`,
+finds an eigenvector for each eigenvalue, and branches into the three cases a course
+spends its time on. **Real distinct** eigenvalues give exponentials along fixed
+directions. A **complex pair** is taken apart with Euler's formula applied to the
+eigenvector as well as the exponential — the step people get wrong, so it is shown in
+full rather than quoted. A **defective** matrix gets a generalised eigenvector from
+`(A − λI)w = v`, and the `t` in `(vt + w)e^{λt}` is there to cancel a leftover term
+rather than by convention.
+
+Everything is checked: the matrix is reconstructed into the equations it came from,
+the characteristic polynomial is expanded back, every eigenvector goes through
+`Av = λv`, and every basis solution is substituted into the system.
+
+**Check your answer works on systems as well**, component by component. A system's
+answer is several functions, so it is typed as several lines — `x = ...` on one and
+`y = ...` on the next — and each is substituted into *every* equation. That last part
+matters: a pair can satisfy the first equation and fail the second, and checking them
+one at a time would miss it. Each line names its unknown rather than being read by
+position, because guessing the order would mark a correct answer wrong for anyone who
+wrote them the other way round.
 
 **Solve Step by Step** narrates the derivation. Nine techniques — separation of
 variables, integrating factors, exact equations, the homogeneous substitution `y = v·t`,
@@ -829,7 +864,7 @@ src/odesuite_app/                                    the studio
              learn_problems                          Learning Hub
   widgets/                                           sliders, cards, plots, figures, maths
 
-tests/         2473 tests
+tests/         2655 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```

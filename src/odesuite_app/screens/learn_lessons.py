@@ -95,16 +95,14 @@ def _work_out(equation: str, conditions: str, narrator: str):
     """The worked solution, through the same subprocess the Hub tools use."""
     from ..laplace import EXTRA_FUNCTIONS
     from ..symbolic import (
-        EquationSpec,
         parse_equation,
         solve_by_laplace,
         solve_symbolically,
+        spec_for,
     )
 
-    parsed = parse_equation(
-        EquationSpec(equations=[equation], initial_conditions=conditions),
-        extra_functions=EXTRA_FUNCTIONS,
-    )
+    parsed = parse_equation(spec_for(equation, conditions),
+                            extra_functions=EXTRA_FUNCTIONS)
     if narrator == "laplace":
         return solve_by_laplace(parsed).derivation
     return solve_symbolically(parsed, steps=True).derivation

@@ -177,14 +177,70 @@ def test_the_answer_box_cannot_execute_code(payload):
     assert result.expression is None or result.correct is False
 
 
-def test_a_system_says_it_is_not_supported_rather_than_guessing():
-    parsed = parse_equation(
+def _system(conditions: str = ""):
+    return parse_equation(
         EquationSpec(equations=["x' = x + 2*y", "y' = 3*x + 2*y"],
-                     variables=["x", "y"])
+                     variables=["x", "y"], initial_conditions=conditions)
     )
-    result = check_answer(parsed, "exp(t)")
+
+
+#: The general solution of that system, as a learner would type it.
+_SYSTEM_ANSWER = ("x = -C1*exp(-t) + 2*C2*exp(4*t)/3\n"
+                  "y = C1*exp(-t) + C2*exp(4*t)")
+
+
+def test_a_system_answer_is_checked_component_by_component():
+    """It used to be refused outright. A system's answer is several functions,
+    so it is typed as several lines and each is substituted into *every*
+    equation."""
+    result = check_answer(_system(), _SYSTEM_ANSWER)
+    assert result.correct is True
+    assert "every equation" in result.message
+
+
+def test_the_order_the_components_are_typed_in_does_not_matter():
+    """Each line names its unknown, so it cannot be read in the wrong order.
+    Guessing from position would mark a correct answer wrong for anyone who
+    wrote them the other way round."""
+    swapped = "\n".join(reversed(_SYSTEM_ANSWER.split("\n")))
+    assert check_answer(_system(), swapped).correct is True
+
+
+def test_a_pair_that_solves_only_one_equation_is_rejected():
+    """The near-miss worth catching: checking one equation at a time would
+    call this correct."""
+    result = check_answer(_system(), "x = exp(t)\ny = exp(t)")
+    assert result.correct is False
+    assert "every equation" in result.message
+
+
+def test_a_missing_component_is_named_rather_than_guessed_at():
+    result = check_answer(_system(), "x = exp(-t)")
     assert result.correct is None
-    assert "single equation" in result.message
+    assert "y" in result.message
+
+
+def test_an_unnamed_answer_asks_for_names():
+    result = check_answer(_system(), "exp(-t)")
+    assert result.correct is None
+    assert "one line per unknown" in result.message
+
+
+def test_system_conditions_are_judged_separately_from_the_equations():
+    """A general solution solves the system but does not meet the conditions,
+    and the two verdicts have to stay apart -- exactly as for one equation."""
+    parsed = _system("x(0) = 1, y(0) = 0")
+
+    general = check_answer(parsed, _SYSTEM_ANSWER)
+    assert general.correct is True
+    assert general.matches_conditions is False
+
+    particular = check_answer(
+        parsed,
+        "x = (2*exp(5*t)+3)*exp(-t)/5\ny = (3*exp(5*t)-3)*exp(-t)/5",
+    )
+    assert particular.correct is True
+    assert particular.matches_conditions is True
 
 
 def test_a_parameter_in_the_equation_is_shared_with_the_answer():

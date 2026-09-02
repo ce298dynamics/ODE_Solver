@@ -1140,3 +1140,68 @@ def test_conditions_still_apply_after_a_forced_euler():
     assert derivation.complete
     assert not derivation.result.free_symbols - {T}
     assert float(derivation.result.subs(T, 1)) == pytest.approx(0.0, abs=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# The worker: a system narrates too
+# ---------------------------------------------------------------------------
+
+
+def _system_payload(ics=None):
+    x, y = sp.Function("x"), sp.Function("y")
+    equations = [sp.Eq(x(T).diff(T), x(T) + 2 * y(T)),
+                 sp.Eq(y(T).diff(T), 3 * x(T) + 2 * y(T))]
+    return {
+        "equations": [sp.srepr(e) for e in equations],
+        "functions": [sp.srepr(x(T)), sp.srepr(y(T))],
+        "ics": {sp.srepr(k): sp.srepr(v) for k, v in (ics or {}).items()},
+        "steps": True,
+    }
+
+
+def test_a_system_now_reaches_the_narrator():
+    """It used to be refused: the steps gate asked for exactly one equation,
+    so a system got a closed form and an empty working panel."""
+    from odesuite_app.dsolve_worker import solve_payload
+
+    reply = solve_payload(_system_payload())
+    derivation = reply.get("derivation")
+
+    assert derivation is not None
+    assert derivation["technique"] == "systems"
+    assert derivation["verified"] is True
+    assert [s["title"] for s in derivation["steps"]][0] == (
+        "Write it as one matrix equation"
+    )
+
+
+def test_a_system_still_gets_its_closed_form_from_dsolve():
+    """Narrating must not displace the answer. The hand-over guard that skips
+    `dsolve` where a technique came from no hint reads the hint list, and a
+    system never has one -- without excluding systems it would fire every
+    time."""
+    from odesuite_app.dsolve_worker import solve_payload
+
+    reply = solve_payload(_system_payload())
+    assert reply["ok"] is True
+    assert reply.get("general")
+    assert not reply.get("error")
+
+
+def test_a_narration_failure_never_costs_the_answer():
+    """A system the eigenvalue method declines still gets whatever `dsolve`
+    can do with it."""
+    from odesuite_app.dsolve_worker import solve_payload
+
+    x, y = sp.Function("x"), sp.Function("y")
+    forced = [sp.Eq(x(T).diff(T), x(T) + 1), sp.Eq(y(T).diff(T), y(T))]
+    reply = solve_payload({
+        "equations": [sp.srepr(e) for e in forced],
+        "functions": [sp.srepr(x(T)), sp.srepr(y(T))],
+        "ics": {},
+        "steps": True,
+    })
+
+    assert reply["ok"] is True, reply.get("error")
+    assert reply["derivation"]["result"] is None
+    assert reply["derivation"]["message"]

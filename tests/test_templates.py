@@ -46,22 +46,25 @@ SAMPLE = 4
 
 def _parse(question):
     from odesuite_app.laplace import EXTRA_FUNCTIONS
-    from odesuite_app.symbolic import EquationSpec, parse_equation
+    from odesuite_app.symbolic import parse_equation, spec_for
 
-    return parse_equation(
-        EquationSpec(equations=[question.equation],
-                     initial_conditions=question.conditions),
-        extra_functions=EXTRA_FUNCTIONS,
-    )
+    # Through `spec_for`, like the screen and the lesson sweep: a drill on a
+    # system is one string holding two equations, and only that helper knows
+    # how to read it.
+    return parse_equation(spec_for(question.equation, question.conditions),
+                          extra_functions=EXTRA_FUNCTIONS)
 
 
 def _work_out(template, question):
     """The derivation the drill would show, produced the way it produces it."""
-    from odesuite_app import laplace, steps
+    from odesuite_app import laplace, steps, systems
 
     parsed = _parse(question)
     if template.narrator == "laplace":
         return laplace.derive(parsed.equation, parsed.function, ics=parsed.ics)
+    if template.narrator == "systems":
+        return systems.derive(parsed.equations, parsed.functions,
+                              ics=parsed.ics)
     return steps.derive(
         parsed.equation, parsed.function,
         hints=sp.classify_ode(parsed.equation, parsed.function(T)),
@@ -119,7 +122,7 @@ def test_the_numerical_lesson_deliberately_has_no_drill():
 def test_every_template_is_well_formed(lesson, template):
     where = f"{lesson.key}/{template.key}"
     assert template.title and template.prompt and template.equation
-    assert template.narrator in {"steps", "laplace"}
+    assert template.narrator in {"steps", "laplace", "systems"}
     assert template.slots, f"{where}: nothing to vary"
     for names, values in template.slots:
         assert values, f"{where}: slot {names!r} has no values"

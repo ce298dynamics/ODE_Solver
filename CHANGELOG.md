@@ -8,6 +8,38 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Linear systems: `systems.py`, and Unit 6.** The eigenvalue method,
+  narrated the way a course writes it — write it as `x′ = Ax`, form
+  `det(A − λI) = 0`, find an eigenvector for each eigenvalue, and branch into
+  the three cases. A **complex pair** is taken apart with Euler's formula
+  applied to the eigenvector as well as the exponential, which is the step
+  people get wrong and is therefore shown in full. A **defective** matrix gets
+  a generalised eigenvector from `(A − λI)w = v`, and the `t` in
+  `(vt + w)e^{λt}` is explained as cancelling a leftover term rather than as a
+  convention.
+
+  Everything is checked rather than asserted: the matrix is reconstructed into
+  the equations it came from, the characteristic polynomial is expanded back,
+  every eigenvector goes through `Av = λv`, and every basis solution is
+  substituted into the system.
+
+  Five lessons follow it — first-order systems and conversion, the three
+  eigenvalue cases, and phase portraits — with an **eigendirections figure**
+  whose two straight lines swing as you change a matrix entry and vanish when
+  the eigenvalues go complex. Thirty-one lessons across six units.
+
+- **Two refusals lifted.** A system reaching *Solve Step by Step* used to get a
+  closed form and an empty working panel, because the narration gate asked for
+  exactly one equation. And **check your answer now works on systems**,
+  component by component: each typed line names its unknown and is substituted
+  into *every* equation, because a pair can satisfy one and fail the other and
+  checking them one at a time would miss it.
+
+  The hand-over guard that skips `dsolve` where a technique came from no hint
+  had to learn about systems too — it reads the hint list, and a system never
+  has one, so without excluding them it would have fired every time and stopped
+  the closed form being computed at all.
+
 - **Convolution, and Unit 5 finished.** Five more Laplace lessons — the
   transform and reading the table, the shifting theorems with partial
   fractions, convolution, step functions and piecewise forcing, and impulses
@@ -209,7 +241,7 @@ All notable changes to this project are documented here. The format follows
 
   **Draws are enumerated, not sampled**, which is what makes the guarantee
   checkable rather than merely likely: `tests/test_templates.py` runs the real
-  narrator over **every draw of every template** — 432 of them — and requires
+  narrator over **every draw of every template** — 476 of them — and requires
   each to be narrated by the technique the drill claims to teach, to have every
   step verify, and to have its answer accepted by the grader. Nobody wrote
   these questions, so nobody read them either; that sweep is what stands in for
@@ -217,7 +249,7 @@ All notable changes to this project are documented here. The format follows
   question, so pressing Check cannot change it underneath you, and the drill can
   say "one of 18 versions" because it knows.
 
-  Twenty-four drills across seventeen lessons. The numerical lesson deliberately
+  Twenty-seven drills across twenty lessons. The numerical lesson deliberately
   has none —
   Euler and RK4 have no closed form for the grader to substitute into, so a
   drill there could never say "right", and its button is absent rather than

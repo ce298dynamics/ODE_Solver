@@ -50,21 +50,22 @@ def _ids(pairs):
 
 def _parse(equation: str, conditions: str = ""):
     from odesuite_app.laplace import EXTRA_FUNCTIONS
-    from odesuite_app.symbolic import EquationSpec, parse_equation
+    from odesuite_app.symbolic import parse_equation, spec_for
 
-    return parse_equation(
-        EquationSpec(equations=[equation], initial_conditions=conditions),
-        extra_functions=EXTRA_FUNCTIONS,
-    )
+    return parse_equation(spec_for(equation, conditions),
+                          extra_functions=EXTRA_FUNCTIONS)
 
 
 def _work_out(lesson, equation: str, conditions: str):
     """The derivation the screen would show, produced the same way it does."""
-    from odesuite_app import laplace, steps
+    from odesuite_app import laplace, steps, systems
 
     parsed = _parse(equation, conditions)
     if lesson.narrator == "laplace":
         return laplace.derive(parsed.equation, parsed.function, ics=parsed.ics)
+    if lesson.narrator == "systems":
+        return systems.derive(parsed.equations, parsed.functions,
+                              ics=parsed.ics)
     return steps.derive(
         parsed.equation, parsed.function,
         hints=sp.classify_ode(parsed.equation, parsed.function(T)),
@@ -104,7 +105,7 @@ def test_every_lesson_is_complete():
         assert len(lesson.notes) >= 3, f"{lesson.key} is thin on notes"
         assert len(lesson.questions) >= 4, f"{lesson.key} is thin on practice"
         assert lesson.tool in {"steps", "laplace", "byhand", "worked"}
-        assert lesson.narrator in {"steps", "laplace"}
+        assert lesson.narrator in {"steps", "laplace", "systems"}
 
 
 def test_keys_are_unique():
@@ -189,7 +190,7 @@ def test_every_example_says_why_it_is_there():
             f"{lesson.key} works the same equation twice"
         )
         for example in lesson.examples:
-            assert example.narrator in {"steps", "laplace"}
+            assert example.narrator in {"steps", "laplace", "systems"}
             assert len(example.why) > 40, (
                 f"{lesson.key}/{example.equation} does not say what it shows"
             )
@@ -421,7 +422,7 @@ def test_lessons_needs_no_interface_toolkit():
 
     code = (
         "import sys; sys.modules['PySide6'] = None\n"
-        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 26\n"
+        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 31\n"
     )
     done = subprocess.run([sys.executable, "-c", code], capture_output=True,
                           text=True)
@@ -1463,3 +1464,71 @@ def test_a_two_pane_figure_really_has_two_panes(qapp):
         made = _figure(key)
         assert len(made.panes) == 1, key
         made.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# The eigenlines figure
+# ---------------------------------------------------------------------------
+
+
+def test_the_eigenlines_figure_names_what_the_origin_is(qapp):
+    """The words come from `systems.classify`, the same function the narrator
+    ends its derivation with, so the picture and the working cannot disagree
+    about what they are looking at."""
+    made = _figure("eigenlines")
+    for key, value in zip("abcd", (1.0, 2.0, 3.0, 2.0)):
+        made.sliders[key].set_value(value)
+    made.draw()
+    qapp.processEvents()
+    assert "saddle" in made.readout.text()
+
+    for key, value in zip("abcd", (-2.0, 1.0, 1.0, -2.0)):
+        made.sliders[key].set_value(value)
+    made.draw()
+    qapp.processEvents()
+    assert "stable node" in made.readout.text()
+    made.deleteLater()
+
+
+def test_complex_eigenvalues_draw_no_straight_lines(qapp):
+    """There are none to draw: an eigendirection is a real eigenvector, and a
+    rotating system has none. Drawing something anyway would be inventing a
+    straight-line solution that does not exist."""
+    import numpy as np
+
+    made = _figure("eigenlines")
+    for key, value in zip("abcd", (-1.0, -2.0, 2.0, -1.0)):
+        made.sliders[key].set_value(value)
+    made.draw()
+    qapp.processEvents()
+
+    values, _ = made.eigen()
+    assert np.any(np.abs(values.imag) > 1e-9), "the premise has changed"
+    assert "spiral" in made.readout.text()
+    made.deleteLater()
+
+
+def test_the_figure_agrees_with_the_narrator_on_the_same_matrix(qapp):
+    """Two independent routes -- numpy in the figure, sympy in the narrator --
+    to the same words. If they ever parted, one screen would contradict the
+    other."""
+    import sympy as sp
+
+    from odesuite_app.systems import derive
+
+    t = sp.Symbol("t", real=True)
+    x, y = sp.Function("x"), sp.Function("y")
+    made = _figure("eigenlines")
+    for key, value in zip("abcd", (1.0, 2.0, 3.0, 2.0)):
+        made.sliders[key].set_value(value)
+    made.draw()
+    qapp.processEvents()
+
+    narrated = derive(
+        [sp.Eq(x(t).diff(t), x(t) + 2 * y(t)),
+         sp.Eq(y(t).diff(t), 3 * x(t) + 2 * y(t))],
+        [x, y],
+    )
+    step = next(s for s in narrated.steps if s.title == "What the origin is")
+    assert "saddle" in step.note and "saddle" in made.readout.text()
+    made.deleteLater()

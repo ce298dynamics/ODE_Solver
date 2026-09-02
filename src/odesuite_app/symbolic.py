@@ -44,6 +44,7 @@ __all__ = [
     "SymbolicSolution",
     "ParsedEquation",
     "parse_equation",
+    "spec_for",
     "parse_initial_conditions",
     "solve_symbolically",
     "solve_by_laplace",
@@ -218,6 +219,35 @@ def _parse_side(text: str, scope: dict) -> sp.Expr:
         return sp.sympify(expression)
     except Exception as exc:
         raise ParseError(f"cannot parse {text!r}: {exc}") from exc
+
+
+def spec_for(equation: str, conditions: str = "") -> EquationSpec:
+    """An `EquationSpec` from one string, whether it is a system or not.
+
+    A lesson stores its equation as text, and a system is several equations.
+    Rather than give the content model a list it would need only sometimes,
+    the convention is a semicolon: ``x' = x + 2*y; y' = 3*x + 2*y``. The
+    unknowns are then read off the left-hand sides, because a system's
+    `variables` cannot be guessed and getting them wrong renames the problem.
+
+    A semicolon rather than a comma, deliberately: conditions are written
+    ``x(0) = 1, y(0) = 0`` and reusing the separator across both would make
+    one of them ambiguous the first time an equation needed a comma.
+    """
+    parts = [part.strip() for part in equation.split(";") if part.strip()]
+    if len(parts) < 2:
+        return EquationSpec(equations=parts or [equation],
+                            initial_conditions=conditions)
+
+    names = []
+    for part in parts:
+        left = part.split("=", 1)[0]
+        name = re.sub(r"[^A-Za-z0-9_].*$", "", left.strip())
+        if not name:
+            raise ParseError(f"cannot tell what {part!r} solves for")
+        names.append(name)
+    return EquationSpec(equations=parts, initial_conditions=conditions,
+                        variables=names)
 
 
 def parse_equation(spec: EquationSpec, *,
@@ -829,9 +859,7 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
     if not text or not text.strip():
         return AnswerCheck(message="type a solution to check")
     if parsed.is_system:
-        return AnswerCheck(
-            message="checking an answer is available for a single equation"
-        )
+        return _check_system(parsed, text)
 
     scope = {"t": _T, "C1": sp.Symbol("C1"), "C2": sp.Symbol("C2"),
              "C3": sp.Symbol("C3"), "C": sp.Symbol("C1")}
@@ -878,6 +906,102 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
     else:
         check.message = "verified: substituting it gives exactly zero"
     return check
+
+
+def _check_system(parsed: ParsedEquation, text: str) -> AnswerCheck:
+    """The same substitution check, component by component.
+
+    A system's answer is several functions rather than one, so it is typed as
+    several lines -- ``x = ...`` on one and ``y = ...`` on the next -- and each
+    is substituted into *every* equation at once. That last part is the whole
+    difficulty: a pair can satisfy the first equation and fail the second, and
+    checking them one at a time would miss it.
+
+    Every line has to name its unknown. Guessing the order from the order they
+    were typed would silently mark a correct answer wrong for someone who
+    wrote them the other way round, which is the failure this check exists to
+    avoid making.
+    """
+    names = {function.__name__: function for function in parsed.functions}
+    scope = {"t": _T}
+    for index in range(1, 5):
+        scope[f"C{index}"] = sp.Symbol(f"C{index}")
+    for equation in parsed.equations:
+        for symbol in equation.free_symbols:
+            if symbol.is_Symbol and symbol is not _T:
+                scope.setdefault(symbol.name, symbol)
+
+    candidates: dict[str, sp.Expr] = {}
+    for line in re.split(r"[\n;]+", text.strip()):
+        line = line.strip()
+        if not line:
+            continue
+        match = re.match(r"^\s*([A-Za-z]\w*)\s*(\(\s*t\s*\))?\s*=\s*(.+)$",
+                         line, flags=re.DOTALL)
+        if not match or match.group(1) not in names:
+            return AnswerCheck(
+                message=("write one line per unknown, naming each: "
+                         + ", ".join(f"{name} = ..." for name in names))
+            )
+        try:
+            candidates[match.group(1)] = _parse_side(match.group(3), scope)
+        except ParseError as exc:
+            return AnswerCheck(message=str(exc))
+
+    missing = set(names) - set(candidates)
+    if missing:
+        return AnswerCheck(
+            message=f"no line for {', '.join(sorted(missing))}"
+        )
+
+    substitutions = {names[name](_T): expression
+                     for name, expression in candidates.items()}
+    check = AnswerCheck(expression=sp.Matrix(
+        [candidates[function.__name__] for function in parsed.functions]
+    ))
+    try:
+        residuals = [
+            sp.simplify((equation.lhs - equation.rhs).subs(substitutions).doit())
+            for equation in parsed.equations
+        ]
+        check.residual = sp.Matrix(residuals)
+        # Every equation, not merely the first: a pair that solves one and not
+        # the other is exactly the near-miss worth catching.
+        check.correct = all(sp.simplify(residual) == 0 for residual in residuals)
+    except Exception as exc:
+        check.message = f"could not decide: {exc}"
+        return check
+
+    if check.correct and parsed.ics:
+        check.matches_conditions = _system_matches_conditions(parsed, candidates)
+
+    if check.correct is False:
+        check.message = "substituting it does not give zero in every equation"
+    elif check.matches_conditions is False:
+        check.message = "it solves the system, but not with these conditions"
+    else:
+        check.message = "verified: every equation gives exactly zero"
+    return check
+
+
+def _system_matches_conditions(parsed: ParsedEquation,
+                               candidates: dict) -> bool | None:
+    """Whether the typed components also meet ``x(0) = ...``."""
+    try:
+        for condition, value in parsed.ics.items():
+            function = getattr(condition, "func", None)
+            name = getattr(function, "__name__", None)
+            if name not in candidates:
+                return None
+            point = condition.args[0]
+            if point.free_symbols:
+                return None
+            left = sp.simplify(candidates[name].subs(_T, point) - sp.sympify(value))
+            if sp.simplify(left) != 0:
+                return False
+        return True
+    except Exception:
+        return None
 
 
 def _satisfies_conditions(parsed: ParsedEquation, candidate: sp.Expr) -> bool | None:

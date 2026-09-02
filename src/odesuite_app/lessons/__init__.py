@@ -40,6 +40,7 @@ from . import (
     unit3_second_order,
     unit4_vibrations,
     unit5_laplace,
+    unit6_systems,
 )
 from .model import (
     NOTE_KINDS,
@@ -118,6 +119,14 @@ UNITS: tuple[Unit, ...] = (
                 "through.",
         reference="Edwards ch. 7",
         lessons=unit5_laplace.LESSONS,
+    ),
+    Unit(
+        key="systems",
+        title="Linear systems",
+        summary="Two equations that will not come apart, and the matrix that "
+                "makes them one problem again.",
+        reference="Edwards ch. 4-5",
+        lessons=unit6_systems.LESSONS,
     ),
 )
 

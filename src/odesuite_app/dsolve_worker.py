@@ -31,6 +31,18 @@ def derivation_reply(equation, function, ics: dict) -> dict | None:
     return _as_dict(derive(equation, function.func, hints=hints, ics=ics))
 
 
+def systems_reply(equations, functions, ics: dict) -> dict | None:
+    """The same, for a system solved by eigenvalues.
+
+    `systems.derive` returns a `steps.Derivation` as well, so a system's
+    working travels the same wire and renders in the same panel as every other
+    technique -- which is the whole reason that shape was fixed early.
+    """
+    from .systems import derive
+
+    return _as_dict(derive(equations, [f.func for f in functions], ics=ics))
+
+
 def laplace_reply(equation, function, ics: dict) -> dict | None:
     """The same, for the transform method.
 
@@ -141,9 +153,18 @@ def solve_payload(payload: dict, emit=None) -> dict:
     if emit is not None:
         emit(dict(reply, partial=True))
 
-    if payload.get("steps") and len(equations) == 1:
+    # Systems narrate too, by a different route. `classify_ode` has nothing to
+    # say about a system -- there are no hints above -- so the technique is not
+    # chosen from a hint list but from the shape of the equations, and
+    # `systems.derive` declines anything that is not a homogeneous
+    # constant-coefficient first-order system.
+    if payload.get("steps"):
         try:
-            reply["derivation"] = derivation_reply(equations[0], functions[0], ics)
+            reply["derivation"] = (
+                derivation_reply(equations[0], functions[0], ics)
+                if len(equations) == 1
+                else systems_reply(equations, functions, ics)
+            )
         except Exception as exc:                  # narration is never fatal
             reply["derivation"] = None
             reply["derivation_error"] = f"{type(exc).__name__}: {exc}"
@@ -165,7 +186,8 @@ def solve_payload(payload: dict, emit=None) -> dict:
     # Deliberately narrow: if the technique *is* in the hint list, sympy knows
     # it too and is asked as usual, so nothing that worked before changes.
     found = reply.get("derivation")
-    if found and found.get("technique") not in set(reply.get("hints") or ()):
+    if (found and len(equations) == 1
+            and found.get("technique") not in set(reply.get("hints") or ())):
         if found.get("verified") is True and found.get("result"):
             reply["particular" if ics else "general"] = found["result"]
             reply["ok"] = True
