@@ -105,6 +105,10 @@ def _work_out(equation: str, conditions: str, narrator: str):
                             extra_functions=EXTRA_FUNCTIONS)
     if narrator == "laplace":
         return solve_by_laplace(parsed).derivation
+    if narrator == "series":
+        from ..series import derive as series_derive
+
+        return series_derive(parsed.equation, parsed.function, ics=parsed.ics)
     return solve_symbolically(parsed, steps=True).derivation
 
 

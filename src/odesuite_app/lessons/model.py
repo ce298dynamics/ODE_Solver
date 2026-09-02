@@ -219,10 +219,23 @@ class Unit:
     lessons: tuple[Lesson, ...]
     #: The chapter in Edwards, Penney and Calvis, 6e.
     reference: str = ""
+    #: Lesson keys the unit check-up draws from. Empty means every lesson in
+    #: the unit that has drills, which is the right default: a quiz is built
+    #: out of templates, so a lesson with none has nothing to contribute.
+    #: Naming them is for units where some lesson should be left out of the
+    #: mixed set even though it could supply questions.
+    quiz: tuple[str, ...] = ()
 
     @property
     def questions(self) -> int:
         return sum(len(lesson.questions) for lesson in self.lessons)
+
+    @property
+    def quizzable(self) -> tuple[Lesson, ...]:
+        """The lessons a check-up may draw on, in course order."""
+        named = set(self.quiz)
+        return tuple(lesson for lesson in self.lessons
+                     if lesson.templates and (not named or lesson.key in named))
 
 
 def grade_choice(question: Choice, picked: int) -> bool:

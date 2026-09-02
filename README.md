@@ -77,7 +77,7 @@ gains nothing from it. `scipy.integrate.solve_ivp` has no equivalent.
 ## Verification
 
 Correctness evidence is the point of this project, so it is worth being specific about
-what is actually checked. **2655 tests**, of which the load-bearing ones are:
+what is actually checked. **2769 tests**, of which the load-bearing ones are:
 
 **Order conditions, algebraically.** `tests/test_tableaux.py` evaluates the rooted-tree
 order conditions through order 5 for every Butcher tableau, and asserts that the
@@ -115,7 +115,7 @@ controller running blind, was the wrong place to have a gap.
 oracle only — never as the basis of an order or accuracy claim.
 
 ```
-py -3.10 -m pytest tests/ -q          # 2636 passed, 19 skipped, ~7 min
+py -3.10 -m pytest tests/ -q          # 2750 passed, 19 skipped, ~8 min
 py -3.10 -m pytest tests/ -q -m 'not slow'   # the fast loop, ~3.5 min
 py -3.10 -m ruff check . && py -3.10 -m mypy # lint and types, both clean
 py -3.10 benchmarks/run_all.py        # regenerate every static figure below
@@ -342,7 +342,7 @@ be written.
 **Lessons** is where the work happens. One lesson at a time, in four parts: **Learn**
 (what you should be able to do afterwards, then the notes), **Examples** (each worked
 through by the narrator, on request), **Practice** (your turn), and **Drill** (below).
-Thirty-one lessons today, filed under the chapters of Edwards, Penney and Calvis, which
+Thirty-four lessons today, filed under the chapters of Edwards, Penney and Calvis, which
 is the course this follows:
 
 - **First-order equations** — what a differential equation is; slope fields, existence
@@ -364,8 +364,11 @@ is the course this follows:
   eigenvalue method with real distinct eigenvalues; complex eigenvalues; repeated
   eigenvalues and defective matrices; phase portraits.
 
-Units 1 to 6 are complete. Series solutions are still to come, and a unit appears on the
-Course Map once it has lessons.
+- **Series solutions** — power series and ordinary points; recurrence relations and the
+  radius of convergence; regular singular points, and what Frobenius is for.
+
+All seven units are complete: the whole of a first course, from what a differential
+equation is to what to do when it has no closed form.
 
 Notes come in kinds, and a **common mistake** does not read like an idea: it is the same
 card with a warning stripe down it, because the thing that catches people is worth
@@ -512,6 +515,24 @@ matters: a pair can satisfy the first equation and fail the second, and checking
 one at a time would miss it. Each line names its unknown rather than being read by
 position, because guessing the order would mark a correct answer wrong for anyone who
 wrote them the other way round.
+
+**Power series** are narrated too, and the thing narrated is the **recurrence**. sympy
+will produce a truncated series — `dsolve(hint="2nd_power_series_ordinary")` does it in
+about a quarter of a second — but it returns the truncation and not the rule that
+generated it, and the rule is what is worth knowing. Building it here by matching the
+coefficient of each power costs 0.01–0.02 s and gives the numbers a textbook prints:
+Airy comes out `a₂ = 0`, `a₃ = a₀/6`, `a₄ = a₁/12`, `a₅ = 0`, `a₆ = a₀/180`, and the
+pattern of every third coefficient vanishing is visible in the rule where the terms
+alone only hint at it.
+
+**A truncated series does not substitute to zero, and the derivation says so.** Putting
+`C₁(1 − t²/2 + t⁴/24) + C₂(t − t³/6)` into `y'' + y` leaves `t³(C₁t − 4C₂)/24` — the
+truncation error, which is the correct residual rather than a mistake. So `verified` is
+decided by the residual being of high enough order, and the check is reported as
+`truncation` rather than as substitution. Where the series **terminates** — Legendre's
+and Hermite's equations at the right parameter — the residual really is zero, the
+ordinary check is used, and the answer is reported as exact. A reader is entitled to
+know which of the two claims was made.
 
 **Solve Step by Step** narrates the derivation. Nine techniques — separation of
 variables, integrating factors, exact equations, the homogeneous substitution `y = v·t`,
@@ -854,17 +875,18 @@ src/odesuite_app/                                    the studio
   symbolic.py dsolve_worker.py                       closed forms, in a killable process
   equationmodel.py mathrender.py                     typed equations, LaTeX typesetting
   lessons/   model.py generate.py                  the course: units, notes, practice
-             unit1..unit5                          and drills with the numbers open
+             unit1..unit7                          and drills with the numbers open
   progress.py                                        what you answered, on disk
-  steps.py laplace.py byhand.py                      derivations, transforms, RK by hand
+  steps.py laplace.py systems.py series.py          derivations: nine techniques,
+  byhand.py                                          transforms, eigenvalues, series
   screens/   home                                    shared landing
              lab portrait stiffness race accuracy    Solver Studio
              learn_course learn_lessons learn_steps
              learn_laplace learn_byhand
-             learn_problems                          Learning Hub
+             learn_problems learn_quiz               Learning Hub
   widgets/                                           sliders, cards, plots, figures, maths
 
-tests/         2655 tests
+tests/         2769 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```

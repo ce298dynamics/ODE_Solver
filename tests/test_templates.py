@@ -25,6 +25,8 @@ import re
 
 import pytest
 
+from .narrators import NARRATORS, narrate
+
 pytest.importorskip("sympy")
 
 import sympy as sp  # noqa: E402
@@ -57,19 +59,7 @@ def _parse(question):
 
 def _work_out(template, question):
     """The derivation the drill would show, produced the way it produces it."""
-    from odesuite_app import laplace, steps, systems
-
-    parsed = _parse(question)
-    if template.narrator == "laplace":
-        return laplace.derive(parsed.equation, parsed.function, ics=parsed.ics)
-    if template.narrator == "systems":
-        return systems.derive(parsed.equations, parsed.functions,
-                              ics=parsed.ics)
-    return steps.derive(
-        parsed.equation, parsed.function,
-        hints=sp.classify_ode(parsed.equation, parsed.function(T)),
-        ics=parsed.ics,
-    )
+    return narrate(template.narrator, _parse(question))
 
 
 def _solvable(template, question):
@@ -122,7 +112,7 @@ def test_the_numerical_lesson_deliberately_has_no_drill():
 def test_every_template_is_well_formed(lesson, template):
     where = f"{lesson.key}/{template.key}"
     assert template.title and template.prompt and template.equation
-    assert template.narrator in {"steps", "laplace", "systems"}
+    assert template.narrator in NARRATORS
     assert template.slots, f"{where}: nothing to vary"
     for names, values in template.slots:
         assert values, f"{where}: slot {names!r} has no values"

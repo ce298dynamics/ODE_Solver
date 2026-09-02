@@ -123,6 +123,9 @@ class HomeScreen(QWidget):
                  "Y(s), and invert it back.", palette.danger, "laplace"),
                 ("Methods by Hand", "Euler and RK4 as they are taught: the "
                  "arithmetic, beside the exact answer.", palette.accent, "byhand"),
+                ("Unit Quiz", "A mixed set from one unit, in no particular "
+                 "order — which is the part an exam actually tests.",
+                 palette.warning, "quiz"),
                 ("Worked Problems", "Mixing tanks, circuits and cooling — "
                  "where the equation comes from.", palette.success, "worked"),
             ]),

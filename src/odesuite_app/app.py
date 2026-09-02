@@ -44,6 +44,7 @@ SECTIONS = [
             ("laplace", "Laplace Transforms", "Ctrl+4"),
             ("byhand", "Methods by Hand", "Ctrl+5"),
             ("worked", "Worked Problems", "Ctrl+6"),
+            ("quiz", "Unit Quiz", "Ctrl+7"),
         ],
     ),
     (
@@ -253,6 +254,12 @@ class MainWindow(QWidget):
         course = CourseScreen(self.state, self.palette_obj)
         course.open_lesson.connect(self._open_lesson)
         self._add("course", course)
+
+        from .screens.learn_quiz import QuizScreen
+
+        quiz = QuizScreen(self.state, self.palette_obj)
+        quiz.open_lesson.connect(self._open_lesson)
+        self._add("quiz", quiz)
         from .screens.learn_steps import StepsScreen
 
         self._add("steps", StepsScreen(self.state, self.palette_obj))

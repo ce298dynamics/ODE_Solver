@@ -84,6 +84,12 @@ class CourseScreen(QWidget):
         self.continue_detail.setWordWrap(True)
         layout.addWidget(self.continue_detail)
 
+        add_heading(layout, "Review", space_above=10)
+        self.review_label = QLabel("")
+        self.review_label.setProperty("role", "muted")
+        self.review_label.setWordWrap(True)
+        layout.addWidget(self.review_label)
+
         layout.addStretch(1)
 
         note = QLabel(
@@ -173,6 +179,29 @@ class CourseScreen(QWidget):
         summary.setWordWrap(True)
         layout.addWidget(summary)
 
+        # The unit's own standing, above its lessons. Questions and drills
+        # together: a unit whose questions are all ticked and whose drills are
+        # untouched is not finished in any sense the word is usually meant,
+        # and a bar that said it was would be lying by omission.
+        standing = progress.unit_progress(unit, self._answered)
+        ring = QProgressBar()
+        ring.setTextVisible(False)
+        ring.setFixedHeight(6)
+        ring.setRange(0, 1000)
+        ring.setValue(int(standing.fraction * 1000))
+        layout.addWidget(ring)
+
+        tally = QLabel(
+            f"{standing.answered} of {standing.questions} questions"
+            + (f" · {standing.mastered} of {standing.drills} drills mastered"
+               if standing.drills else "")
+            + (f" · {standing.finished} of {standing.lessons} lessons finished"
+               if standing.finished else "")
+        )
+        tally.setProperty("role", "muted")
+        tally.setWordWrap(True)
+        layout.addWidget(tally)
+
         for lesson in unit.lessons:
             layout.addWidget(self._lesson_row(lesson, palette))
         return frame
@@ -248,7 +277,6 @@ class CourseScreen(QWidget):
             + (f"  {mastered} of {drillable} drills mastered."
                if drillable else "")
         )
-
         nxt = self._next_lesson()
         if nxt is None:
             self.continue_button.setEnabled(False)
@@ -256,6 +284,25 @@ class CourseScreen(QWidget):
         else:
             self.continue_button.setEnabled(True)
             self.continue_detail.setText(f"Next: {nxt.title}")
+
+        self._refresh_review()
+
+    def _refresh_review(self) -> None:
+        """What is worth going back to, weakest first.
+
+        Only lessons already started. One never opened is not weak, it is
+        simply next -- listing it here would turn "what to review" into a
+        second table of contents, which the unit cards below already are.
+        """
+        weak = progress.weakest(content.UNITS, self._answered)
+        if not weak:
+            self.review_label.setText(
+                "Nothing to review yet — answer a few questions and the "
+                "weakest lessons will appear here."
+            )
+            return
+        names = ", ".join(lesson.title for lesson, _ in weak)
+        self.review_label.setText(f"Worth another look: {names}")
 
     def _next_lesson(self):
         """The first lesson with a question left, in course order.

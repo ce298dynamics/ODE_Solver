@@ -62,6 +62,9 @@ __all__ = [
     "counts",
     "mastery",
     "drills",
+    "unit_progress",
+    "weakest",
+    "UnitProgress",
 ]
 
 #: The format written. Older files are read; nothing writes an older one.
@@ -270,6 +273,80 @@ def drills(lesson: str, templates, everything=None) -> tuple[int, int]:
     done = sum(1 for key in keys
                if key in answers and answers[key].mastered)
     return done, len(keys)
+
+
+@dataclass(frozen=True)
+class UnitProgress:
+    """What is done in one unit, for the Course Map and the quiz picker."""
+
+    answered: int
+    questions: int
+    mastered: int
+    drills: int
+    #: Lessons with every question answered correctly.
+    finished: int
+    lessons: int
+
+    @property
+    def fraction(self) -> float:
+        """Questions and drills together, in 0…1.
+
+        Both, rather than questions alone: a unit whose questions are all
+        ticked but whose drills are untouched is not finished in any sense the
+        word is usually meant, and a ring that said it was would be lying by
+        omission.
+        """
+        total = self.questions + self.drills
+        if total <= 0:
+            return 0.0
+        return (self.answered + self.mastered) / total
+
+
+def unit_progress(unit, everything: dict[str, dict[str, Answer]] | None = None
+                  ) -> UnitProgress:
+    """Aggregate one unit's lessons. Built from `counts` and `drills`.
+
+    No new storage: the file already records everything this needs, and a
+    second place recording the same facts would be a second place for them to
+    disagree.
+    """
+    everything = load() if everything is None else everything
+    answered = questions = mastered = total_drills = finished = 0
+    for lesson in unit.lessons:
+        done, asked = counts(lesson.key, len(lesson.questions), everything)
+        answered += done
+        questions += asked
+        finished += bool(asked and done == asked)
+        got, has = drills(lesson.key, lesson.templates, everything)
+        mastered += got
+        total_drills += has
+    return UnitProgress(answered=answered, questions=questions,
+                        mastered=mastered, drills=total_drills,
+                        finished=finished, lessons=len(unit.lessons))
+
+
+def weakest(units, everything: dict[str, dict[str, Answer]] | None = None,
+            limit: int = 3) -> list:
+    """The lessons worth going back to, weakest first.
+
+    Only lessons that have been *started*: a lesson never opened is not weak,
+    it is simply next, and putting it here would turn "what to review" into a
+    second table of contents. What counts as weak is the fraction of questions
+    answered correctly, so a lesson answered wrongly and left ranks above one
+    barely begun.
+    """
+    everything = load() if everything is None else everything
+    scored = []
+    for unit in units:
+        for lesson in unit.lessons:
+            asked = len(lesson.questions)
+            done, _ = counts(lesson.key, asked, everything)
+            attempted = len(everything.get(lesson.key, {}))
+            if not attempted or (asked and done == asked):
+                continue
+            scored.append(((done / asked) if asked else 0.0, lesson, unit))
+    scored.sort(key=lambda item: (item[0], item[1].key))
+    return [(lesson, unit) for _, lesson, unit in scored[:limit]]
 
 
 def _save(everything: dict[str, dict[str, Answer]]) -> None:

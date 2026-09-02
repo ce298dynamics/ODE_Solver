@@ -41,6 +41,7 @@ from . import (
     unit4_vibrations,
     unit5_laplace,
     unit6_systems,
+    unit7_series,
 )
 from .model import (
     NOTE_KINDS,
@@ -127,6 +128,14 @@ UNITS: tuple[Unit, ...] = (
                 "makes them one problem again.",
         reference="Edwards ch. 4-5",
         lessons=unit6_systems.LESSONS,
+    ),
+    Unit(
+        key="series",
+        title="Series solutions",
+        summary="What to do when there is no closed form at all — which is\n"
+                "the ordinary case rather than the exceptional one.",
+        reference="Edwards ch. 8",
+        lessons=unit7_series.LESSONS,
     ),
 )
 

@@ -8,6 +8,55 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **`Unit Quiz` — a mixed set from one unit.** The Lessons screen asks about
+  one topic at a time, which is how you learn a technique and not how you are
+  examined on one. Working out *which* method a question wants is most of the
+  difficulty of an exam, and it is the one thing lesson-by-lesson practice
+  cannot rehearse.
+
+  **A quiz question is an ordinary drill question** — the same `Solve`, graded
+  by the same substitution, hinted by the same ladder, recorded through the
+  same `progress`. The quiz adds no mathematics and so cannot disagree with
+  the rest of the Hub about what is correct.
+
+  Neither the lesson's name nor the drill's prompt is shown while answering,
+  and that is the whole design: a drill prompt says "Separate it, integrate
+  both sides", which is right in the Drill segment and fatal here. The report
+  afterwards names the lessons the misses came from and offers to open them.
+
+  **There is no countdown**, only a clock reported at the end. A timer
+  counting down turns practice into an examination, and an interruption then
+  costs something — which is wrong for a tool opened between other things.
+
+- **Mastery on the Course Map.** Each unit shows its own standing — questions
+  answered, drills mastered, lessons finished — and the summary says what is
+  worth another look, weakest first. Only lessons already started: one never
+  opened is not weak, it is simply next, and listing it would turn "what to
+  review" into a second table of contents.
+
+- **Series solutions: `series.py`, and the last unit.** Power series and
+  ordinary points, recurrence relations and the radius of convergence, and
+  regular singular points. **All seven units are now complete** — thirty-four
+  lessons, the whole of a first course.
+
+  **The recurrence is what is narrated**, because it is the lesson. sympy
+  returns a truncation without the rule that generated it; building the rule
+  here costs 0.01–0.02 s and gives the textbook coefficients, including the
+  pattern of every third Airy coefficient vanishing that a list of terms only
+  hints at. The radius of convergence comes from the nearest root of the
+  leading coefficient **including complex ones** — `1/(1+t²)` is fine for
+  every real t and its series still stops at 1.
+
+  **A truncation is reported as a truncation.** Substituting a truncated
+  series back leaves the terms that were never written down, so `verified` is
+  decided by the residual being of high enough order and the check is named
+  `truncation`. Where the series terminates the residual is exactly zero, the
+  ordinary substitution check is used, and the answer is reported as exact.
+  Unit 7's practice questions are all of the second kind — Legendre and
+  Hermite at the parameters where the series stops — because `check_answer`
+  grades a truncation as wrong, and a question whose model answer the grader
+  rejects would be worse than no question.
+
 - **Linear systems: `systems.py`, and Unit 6.** The eigenvalue method,
   narrated the way a course writes it — write it as `x′ = Ax`, form
   `det(A − λI) = 0`, find an eigenvector for each eigenvalue, and branch into
