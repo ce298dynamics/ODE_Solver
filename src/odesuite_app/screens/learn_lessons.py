@@ -48,7 +48,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import lessons as content
-from .. import progress
+from .. import progress, richtext
 from ..lessons import generate
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
@@ -182,6 +182,9 @@ class LessonsScreen(QWidget):
         layout.addWidget(self.listing)
 
         self.tool_button = QPushButton("Open the tool for this topic")
+        self.tool_button.setToolTip(
+            "Open the screen this lesson teaches, with an example loaded"
+        )
         self.tool_button.setProperty("role", "primary")
         self.tool_button.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.tool_button)
@@ -217,6 +220,9 @@ class LessonsScreen(QWidget):
         layout.addWidget(self.transfer_note)
 
         self.reset_button = QPushButton("Reset progress")
+        self.reset_button.setToolTip(
+            "Forget every answer recorded, for every lesson. Asks first."
+        )
         self.reset_button.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.reset_button)
 
@@ -459,14 +465,78 @@ class LessonsScreen(QWidget):
     def _build_learn(self, lesson) -> None:
         if lesson.objectives:
             self._layout.addWidget(self._objectives_card(lesson))
-        # After the objectives and before the notes: a figure is a thing to
-        # play with while reading, not a summary of what was read.
+        # Motivation before anything else that is not a promise about the
+        # lesson: a reader who does not yet know why the topic exists cannot
+        # be told what the technique is. Then the figure, to play with while
+        # reading, then the argument, then the facts.
+        if lesson.motivation:
+            self._layout.addWidget(self._motivation_card(lesson))
         if lesson.figure:
             figure = build_figure(lesson.figure, self.palette_obj)
             if figure is not None:
                 self._layout.addWidget(figure)
+        if lesson.derivation:
+            self._layout.addWidget(self._derivation_card(lesson))
         for note in lesson.notes:
             self._layout.addWidget(self._note_card(note))
+
+    def _prose(self, layout, text: str) -> None:
+        """Add `text` as one wrapped label per paragraph.
+
+        Blank lines separate paragraphs and are honoured, because the whole
+        point of writing more is that it stops being a wall. One label each
+        rather than one with newlines in it: the layout's spacing then does the
+        work, and each paragraph can carry its own accessible name.
+        """
+        for paragraph in (part.strip() for part in text.split("\n\n")):
+            if not paragraph:
+                continue
+            label = QLabel(richtext.emphasise(paragraph))
+            label.setTextFormat(Qt.RichText)
+            label.setWordWrap(True)
+            label.setAccessibleName("paragraph")
+            # The markers are ours, not the reader's: the description a screen
+            # reader speaks gets the words without them.
+            label.setAccessibleDescription(richtext.plain(paragraph))
+            layout.addWidget(label)
+
+    def _motivation_card(self, lesson) -> QWidget:
+        frame, layout = self._panel()
+        frame.setAccessibleName(f"Why this topic exists: {lesson.title}")
+
+        heading = QLabel("Why this comes up")
+        heading.setProperty("role", "heading")
+        layout.addWidget(heading)
+        self._prose(layout, lesson.motivation)
+        return frame
+
+    def _derivation_card(self, lesson) -> QWidget:
+        """The argument for why the method works.
+
+        Its own card, and numbered, because it is a chain rather than a set of
+        facts -- and separate from the Examples segment on purpose. The
+        narrator there shows the steps for one equation; this is the general
+        case, which no amount of worked examples supplies.
+        """
+        frame, layout = self._panel(self.palette_obj.accent)
+        frame.setAccessibleName(f"Where this comes from: {lesson.title}")
+
+        heading = QLabel("Where this comes from")
+        heading.setProperty("role", "heading")
+        layout.addWidget(heading)
+
+        for number, passage in enumerate(lesson.derivation, start=1):
+            row = QLabel(f"Step {number}")
+            row.setProperty("role", "muted")
+            row.setStyleSheet("font-weight: 600; letter-spacing: 1px;")
+            if number > 1:
+                layout.addSpacing(6)
+            layout.addWidget(row)
+            self._prose(layout, passage.prose)
+            if passage.latex:
+                layout.addWidget(MathLabel(self.palette_obj, passage.latex,
+                                           point_size=15))
+        return frame
 
     def _build_examples(self, lesson) -> None:
         heading = QLabel(
@@ -515,7 +585,15 @@ class LessonsScreen(QWidget):
         frame = QFrame()
         frame.setProperty("role", "panel")
         if accent:
-            frame.setStyleSheet(f"QFrame {{ border-left: 3px solid {accent}; }}")
+            # Scoped by object name, and it has to be. A stylesheet set on a
+            # widget applies to its descendants, and QLabel *is* a QFrame --
+            # so a bare `QFrame` selector gave every label in the card its own
+            # left border, drawn over the first character of the text and
+            # standing beside every equation like a stray bracket.
+            frame.setObjectName("accentPanel")
+            frame.setStyleSheet(
+                f"QFrame#accentPanel {{ border-left: 3px solid {accent}; }}"
+            )
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(16, 13, 16, 14)
         layout.setSpacing(8)
@@ -529,7 +607,8 @@ class LessonsScreen(QWidget):
         layout.addWidget(heading)
 
         for objective in lesson.objectives:
-            row = QLabel(f"·  {objective}")
+            row = QLabel("·  " + richtext.emphasise(objective))
+            row.setTextFormat(Qt.RichText)
             row.setWordWrap(True)
             layout.addWidget(row)
 
@@ -567,10 +646,9 @@ class LessonsScreen(QWidget):
         heading.setProperty("role", "heading")
         heading.setWordWrap(True)
         layout.addWidget(heading)
+        frame.setAccessibleName(f"{label or 'Note'}: {note.heading}")
 
-        body = QLabel(note.body)
-        body.setWordWrap(True)
-        layout.addWidget(body)
+        self._prose(layout, note.body)
 
         if note.latex:
             layout.addWidget(MathLabel(palette, note.latex, point_size=15))
@@ -583,11 +661,20 @@ class LessonsScreen(QWidget):
         heading.setProperty("role", "heading")
         layout.addWidget(heading)
 
+        frame.setAccessibleName(f"Example {number}: {example.equation}")
+
         if example.why:
-            why = QLabel(example.why)
+            why = QLabel(richtext.emphasise(example.why))
+            why.setTextFormat(Qt.RichText)
             why.setProperty("role", "muted")
             why.setWordWrap(True)
             layout.addWidget(why)
+
+        # What to watch for, before the working appears. The narrator supplies
+        # the steps and cannot supply the reading of them -- which line is the
+        # one that matters, and what the answer's shape is telling you.
+        if example.commentary:
+            self._prose(layout, example.commentary)
 
         shown = example.equation + (
             f",   {example.conditions}" if example.conditions else ""
@@ -599,6 +686,9 @@ class LessonsScreen(QWidget):
 
         row = QHBoxLayout()
         button = QPushButton("Work it through")
+        button.setToolTip(
+            "Run the narrator over this equation and show every step"
+        )
         button.setProperty("role", "primary")
         button.setCursor(Qt.PointingHandCursor)
         row.addWidget(button)
@@ -686,20 +776,27 @@ class LessonsScreen(QWidget):
         row.addWidget(answer, 1)
 
         check = QPushButton("Check")
+        check.setToolTip("Mark what you have entered")
         check.setProperty("role", "primary")
         check.setCursor(Qt.PointingHandCursor)
         row.addWidget(check)
 
         hint_button = QPushButton("Hint")
+        hint_button.setToolTip(
+            "Reveal the next hint. They come one at a time, and never "
+            "the answer."
+        )
         hint_button.setCursor(Qt.PointingHandCursor)
         hint_button.setEnabled(bool(question.hints))
         row.addWidget(hint_button)
 
         show = QPushButton("Show me")
+        show.setToolTip("Work it through in full, and stop counting this one")
         show.setCursor(Qt.PointingHandCursor)
         row.addWidget(show)
 
         again = QPushButton("New question")
+        again.setToolTip("Draw another of the same kind, with new numbers")
         again.setCursor(Qt.PointingHandCursor)
         row.addWidget(again)
         layout.addLayout(row)
@@ -779,11 +876,13 @@ class LessonsScreen(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
         check = QPushButton("Check")
+        check.setToolTip("Mark what you have entered")
         check.setProperty("role", "primary")
         check.setCursor(Qt.PointingHandCursor)
         row.addWidget(check)
 
         again = QPushButton("New question")
+        again.setToolTip("Draw another of the same kind, with new numbers")
         again.setCursor(Qt.PointingHandCursor)
         row.addWidget(again)
         row.addStretch(1)
@@ -845,6 +944,7 @@ class LessonsScreen(QWidget):
 
         row = QHBoxLayout()
         check = QPushButton("Check")
+        check.setToolTip("Mark what you have entered")
         check.setProperty("role", "primary")
         check.setCursor(Qt.PointingHandCursor)
         row.addWidget(check)
@@ -873,16 +973,22 @@ class LessonsScreen(QWidget):
         row.addWidget(answer, 1)
 
         check = QPushButton("Check")
+        check.setToolTip("Mark what you have entered")
         check.setProperty("role", "primary")
         check.setCursor(Qt.PointingHandCursor)
         row.addWidget(check)
 
         hint_button = QPushButton("Hint")
+        hint_button.setToolTip(
+            "Reveal the next hint. They come one at a time, and never "
+            "the answer."
+        )
         hint_button.setCursor(Qt.PointingHandCursor)
         hint_button.setEnabled(bool(question.hints))
         row.addWidget(hint_button)
 
         show = QPushButton("Show me")
+        show.setToolTip("Work it through in full, and stop counting this one")
         show.setCursor(Qt.PointingHandCursor)
         row.addWidget(show)
         layout.addLayout(row)

@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 
 __all__ = [
     "NOTE_KINDS",
+    "Passage",
     "Note",
     "Example",
     "Choice",
@@ -53,10 +54,30 @@ NOTE_KINDS = ("idea", "formula", "pitfall", "aside")
 
 
 @dataclass(frozen=True)
+class Passage:
+    """One step of an argument: what is claimed, and the mathematics of it.
+
+    Deliberately not called `Step`. `steps.Step` is one mechanical move in
+    solving a *particular* equation -- "divide by g(y)", with that equation's
+    numbers in it. A `Passage` is a move in the argument for why the method is
+    legitimate *at all*, and confusing the two is the exact distinction this
+    exists to draw. The narrator can already show anyone the steps; what it
+    cannot do is say why they are allowed.
+    """
+
+    prose: str
+    #: Display mathematics for this step, typeset beneath the prose.
+    latex: str = ""
+
+
+@dataclass(frozen=True)
 class Note:
     """One idea, with the formula that carries it."""
 
     heading: str
+    #: Prose. Blank lines separate paragraphs, and the renderer honours them --
+    #: a card long enough to need two paragraphs and given only one is a wall,
+    #: which is the opposite of what a card is for.
     body: str
     #: Displayed centred beneath the prose. LaTeX, typeset like everything else.
     latex: str = ""
@@ -76,6 +97,11 @@ class Example:
     #: one that breaks the plain rule, and the reader should be told which is
     #: which before the working appears.
     why: str = ""
+    #: What to watch for, in prose, beside the generated working. The narrator
+    #: supplies the steps and cannot supply the reading of them: which line is
+    #: the one that matters, what would have gone wrong a step earlier, what
+    #: the answer's shape is telling you. Blank lines separate paragraphs.
+    commentary: str = ""
 
 
 @dataclass(frozen=True)
@@ -214,6 +240,18 @@ class Lesson:
     #: What you should be able to do afterwards. Written as verbs, because a
     #: goal you cannot tell whether you have met is not a goal.
     objectives: tuple[str, ...] = ()
+    #: Why this topic exists, before any technique is named. Where the equation
+    #: arises, what goes wrong with the tools already in hand, and why this
+    #: method is the natural response to that. Blank lines separate paragraphs.
+    #:
+    #: A lesson that opens with "here is a technique" has skipped the only part
+    #: a reader cannot reconstruct for themselves.
+    motivation: str = ""
+    #: The argument for why the method works, as an ordered sequence. Distinct
+    #: from `examples`, which show the narrator doing it to one equation: this
+    #: is the general case, and it is where the step everybody waves at gets
+    #: made explicit.
+    derivation: tuple[Passage, ...] = ()
     #: Worked through by the narrator, in the order they should be read.
     examples: tuple[Example, ...] = ()
     #: Practice that never runs out. A lesson with none simply has no Drill —

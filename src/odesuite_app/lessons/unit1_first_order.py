@@ -9,7 +9,15 @@ and the four techniques a first course solves them with.
 
 from __future__ import annotations
 
-from .model import Choice, Example, Lesson, Note, Solve, Template
+from .model import (
+    Choice,
+    Example,
+    Lesson,
+    Note,
+    Passage,
+    Solve,
+    Template,
+)
 
 __all__ = ["BASICS", "SLOPEFIELDS", "SEPARABLE", "LINEAR",
            "EXACT", "SUBSTITUTIONS", "LESSONS"]
@@ -22,6 +30,76 @@ SEPARABLE = Lesson(
             "falls back on when it can.",
     tool="steps",
     reference="Edwards 1.4",
+    motivation=(
+        "The general first-order equation y' = F(t, y) is not solvable in any "
+        "systematic way — no technique in this course touches the general "
+        "case, and none exists. What a first course does instead is find the "
+        "*shapes* of F for which something can be said, and this is the first "
+        "and most forgiving of them.\n\n"
+        "The shape is a product: everything involving t in one factor, "
+        "everything involving y in the other. That is a real restriction — "
+        "y' = t + y is not of this form and neither is y' = sin(t + y) — but "
+        "it covers a surprising amount of what actually arises. Growth "
+        "proportional to population, cooling proportional to temperature "
+        "difference, a reaction rate proportional to concentration: all "
+        "products, because the physical law usually multiplies a rate by an "
+        "amount rather than adding them.\n\n"
+        "The reason to meet it first is that the method needs nothing but "
+        "integration. There is no formula to memorise and no auxiliary "
+        "function to construct; the equation is rearranged until both sides "
+        "are integrable, and then they are integrated. Every other "
+        "first-order technique in this unit is, in the end, a way of turning "
+        "some other equation into one of these."
+    ),
+    derivation=(
+        Passage(
+            prose="Suppose the right-hand side factors. Write the equation "
+                  "with everything in y on the left and everything in t on "
+                  "the right — which is legitimate as long as g(y) is not "
+                  "zero, and that caveat will come back.",
+            latex=r"\frac{dy}{dt} = f(t)\,g(y) \quad\Longrightarrow\quad "
+                  r"\frac{1}{g(y)}\frac{dy}{dt} = f(t)",
+        ),
+        Passage(
+            prose="Here is the step usually waved at, and it is worth doing "
+                  "honestly. Let H be any antiderivative of 1/g. Then by the "
+                  "chain rule, the left-hand side is exactly the derivative "
+                  "of H(y(t)) with respect to t — no manipulation of "
+                  "differentials required, and nothing informal about it.",
+            latex=r"\frac{d}{dt}H(y(t)) = H'(y)\,\frac{dy}{dt} "
+                  r"= \frac{1}{g(y)}\frac{dy}{dt}",
+        ),
+        Passage(
+            prose="So the equation says two functions of t have the same "
+                  "derivative. By the argument from the first lesson they "
+                  "differ by a constant, and that single constant is the one "
+                  "the answer carries — both integrals produce one, but their "
+                  "difference is again a constant, so only one is ever "
+                  "written.",
+            latex=r"\frac{d}{dt}H(y(t)) = \frac{d}{dt}\int f(t)\,dt "
+                  r"\;\Longrightarrow\; H(y) = \int f(t)\,dt + C",
+        ),
+        Passage(
+            prose="That is the whole method, and it explains the "
+                  "differentials notation rather than relying on it. Writing "
+                  "dy/g(y) = f(t)dt and integrating each side against its own "
+                  "variable gives the same equation, which is why the "
+                  "shorthand is safe — it is bookkeeping for the chain-rule "
+                  "argument above.",
+            latex=r"\int\frac{dy}{g(y)} = \int f(t)\,dt",
+        ),
+        Passage(
+            prose="Two things the derivation quietly assumed, and both bite "
+                  "in practice. Dividing by g(y) required it to be non-zero, "
+                  "so any root of g has been excluded — and each root is a "
+                  "constant solution in its own right, which the family above "
+                  "may not contain. And H(y) = … is an *implicit* answer; "
+                  "solving it for y needs H to be invertible, which is where "
+                  "the ± branches come from.",
+            latex=r"g(y_0) = 0 \;\Longrightarrow\; y \equiv y_0 "
+                  r"\text{ solves it too}",
+        ),
+    ),
     objectives=(
         "Decide whether an equation separates, by looking for a product.",
         "Carry out the separation and integrate both sides.",
@@ -36,6 +114,17 @@ SEPARABLE = Lesson(
             conditions="y(0) = 0.1",
             why="The logistic equation — the standard case, and one whose two "
                 "equilibria are exactly what separating divides away.",
+            commentary=(
+                "Watch the division, which is where this method always pays. "
+                "Separating means dividing by y(1 - y), and that throws away exactly "
+                "the two values at which it vanishes — so read the answer as covering "
+                "everything except those two, and add them back by inspection.\n\n"
+                "Then read what the family does rather than being told. Every curve "
+                "starting between the two equilibria rises towards the upper one, and "
+                "that is the whole content of logistic growth sitting in the algebra "
+                "of the answer. Nothing had to be asserted about it: substitute a "
+                "starting value near zero and the limit is visible."
+            ),
         ),
         Example(
             equation="y' = y**2",
@@ -43,6 +132,18 @@ SEPARABLE = Lesson(
             why="Nothing about this equation looks dangerous, and yet the "
                 "solution runs to infinity at t = 1. Separating finds that; "
                 "the equation itself never says so.",
+            commentary=(
+                "Look for where the finite time comes from, because nothing in the "
+                "equation mentions it. The antiderivative of one over y squared puts "
+                "y into a denominator, and the initial condition places that "
+                "denominator's zero at t = 1. Start somewhere else and the blow-up "
+                "moves.\n\n"
+                "So this equation satisfies the uniqueness theorem at every point of "
+                "the plane and still fails to have a solution for all t. The two "
+                "facts are compatible, and holding them together is the point: the "
+                "theorem promises a solution near the start and promises nothing "
+                "whatever about how far it extends."
+            ),
         ),
     ),
     notes=(
@@ -224,6 +325,87 @@ LINEAR = Lesson(
             "separate.",
     tool="steps",
     reference="Edwards 1.5",
+    motivation=(
+        "Separation asked the right-hand side to factor, and an enormous class "
+        "of equations refuses. y' = -2y + t is the plainest example: the two "
+        "influences on the rate are *added*, not multiplied, and no "
+        "rearrangement turns a sum into a product. Yet this is the shape "
+        "physical modelling produces most often of all, because it is what "
+        "happens whenever something decays on its own and is driven from "
+        "outside at the same time.\n\n"
+        "A cooling cup of coffee in a room whose own temperature is changing; "
+        "a balance losing value to inflation while deposits arrive; a drug "
+        "clearing from the bloodstream against a steady infusion. Each is a "
+        "decay term proportional to the amount present, plus a forcing term "
+        "that does not care what the amount is. Separation cannot touch any of "
+        "them.\n\n"
+        "What can is a manoeuvre with an unusual character: rather than "
+        "rearranging the equation, multiply it by something. The right "
+        "multiplier collapses the entire left-hand side into a single "
+        "derivative, at which point the equation is the y' = f(t) of the first "
+        "lesson and one integration finishes it. The multiplier is not "
+        "guessed — it can be derived, and the derivation is four lines."
+    ),
+    derivation=(
+        Passage(
+            prose="Put the equation in standard form, with the coefficient of "
+                  "y' equal to one. This matters more than it looks: p and q "
+                  "are read off *after* dividing, and reading them off before "
+                  "is the most common route to the wrong integrating factor.",
+            latex=r"y' + p(t)\,y = q(t)",
+        ),
+        Passage(
+            prose="The obstruction is that the left-hand side is not the "
+                  "derivative of anything obvious. But look at what the "
+                  "product rule does to a product of y with some as-yet-"
+                  "unknown factor: it produces that factor times y' plus its "
+                  "own derivative times y. Compare with what multiplying the "
+                  "equation by the same factor gives.",
+            latex=r"(\mu y)' = \mu y' + \mu' y \qquad\text{versus}\qquad "
+                  r"\mu(y' + py) = \mu y' + \mu p\,y",
+        ),
+        Passage(
+            prose="The two agree exactly when the factor satisfies one "
+                  "condition — and that condition has no y in it, so it is an "
+                  "equation for the factor alone. Better still it is "
+                  "separable, so the previous lesson already solves it. That "
+                  "is the step worth noticing: this method is not a new idea "
+                  "but a trade of one hard equation for an easy one.",
+            latex=r"\mu' = p(t)\,\mu \;\Longrightarrow\; "
+                  r"\frac{d\mu}{\mu} = p\,dt \;\Longrightarrow\; "
+                  r"\mu = e^{\int p\,dt}",
+        ),
+        Passage(
+            prose="Any one antiderivative of p will do, and the constant of "
+                  "integration can be dropped. A different constant multiplies "
+                  "the factor by a non-zero number, which scales both sides of "
+                  "the equation equally — the same equation. That is why no "
+                  "second constant appears in the integrating factor even "
+                  "though it came out of an integration.",
+            latex=r"\mu \to C\mu \;\Longrightarrow\; C(\mu y)' = C\mu q "
+                  r"\;\text{(unchanged)}",
+        ),
+        Passage(
+            prose="With that factor the left-hand side genuinely is a "
+                  "derivative, and the equation has been reduced to the "
+                  "y' = f(t) case. Integrate once, then divide back.",
+            latex=r"(\mu y)' = \mu q \;\Longrightarrow\; "
+                  r"y = \frac{1}{\mu}\left(\int \mu(t)q(t)\,dt + C\right)",
+        ),
+        Passage(
+            prose="Two things this buys beyond an answer. Because the factor "
+                  "is an exponential it is never zero, so dividing back is "
+                  "always legal and no solutions are lost — unlike separation, "
+                  "this method has no missing constant solution to hunt for. "
+                  "And the answer's shape is legible: the term carrying C is "
+                  "whatever the initial condition contributed, and the integral "
+                  "term is the response to the forcing. That split is the "
+                  "transient and the steady state, and it returns in every "
+                  "later unit.",
+            latex=r"y = \frac{1}{\mu}\int \mu q\,dt \;+\; \frac{C}{\mu}"
+                  r"\qquad \text{forcing} \;+\; \text{initial condition}",
+        ),
+    ),
     prerequisites=("separable",),
     objectives=(
         "Put a first-order equation in standard form and read off p and q.",
@@ -236,6 +418,18 @@ LINEAR = Lesson(
             equation="y' + 2*y = t",
             why="Constant p, polynomial forcing — the case to watch the "
                 "machinery on before the coefficients start moving.",
+            commentary=(
+                "The line to watch is the one where the left-hand side becomes a "
+                "single derivative. Everything before it exists to set that collapse "
+                "up; everything after it is one integration and a division. If the "
+                "collapse does not happen, the integrating factor is wrong — and that "
+                "is the only symptom you get, because nothing raises an error.\n\n"
+                "Then read the answer's two terms separately. The polynomial part is "
+                "the response to the forcing and stays; the exponential part carries "
+                "the constant and dies. That is the steady state and the transient in "
+                "the simplest place they ever appear, and recognising the split here "
+                "makes the vibrations unit much shorter."
+            ),
         ),
         Example(
             equation="t*y' + y = t",
@@ -243,6 +437,21 @@ LINEAR = Lesson(
             why="p(t) = 1/t is not constant, which is what the method is "
                 "actually for — and the left side was already a product-rule "
                 "derivative before anything was multiplied by anything.",
+            commentary=(
+                "The first step is the one most easily skipped: divide through so the "
+                "coefficient of y' is one. Reading p off before dividing gives the "
+                "wrong factor, and a wrong factor fails silently — the left-hand side "
+                "simply does not become a derivative, with nothing to tell you why.\n\n"
+                "There is a bonus hiding in this particular equation. The "
+                "construction returns a factor of t, which is precisely the "
+                "factor the left-hand side was carrying all along, so it could "
+                "have been finished by inspection — and the method arrived "
+                "at the same place without needing to spot that. And watch the "
+                "interval: the coefficient is undefined at zero, so a "
+                "condition given at t = 1 "
+                "selects the solution on the positive axis and says nothing at all "
+                "about the other side."
+            ),
         ),
     ),
     notes=(
@@ -283,7 +492,7 @@ LINEAR = Lesson(
             "coefficient is the mistake this topic produces. In t·y′ + y = t, "
             "p is 1/t and not 1 — and a wrong p gives a wrong μ, which leaves "
             "the left side not the derivative of anything.",
-            r"t y' + y = t \;\Longrightarrow\; y' + \tfrac{1}{t}\,y = 1",
+            r"t y' + y = t \;\Longrightarrow\; y' + \frac{1}{t}\,y = 1",
             "pitfall",
         ),
     ),
@@ -434,6 +643,74 @@ BASICS = Lesson(
             "have solved one.",
     tool="steps",
     reference="Edwards 1.1–1.2",
+    motivation=(
+        "Algebra asks which *number* satisfies a condition. A differential "
+        "equation asks which *function* does — and the condition is about the "
+        "function's rate of change rather than its value. That is the whole "
+        "shift, and nearly everything unfamiliar about the subject follows "
+        "from it.\n\n"
+        "It is worth making because rates of change are what the world "
+        "actually reports. Nobody measures a bacterial colony as a formula "
+        "in t; what is observable is that it grows in proportion to how many "
+        "are already there. Nobody knows a falling object's height in "
+        "advance; what is known is that gravity pulls down and the air pushes "
+        "back in proportion to speed. In each case the law is a statement "
+        "about the derivative, and the function wanted is whatever satisfies "
+        "it.\n\n"
+        "So the equation is the easy half to write and the hard half to "
+        "solve. This lesson is about what solving even means here, because "
+        "the answer is not a number, and usually not one function either — "
+        "it is a whole family of them, and it takes extra information to "
+        "single one out."
+    ),
+    derivation=(
+        Passage(
+            prose="Start with the simplest possible case, where the "
+                  "right-hand side never mentions y. Then the equation says "
+                  "only that y is an antiderivative of f, and the "
+                  "fundamental theorem of calculus answers it outright.",
+            latex=r"y' = f(t) \quad\Longrightarrow\quad y(t) = \int f(t)\,dt",
+        ),
+        Passage(
+            prose="Now notice what that integral leaves behind. Any two "
+                  "antiderivatives of the same f differ by a constant, "
+                  "because a function whose derivative vanishes everywhere is "
+                  "constant. So the equation does not have *a* solution — it "
+                  "has a one-parameter family of them, and the parameter is "
+                  "real rather than an artefact of how we happened to solve "
+                  "it.",
+            latex=r"\frac{d}{dt}(y_1 - y_2) = f - f = 0 "
+                  r"\;\Longrightarrow\; y_1 - y_2 = C",
+        ),
+        Passage(
+            prose="That is why an initial condition is not an optional extra. "
+                  "Giving y at one instant picks one curve out of the family, "
+                  "and it is the least information that can. Physically it is "
+                  "the statement that the law alone does not determine the "
+                  "motion: you must also say where it started.",
+            latex=r"y(t_0) = y_0 \;\Longrightarrow\; C \text{ is pinned}",
+        ),
+        Passage(
+            prose="Each further derivative costs another constant, for the "
+                  "same reason — integrating twice leaves two. An nth-order "
+                  "equation therefore has an n-parameter family and needs n "
+                  "conditions, which is why a second-order equation always "
+                  "arrives with a position *and* a velocity.",
+            latex=r"y'' = f(t) \;\Longrightarrow\; "
+                  r"y = \iint f\,dt\,dt + C_1 t + C_2",
+        ),
+        Passage(
+            prose="One asymmetry makes the whole subject workable: checking "
+                  "is differentiation, and solving is integration. "
+                  "Differentiating is mechanical — every elementary function "
+                  "has an elementary derivative — while integration has no "
+                  "such guarantee. So a candidate can always be verified even "
+                  "when it could never have been produced, which is why every "
+                  "answer in this application is substituted back.",
+            latex=r"\text{substitute } y,\ \text{simplify } y' - f(t) "
+                  r"\text{ to } 0",
+        ),
+    ),
     objectives=(
         "Say what the order of an equation is, and read it off.",
         "Check whether a given function is a solution, by substituting it.",
@@ -449,6 +726,18 @@ BASICS = Lesson(
                 "needed, because y does not appear on the right at all. Worth "
                 "seeing first, so that later equations are recognisably harder "
                 "than this one rather than differently mysterious.",
+            commentary=(
+                "Read the working as three moves: integrate, name the constant, use "
+                "the condition. The order is not a preference. Substituting the "
+                "condition before integrating has nothing to substitute into, and "
+                "reaching for it too early is the most common way a problem this "
+                "simple goes wrong.\n\n"
+                "Watch where the constant enters and where it leaves. It appears at "
+                "the integration, carrying the fact that infinitely many functions "
+                "have this derivative, and the condition then discards all but one of "
+                "them. The general family comes first and the particular curve "
+                "second, always."
+            ),
         ),
         Example(
             equation="y'' + y = 0",
@@ -456,6 +745,19 @@ BASICS = Lesson(
             why="Second order, so two constants and two conditions. Count them "
                 "as they appear: it is the clearest illustration of why the "
                 "order decides how much information you have to supply.",
+            commentary=(
+                "This one is not solved by integrating twice. The right-hand side is "
+                "not a function of t, so the first lesson's method does not reach it "
+                "and the answer arrives from a technique three units away. Read it "
+                "for its shape rather than its derivation.\n\n"
+                "And the shape is the point. A starting position alone would leave a "
+                "whole one-parameter family still satisfying it, so the second "
+                "condition is not redundant bookkeeping — it is the other half of the "
+                "information. That is the concrete content of one condition per "
+                "order, and physically the statement that where a spring starts does "
+                "not determine what it does unless you also say how fast it is "
+                "moving."
+            ),
         ),
     ),
     notes=(
@@ -598,6 +900,88 @@ SLOPEFIELDS = Lesson(
             "anything at all.",
     tool="steps",
     reference="Edwards 1.3",
+    motivation=(
+        "Every technique in this unit hands back a formula, which invites a "
+        "false impression: that solving an equation means finding one. It does "
+        "not, and the equations for which a formula exists are a thin and "
+        "unrepresentative slice of them. The equation y' = y² − t has no "
+        "elementary solution, and nothing is wrong with it — it is a perfectly "
+        "ordinary equation with perfectly ordinary solutions that simply "
+        "cannot be written in closed form.\n\n"
+        "So a first course needs a way of seeing solutions that does not go "
+        "through solving, and the equation itself supplies one. Written as "
+        "y' = f(t, y), it assigns a slope to every point of the plane. It says "
+        "nothing about which curve you are on — only which direction you must "
+        "travel if you are at that point. Drawing those directions turns an "
+        "equation into a picture of every solution at once.\n\n"
+        "The other question this lesson settles comes before all of it. Ahead "
+        "of spending an hour on a technique it is worth knowing whether there "
+        "is anything to find: whether a solution through a given point exists, "
+        "and whether it is the only one. Both can fail, and the conditions "
+        "under which they do not fail are checkable without solving anything."
+    ),
+    derivation=(
+        Passage(
+            prose="Read the equation as an instruction rather than a problem. "
+                  "At each point of the plane it names a number, and that "
+                  "number is the slope any solution through that point must "
+                  "have. Draw a short segment of that slope at each point and "
+                  "the result is a field of directions.",
+            latex=r"\text{at } (t_0, y_0): \quad "
+                  r"\text{slope} = f(t_0, y_0)",
+        ),
+        Passage(
+            prose="A solution is then exactly a curve that is everywhere "
+                  "tangent to the field. This is a restatement, not an "
+                  "approximation: the graph of any solution can be traced by "
+                  "following the segments, and any curve that follows them "
+                  "solves the equation. What the picture gives up is "
+                  "precision; what it gains is every solution rather than one.",
+            latex=r"y'(t) = f(t, y(t)) \;\Longleftrightarrow\; "
+                  r"\text{the graph is tangent to the field}",
+        ),
+        Passage(
+            prose="Two features of the field can be read off directly. Where f "
+                  "vanishes the segments are horizontal, and that curve — the "
+                  "nullcline — separates the region where solutions rise from "
+                  "the region where they fall. And if f never mentions t, "
+                  "every vertical slice of the field is identical, which is "
+                  "why the solutions of an autonomous equation are horizontal "
+                  "shifts of one another.",
+            latex=r"f(t, y) = f(y) \;\Longrightarrow\; y(t) "
+                  r"\text{ solves it} \Rightarrow y(t - c) \text{ does too}",
+        ),
+        Passage(
+            prose="Now the prior question. Continuity of f near a point is "
+                  "enough to guarantee that *some* solution passes through it: "
+                  "the field is defined there and does not jump, so there is a "
+                  "direction to follow and following it gets somewhere. That "
+                  "is existence, and it is the cheaper half.",
+            latex=r"f \text{ continuous near } (t_0, y_0) "
+                  r"\;\Longrightarrow\; \text{at least one solution}",
+        ),
+        Passage(
+            prose="Uniqueness costs more, and why is visible in the field. If "
+                  "the slope can change arbitrarily fast as y changes, two "
+                  "curves can leave the same point and separate. Requiring the "
+                  "y-derivative of f to be continuous as well bounds how "
+                  "quickly the field can turn as you move vertically, and that "
+                  "bound is what forces the curve to be the only one.",
+            latex=r"f,\ \partial f/\partial y \text{ continuous near } "
+                  r"(t_0, y_0) \;\Longrightarrow\; \text{exactly one}",
+        ),
+        Passage(
+            prose="Read the theorem for what it does not claim. It is local — "
+                  "it promises a solution on some interval around the starting "
+                  "time and says nothing about how wide, which is how a "
+                  "well-behaved equation can have a solution that escapes to "
+                  "infinity in finite time. And its hypotheses are sufficient, "
+                  "not necessary: failing them means the theorem is silent, "
+                  "not that uniqueness fails.",
+            latex=r"y' = y^2,\ y(0) = 1 \;\Longrightarrow\; "
+                  r"y = \frac{1}{1 - t}, \text{ only for } t < 1",
+        ),
+    ),
     prerequisites=("basics",),
     figure="slope_field",
     objectives=(
@@ -614,6 +998,19 @@ SLOPEFIELDS = Lesson(
                 "everywhere, so exactly one curve passes through each point. "
                 "Solvable too, which lets the picture and the formula be "
                 "compared.",
+            commentary=(
+                "Take up the comparison this example exists for. Solve it, then look "
+                "back at the field: the line along which the slope is zero is the "
+                "nullcline, and the exponential term in the answer is what carries "
+                "solutions away from it on both sides. The picture said that before "
+                "any integration did.\n\n"
+                "Then watch one solution behave differently from the rest. A single "
+                "member of the family has no exponential term at all and runs "
+                "straight along the field, and every other solution is that one plus "
+                "a growing multiple of an exponential. Reading a field for the curve "
+                "everything else peels away from is a habit worth forming here, "
+                "because it is how the phase-plane lessons in the next unit are read."
+            ),
         ),
         Example(
             equation="y' = t/y",
@@ -621,6 +1018,19 @@ SLOPEFIELDS = Lesson(
             why="f = t/y is undefined on the whole line y = 0, and the answer "
                 "shows what that costs: the solution exists only while it "
                 "stays away from it, and the ± branches never meet.",
+            commentary=(
+                "Watch the algebra force a choice the equation never made. What comes "
+                "out is a relation in y squared, so extracting y needs a sign, and "
+                "the initial condition supplies it — a curve starting above the bad "
+                "line stays above it, because crossing would require the two branches "
+                "to meet.\n\n"
+                "Then read the interval, not just the formula. The solution is "
+                "defined only while the expression under the root stays positive, so "
+                "the answer comes with a domain attached and the domain depends on "
+                "where it started. This is the local half of the existence theorem "
+                "made concrete, and it is why the theorem promises an interval rather "
+                "than a solution."
+            ),
         ),
     ),
     notes=(
@@ -771,6 +1181,89 @@ EXACT = Lesson(
             "the only work is finding what.",
     tool="steps",
     reference="Edwards 1.6",
+    motivation=(
+        "Separation needs a product; the integrating factor needs linearity in "
+        "y. An equation like 2ty + (t² + 3y²)y' = 0 offers neither — y "
+        "appears in both coefficients and nothing separates. It looks like a "
+        "dead end, and then it comes out in three lines. That is the "
+        "interesting part, because the reason has nothing to do with either "
+        "earlier method.\n\n"
+        "The idea is to stop looking for y as a function of t and look for a "
+        "*surface* instead. Many first-order equations are secretly the "
+        "statement that some quantity built from t and y does not change along "
+        "a solution. Conservation of energy has exactly this form, and so does "
+        "every level curve of every function: if a function of two variables "
+        "is held constant, differentiating along the curve produces a "
+        "first-order equation — and running that backwards is the whole "
+        "method.\n\n"
+        "This also changes what counts as an answer. What comes out here is a "
+        "relation between t and y, not a formula for y, and often it cannot be "
+        "untangled into one. That is a feature rather than a shortfall: the "
+        "level curve is the honest description of the solution, and insisting "
+        "on y = something would either fail outright or force a choice of "
+        "branch the equation never made."
+    ),
+    derivation=(
+        Passage(
+            prose="Start from the answer and work backwards. Suppose some "
+                  "function of t and y stays constant along a solution curve. "
+                  "Differentiate that statement with respect to t, using the "
+                  "chain rule for a function of two variables, and a "
+                  "first-order equation falls out.",
+            latex=r"F(t, y(t)) = C \;\Longrightarrow\; "
+                  r"F_t + F_y\,\frac{dy}{dt} = 0",
+        ),
+        Passage(
+            prose="Compare that with an equation presented as one coefficient "
+                  "plus another times y'. It is solved by setting F equal to a "
+                  "constant the moment those two coefficients are the two "
+                  "partial derivatives of a single F. So the entire method "
+                  "reduces to one question: given the coefficients, does such "
+                  "an F exist? If it does, the work is already over.",
+            latex=r"M(t, y) + N(t, y)\,y' = 0 \quad\text{with}\quad "
+                  r"M = F_t,\; N = F_y",
+        ),
+        Passage(
+            prose="That question has a cheap test, and it comes from a fact "
+                  "about second derivatives: for a function whose second "
+                  "partials are continuous, differentiating in either order "
+                  "gives the same result. Apply it to the F we are hoping for.",
+            latex=r"F_{ty} = F_{yt} \;\Longrightarrow\; "
+                  r"\frac{\partial M}{\partial y} = "
+                  r"\frac{\partial N}{\partial t}",
+        ),
+        Passage(
+            prose="This is why exactness is a test rather than a formula: two "
+                  "derivatives and a comparison decide, before any integration, "
+                  "whether the method applies. And the condition is not a "
+                  "technicality invented for the occasion — it is the symmetry "
+                  "of second derivatives. On a rectangle where the "
+                  "coefficients behave, the converse holds too, so the test is "
+                  "exactly right and not merely necessary.",
+            latex=r"M_y = N_t \;\Longleftrightarrow\; "
+                  r"F \text{ exists (on a rectangle)}",
+        ),
+        Passage(
+            prose="Constructing F is then bookkeeping. Integrate the first "
+                  "coefficient in t: that recovers F up to anything a "
+                  "t-derivative would have destroyed — so the leftover is a "
+                  "function of y alone, not a constant. Differentiating the "
+                  "result in y and matching against the second coefficient "
+                  "pins it down.",
+            latex=r"F = \int M\,dt + g(y), \qquad F_y = "
+                  r"\frac{\partial}{\partial y}\int M\,dt + g'(y) = N",
+        ),
+        Passage(
+            prose="One built-in consistency check. When the equation really is "
+                  "exact, that last matching leaves an expression in y alone, "
+                  "with every t cancelling. If a t survives, either the test "
+                  "was misapplied or the algebra slipped — the cancellation is "
+                  "not luck, it is the exactness condition showing up again "
+                  "one step later.",
+            latex=r"g'(y) = N - \frac{\partial}{\partial y}\int M\,dt"
+                  r"\quad\text{must be free of } t",
+        ),
+    ),
     prerequisites=("separable", "linear"),
     objectives=(
         "Write a first-order equation as M dt + N dy = 0.",
@@ -785,6 +1278,19 @@ EXACT = Lesson(
             why="Neither separable nor linear, and yet it comes out in three "
                 "lines. Watch ∂M/∂y and ∂N/∂t agree first — that agreement is "
                 "what licenses everything after it.",
+            commentary=(
+                "Watch the two partial derivatives agree before anything else "
+                "happens. That agreement is not a formality — it is the entire "
+                "licence for the rest of the working, and had it failed the remaining "
+                "lines would be meaningless rather than merely wrong.\n\n"
+                "Then watch the potential get built. Integrating in t leaves an "
+                "unknown *function of y*, not an unknown constant, because anything "
+                "in y alone has no t-derivative to have been recovered. Matching "
+                "against the other coefficient pins it down — and notice that every t "
+                "cancels when it does. That cancellation is the exactness condition "
+                "turning up again one step later, and it is the check that the "
+                "working held."
+            ),
         ),
         Example(
             equation="y' = -(2*t + 3*y)/(3*t + 4*y)",
@@ -793,6 +1299,18 @@ EXACT = Lesson(
                 "as a substitution, because that is the technique a course "
                 "meets first — a reminder that a method applying does not make "
                 "it the method to use.",
+            commentary=(
+                "Run the exactness test by hand alongside the narrated working. The "
+                "two partials agree, so the potential could have been constructed "
+                "instead, and the relation it produces is the same family of curves "
+                "in different clothing.\n\n"
+                "Which route is shorter depends on the equation and not on a rule, "
+                "and that is worth sitting with: an equation can have two honest "
+                "solutions that look nothing alike, and neither is the right one. "
+                "Recognising several applicable methods and picking among them is a "
+                "different skill from carrying any of them out, and it is the one an "
+                "exam actually tests."
+            ),
         ),
     ),
     notes=(
@@ -970,6 +1488,83 @@ SUBSTITUTIONS = Lesson(
             "of variable that make them so.",
     tool="steps",
     reference="Edwards 1.6",
+    motivation=(
+        "Four techniques in, the pattern is that each one recognises a shape. "
+        "That raises an obvious question about everything else: is an equation "
+        "matching none of the four simply out of reach? Usually not — because "
+        "an equation can be the wrong shape in the variables it is written in "
+        "and the right shape in different ones.\n\n"
+        "The move is familiar from integration. A substitution does not make "
+        "an integral easier in any absolute sense; it rewrites it as one "
+        "already known. The same works here, and with more leverage, because "
+        "the target is not a table of integrals but a technique — turning an "
+        "equation into a separable or a linear one is enough, since those are "
+        "solved.\n\n"
+        "Two substitutions cover most of what a first course meets, and "
+        "neither is arbitrary. Each is the substitution suggested by a "
+        "*symmetry* of the equation, which is why it works rather than being a "
+        "lucky guess. When the right-hand side can only see the ratio of y to "
+        "t, the ratio is the natural unknown; when the nonlinearity in y is a "
+        "single power, a power of y is."
+    ),
+    derivation=(
+        Passage(
+            prose="Take the first case: the right-hand side depends on y and t "
+                  "only through their ratio. There is a test for it that does "
+                  "not require spotting the ratio by eye — scale both "
+                  "variables by the same factor, and if the right-hand side is "
+                  "unchanged then it cannot be measuring anything but the "
+                  "ratio.",
+            latex=r"f(\lambda t, \lambda y) = f(t, y) \;\Longrightarrow\; "
+                  r"f(t, y) = F(y/t)",
+        ),
+        Passage(
+            prose="So make the ratio the unknown, which means y is t times the "
+                  "new variable. Differentiate that as a product — this is the "
+                  "step to get right, and dropping the product rule here is "
+                  "the single most common error in the method.",
+            latex=r"v = y/t \;\Longrightarrow\; y = t\,v "
+                  r"\;\Longrightarrow\; y' = v + t\,v'",
+        ),
+        Passage(
+            prose="Substitute and watch what happens. The lone v cancels "
+                  "against the right-hand side, leaving t times v' equal to a "
+                  "function of v with no t anywhere in it — a function of t "
+                  "times a function of v. It is separable, by construction "
+                  "rather than by luck.",
+            latex=r"v + t v' = F(v) \;\Longrightarrow\; "
+                  r"v' = \frac{F(v) - v}{t}",
+        ),
+        Passage(
+            prose="The second case is an equation that would be linear except "
+                  "for a single power of y on the right. Since exactly one "
+                  "power is in the way, look for a power of y that flattens "
+                  "it — and rather than remembering which, leave the exponent "
+                  "unnamed and let the algebra choose it.",
+            latex=r"y' + p(t)\,y = q(t)\,y^{n}, \qquad v = y^{k} "
+                  r"\text{ for some } k",
+        ),
+        Passage(
+            prose="Differentiate the new variable, divide the equation through "
+                  "by that power of y to isolate the pieces, and compare the "
+                  "two. They match for one value of k, and that is where the "
+                  "substitution comes from — it is forced, not memorised. It "
+                  "needs the exponent to be neither zero nor one, which costs "
+                  "nothing: both of those cases are already linear.",
+            latex=r"v' = k\,y^{k-1}y' \;\text{ matches }\; "
+                  r"y^{-n}y' + p\,y^{1-n} = q \;\Longrightarrow\; k = 1 - n",
+        ),
+        Passage(
+            prose="With that exponent the equation in the new variable is "
+                  "linear, so the integrating factor finishes it, and y comes "
+                  "back by undoing the power. Both substitutions carry the "
+                  "same moral: the work is in recognising which change of "
+                  "variable the equation is asking for, and after that there "
+                  "is nothing new to learn.",
+            latex=r"v' + (1-n)p\,v = (1-n)q \;\Longrightarrow\; "
+                  r"y = v^{1/(1-n)}",
+        ),
+    ),
     prerequisites=("separable", "linear"),
     objectives=(
         "Recognise a homogeneous equation from the ratio y/t.",
@@ -984,6 +1579,19 @@ SUBSTITUTIONS = Lesson(
             why="Homogeneous: divide top and bottom by t² and only y/t "
                 "survives. Watch the substituted equation separate, and watch "
                 "the initial condition choose the sign at the very end.",
+            commentary=(
+                "Confirm the shape before substituting. Scale both variables by the "
+                "same factor and the right-hand side is unchanged, which is the test "
+                "— dividing numerator and denominator by t squared then leaves the "
+                "ratio alone, and that is why the ratio is the variable to use.\n\n"
+                "Two lines then carry the method. First the differentiation of y as a "
+                "product of t and the new variable: the extra term is where "
+                "everything happens, and dropping it is the commonest way to lose "
+                "this problem. Then the substituted equation separating, with the "
+                "lone copy of the new variable cancelling against the right-hand side "
+                "exactly as promised. The condition is applied last, after the "
+                "substitution is undone, and it is what chooses the sign."
+            ),
         ),
         Example(
             equation="y' + y = t*y**3",
@@ -991,6 +1599,18 @@ SUBSTITUTIONS = Lesson(
             why="Bernoulli with n = 3. The derivation visibly turns into the "
                 "integrating-factor derivation you already know, which is the "
                 "whole point of the substitution.",
+            commentary=(
+                "Rather than taking the exponent on trust, watch it fall out. "
+                "Dividing through by y cubed produces exactly the combination that "
+                "the derivative of y to the minus two supplies, and no other power of "
+                "y would have matched. The substitution is forced by the algebra, not "
+                "remembered from a table.\n\n"
+                "After it, the working visibly becomes the integrating-factor working "
+                "from two lessons ago. That is the whole economy of the method: it "
+                "buys no new machinery, it only reaches machinery already built. Note "
+                "the last step is a fractional power, so a branch has to be chosen, "
+                "and the initial condition chooses it."
+            ),
         ),
     ),
     notes=(

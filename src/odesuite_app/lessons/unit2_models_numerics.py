@@ -743,7 +743,7 @@ RUNGEKUTTA = Lesson(
             "samples several across it and takes a weighted average — the two "
             "midpoint slopes counting double, because the midpoint is where a "
             "single slope best represents the whole step.",
-            r"y_{n+1} = y_n + \tfrac{h}{6}\left(k_1 + 2k_2 + 2k_3 + k_4\right)",
+            r"y_{n+1} = y_n + \frac{h}{6}\left(k_1 + 2k_2 + 2k_3 + k_4\right)",
             "formula",
         ),
         Note(
@@ -752,8 +752,8 @@ RUNGEKUTTA = Lesson(
             "there; k₃ at the midpoint again, using the better k₂; and k₄ at "
             "the far end, using k₃. Each one is an ordinary evaluation of f — "
             "there is nothing implicit anywhere.",
-            r"k_1 = f(t_n, y_n), \quad k_2 = f(t_n + \tfrac{h}{2}, "
-            r"y_n + \tfrac{h}{2}k_1)",
+            r"k_1 = f(t_n, y_n), \quad k_2 = f(t_n + \frac{h}{2}, "
+            r"y_n + \frac{h}{2}k_1)",
             "formula",
         ),
         Note(

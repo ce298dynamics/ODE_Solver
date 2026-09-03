@@ -49,6 +49,7 @@ from .model import (
     Example,
     Lesson,
     Note,
+    Passage,
     Solve,
     Unit,
     grade_choice,
@@ -56,6 +57,7 @@ from .model import (
 
 __all__ = [
     "NOTE_KINDS",
+    "Passage",
     "Note",
     "Example",
     "Choice",

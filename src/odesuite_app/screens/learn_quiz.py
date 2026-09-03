@@ -142,6 +142,9 @@ class QuizScreen(QWidget):
         layout.addWidget(self.length)
 
         self.start_button = QPushButton("Start")
+        self.start_button.setToolTip(
+            "Begin the set. Nothing is timed, and you can stop at any point."
+        )
         self.start_button.setProperty("role", "primary")
         self.start_button.setCursor(Qt.PointingHandCursor)
         self.start_button.clicked.connect(self._start)
@@ -191,7 +194,12 @@ class QuizScreen(QWidget):
         frame = QFrame()
         frame.setProperty("role", "panel")
         if accent:
-            frame.setStyleSheet(f"QFrame {{ border-left: 3px solid {accent}; }}")
+            # Object name, not a bare `QFrame`: QLabel is a QFrame, so an
+            # unscoped rule borders every label inside the card as well.
+            frame.setObjectName("accentPanel")
+            frame.setStyleSheet(
+                f"QFrame#accentPanel {{ border-left: 3px solid {accent}; }}"
+            )
         inner = QVBoxLayout(frame)
         inner.setContentsMargins(16, 13, 16, 14)
         inner.setSpacing(8)
@@ -309,12 +317,14 @@ class QuizScreen(QWidget):
 
         row = QHBoxLayout()
         check = QPushButton("Check")
+        check.setToolTip("Mark this answer and move on")
         check.setProperty("role", "primary")
         check.setCursor(Qt.PointingHandCursor)
         check.clicked.connect(lambda: self._check(lesson, question))
         row.addWidget(check)
 
         skip = QPushButton("Skip")
+        skip.setToolTip("Leave this one unanswered and go to the next")
         skip.setCursor(Qt.PointingHandCursor)
         skip.clicked.connect(self._advance)
         row.addWidget(skip)
@@ -463,6 +473,9 @@ class QuizScreen(QWidget):
             inner2.addWidget(note)
             for lesson in seen:
                 button = QPushButton(f"Open  {lesson.title}")
+                button.setToolTip(
+                    f"Go to {lesson.title}, where this question came from"
+                )
                 button.setCursor(Qt.PointingHandCursor)
                 button.clicked.connect(
                     lambda _=False, key=lesson.key: self.open_lesson.emit(key)
@@ -471,6 +484,7 @@ class QuizScreen(QWidget):
             self._layout.addWidget(card)
 
         again = QPushButton("Another set")
+        again.setToolTip("Draw a fresh set of questions from this unit")
         again.setProperty("role", "primary")
         again.setCursor(Qt.PointingHandCursor)
         again.clicked.connect(self._start)

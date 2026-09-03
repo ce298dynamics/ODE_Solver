@@ -75,6 +75,17 @@ _MAX_LATEX = 600
 #: which its parser has no concept of.
 _ENVIRONMENT = re.compile(r"\\begin\{|\\end\{|\\substack|\\middle")
 
+#: Commands mathtext lacks that sympy never emits, and so only hand-written
+#: LaTeX can contain. They matter because the failure is silent in the worst
+#: way: the label falls back to plain text and prints the backslashes, which
+#: looks like a typo in the content rather than a limit of the renderer.
+#: ``\ge`` is here and ``\geq`` is not -- mathtext accepts only the long form,
+#: which is the one sympy prints.
+_UNSUPPORTED = re.compile(
+    r"\\tfrac|\\dbinom|\\underbrace|\\overbrace|\\iff|\\implies"
+    r"|\\ge(?![q])|\\le(?![qf])|\\[Bb]ig[lrm]?(?![a-z])"
+)
+
 
 @dataclass(frozen=True)
 class Row:
@@ -117,7 +128,8 @@ def is_renderable(latex: str) -> bool:
         return False
     if len(latex) > _MAX_LATEX:
         return False
-    return _ENVIRONMENT.search(latex) is None
+    return (_ENVIRONMENT.search(latex) is None
+            and _UNSUPPORTED.search(latex) is None)
 
 
 def rows(expr) -> list[Row]:

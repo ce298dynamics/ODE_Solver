@@ -191,6 +191,192 @@ def test_every_example_says_why_it_is_there():
 
 
 # ---------------------------------------------------------------------------
+# Depth: the lessons that have been written up as textbook sections
+# ---------------------------------------------------------------------------
+
+
+#: Lessons rewritten to full depth -- motivation, a derivation, and commentary
+#: on every worked example. Listed rather than inferred, and one unit is added
+#: at a time, so what is left to write is visible here in the tests instead of
+#: in a plan file somewhere. A lesson that grows a motivation without being
+#: listed fails below: the list has to stay honest in both directions.
+FULL_DEPTH = (
+    "basics",
+    "slopefields",
+    "separable",
+    "linear",
+    "exact",
+    "substitutions",
+)
+
+DEEP = [by_key(key) for key in FULL_DEPTH]
+
+
+def test_the_full_depth_list_names_real_lessons_and_stays_honest():
+    assert len(set(FULL_DEPTH)) == len(FULL_DEPTH)
+    for key in FULL_DEPTH:
+        assert by_key(key) is not None, f"{key} is not a lesson"
+    written = {lesson.key for lesson in LESSONS
+               if lesson.motivation or lesson.derivation}
+    assert written == set(FULL_DEPTH), (
+        "these have depth but are not listed as full: "
+        f"{sorted(written - set(FULL_DEPTH))}"
+    )
+
+
+@pytest.mark.parametrize("lesson", DEEP, ids=list(FULL_DEPTH))
+def test_a_full_depth_lesson_says_why_the_topic_exists(lesson):
+    """Motivation, in paragraphs, before any technique is named.
+
+    A reader who does not know why a topic exists cannot be told what its
+    technique is, and the length floor is there because two sentences of
+    preamble is what the lessons already had.
+    """
+    assert len(lesson.motivation) >= 600, (
+        f"{lesson.key} is {len(lesson.motivation)} characters of motivation"
+    )
+    paragraphs = lesson.motivation.split("\n\n")
+    assert len(paragraphs) >= 2, f"{lesson.key} motivation is one block"
+    for paragraph in paragraphs:
+        assert paragraph == paragraph.strip(), (
+            f"{lesson.key} motivation has a stray blank line"
+        )
+        assert len(paragraph) >= 150, (
+            f"{lesson.key} has a stub paragraph: {paragraph[:60]!r}"
+        )
+        assert len(paragraph) <= 900, (
+            f"{lesson.key} has a paragraph long enough to be two"
+        )
+
+
+@pytest.mark.parametrize("lesson", DEEP, ids=list(FULL_DEPTH))
+def test_a_full_depth_lesson_derives_its_method(lesson):
+    """The argument, not the steps.
+
+    Distinct from the worked examples on purpose: the narrator shows the moves
+    for one equation, and no number of those adds up to why the moves are
+    allowed. Three passages is not an argument, so the floor is four.
+    """
+    assert len(lesson.derivation) >= 4, (
+        f"{lesson.key} has {len(lesson.derivation)} passages"
+    )
+    assert len(lesson.derivation) <= 8, (
+        f"{lesson.key} has {len(lesson.derivation)} passages, which is a "
+        "lesson rather than a derivation"
+    )
+    for number, passage in enumerate(lesson.derivation, start=1):
+        assert len(passage.prose) >= 100, (
+            f"{lesson.key} passage {number} asserts rather than argues"
+        )
+        assert passage.prose == passage.prose.strip()
+
+
+@pytest.mark.parametrize("lesson", DEEP, ids=list(FULL_DEPTH))
+def test_a_full_depth_lesson_reads_its_own_worked_examples(lesson):
+    """The narrator supplies the steps; only prose can supply the reading of
+    them -- which line is the one that matters, and what the shape of the
+    answer is telling you."""
+    for example in lesson.examples:
+        assert len(example.commentary) >= 300, (
+            f"{lesson.key}/{example.equation} has no real commentary"
+        )
+        assert len(example.commentary.split("\n\n")) >= 2, (
+            f"{lesson.key}/{example.equation} commentary is one block"
+        )
+        assert example.commentary != example.why
+
+
+def _shingles(text: str, length: int = 6) -> set[str]:
+    words = text.lower().replace("\u2014", " ").split()
+    return {" ".join(words[at:at + length])
+            for at in range(max(0, len(words) - length + 1))}
+
+
+@pytest.mark.parametrize("lesson", DEEP, ids=list(FULL_DEPTH))
+def test_commentary_adds_to_the_why_rather_than_repeating_it(lesson):
+    """`why` is read before deciding to open an example; commentary is read
+    with the working. A commentary that opens by restating the why has spent
+    its first paragraph saying nothing, which is how the first draft of all
+    twelve of these read."""
+    for example in lesson.examples:
+        shared = _shingles(example.why) & _shingles(example.commentary)
+        assert not shared, (
+            f"{lesson.key}/{example.equation} repeats itself: {sorted(shared)}"
+        )
+
+
+def test_emphasis_markers_are_balanced_everywhere():
+    """The lessons write emphasis as ``*this*`` and the renderer turns it into
+    italics. An odd marker is therefore a marker that will be printed, so it
+    is worth catching in the content rather than in a screenshot."""
+    from odesuite_app import richtext
+
+    marked = 0
+    for lesson in LESSONS:
+        prose = [("motivation", lesson.motivation)]
+        prose += [(f"note {note.heading!r}", note.body) for note in lesson.notes]
+        prose += [(f"passage {number}", passage.prose)
+                  for number, passage in enumerate(lesson.derivation, 1)]
+        for example in lesson.examples:
+            prose.append((f"why {example.equation}", example.why))
+            prose.append((f"commentary {example.equation}", example.commentary))
+        for objective in lesson.objectives:
+            prose.append(("objective", objective))
+
+        for where, text in prose:
+            if "*" not in text:
+                continue
+            marked += 1
+            rendered = richtext.emphasise(text)
+            # Whatever asterisks survive must be operators, not markers. The
+            # convolution star in the Laplace unit is the only one that does,
+            # and it survives precisely because it stands between two spaces.
+            for position in (found.start()
+                             for found in re.finditer(r"\*", rendered)):
+                before = rendered[position - 1] if position else " "
+                after = rendered[position + 1:position + 2] or " "
+                assert before == " " and after == " ", (
+                    f"{lesson.key}/{where} prints a stray emphasis marker: "
+                    f"{text[max(0, position - 30):position + 30]!r}"
+                )
+    assert marked >= 15, "expected the lessons to use emphasis"
+
+
+def test_every_stored_equation_really_typesets():
+    """Notes and derivations carry hand-written LaTeX, and it is the one place
+    in the application where an unrenderable expression can be committed.
+
+    Rendered, not merely passed through `is_renderable`. The two disagree, and
+    the difference is the whole reason this test exists: mathtext accepts
+    `\\geq` and not `\\ge`, has no `\\tfrac`, no `\\underbrace` and no
+    `\\iff` -- none of which sympy ever emits, so only hand-written content can
+    contain them. The failure is silent in the worst way: the label falls back
+    to plain text and prints its own backslashes, which reads as a typo in the
+    lesson rather than a limit of the renderer. Seventeen equations were doing
+    exactly that when this was written.
+    """
+    from odesuite_app import mathrender
+
+    checked = 0
+    for lesson in LESSONS:
+        stored = [(f"note {note.heading!r}", note.latex)
+                  for note in lesson.notes if note.latex]
+        stored += [(f"passage {number}", passage.latex)
+                   for number, passage in enumerate(lesson.derivation, 1)
+                   if passage.latex]
+        for where, latex in stored:
+            assert mathrender.is_renderable(latex), (
+                f"{lesson.key}/{where} is refused up front: {latex!r}"
+            )
+            png = mathrender.latex_to_png(latex, "#000000", 15.0, 110.0)
+            assert png.startswith(b"\x89PNG"), (
+                f"{lesson.key}/{where} cannot be typeset: {latex!r}"
+            )
+            checked += 1
+    assert checked >= 150, "expected the stored mathematics to be substantial"
+
+
+# ---------------------------------------------------------------------------
 # The claim that matters: the content is solvable
 # ---------------------------------------------------------------------------
 
@@ -645,6 +831,69 @@ def test_every_lesson_can_be_opened_at_every_segment(screen, qapp):
         # registers verdict labels -- and it must register all of them.
         _open(screen, qapp, lesson.key, "Practice")
         assert set(screen._verdicts) == {q.key for q in lesson.questions}
+
+
+def test_every_button_says_what_it_does(screen, qapp):
+    """A one-word label is enough for someone who can see the card around it.
+
+    A screen reader announces the button and not the paragraph above it, so
+    *Check* alone does not say what is being checked or how, and *Show me* does
+    not say that asking costs the question. Every button carries a tooltip,
+    which is what Qt exposes as the accessible description.
+    """
+    from PySide6.QtWidgets import QPushButton
+
+    from odesuite_app.screens.learn_lessons import SEGMENTS
+
+    for key in ("separable", "basics", "linear"):
+        for segment in SEGMENTS:
+            _open(screen, qapp, key, segment)
+            for button in screen.findChildren(QPushButton):
+                assert button.text(), "a button with no text at all"
+                if button.text() in SEGMENTS:
+                    continue          # the segment tabs label themselves
+                assert button.toolTip(), (
+                    f"{key}/{segment}: {button.text()!r} says nothing more "
+                    "than its label"
+                )
+
+
+def test_a_card_announces_what_it_is(screen, qapp):
+    """Landing on a panel and hearing "panel" is landing nowhere. Each card
+    names itself from its own heading."""
+    from PySide6.QtWidgets import QFrame
+
+    lesson = _open(screen, qapp, "separable", "Learn")
+    named = {frame.accessibleName()
+             for frame in screen.findChildren(QFrame)
+             if frame.accessibleName()}
+    assert any("Why this topic exists" in one for one in named)
+    assert any("Where this comes from" in one for one in named)
+    for note in lesson.notes:
+        assert any(note.heading in one for one in named), note.heading
+
+
+def test_each_paragraph_of_prose_is_announced_as_one(screen, qapp):
+    """The whole point of splitting on blank lines is that a long body stops
+    being a wall -- for a reader listening to it as much as one seeing it."""
+    from PySide6.QtWidgets import QLabel
+
+    from odesuite_app import richtext
+
+    lesson = _open(screen, qapp, "separable", "Learn")
+    paragraphs = [label for label in screen.findChildren(QLabel)
+                  if label.accessibleName() == "paragraph"]
+    expected = len(lesson.motivation.split("\n\n"))
+    assert len(paragraphs) >= expected, (
+        f"{len(paragraphs)} paragraphs for a motivation with {expected}"
+    )
+    for label in paragraphs:
+        assert label.wordWrap(), "a paragraph that cannot wrap is one long line"
+        spoken = label.accessibleDescription()
+        assert spoken, "a paragraph with nothing to announce"
+        assert spoken == richtext.plain(spoken), (
+            f"the spoken form still carries markers: {spoken[:60]!r}"
+        )
 
 
 def test_selecting_a_unit_heading_says_so_rather_than_going_blank(screen, qapp):

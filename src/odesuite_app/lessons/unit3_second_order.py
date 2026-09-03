@@ -264,7 +264,7 @@ UNDETERMINED = Lesson(
             "by t and try again. Physically this is driving a system at its own "
             "natural frequency, and the t is the amplitude growing without "
             "bound.",
-            r"y'' + y = \cos t \;\Longrightarrow\; y_p = \tfrac{1}{2}\,t\sin t",
+            r"y'' + y = \cos t \;\Longrightarrow\; y_p = \frac{1}{2}\,t\sin t",
             "pitfall",
         ),
         Note(
@@ -488,7 +488,7 @@ CAUCHY = Lesson(
             "swapped for e. Differentiating t^r twice gives r(r−1)t^{r−2}, so "
             "the quadratic starts from ar(r−1) + br + c — writing ar² + br + c "
             "loses a term and gives the wrong roots.",
-            r"t^{2}\,\tfrac{d^{2}}{dt^{2}}t^{r} = r(r-1)\,t^{r}",
+            r"t^{2}\,\frac{d^{2}}{dt^{2}}t^{r} = r(r-1)\,t^{r}",
             "pitfall",
         ),
         Note(
@@ -661,8 +661,7 @@ SUPERPOSITION = Lesson(
             "checks it: non-zero at a single point is enough, because for "
             "solutions of the same linear equation it is either always zero "
             "or never zero.",
-            r"W(y_1,y_2) = \begin{vmatrix} y_1 & y_2 \\ y_1' & y_2' "
-            r"\end{vmatrix} = y_1 y_2' - y_2 y_1'",
+            r"W(y_1, y_2) = y_1 y_2' - y_2 y_1' \neq 0",
             "formula",
         ),
         Note(

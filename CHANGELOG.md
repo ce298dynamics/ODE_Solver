@@ -8,6 +8,42 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **The first unit reads as a textbook section rather than a set of cards.**
+  Each of its six lessons now opens with *why this comes up* — where the
+  equation arises, what goes wrong with the tools already in hand, and why the
+  technique is the natural response — and then *where this comes from*, the
+  argument that the method is legitimate, in numbered steps.
+
+  The derivation is a new structural element (`Passage`) and not a longer
+  note, because it is a different thing from what the narrator does. The
+  narrator shows the mechanical moves for one particular equation; a
+  derivation argues that the moves are allowed in general, and no number of
+  worked examples adds up to that. So separable equations justify
+  `∫dy/g(y) = ∫f dt` by the chain rule on `H(y(t))` instead of calling the
+  `dy` loose shorthand, the integrating factor is derived from
+  `(μy)' = μy' + μ'y` instead of produced, and exactness is shown to be the
+  symmetry of mixed second partials instead of a test to remember.
+
+  Every worked example also carries commentary: which line matters, what would
+  have gone wrong a step earlier, what the answer's shape is telling you. It
+  is checked against its own *why* — a commentary that restates the reason the
+  example exists has spent its first paragraph saying nothing, which is how
+  the first draft of all twelve read.
+
+  Measured: about 5,500 characters of explanation per rewritten lesson,
+  against 1,500 for one still in its original form. The other six units are
+  the same work and no new machinery, and the list of what has been written up
+  lives in `tests/test_lessons.py` so that what is left is visible in the
+  tests rather than in a plan.
+
+- **Typeset equations announce themselves to a screen reader.** `MathLabel`
+  renders to an image, and an image with no alternative text is invisible —
+  which, in an application whose content is mostly equations, was most of the
+  content. The plain form was already computed for the fallback path, so
+  exposing it as an accessible description cost nothing. Cards carry their
+  heading as an accessible name, and each paragraph of prose is announced as
+  one.
+
 - **Progress you can take with you.** *Export* writes everything answered to
   a file; *Import* merges one back in. Merges rather than replaces, and the
   distinction is the whole point: importing a file from a machine where you
@@ -454,6 +490,30 @@ All notable changes to this project are documented here. The format follows
   property that mattered.
 
 ### Fixed
+
+- **Seventeen stored equations were printing their own LaTeX.** Mathtext
+  implements a large subset of LaTeX and `is_renderable` only guarded against
+  the environments sympy can produce, so hand-written content could contain
+  `\tfrac`, `\underbrace`, `\iff`, `\big[` or `\ge` — none of which sympy
+  ever emits — and fall silently back to plain text, backslashes and all. It
+  read as a typo in the lesson rather than a limit of the renderer. The guard
+  now refuses those too, every one of them is rewritten in a form mathtext
+  accepts, and the test renders each stored equation instead of asking whether
+  it looks renderable. One narrated step in the Laplace unit had the same bug.
+
+- **The accent stripe on a card was drawn down every label inside it.**
+  `QLabel` is a `QFrame`, so a stylesheet rule written as `QFrame { ... }` and
+  set on the card applied to all of its descendants: a blue rule appeared
+  beside every equation and over the first character of every line of text.
+  Harmless when a card held four short bullets, and glaring once it held four
+  paragraphs. The rule is scoped by object name now.
+
+- **Emphasis written as `*this*` was printed with the asterisks**, in eleven
+  lessons. Prose labels are rich text now and the markers become italics. The
+  conversion escapes the content first, so nothing in a lesson can introduce
+  markup, and it deliberately does not match a marker with a space against it
+  — which is what keeps `f * g and g * f`, in the convolution lesson, from
+  being read as emphasis across the middle of a sentence.
 
 - **A system's answer was shown unchecked, and its structure not shown at
   all.** `_verify` skipped systems outright, so the Studio presented a closed

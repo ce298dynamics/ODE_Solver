@@ -716,7 +716,7 @@ CONVOLUTION = Lesson(
             "response: what the system does when struck once. The convolution "
             "then says the output is that response smeared over the whole "
             "history of the input.",
-            r"Y(s) = \underbrace{\frac{1}{P(s)}}_{G(s)}F(s) \;\Longrightarrow"
+            r"Y(s) = G(s)F(s), \quad G(s) = \frac{1}{P(s)} \;\Longrightarrow"
             r"\; y = g * f",
             "idea",
         ),
@@ -879,7 +879,8 @@ STEPFORCING = Lesson(
             "turns anything on at t = a; subtracting a later step turns it off "
             "again. Any piecewise-constant forcing term can be built this way, "
             "and that is how it gets into the transform.",
-            r"u(t-a) = \begin{cases} 0 & t < a \\ 1 & t \ge a \end{cases}",
+            r"u(t-a) = 0 \;\; (t < a), \qquad "
+            r"u(t-a) = 1 \;\; (t \geq a)",
         ),
         Note(
             "The second shifting theorem",

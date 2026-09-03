@@ -335,7 +335,7 @@ RECURRENCE = Lesson(
             "The series converges at least as far as the nearest point where "
             "the leading coefficient vanishes. Not further, in general — and "
             "the distance is measured in the complex plane.",
-            r"\rho \ge \min |t_{\text{singular}} - t_0|",
+            r"\rho \geq \min |t_{\text{singular}} - t_0|",
             "formula",
         ),
         Note(
@@ -549,7 +549,7 @@ FROBENIUS = Lesson(
             "order 1/2 has indicial roots ±1/2, and t^{1/2} is not something "
             "a power series can produce at all — which is why the plain "
             "method fails there and this one does not.",
-            r"r = \pm\tfrac{1}{2}",
+            r"r = \pm\frac{1}{2}",
             "aside",
         ),
         Note(

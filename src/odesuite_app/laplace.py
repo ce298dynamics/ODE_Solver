@@ -479,9 +479,12 @@ def _convolution(equation: sp.Eq, function: sp.Function, ics: dict,
 
     derivation.steps.append(Step(
         title="Y(s) is a product, not a sum",
-        latex=(rf"Y(s) = \underbrace{{\frac{{1}}{{{sp.latex(polynomial)}}}}}"
-               rf"_{{G(s)}}\; \underbrace{{F(s)}}_{{\mathcal{{L}}\{{"
-               rf"{sp.latex(forcing)}\}}}}"),
+        # No underbrace: mathtext has no such command, and a label that
+        # cannot be typeset prints its own backslashes. Naming the two
+        # factors after the product says the same thing and renders.
+        latex=(rf"Y(s) = G(s)\,F(s), \quad "
+               rf"G(s) = \frac{{1}}{{{sp.latex(polynomial)}}}, \quad "
+               rf"F(s) = \mathcal{{L}}\{{{sp.latex(forcing)}\}}"),
         note="Nothing here splits into partial fractions — the forcing term "
              "has no rational transform to split. A product of two transforms "
              "is a convolution, which is what the theorem is for.",

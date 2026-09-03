@@ -72,7 +72,7 @@ FIRSTORDER = Lesson(
             "second is whatever the original equation says about y''. An "
             "nth-order equation becomes n first-order ones.",
             r"x_1 = y,\ x_2 = y' \;\Longrightarrow\; x_1' = x_2,\ "
-            r"x_2' = -\tfrac{c}{a}x_1 - \tfrac{b}{a}x_2",
+            r"x_2' = -\frac{c}{a}x_1 - \frac{b}{a}x_2",
             "formula",
         ),
         Note(
@@ -1019,7 +1019,7 @@ NONHOMOGENEOUS = Lesson(
             "every t precisely because those columns are independent, which "
             "is what the eigenvector work established — and everything below "
             "divides by it.",
-            r"\Phi(t) = \big[\ \mathbf{x}_1 \ \ \mathbf{x}_2\ \big]",
+            r"\Phi(t) = \left[\ \mathbf{x}_1 \ \ \mathbf{x}_2\ \right]",
             "formula",
         ),
         Note(
@@ -1048,7 +1048,7 @@ NONHOMOGENEOUS = Lesson(
             "the homogeneous problem simply x(t) = e^{At}x(0) — the same "
             "shape as the scalar e^{at}y(0), and the reason it is written "
             "that way.",
-            r"e^{At}\big|_{t=0} = I, \qquad \mathbf{x}(t) = "
+            r"\left.e^{At}\right|_{t=0} = I, \qquad \mathbf{x}(t) = "
             r"e^{At}\mathbf{x}(0)",
             "idea",
         ),

@@ -360,6 +360,43 @@ def test_mathblock_stacks_one_row_per_branch(qapp):
     assert all(label.is_typeset for label in block._rows)
 
 
+def test_a_typeset_equation_says_what_it_is(qapp):
+    """A rendered equation is an *image*, and an image with no alternative
+    text is invisible to a screen reader -- which, in an application whose
+    content is mostly equations, means most of the content.
+
+    The plain form is already computed for the fallback path, so exposing it
+    costs nothing. Checked on both the widget and its inner label, because a
+    reader lands on whichever of the two the layout hands it.
+    """
+    from odesuite_app.theme import DARK
+    from odesuite_app.widgets.mathlabel import MathLabel
+
+    label = MathLabel(DARK, EXPRESSIONS["damped oscillator"])
+    _settle(qapp, label)
+    assert label.is_typeset, "the point is the case where there is no text"
+
+    for widget in (label, label._label):
+        assert widget.accessibleName()
+        described = widget.accessibleDescription()
+        assert described, "a typeset equation with no alternative text"
+        assert "exp" in described or "cos" in described, described
+
+
+def test_alternative_text_follows_the_expression(qapp):
+    from odesuite_app.theme import DARK
+    from odesuite_app.widgets.mathlabel import MathLabel
+
+    label = MathLabel(DARK, T ** 2)
+    _settle(qapp, label)
+    before = label.accessibleDescription()
+
+    label.set_expression(sp.exp(-T))
+    _settle(qapp, label)
+    assert label.accessibleDescription() != before
+    assert "exp" in label.accessibleDescription()
+
+
 def test_math_widgets_do_not_paint_their_own_backdrop(qapp):
     """Regression: the generic ``QWidget`` style rule.
 

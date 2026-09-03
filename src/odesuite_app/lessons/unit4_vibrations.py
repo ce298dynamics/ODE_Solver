@@ -260,8 +260,8 @@ FORCED = Lesson(
             "After a few time constants only the second is left, which is why "
             "the long-run behaviour does not depend on how the system "
             "started.",
-            r"x(t) = \underbrace{x_h(t)}_{\text{transient}} + "
-            r"\underbrace{x_p(t)}_{\text{steady state}}",
+            r"x(t) = x_h(t) + x_p(t) \qquad "
+            r"\text{transient} \;+\; \text{steady state}",
         ),
         Note(
             "Beats",

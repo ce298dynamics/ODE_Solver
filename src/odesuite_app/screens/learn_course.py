@@ -75,6 +75,9 @@ class CourseScreen(QWidget):
         layout.addWidget(self.overall_detail)
 
         self.continue_button = QPushButton("Continue")
+        self.continue_button.setToolTip(
+            "Open the earliest lesson with a question still unanswered"
+        )
         self.continue_button.setProperty("role", "primary")
         self.continue_button.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.continue_button)
@@ -248,6 +251,7 @@ class CourseScreen(QWidget):
         layout.addWidget(drill, 0)
 
         button = QPushButton("Open")
+        button.setToolTip(f"Open {lesson.title}")
         button.setCursor(Qt.PointingHandCursor)
         button.clicked.connect(lambda _=False, k=lesson.key:
                                self.open_lesson.emit(k))

@@ -172,6 +172,16 @@ class MathLabel(QWidget):
         self._label.setWordWrap(False)
         self._label.setPixmap(image)
         self._label.setToolTip(self._plain)
+        # A typeset equation is an *image*, and an image with no alternative
+        # text is invisible to a screen reader -- which in a reading
+        # application is most of the content. The plain form is already
+        # computed for the fallback path, so exposing it costs nothing and is
+        # the single highest-value accessibility fix here.
+        described = self._plain or "equation"
+        self.setAccessibleName("equation")
+        self.setAccessibleDescription(described)
+        self._label.setAccessibleName("equation")
+        self._label.setAccessibleDescription(described)
         self._label.setMinimumHeight(
             int(image.height() / image.devicePixelRatio())
         )

@@ -340,8 +340,9 @@ left. A unit appears there once it has lessons — there is no placeholder for o
 be written.
 
 **Lessons** is where the work happens. One lesson at a time, in four parts: **Learn**
-(what you should be able to do afterwards, then the notes), **Examples** (each worked
-through by the narrator, on request), **Practice** (your turn), and **Drill** (below).
+(what you should be able to do afterwards, why the topic exists, where the method comes
+from, then the notes), **Examples** (each worked through by the narrator, on request,
+with prose saying what to watch), **Practice** (your turn), and **Drill** (below).
 Thirty-five lessons today, filed under the chapters of Edwards, Penney and Calvis, which
 is the course this follows:
 
@@ -370,6 +371,33 @@ is the course this follows:
 
 All seven units are complete: the whole of a first course, from what a differential
 equation is to what to do when it has no closed form.
+
+**The first unit is written up as a textbook section, and the rest are not yet.** The
+difference is measurable and worth stating plainly: a rewritten lesson carries about
+5,500 characters of explanation, against 1,500 for one still in its original form. What
+the extra buys is three things a card full of facts cannot.
+
+*Why this comes up*, before any technique is named — where the equation arises, what
+goes wrong with the tools already in hand, and why this method is the natural response.
+A lesson that opens with "here is a technique" has skipped the only part a reader cannot
+reconstruct alone.
+
+*Where this comes from* — the argument that the method is legitimate, in numbered steps,
+with the step everyone waves at made explicit. Separable equations justify
+`∫dy/g(y) = ∫f dt` by the chain rule on `H(y(t))` rather than calling the `dy` loose
+shorthand; the integrating factor is *derived* from `(μy)' = μy' + μ'y` rather than
+produced; exactness is shown to be the symmetry of mixed second partials rather than a
+test to remember. This is deliberately not the same thing as the worked examples: the
+narrator shows the moves for one equation, and no number of those adds up to why the
+moves are allowed.
+
+*Commentary on each worked example* — which line is the one that matters, what would
+have gone wrong a step earlier, what the shape of the answer is telling you. The
+narrator supplies the steps and cannot supply the reading of them.
+
+The remaining six units are the same work and no new machinery: `tests/test_lessons.py`
+holds the list of lessons written up so far, so what is left is visible in the tests
+rather than in a plan.
 
 Notes come in kinds, and a **common mistake** does not read like an idea: it is the same
 card with a warning stripe down it, because the thing that catches people is worth
