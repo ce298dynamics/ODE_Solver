@@ -9,18 +9,29 @@ to read the table, solving an initial value problem with it, the two shifting
 theorems and the partial fractions that feed them, convolution, forcing that
 switches on partway through, and impulses.
 
-Three of them carry no drill, and the reason is measured rather than stylistic.
+Where a typed answer cannot be graded, the drill is **multiple choice** instead.
 `check_answer` grades by substituting an answer back and simplifying, and a
 switched or impulsive answer differentiated twice leaves Heaviside and delta
 terms that never cancel -- so the verdict is "cannot tell", which is correct
-and which can never advance a mastery streak. A drill that can never say
-"right" would be worse than no drill, so `step-forcing` and `impulses` have
-none, and neither does `convolution`, whose integrals cost seconds apiece.
+and which can never advance a mastery streak. That is a reason to change the
+question type rather than to omit the drill, and `ChoiceTemplate` is what
+`step-forcing` and `impulses` use.
+
+`convolution` still has none: its integrals cost seconds apiece, and the
+exhaustive sweep runs every draw of every template.
 """
 
 from __future__ import annotations
 
-from .model import Choice, Example, Lesson, Note, Solve, Template
+from .model import (
+    Choice,
+    ChoiceTemplate,
+    Example,
+    Lesson,
+    Note,
+    Solve,
+    Template,
+)
 
 __all__ = ["TRANSFORM", "LAPLACE", "SHIFTING", "CONVOLUTION",
            "STEPFORCING", "IMPULSES", "LESSONS"]
@@ -1006,6 +1017,41 @@ STEPFORCING = Lesson(
             ),
         ),
     ),
+    # Multiple choice rather than a typed answer, and for the reason this
+    # lesson is about: a switched answer substituted back leaves Heaviside and
+    # delta terms that never cancel, so `check_answer` returns "cannot tell".
+    # A verdict that can never be "right" cannot advance a streak.
+    templates=(
+        ChoiceTemplate(
+            key="invert-a-delay",
+            title="Peel off the delay, then shift",
+            prompt="What is the inverse transform of "
+                   "e^(-{a}s)/(s + {b})?",
+            options=(
+                "u(t-{a})·e^(-{b}(t-{a}))",
+                "u(t-{a})·e^(-{b}t)",
+                "e^(-{b}(t-{a}))",
+                "u(t-{a})·e^(-{b}(t+{a}))",
+            ),
+            answer=0,
+            becauses=(
+                "Peel off the delay, invert what is left, then shift its "
+                "argument and switch it on. It starts from 1 at t = {a}, "
+                "which is what the second shifting theorem promises.",
+                "The switch is in the right place but the function was not "
+                "shifted with it, so it starts partway down its own decay "
+                "instead of at 1. This is the standard slip.",
+                "No switch at all, so this is non-zero before t = {a} — where "
+                "a system at rest that has not yet been disturbed must be "
+                "exactly zero.",
+                "Shifted the wrong way. A delay moves the graph to the "
+                "right, so the argument gains a minus, not a plus.",
+            ),
+            # Neither may be 1: `b` would render as "e^(-1(t-2))" and `a`
+            # as "e^(-1s)", and both read as generated rather than written.
+            slots=(("a", (2, 3, 4, 5)), ("b", (2, 3, 5))),
+        ),
+    ),
 )
 
 
@@ -1179,6 +1225,41 @@ IMPULSES = Lesson(
                 "Shift it to t = 1: y = u(t−1)e^{−(t−1)}sin(t−1). Compare with "
                 "the undamped case — the ringing now dies away.",
             ),
+        ),
+    ),
+    # Multiple choice for the same reason as `step-forcing`, and one more: an
+    # impulsive answer cannot be checked numerically either, since DiracDelta
+    # does not lambdify. The narrator shows those unchecked, which is honest
+    # and is not something a drill can grade.
+    templates=(
+        ChoiceTemplate(
+            key="impulse-transform",
+            title="The impulse against the step",
+            prompt="What is the Laplace transform of delta(t - {a})?",
+            options=(
+                "e^(-{a}s)",
+                "e^(-{a}s)/s",
+                "{a}·e^(-s)",
+                "1/s",
+            ),
+            answer=0,
+            becauses=(
+                "By the sifting property, integrating e^(-st) against the "
+                "impulse picks out its value at t = {a}. No 1/s, which is "
+                "what makes impulsive problems the algebraically easiest of "
+                "all.",
+                "That is the transform of the *step* u(t - {a}). The extra "
+                "1/s is exactly the difference between a switch and a blow — "
+                "differentiating a step gives an impulse, and multiplying by "
+                "s is what differentiating does here.",
+                "The delay belongs in the exponent, not as a factor in front. "
+                "A unit impulse carries unit strength wherever it lands.",
+                "That is the transform of the constant 1, which is spread "
+                "over all time. An impulse is concentrated at one instant.",
+            ),
+            # `a` avoids 1, which would render as "1·e^(-s)" in the third
+            # option and read as generated.
+            slots=(("a", (2, 3, 4, 5, 6, 7)),),
         ),
     ),
 )

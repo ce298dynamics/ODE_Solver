@@ -8,6 +8,33 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Generated multiple choice: `ChoiceTemplate`.** What `Template` is to
+  `Solve`, for the lessons a substitution check cannot reach. Grading, not
+  effort, was what left fifteen lessons with no drill: `check_answer` works by
+  putting an answer into its equation and simplifying, which cannot decide a
+  switched or impulsive answer, has nothing to substitute for Euler's method,
+  and marks a truncated series wrong. Those lessons needed a question type
+  graded some other way, and `Choice` already was one.
+
+  **The options are shuffled per draw**, deterministically from the template's
+  key and the draw index, with each reason moving alongside its own option.
+  Leaving the answer where the author wrote it would put it at the same index
+  in every version, so the drill would teach the position rather than the
+  mathematics — the exact failure a generated question exists to avoid. Both
+  that the answer moves and that a reason never drifts onto a neighbouring
+  option are tests.
+
+  Five drills so far. Three in the series unit — is this point ordinary, how
+  far does the series converge, what is the indicial equation — and two in the
+  Laplace unit, on the second shifting theorem and on the impulse transform
+  against the step's. **Every one of the seven units can now be examined**:
+  the series unit had no drills, so it offered no check-up at all, and a unit
+  you cannot examine is one you cannot tell you have finished. Lessons without
+  a drill: 15 → 10.
+
+  The Unit Quiz gains its second question type with them, so the mix now asks
+  both kinds of question — work the method out, and say which method it is.
+
 - **Nonhomogeneous systems, and the last lesson of the course.** `x' = Ax + f`
   by varying the constants, with the basis solutions as the columns of a
   fundamental matrix: `x_p = Φ ∫ Φ⁻¹f dt`. Variation of parameters with the
@@ -304,7 +331,7 @@ All notable changes to this project are documented here. The format follows
 
   **Draws are enumerated, not sampled**, which is what makes the guarantee
   checkable rather than merely likely: `tests/test_templates.py` runs the real
-  narrator over **every draw of every template** — 476 of them — and requires
+  narrator over **every draw of every template it solves** — 476 of them — and requires
   each to be narrated by the technique the drill claims to teach, to have every
   step verify, and to have its answer accepted by the grader. Nobody wrote
   these questions, so nobody read them either; that sweep is what stands in for
@@ -312,7 +339,7 @@ All notable changes to this project are documented here. The format follows
   question, so pressing Check cannot change it underneath you, and the drill can
   say "one of 18 versions" because it knows.
 
-  Twenty-seven drills across twenty lessons. The numerical lesson deliberately
+  Thirty-two drills across twenty-five lessons. The numerical lesson deliberately
   has none —
   Euler and RK4 have no closed form for the grader to substitute into, so a
   drill there could never say "right", and its button is absent rather than

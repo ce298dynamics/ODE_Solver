@@ -7,21 +7,26 @@ is most of the difficulty, as anyone who has done well on every section and
 badly on the paper can attest. That gap is what this screen is for.
 
 **A quiz question is an ordinary drill question.** `generate.draw` returns the
-same `Solve` the Practice and Drill segments use, so it is graded by the same
-substitution, hinted by the same ladder, worked by the same narrator, and
-recorded through the same `progress`. The quiz contributes no mathematics of
-its own and therefore cannot disagree with the rest of the Hub about what is
-correct -- the same argument that made the Drill cheap to add.
+very same `Solve` or `Choice` the Practice and Drill segments use, so it is
+graded the same way -- by substitution or by `grade_choice` -- and recorded
+through the same `progress`. The quiz contributes no mathematics of its own and
+therefore cannot disagree with the rest of the Hub about what is correct, which
+is the same argument that made the Drill cheap to add.
+
+Both question types appear, and the mix is the point. A `Solve` asks you to
+work the method out; a generated `Choice` asks the thing a substitution check
+can never grade -- which technique this is, whether a point is ordinary, what
+the indicial roots are.
 
 **There is no countdown.** The clock runs and the report says how long it took,
 which is enough to learn your pace by; a timer counting down turns practice
 into an examination, and this is not one. It also means an interruption costs
 nothing, which matters for a tool someone opens between other things.
 
-A unit appears in the picker only if its lessons have drills to draw on. Unit 7
-has none -- a series drill would have to draw from the handful of parameters
-where the series terminates -- so it is absent rather than present and empty,
-which is this application's standing rule about placeholders.
+A unit appears in the picker only if its lessons have drills to draw on. Every
+unit does now: the series unit had none until generated multiple choice existed,
+because a `Solve` drill there would have had to draw from the handful of
+parameters where the series terminates.
 """
 
 from __future__ import annotations
@@ -30,6 +35,7 @@ import time
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -37,6 +43,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QProgressBar,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSpinBox,
     QVBoxLayout,
@@ -48,6 +55,7 @@ from .. import progress
 from ..lessons import generate
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
+from ..widgets.mathlabel import MathLabel
 
 __all__ = ["QuizScreen"]
 
@@ -62,7 +70,7 @@ def buildable() -> tuple:
 
 
 def build(unit, length: int, seed: int) -> list:
-    """`length` questions from `unit`, as ``(lesson, template, Solve)``.
+    """`length` questions from `unit`, as ``(lesson, template, question)``.
 
     Round-robin across the unit's **lessons**, not across its templates. That
     distinction matters: a lesson with two drills would otherwise take two of
@@ -202,9 +210,10 @@ class QuizScreen(QWidget):
         units = buildable()
         body = QLabel(
             f"{len(units)} of the {len(content.UNITS)} units have drills to "
-            "draw a check-up from. Pick one on the left and press Start — "
-            "every question is graded the same way the practice is, by "
-            "substituting what you type into the equation."
+            "draw a check-up from. Pick one on the left and press Start. "
+            "Every question is graded exactly as the practice is: a typed "
+            "answer by substituting it into its own equation, so any correct "
+            "form passes, and a multiple-choice one against its answer."
         )
         body.setWordWrap(True)
         inner.addWidget(body)
@@ -247,27 +256,52 @@ class QuizScreen(QWidget):
         # both sides" -- perfectly right in the Drill segment, where you have
         # just read the lesson, and fatal here: choosing the method *is* the
         # question a check-up asks, so anything that answers it has to go.
-        prompt = QLabel("Solve it." if not question.conditions
-                        else "Solve it, and satisfy the condition.")
+        choosing = question.kind == "choice"
+        prompt = QLabel(
+            question.prompt if choosing
+            else "Solve it." if not question.conditions
+            else "Solve it, and satisfy the condition."
+        )
         prompt.setWordWrap(True)
         inner.addWidget(prompt)
 
-        # Monospace rather than typeset, as the Drill card does it: a generated
-        # equation is source text, and running it through the LaTeX renderer
-        # produces either a mangled image or a silent fallback to this anyway.
-        shown = question.equation + (
-            f",   {question.conditions}" if question.conditions else ""
-        )
-        equation = QLabel(shown)
-        equation.setStyleSheet(
-            "font-family: Cascadia Mono, Consolas, monospace; font-size: 15px;"
-        )
-        equation.setWordWrap(True)
-        inner.addWidget(equation)
+        # A Choice carries real LaTeX and is typeset; a Solve carries source
+        # text, which is shown monospaced. Running generated source through the
+        # renderer produces a mangled image or a silent fallback, and typesetting
+        # a `\,` as literal characters is just as wrong the other way.
+        if choosing:
+            if question.latex:
+                inner.addWidget(MathLabel(self.palette_obj, question.latex,
+                                          point_size=15))
+        else:
+            shown = question.equation + (
+                f",   {question.conditions}" if question.conditions else ""
+            )
+            equation = QLabel(shown)
+            equation.setStyleSheet(
+                "font-family: Cascadia Mono, Consolas, monospace; "
+                "font-size: 15px;"
+            )
+            equation.setWordWrap(True)
+            inner.addWidget(equation)
 
-        self.answer = QLineEdit()
-        self.answer.setPlaceholderText("y = …")
-        inner.addWidget(self.answer)
+        self.answer = None
+        self.group = None
+        if choosing:
+            # A generated multiple-choice question. Its own prompt *is* shown,
+            # unlike a Solve's: a Choice prompt asks the question rather than
+            # naming the method, so it gives nothing away.
+            self.group = QButtonGroup(self._page)
+            self.group.setExclusive(True)
+            for index, option in enumerate(question.options):
+                button = QRadioButton(option)
+                button.setCursor(Qt.PointingHandCursor)
+                self.group.addButton(button, index)
+                inner.addWidget(button)
+        else:
+            self.answer = QLineEdit()
+            self.answer.setPlaceholderText("y = …")
+            inner.addWidget(self.answer)
 
         self.verdict = QLabel("")
         self.verdict.setWordWrap(True)
@@ -287,12 +321,47 @@ class QuizScreen(QWidget):
         row.addStretch(1)
         inner.addLayout(row)
 
-        self.answer.returnPressed.connect(lambda: self._check(lesson, question))
+        if self.answer is not None:
+            self.answer.returnPressed.connect(
+                lambda: self._check(lesson, question)
+            )
         self._layout.addWidget(frame)
         self._layout.addStretch(1)
         self._scroll.verticalScrollBar().setValue(0)
 
     def _check(self, lesson, question) -> None:
+        if question.kind == "choice":
+            self._check_choice(lesson, question)
+            return
+        self._check_solve(lesson, question)
+
+    def _check_choice(self, lesson, question) -> None:
+        """Graded by `grade_choice`, which is what this question type is for.
+
+        The lessons a substitution check cannot decide -- switched forcing,
+        impulses, series classification -- reach the quiz through here.
+        """
+        palette = self.palette_obj
+        picked = self.group.checkedId() if self.group else -1
+        if picked < 0:
+            self.verdict.setStyleSheet(f"color: {palette.text_muted};")
+            self.verdict.setText("pick an option first")
+            return
+
+        right = content.grade_choice(question, picked)
+        # The reason for the option *picked*, as everywhere else in the Hub: a
+        # cross that explains somebody else's answer teaches less than nothing.
+        reason = (question.becauses[picked]
+                  if picked < len(question.becauses) else "")
+        self.verdict.setStyleSheet("")
+        colour = palette.success if right else palette.danger
+        self.verdict.setText(
+            f'<span style="color:{colour};">'
+            f'{"✓ Right. " if right else "✗ Not quite. "}{reason}</span>'
+        )
+        self._settle(lesson, question, right)
+
+    def _check_solve(self, lesson, question) -> None:
         from ..laplace import EXTRA_FUNCTIONS
         from ..symbolic import check_answer, parse_equation, spec_for
 
@@ -318,9 +387,15 @@ class QuizScreen(QWidget):
         self.verdict.setText(
             f'<span style="color:{colour};">{mark}{result.message}</span>'
         )
-        # Only the first verdict on a question counts, so pressing Check twice
-        # cannot turn a miss into a hit -- which would make the report a
-        # record of persistence rather than of what was known.
+        self._settle(lesson, question, right)
+
+    def _settle(self, lesson, question, right: bool) -> None:
+        """Record the verdict and move on if it was right.
+
+        Only the first verdict on a question counts, so pressing Check twice
+        cannot turn a miss into a hit -- which would make the report a record
+        of persistence rather than of what was known.
+        """
         self._verdicts.setdefault(self._index, right)
         progress.record(
             lesson.key, f"quiz-{question.key}",

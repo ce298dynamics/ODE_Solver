@@ -77,7 +77,7 @@ gains nothing from it. `scipy.integrate.solve_ivp` has no equivalent.
 ## Verification
 
 Correctness evidence is the point of this project, so it is worth being specific about
-what is actually checked. **2804 tests**, of which the load-bearing ones are:
+what is actually checked. **2847 tests**, of which the load-bearing ones are:
 
 **Order conditions, algebraically.** `tests/test_tableaux.py` evaluates the rooted-tree
 order conditions through order 5 for every Butcher tableau, and asserts that the
@@ -115,7 +115,7 @@ controller running blind, was the wrong place to have a gap.
 oracle only — never as the basis of an order or accuracy claim.
 
 ```
-py -3.10 -m pytest tests/ -q          # 2785 passed, 19 skipped, ~6 min
+py -3.10 -m pytest tests/ -q          # 2828 passed, 19 skipped, ~7 min
 py -3.10 -m pytest tests/ -q -m 'not slow'   # the fast loop, ~3.5 min
 py -3.10 -m ruff check . && py -3.10 -m mypy # lint and types, both clean
 py -3.10 benchmarks/run_all.py        # regenerate every static figure below
@@ -449,11 +449,31 @@ it is graded by the same substitution, hinted by the same ladder, and worked by 
 narrator — the drill contributes no mathematics of its own and cannot disagree with the
 rest of the Hub about what is correct.
 
+**Some drills are generated multiple choice**, and they exist because grading, not
+effort, was what left fifteen lessons without one. A typed answer is graded by
+substituting it into its own equation — which cannot decide a switched or impulsive
+answer, has nothing to substitute for Euler's method, and marks a truncated series
+wrong. Those lessons do not need a `Solve` drill written; they need a question type
+graded some other way, and `Choice` already is one. `ChoiceTemplate` is to `Choice` what
+`Template` is to `Solve`.
+
+**The options are shuffled per draw**, deterministically from the template's key and the
+draw index, and each reason moves with its own option. Leaving the answer where the
+author wrote it would put it at the same index in every version, so the drill would
+teach the *position* — the exact failure a generated question exists to avoid. That the
+answer moves, and that a reason never drifts onto a neighbouring option, are both tests.
+
+With them the series unit can be examined at all: it had no drills, so it offered no
+check-up, and a unit you cannot examine is one you cannot tell you have finished. All
+seven units now offer one.
+
 Draws are **enumerated rather than sampled**, which is what makes the guarantee
 checkable: `tests/test_templates.py` runs the real narrator over **every draw of every
-template** — 476 of them — and requires each to be narrated by the technique the drill
-claims to be practice at, to have every step verify, and to have its answer accepted by
-the grader. Nobody wrote those questions, so nobody read them either; that sweep is what
+template a narrator solves** — 476 of them — and requires each to be narrated by the
+technique the drill claims to be practice at, to have every step verify, and to have its
+answer accepted by the grader. The 54 generated multiple-choice draws are swept the way
+*they* can be checked: every option filled, every reason paired with its own option, and
+the grader accepting the drawn answer and no other. Nobody wrote those questions, so nobody read them either; that sweep is what
 stands in for having read them. It is also why the drill can honestly say "one of 18
 versions", and why pressing Check cannot change the question under you.
 
@@ -467,13 +487,13 @@ substituted into the equation and simplified, through the same check the tools u
 wrong for being spelled unexpectedly. Where sympy cannot decide, the verdict says so
 rather than guessing.
 
-**Three lessons carry no drill, and the reason is measured.** Grading works by
-substituting an answer back and simplifying to zero; a switched or impulsive answer
-differentiated twice leaves `Heaviside` and `δ` terms that never cancel, so the verdict
-is *cannot tell* — correct, and useless as a drill, because a verdict that can never be
-"right" can never advance a streak. Step forcing and impulses therefore have practice
-questions but no drill, and convolution has none either: its integrals cost seconds
-apiece, and the exhaustive sweep runs every draw of every template.
+**Where a typed answer cannot be graded, the drill is multiple choice instead.**
+Substituting a switched or impulsive answer back leaves `Heaviside` and `δ` terms that
+never cancel, so the verdict is *cannot tell* — correct, and useless as a drill, because
+a verdict that can never be "right" can never advance a streak. That is a reason to
+change the question type, not to omit the drill, which is what `ChoiceTemplate` is for.
+Convolution still has none: its integrals cost seconds apiece, and the exhaustive sweep
+runs every draw of every template.
 
 Multiple-choice questions exist for the thing that check cannot reach — *which technique
 solves this* is what a course actually tests, and a substitution check has nothing to say
@@ -901,7 +921,7 @@ src/odesuite_app/                                    the studio
              learn_problems learn_quiz               Learning Hub
   widgets/                                           sliders, cards, plots, figures, maths
 
-tests/         2804 tests
+tests/         2847 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```

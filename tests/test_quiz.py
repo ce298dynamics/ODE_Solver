@@ -73,13 +73,14 @@ def test_only_units_with_drills_are_offered():
             assert unit not in offered
 
 
-def test_the_series_unit_offers_no_quiz():
-    """Stated explicitly because it is a deliberate absence, not an oversight:
-    a series drill would have to draw from the few parameters where the series
-    terminates, so Unit 7 has no templates at all."""
+def test_the_series_unit_can_now_be_quizzed():
+    """It could not, until generated multiple choice existed. A `Solve` drill
+    there would have had to draw from the few parameters where the series
+    terminates; what a course actually asks is classification, which
+    `ChoiceTemplate` drills and `grade_choice` decides."""
     series = next(unit for unit in UNITS if unit.key == "series")
-    assert not series.quizzable
-    assert series not in buildable()
+    assert series.quizzable
+    assert series in buildable()
 
 
 def test_quizzable_respects_a_named_list():
@@ -113,17 +114,59 @@ def test_a_short_set_still_touches_several_lessons():
     assert len(lessons) == 3
 
 
-def test_every_question_is_an_ordinary_solve():
-    """The whole design. If these were a new kind of question they would need
-    a new grader, and a second grader is a second opinion about what is
-    correct."""
-    from odesuite_app.lessons.model import Solve
+def test_every_question_is_one_the_hub_already_grades():
+    """The whole design. If these were a new kind of question they would need a
+    new grader, and a second grader is a second opinion about what is correct.
+    Both kinds come straight from the lessons: a `Solve` graded by
+    substitution, a `Choice` by `grade_choice`."""
+    from odesuite_app.lessons.model import Choice, Solve
 
     for unit in buildable():
         for _lesson, _template, question in build(unit, 4, seed=3):
-            assert isinstance(question, Solve)
-            assert question.equation
-            assert question.hints, "a quiz question keeps its hint ladder"
+            assert isinstance(question, (Solve, Choice))
+            if isinstance(question, Solve):
+                assert question.equation
+                assert question.hints, "a Solve keeps its hint ladder"
+            else:
+                assert question.options
+                assert len(question.becauses) == len(question.options)
+
+
+def test_a_choice_question_reaches_the_quiz_and_is_graded_there(screen, qapp):
+    """The series unit is now all generated multiple choice, so this is also
+    the test that its questions are answerable at all."""
+    from odesuite_app.lessons.model import Choice
+
+    index = next(i for i, unit in enumerate(buildable())
+                 if unit.key == "series")
+    screen.unit_picker.setCurrentIndex(index)
+    screen.length.setValue(4)
+    screen._start()
+    qapp.processEvents()
+
+    lesson, _template, question = screen._questions[0]
+    assert isinstance(question, Choice)
+    assert screen.group is not None, "no radio buttons were built"
+    assert screen.answer is None, "a Choice must not offer an answer box"
+
+    screen.group.button(question.answer).setChecked(True)
+    screen._check(lesson, question)
+    qapp.processEvents()
+    assert screen._verdicts[0] is True
+
+
+def test_a_choice_question_with_nothing_picked_says_so(screen, qapp):
+    index = next(i for i, unit in enumerate(buildable())
+                 if unit.key == "series")
+    screen.unit_picker.setCurrentIndex(index)
+    screen.length.setValue(4)
+    screen._start()
+    qapp.processEvents()
+
+    lesson, _template, question = screen._questions[0]
+    screen._check(lesson, question)
+    assert "pick an option" in screen.verdict.text()
+    assert 0 not in screen._verdicts, "nothing was answered, so nothing counts"
 
 
 def test_the_same_seed_gives_the_same_set():

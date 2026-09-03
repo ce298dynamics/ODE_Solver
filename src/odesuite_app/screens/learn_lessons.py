@@ -403,9 +403,21 @@ class LessonsScreen(QWidget):
             self._layout.addWidget(self._question_card(lesson, number, question))
 
     def _build_drill(self, lesson) -> None:
+        # Which grading is described depends on what this lesson drills. A
+        # multiple-choice drill is not graded by substitution, and saying it is
+        # would tell the reader something false about the tick they get.
+        substituting = any(item.kind == "template" for item in lesson.templates)
+        choosing = any(item.kind == "choice-template"
+                       for item in lesson.templates)
+        how = (
+            "your answer is substituted into its own equation, so any correct "
+            "form passes" if substituting and not choosing else
+            "pick the right option" if choosing and not substituting else
+            "typed answers are substituted into their own equation; the "
+            "multiple-choice ones are marked against their answer"
+        )
         blurb = QLabel(
-            "Fresh numbers every time, graded the same way — your answer is "
-            "substituted into its own equation, so any correct form passes. "
+            f"Fresh numbers every time — {how}. "
             f"{progress.MASTERED_STREAK} right in a row and the drill is "
             "mastered; one wrong answer starts the count again."
         )
@@ -569,6 +581,13 @@ class LessonsScreen(QWidget):
         prompt.setWordWrap(True)
         layout.addWidget(prompt)
 
+        # A generated multiple-choice drill takes the other path. It has no
+        # hint ladder and no narrator -- a `Choice` carries neither -- so the
+        # Hint and "Show me" buttons are absent rather than present and inert.
+        if question.kind == "choice":
+            self._build_choice_drill(lesson, template, question, run, layout)
+            return frame
+
         shown = question.equation + (
             f",   {question.conditions}" if question.conditions else ""
         )
@@ -644,6 +663,68 @@ class LessonsScreen(QWidget):
         )
         again.clicked.connect(next_question)
         return frame
+
+    def _build_choice_drill(self, lesson, template, question, run: QLabel,
+                            layout) -> None:
+        """The radio-button half of a drill, for a generated `Choice`.
+
+        Everything a `Solve` drill offers that a `Choice` cannot honour is left
+        out: no hint ladder, because a `Choice` has no hints, and no "Show me",
+        because there is no narrator to show. Offering a button that cannot do
+        anything is worse than not offering it.
+        """
+        palette = self.palette_obj
+        if question.latex:
+            layout.addWidget(MathLabel(self.palette_obj, question.latex,
+                                       point_size=15))
+
+        # Parented to the card, as `_build_choice` explains: a group owned by
+        # the screen would outlive its own buttons and accumulate a dead set
+        # per visit.
+        group = QButtonGroup(layout.parentWidget())
+        group.setExclusive(True)
+        for index, option in enumerate(question.options):
+            button = QRadioButton(option)
+            button.setCursor(Qt.PointingHandCursor)
+            group.addButton(button, index)
+            layout.addWidget(button)
+
+        verdict = QLabel("")
+        verdict.setWordWrap(True)
+        layout.addWidget(verdict)
+        self._verdicts[template.key] = verdict
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        check = QPushButton("Check")
+        check.setProperty("role", "primary")
+        check.setCursor(Qt.PointingHandCursor)
+        row.addWidget(check)
+
+        again = QPushButton("New question")
+        again.setCursor(Qt.PointingHandCursor)
+        row.addWidget(again)
+        row.addStretch(1)
+        layout.addLayout(row)
+
+        def graded() -> None:
+            self._check_choice(lesson, question, group, verdict,
+                               bucket=progress.drill_key(lesson.key),
+                               key=template.key)
+            now, done = self._streak_of(lesson, template)
+            run.setText(self._streak_text(now, done))
+            run.setStyleSheet(
+                f"color: {palette.success if done else palette.text_muted};"
+            )
+
+        def next_question() -> None:
+            self._drill_seed[template.key] = (
+                self._drill_seed.get(template.key, 0) + 1
+            )
+            self._show()
+
+        check.clicked.connect(graded)
+        again.clicked.connect(next_question)
 
     def _question_card(self, lesson, number: int, question) -> QWidget:
         frame, layout = self._panel()
@@ -810,7 +891,8 @@ class LessonsScreen(QWidget):
         self._answered = progress.record(bucket, key, state)
         self._refresh_labels()
 
-    def _check_choice(self, lesson, question, group, verdict: QLabel) -> None:
+    def _check_choice(self, lesson, question, group, verdict: QLabel, *,
+                      bucket: str = "", key: str = "") -> None:
         picked = group.checkedId()
         palette = self.palette_obj
         if picked < 0:
@@ -828,7 +910,11 @@ class LessonsScreen(QWidget):
         reason = (question.becauses[picked]
                   if picked < len(question.becauses) else question.because)
         verdict.setText(("✓ Right. " if right else "✗ Not quite. ") + reason)
-        self._record(lesson.key, question.key,
+        # A drill records into its own bucket under the *template's* key, not
+        # the lesson's question bucket. The two numbers mean different things
+        # and the Course Map shows both: questions are out of a fixed
+        # denominator, drills are a streak that can go back down.
+        self._record(bucket or lesson.key, key or question.key,
                      progress.State.CORRECT if right else progress.State.ATTEMPTED)
 
     def _check_solve(self, lesson, question, answer: QLineEdit,

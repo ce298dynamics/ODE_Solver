@@ -81,8 +81,11 @@ def test_the_lessons_cover_the_techniques_the_app_can_teach():
     """
     from odesuite_app.steps import TITLES
 
+    # Only the templates a narrator solves claim a technique -- a generated
+    # multiple-choice drill has no narrator and nothing to claim.
     drilled = {template.technique for lesson in LESSONS
-               for template in lesson.templates if template.technique}
+               for template in lesson.templates
+               if getattr(template, "technique", "")}
     missing = set(TITLES) - drilled
     assert not missing, (
         f"the narrator explains these but nothing drills them: {sorted(missing)}"

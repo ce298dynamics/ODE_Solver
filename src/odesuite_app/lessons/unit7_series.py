@@ -20,9 +20,13 @@ check cannot reach -- is this point ordinary, how far does the series converge,
 what are the indicial roots -- is asked as multiple choice, which is also how a
 course asks it.
 
-There are no drills, for the same reason: a template would have to draw from
-the terminating parameters only, and there are few enough of those that the
-worked examples and practice already cover them.
+The drills are **generated multiple choice** rather than generated `Solve`s,
+for the same reason. A `Solve` drill would have to draw from the terminating
+parameters only, and there are few enough of those that the practice already
+covers them. What a course actually asks here is classification -- is this
+point ordinary, how far does the series reach, what are the indicial roots --
+and `ChoiceTemplate` drills exactly that, graded by `grade_choice` rather than
+by substitution.
 
 The Frobenius lesson is worked by the Cauchy-Euler narrator rather than the
 series one, and that is not a compromise. At a regular singular point
@@ -36,7 +40,14 @@ generalises, and that one can be worked end to end.
 
 from __future__ import annotations
 
-from .model import Choice, Example, Lesson, Note, Solve
+from .model import (
+    Choice,
+    ChoiceTemplate,
+    Example,
+    Lesson,
+    Note,
+    Solve,
+)
 
 __all__ = ["POWERSERIES", "RECURRENCE", "FROBENIUS", "LESSONS"]
 
@@ -217,6 +228,45 @@ POWERSERIES = Lesson(
             ),
         ),
     ),
+    templates=(
+        ChoiceTemplate(
+            key="classify-the-point",
+            title="Ordinary, regular singular, or neither",
+            prompt="For ({lead})·y'' + {mid}·y' + y = 0, what is t = 0?",
+            options=(
+                "an ordinary point",
+                "a regular singular point",
+                "an irregular singular point",
+                "not a point the method can be applied at all",
+            ),
+            answer=0,
+            becauses=(
+                "The leading coefficient is non-zero at 0, which is the whole "
+                "test — so two solutions analytic there are guaranteed and a "
+                "plain power series will work.",
+                "That would need the leading coefficient to vanish at 0, with "
+                "tQ/P and t²R/P still finite. Check whether it vanishes there "
+                "at all before going further.",
+                "That would need the leading coefficient to vanish at 0 and "
+                "one of the limits to blow up as well — two things, neither of "
+                "which is happening here.",
+                "Every point is a point; the question is only which kind. "
+                "Ordinary points are precisely where the method is easiest.",
+            ),
+            # Every leading coefficient here is non-zero at t = 0, so the
+            # answer is the same each time and the *reasoning* is what varies.
+            # The distractors stay plausible because each one names a real
+            # test the reader has to actually perform.
+            slots=(
+                ("lead", ("1 - t**2", "1 + t**2", "2 + t", "1 - t",
+                          "3 + t**2", "1 + 2*t")),
+                # Positive multiples of t only: a bare 1 renders as "1·y'"
+                # and a negative renders as "+ -2*t", both of which the
+                # generated-looking check rejects, and rightly.
+                ("mid", ("t", "2*t", "3*t")),
+            ),
+        ),
+    ),
 )
 
 
@@ -378,6 +428,45 @@ RECURRENCE = Lesson(
                 "The recurrence is aₙ₊₂ = 2(n − 4)aₙ / ((n+2)(n+1)), whose "
                 "factor vanishes at n = 4.",
                 "So a₆ and everything past it are zero, leaving a quartic.",
+            ),
+        ),
+    ),
+    templates=(
+        ChoiceTemplate(
+            key="radius-of-convergence",
+            title="How far does the series reach",
+            prompt="A series solution about t = 0 of "
+                   "({lead})·y'' + y' + y = 0 is guaranteed to converge for…",
+            options=(
+                "|t| < {rho}",
+                "|t| < {double}",
+                "all t",
+                "no t but 0",
+            ),
+            answer=0,
+            becauses=(
+                "The series reaches at least as far as the nearest root of "
+                "the leading coefficient — counting complex ones, which are "
+                "the ones people miss.",
+                "Twice too far. That would reach past the singularity, where "
+                "the equation itself stops making sense.",
+                "That would need a leading coefficient that never vanishes. "
+                "This one does, somewhere — and where is the whole question.",
+                "t = 0 itself is an ordinary point here, so a series about it "
+                "certainly exists and converges on some interval.",
+            ),
+            # `rho` is the distance to the nearest root, real or complex, and
+            # `double` is the plausible-but-wrong twice-that. Paired, so the
+            # distractor is always exactly the mistake being warned against.
+            slots=(
+                ("lead,rho,double", (
+                    ("1 - t**2", "1", "2"),
+                    ("1 + t**2", "1", "2"),
+                    ("4 - t**2", "2", "4"),
+                    ("9 + t**2", "3", "6"),
+                    ("1 - 4*t**2", "1/2", "1"),
+                    ("16 + t**2", "4", "8"),
+                )),
             ),
         ),
     ),
@@ -574,6 +663,41 @@ FROBENIUS = Lesson(
                 "the same one Frobenius produces.",
                 "Roots ±1, so the general solution is C₁t + C₂/t.",
                 "y(1) = 2 gives C₁ + C₂ = 2, and y′(1) = 0 gives C₁ − C₂ = 0.",
+            ),
+        ),
+    ),
+    templates=(
+        ChoiceTemplate(
+            key="indicial-roots",
+            title="Read the indicial equation off",
+            prompt="For t²y'' + ({p})·t·y' + ({q})·y = 0, the indicial "
+                   "equation is…",
+            options=(
+                "r(r-1) + ({p})r + ({q}) = 0",
+                "r² + ({p})r + ({q}) = 0",
+                "r(r-1) + ({q})r + ({p}) = 0",
+                "({p})r + ({q}) = 0",
+            ),
+            answer=0,
+            becauses=(
+                "r(r−1) comes from t²y'', the coefficient of ty' multiplies "
+                "r, and the coefficient of y stands alone. Exactly the "
+                "Cauchy–Euler substitution y = t^r, which is what Frobenius "
+                "generalises.",
+                "That drops the −1 from r(r−1). It is the same slip as "
+                "forgetting that the second derivative of t^r brings down "
+                "r(r−1) rather than r².",
+                "The two coefficients have swapped places. The one on ty' "
+                "multiplies r; the one on y does not.",
+                "An indicial equation for a second-order equation is a "
+                "quadratic — there are always two roots to consider, and a "
+                "linear equation could only offer one.",
+            ),
+            slots=(
+                # Avoid ±1: "(-1)·t·y'" reads as machine-made, and "(1)"
+                # is not how anyone writes a coefficient of one.
+                ("p", ("2", "-3", "5", "-2")),
+                ("q", ("-1", "4", "2")),
             ),
         ),
     ),

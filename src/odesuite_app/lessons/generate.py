@@ -27,9 +27,10 @@ import random
 import re
 from collections.abc import Iterator
 
-from .model import Solve, Template
+from .model import Choice, ChoiceTemplate, Solve, Template
 
-__all__ = ["draws", "draw", "combinations", "every", "tidy"]
+__all__ = ["draws", "draw", "draw_choice", "combinations",
+           "every", "tidy"]
 
 
 #: Cosmetic repairs to a formatted equation, in order. Substituting numbers
@@ -90,18 +91,29 @@ def combinations(template: Template) -> int:
     return len(draws(template))
 
 
-def draw(template: Template, seed: int) -> Solve:
-    """One question, as an ordinary `Solve`.
+def _slots_for(template, seed: int) -> tuple[int, dict[str, object]]:
+    """``(index, slots)`` for this seed. Shared by both draw functions."""
+    pool = draws(template)
+    if not pool:
+        raise ValueError(f"template {template.key!r} has no accepted draws")
+    index = seed % len(pool)
+    return index, pool[index]
+
+
+def draw(template, seed: int):
+    """One question, as the ordinary type the template produces.
+
+    A `Template` gives a `Solve` and a `ChoiceTemplate` gives a `Choice`, and
+    the dispatch lives here so that every caller -- the drill card, the quiz,
+    `every()` -- can ask for a question without knowing which kind it will get.
 
     The same seed always gives the same question, and the key names the draw
     rather than the seed, so the twentieth and the second version of an
     eighteen-draw template are recognisably the same question.
     """
-    pool = draws(template)
-    if not pool:
-        raise ValueError(f"template {template.key!r} has no accepted draws")
-    index = seed % len(pool)
-    slots = pool[index]
+    if isinstance(template, ChoiceTemplate):
+        return draw_choice(template, seed)
+    index, slots = _slots_for(template, seed)
     return Solve(
         key=f"{template.key}#{index}",
         prompt=template.prompt.format(**slots),
@@ -111,7 +123,38 @@ def draw(template: Template, seed: int) -> Solve:
     )
 
 
-def every(template: Template) -> Iterator[Solve]:
+def draw_choice(template: ChoiceTemplate, seed: int) -> Choice:
+    """One multiple-choice question, as an ordinary `Choice`.
+
+    **The options are shuffled, and that is the point.** Formatting them and
+    leaving the answer where the author wrote it would put the right option at
+    the same index in every version, so the drill would teach the position
+    rather than the mathematics -- the exact failure a generated question
+    exists to avoid. The shuffle is seeded from the template's key and the
+    draw index, so it is stable across runs and machines while differing from
+    one version to the next.
+
+    Each *becaus* moves with its own option. A reason attached to the wrong
+    option would be worse than no reason at all, since it is shown for
+    whichever option was picked.
+    """
+    index, slots = _slots_for(template, seed)
+    filled = [option.format(**slots) for option in template.options]
+    reasons = [because.format(**slots) for because in template.becauses]
+
+    order = list(range(len(filled)))
+    random.Random(f"{template.key}#{index}").shuffle(order)
+    return Choice(
+        key=f"{template.key}#{index}",
+        prompt=template.prompt.format(**slots),
+        options=tuple(filled[position] for position in order),
+        answer=order.index(template.answer),
+        becauses=tuple(reasons[position] for position in order),
+        latex=template.latex.format(**slots) if template.latex else "",
+    )
+
+
+def every(template) -> Iterator:
     """Every question this template can produce. For the exhaustive test."""
     for index in range(combinations(template)):
         yield draw(template, index)

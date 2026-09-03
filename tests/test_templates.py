@@ -40,6 +40,21 @@ TEMPLATES = [(lesson, template) for lesson in LESSONS
              for template in lesson.templates]
 IDS = [f"{lesson.key}-{template.key}" for lesson, template in TEMPLATES]
 
+#: Split by kind, because the two are checked by different means. A `Template`
+#: produces a `Solve` and is held to being *solvable* -- narrated by the
+#: technique it claims, every step verifying, its own answer accepted by the
+#: grader. A `ChoiceTemplate` produces a `Choice`, which has a stored answer
+#: and no narrator at all, so what there is to check is that the question is
+#: well formed and that the shuffle has not misplaced anything.
+SOLVE_TEMPLATES = [(lesson, template) for lesson, template in TEMPLATES
+                   if template.kind == "template"]
+SOLVE_IDS = [f"{lesson.key}-{template.key}"
+             for lesson, template in SOLVE_TEMPLATES]
+CHOICE_TEMPLATES = [(lesson, template) for lesson, template in TEMPLATES
+                    if template.kind == "choice-template"]
+CHOICE_IDS = [f"{lesson.key}-{template.key}"
+              for lesson, template in CHOICE_TEMPLATES]
+
 #: How many draws of each template the default run checks. Enough that a
 #: template broken for most of its range fails here rather than only in the
 #: nightly sweep, few enough that the file stays runnable.
@@ -108,7 +123,8 @@ def test_the_numerical_lesson_deliberately_has_no_drill():
     assert content.by_key("numerical").templates == ()
 
 
-@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
+@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
+                         ids=SOLVE_IDS)
 def test_every_template_is_well_formed(lesson, template):
     where = f"{lesson.key}/{template.key}"
     assert template.title and template.prompt and template.equation
@@ -124,7 +140,8 @@ def test_every_template_is_well_formed(lesson, template):
                 )
 
 
-@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
+@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
+                         ids=SOLVE_IDS)
 def test_every_template_names_the_technique_it_drills(lesson, template):
     """A template with no technique would pass its solvability test whatever it
     happened to produce, which is a test that cannot fail."""
@@ -143,7 +160,8 @@ def test_every_template_has_enough_draws_to_be_worth_repeating(lesson,
     )
 
 
-@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
+@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
+                         ids=SOLVE_IDS)
 def test_every_template_offers_a_ladder_of_hints(lesson, template):
     assert len(template.hints) >= 2, (
         f"{lesson.key}/{template.key}: a hint is not a ladder"
@@ -171,7 +189,8 @@ def test_a_reject_predicate_actually_rejects_something():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
+@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
+                         ids=SOLVE_IDS)
 def test_the_same_seed_always_gives_the_same_question(lesson, template):
     """The page is rebuilt on every check, so a draw that moved would change
     the question out from under someone mid-answer."""
@@ -181,7 +200,8 @@ def test_the_same_seed_always_gives_the_same_question(lesson, template):
     assert first.key.startswith(template.key + "#")
 
 
-@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
+@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
+                         ids=SOLVE_IDS)
 def test_no_two_draws_are_the_same_question(lesson, template):
     """A draw that differs only in a slot nothing renders is a wasted version,
     and would show up as the same question twice in a row."""
@@ -192,14 +212,16 @@ def test_no_two_draws_are_the_same_question(lesson, template):
     )
 
 
-@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
+@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
+                         ids=SOLVE_IDS)
 def test_the_seed_wraps_rather_than_running_out(lesson, template):
     made = generate.combinations(template)
     assert generate.draw(template, made) == generate.draw(template, 0)
     assert generate.draw(template, made * 3 + 2) == generate.draw(template, 2)
 
 
-@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
+@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
+                         ids=SOLVE_IDS)
 def test_every_slot_is_filled_in(lesson, template):
     names = set()
     for group, _ in template.slots:
@@ -226,7 +248,8 @@ GENERATED_LOOKING = re.compile(
 )
 
 
-@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
+@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
+                         ids=SOLVE_IDS)
 def test_no_draw_reads_as_machine_made(lesson, template):
     for question in generate.every(template):
         for text in (question.equation, question.prompt, question.conditions,
@@ -254,7 +277,8 @@ def test_tidy_leaves_the_mathematics_alone():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
+@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
+                         ids=SOLVE_IDS)
 def test_a_sample_of_draws_is_solvable(lesson, template):
     """The default run's version of the exhaustive test below."""
     made = generate.combinations(template)
@@ -266,7 +290,8 @@ def test_a_sample_of_draws_is_solvable(lesson, template):
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
+@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
+                         ids=SOLVE_IDS)
 def test_every_draw_of_every_template_is_solvable(lesson, template):
     """The whole point of enumerating rather than sampling.
 
@@ -276,7 +301,8 @@ def test_every_draw_of_every_template_is_solvable(lesson, template):
         _solvable(template, question)
 
 
-@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
+@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
+                         ids=SOLVE_IDS)
 def test_a_wrong_answer_to_a_generated_question_is_rejected(lesson, template):
     """The grader has to be able to say no, or the streak means nothing."""
     from odesuite_app.symbolic import check_answer
@@ -343,3 +369,114 @@ def test_drills_accepts_keys_as_well_as_templates(store):
     everything = store.load()
     assert store.drills("linear", ["constant-p", "variable-p"],
                         everything) == (1, 2)
+
+
+# ---------------------------------------------------------------------------
+# Generated multiple choice
+#
+# A `ChoiceTemplate` has a stored answer and no narrator, so "is it solvable"
+# is the wrong question. What can go wrong instead is that the question is
+# malformed, or that the per-draw shuffle has moved an option away from its own
+# reason -- which would show a tick or a cross explaining somebody else's
+# answer.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("lesson,template", CHOICE_TEMPLATES, ids=CHOICE_IDS)
+def test_every_choice_template_is_well_formed(lesson, template):
+    where = f"{lesson.key}/{template.key}"
+    assert template.title and template.prompt
+    assert len(template.options) >= 3, f"{where}: too few options to choose"
+    assert len(template.becauses) == len(template.options), (
+        f"{where}: {len(template.becauses)} reasons for "
+        f"{len(template.options)} options"
+    )
+    assert 0 <= template.answer < len(template.options), f"{where}: bad answer"
+    assert template.slots, f"{where}: nothing to vary"
+
+
+@pytest.mark.parametrize("lesson,template", CHOICE_TEMPLATES, ids=CHOICE_IDS)
+def test_every_choice_draw_is_a_well_formed_question(lesson, template):
+    for question in generate.every(template):
+        where = f"{lesson.key}/{template.key}#{question.key}"
+        assert question.kind == "choice", where
+        assert len(question.options) == len(template.options), where
+        assert len(question.becauses) == len(question.options), where
+        assert 0 <= question.answer < len(question.options), where
+        for option in question.options:
+            assert option.strip(), f"{where}: an option came out empty"
+        for reason in question.becauses:
+            assert len(reason) > 20, f"{where}: {reason!r} explains nothing"
+
+
+@pytest.mark.parametrize("lesson,template", CHOICE_TEMPLATES, ids=CHOICE_IDS)
+def test_the_right_answer_moves_between_draws(lesson, template):
+    """The whole reason the options are shuffled. Leaving the answer where the
+    author wrote it would put it at the same index in every version, so the
+    drill would teach the position rather than the mathematics."""
+    if generate.combinations(template) < 4:
+        pytest.skip("too few draws to expect movement")
+    seen = {question.answer for question in generate.every(template)}
+    assert len(seen) > 1, (
+        f"{lesson.key}/{template.key}: the answer sits at index "
+        f"{seen.pop()} in every version"
+    )
+
+
+@pytest.mark.parametrize("lesson,template", CHOICE_TEMPLATES, ids=CHOICE_IDS)
+def test_each_reason_stays_with_its_own_option(lesson, template):
+    """The reason is shown for whichever option was *picked*, so a reason that
+    drifted onto a neighbouring option would explain somebody else's answer --
+    worse than offering no reason at all."""
+    written = dict(zip(template.options, template.becauses))
+    for question in generate.every(template):
+        for option, reason in zip(question.options, question.becauses):
+            # The pairing survives formatting, so compare on the unformatted
+            # text where a template has no slots in its options.
+            if option in written:
+                assert reason == written[option], (
+                    f"{lesson.key}/{template.key}: {option!r} was explained "
+                    f"by another option's reason"
+                )
+
+
+@pytest.mark.parametrize("lesson,template", CHOICE_TEMPLATES, ids=CHOICE_IDS)
+def test_the_grader_accepts_the_drawn_answer_and_nothing_else(lesson,
+                                                              template):
+    for question in generate.every(template):
+        assert content.grade_choice(question, question.answer) is True
+        for index in range(len(question.options)):
+            if index != question.answer:
+                assert content.grade_choice(question, index) is False
+
+
+@pytest.mark.parametrize("lesson,template", CHOICE_TEMPLATES, ids=CHOICE_IDS)
+def test_no_choice_draw_reads_as_machine_made(lesson, template):
+    for question in generate.every(template):
+        texts = [question.prompt, question.latex,
+                 *question.options, *question.becauses]
+        for text in texts:
+            found = GENERATED_LOOKING.search(text)
+            assert not found, (
+                f"{template.key}: {text[max(0, found.start() - 20):]!r} "
+                "reads as generated"
+            )
+
+
+@pytest.mark.parametrize("lesson,template", CHOICE_TEMPLATES, ids=CHOICE_IDS)
+def test_the_same_seed_always_gives_the_same_choice(lesson, template):
+    for seed in (0, 1, 7, 30):
+        first = generate.draw(template, seed)
+        again = generate.draw(template, seed)
+        assert first.options == again.options
+        assert first.answer == again.answer
+
+
+def test_every_unit_can_now_be_quizzed():
+    """The number this work exists to change. Before generated multiple choice
+    the series unit had no templates at all, so it offered no check-up -- and a
+    unit you cannot examine is a unit you cannot tell you have finished."""
+    from odesuite_app.lessons import UNITS
+
+    without = [unit.key for unit in UNITS if not unit.quizzable]
+    assert not without, f"these units still offer no quiz: {without}"

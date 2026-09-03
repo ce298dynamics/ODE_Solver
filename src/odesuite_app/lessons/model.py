@@ -40,6 +40,7 @@ __all__ = [
     "Choice",
     "Solve",
     "Template",
+    "ChoiceTemplate",
     "Lesson",
     "Unit",
     "grade_choice",
@@ -165,6 +166,42 @@ class Template:
 
 
 @dataclass(frozen=True)
+class ChoiceTemplate:
+    """A multiple-choice question with its numbers left open.
+
+    What `Template` is to `Solve`, this is to `Choice` -- and it exists for the
+    lessons a substitution check cannot reach. `check_answer` grades by putting
+    an answer into its equation and simplifying, which cannot decide a switched
+    or impulsive answer, has nothing to substitute for Euler's method, and
+    marks a truncated series wrong. Those lessons were left without a drill
+    entirely; what they needed was a question type graded some other way, and
+    `grade_choice` is that way.
+
+    The options are format strings like everything else, and they are
+    **shuffled per draw** -- see `generate.draw_choice`. A generated
+    multiple-choice question whose answer sat at a fixed index would drill
+    position rather than content, which is the one thing it must not do.
+    """
+
+    key: str
+    #: What this drill is, in the header.
+    title: str
+    #: A format string over the slot names, as for `Template`.
+    prompt: str
+    options: tuple[str, ...]
+    #: Index into `options` **as written here**, before the per-draw shuffle.
+    answer: int
+    #: One per option, in the same order, and shuffled along with them.
+    becauses: tuple[str, ...]
+    #: The equation the question is about, if it is about one.
+    latex: str = ""
+    slots: tuple[tuple[str, tuple], ...] = ()
+    reject: Callable[[Mapping[str, object]], bool] | None = None
+
+    kind: str = field(default="choice-template", init=False)
+
+
+@dataclass(frozen=True)
 class Lesson:
     key: str
     title: str
@@ -182,7 +219,7 @@ class Lesson:
     #: Practice that never runs out. A lesson with none simply has no Drill —
     #: Euler and RK4 have no closed form to substitute into, and a drill whose
     #: verdict could never be "right" would be worse than no drill.
-    templates: tuple[Template, ...] = ()
+    templates: tuple[Template | ChoiceTemplate, ...] = ()
     #: Lesson keys worth having met first. Advisory: nothing is locked.
     prerequisites: tuple[str, ...] = ()
     #: A figure to put at the top of Learn, named by key rather than built
