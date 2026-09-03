@@ -8,6 +8,37 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Progress you can take with you.** *Export* writes everything answered to
+  a file; *Import* merges one back in. Merges rather than replaces, and the
+  distinction is the whole point: importing a file from a machine where you
+  had done less would otherwise delete work, which is the failure the feature
+  exists to prevent. Where both files know a question the stronger record wins
+  — more correct answers, then the longer streak, then the later date — and it
+  is tested in both directions, so an older thinner file cannot undo a streak
+  built since.
+
+  The exported file *is* a progress file, written by the same serialiser the
+  application saves with. There is no second schema to keep in step, and
+  someone can copy it into place by hand instead if they prefer.
+
+- **The Course Map says what has gone quiet**, beside what is weakest. Ranking
+  by score can never surface a lesson finished in July and untouched since —
+  it scores perfectly — so a second line asks the other question: what has not
+  been seen in three weeks. Every answer now records the day it was last
+  given, which is version 3 of the progress file; a version 2 file reads as
+  "never seen", because that is honestly what it is.
+
+  Deliberately **not** a spacing schedule. This application records one verdict
+  per question and nothing about how hard each felt, so fitting an interval
+  curve to it would be inventing data it does not have.
+
+- **The window reopens where you left it** — size, position, and the screen you
+  were on. Kept in `QSettings` rather than in the progress file, because it is
+  preference and not achievement: a geometry has no business in a file you may
+  export to a machine with a different screen. An explicit `--screen` or
+  `--problem` still wins, and a remembered screen that no longer exists is
+  ignored rather than opening nothing.
+
 - **Generated multiple choice: `ChoiceTemplate`.** What `Template` is to
   `Solve`, for the lessons a substitution check cannot reach. Grading, not
   effort, was what left fifteen lessons with no drill: `check_answer` works by

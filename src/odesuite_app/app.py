@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSettings, Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -196,6 +196,8 @@ class MainWindow(QWidget):
         self.setWindowTitle("odesuite — ODE solver studio")
         self.resize(1440, 900)
         self.setMinimumSize(1080, 680)
+        self._settings = QSettings("odesuite", "odesuite")
+        self._restore_geometry()
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -282,6 +284,48 @@ class MainWindow(QWidget):
         from .screens.accuracy import AccuracyScreen
 
         self._add("accuracy", AccuracyScreen(self.state, self.palette_obj))
+
+    # -- remembering where you were --------------------------------------
+    #
+    # Small, and paid back every single time the application opens. Reopening
+    # on Home at a default size is a tax collected constantly, and the state
+    # worth keeping is two values.
+    #
+    # `QSettings` rather than the progress file: this is preference, not
+    # achievement. A geometry has no business in a file the user may export to
+    # another machine with a different screen, and the progress file is
+    # deliberately legible and hand-editable, which window pixels are not.
+
+    def _restore_geometry(self) -> None:
+        saved = self._settings.value("window/geometry")
+        if saved is not None:
+            self.restoreGeometry(saved)
+
+    def current_screen(self) -> str:
+        """The key of the screen on show, or "" if it cannot be told."""
+        showing = self.stack.currentWidget()
+        return next((key for key, widget in self._screens.items()
+                     if widget is showing), "")
+
+    def _remember(self) -> None:
+        self._settings.setValue("window/geometry", self.saveGeometry())
+        key = self.current_screen()
+        if key:
+            self._settings.setValue("window/screen", key)
+
+    def remembered_screen(self) -> str:
+        """The screen this window was last closed on, or "" if unknown.
+
+        Returned rather than applied, because `cli.py` owns the decision: an
+        explicit `--screen` or `--problem` must win over what was remembered,
+        and only the caller knows whether one was given.
+        """
+        key = self._settings.value("window/screen", "")
+        return key if isinstance(key, str) and key in self._screens else ""
+
+    def closeEvent(self, event) -> None:               # noqa: N802
+        self._remember()
+        super().closeEvent(event)
 
     def _add(self, key: str, widget: QWidget) -> None:
         self._screens[key] = widget

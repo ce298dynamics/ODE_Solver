@@ -188,6 +188,34 @@ class LessonsScreen(QWidget):
 
         layout.addStretch(1)
 
+        # Export and import sit beside Reset because they are the same
+        # subject: what happens to what you have done. A reinstall, a new
+        # machine or a wiped profile used to lose all of it, and the file was
+        # already the right shape to hand over -- there was simply no way to
+        # ask for a copy.
+        moving = QHBoxLayout()
+        moving.setSpacing(8)
+        self.export_button = QPushButton("Export…")
+        self.export_button.setCursor(Qt.PointingHandCursor)
+        self.export_button.setToolTip(
+            "Save everything you have answered to a file you can keep"
+        )
+        moving.addWidget(self.export_button)
+
+        self.import_button = QPushButton("Import…")
+        self.import_button.setCursor(Qt.PointingHandCursor)
+        self.import_button.setToolTip(
+            "Merge a saved file back in. Nothing already recorded is lost."
+        )
+        moving.addWidget(self.import_button)
+        layout.addLayout(moving)
+
+        self.transfer_note = QLabel("")
+        self.transfer_note.setProperty("role", "muted")
+        self.transfer_note.setWordWrap(True)
+        self.transfer_note.setStyleSheet("font-size: 11px;")
+        layout.addWidget(self.transfer_note)
+
         self.reset_button = QPushButton("Reset progress")
         self.reset_button.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.reset_button)
@@ -201,7 +229,61 @@ class LessonsScreen(QWidget):
         self.listing.currentItemChanged.connect(lambda *_: self._show())
         self.tool_button.clicked.connect(self._open_tool)
         self.reset_button.clicked.connect(self._reset)
+        self.export_button.clicked.connect(self._export)
+        self.import_button.clicked.connect(self._import)
         return panel
+
+    def _export(self) -> None:
+        """Write everything recorded to a file the user chooses."""
+        from PySide6.QtWidgets import QFileDialog
+
+        chosen, _ = QFileDialog.getSaveFileName(
+            self, "Export progress", "odesuite-progress.json",
+            "JSON files (*.json)",
+        )
+        if not chosen:
+            return
+        try:
+            written = progress.export_to(chosen)
+        except OSError as exc:
+            self._say_transfer(f"could not write it: {exc}", bad=True)
+            return
+        answered = sum(len(answers) for answers in progress.load().values())
+        self._say_transfer(f"exported {answered} answers to {written.name}")
+
+    def _import(self) -> None:
+        """Merge a saved file back in, keeping whichever record is better.
+
+        Merged rather than replacing, and the distinction matters: importing a
+        file from a machine where less had been done would otherwise delete
+        work, which is the exact failure this feature exists to prevent.
+        """
+        from PySide6.QtWidgets import QFileDialog
+
+        chosen, _ = QFileDialog.getOpenFileName(
+            self, "Import progress", "", "JSON files (*.json)",
+        )
+        if not chosen:
+            return
+        before = sum(len(answers) for answers in progress.load().values())
+        everything = progress.import_from(chosen)
+        after = sum(len(answers) for answers in everything.values())
+        if after == before == 0:
+            self._say_transfer("nothing usable in that file", bad=True)
+        else:
+            self._say_transfer(
+                f"merged — {after} answers now recorded"
+                + (f", {after - before} new" if after > before else
+                   ", none of yours replaced")
+            )
+        self._answered = everything
+        self._show()
+
+    def _say_transfer(self, message: str, *, bad: bool = False) -> None:
+        colour = (self.palette_obj.danger if bad
+                  else self.palette_obj.text_muted)
+        self.transfer_note.setStyleSheet(f"font-size: 11px; color: {colour};")
+        self.transfer_note.setText(message)
 
     def _build_body(self) -> QWidget:
         frame = QFrame()

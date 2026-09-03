@@ -439,10 +439,13 @@ def test_an_answer_survives_being_written_and_read(store):
     store.record("separable", "q1", store.State.CORRECT)
     store.record("separable", "q2", store.State.ATTEMPTED)
     kept = store.load()["separable"]
-    assert kept["q1"] == store.Answer("correct", right=1, tries=1,
-                                      streak=1)
+    # `seen` is stamped today by `record`, and is compared separately so this
+    # test does not have to be rewritten the next time a field is added.
+    assert kept["q1"] == store.Answer("correct", right=1, tries=1, streak=1,
+                                      seen=kept["q1"].seen)
     assert kept["q2"] == store.Answer("attempted", right=0, tries=1,
-                                      streak=0)
+                                      streak=0, seen=kept["q2"].seen)
+    assert kept["q1"].days_since_seen == 0
     assert store.counts("separable", 5) == (1, 5)
     assert store.mastery("separable", 5) == pytest.approx(0.2)
 

@@ -294,15 +294,28 @@ class CourseScreen(QWidget):
         simply next -- listing it here would turn "what to review" into a
         second table of contents, which the unit cards below already are.
         """
+        lines = []
         weak = progress.weakest(content.UNITS, self._answered)
-        if not weak:
-            self.review_label.setText(
-                "Nothing to review yet — answer a few questions and the "
-                "weakest lessons will appear here."
+        if weak:
+            names = ", ".join(lesson.title for lesson, _ in weak)
+            lines.append(f"Worth another look: {names}")
+
+        # Ranked by score, `weakest` can never surface a lesson finished in
+        # July and untouched since -- it scores perfectly. That is exactly what
+        # a course wants brought back, so it is asked for separately.
+        old_now = progress.stale(content.UNITS, self._answered)
+        if old_now:
+            names = ", ".join(
+                f"{lesson.title} ({days} days ago)"
+                for lesson, _unit, days in old_now
             )
-            return
-        names = ", ".join(lesson.title for lesson, _ in weak)
-        self.review_label.setText(f"Worth another look: {names}")
+            lines.append(f"Not seen in a while: {names}")
+
+        self.review_label.setText(
+            "\n".join(lines) if lines else
+            "Nothing to review yet — answer a few questions and the weakest "
+            "lessons will appear here."
+        )
 
     def _next_lesson(self):
         """The first lesson with a question left, in course order.

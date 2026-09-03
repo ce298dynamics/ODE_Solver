@@ -8,6 +8,8 @@ that the generated "copy as code" snippet is genuinely executable.
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
 
@@ -15,7 +17,7 @@ pytest.importorskip("PySide6", reason="the app extra is not installed")
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from odesuite_app import catalog  # noqa: E402
+from odesuite_app import catalog, progress  # noqa: E402
 from odesuite_app.solver import SolveRequest, SolveRunner  # noqa: E402
 from odesuite_app.state import METHOD_GROUPS, SessionState, methods_for  # noqa: E402
 from odesuite_app.theme import PALETTES, stylesheet  # noqa: E402
@@ -679,3 +681,90 @@ def test_every_screen_with_a_control_column_uses_the_shared_one():
     assert len(bodies) >= 5, f"only found {len(bodies)} control columns"
     for path, body in bodies.items():
         assert "control_panel(" in body, f"{path} builds its control column by hand"
+
+
+# ---------------------------------------------------------------------------
+# Remembering where you were
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def scratch_settings(tmp_path, monkeypatch):
+    """Point QSettings at a scratch file rather than the real registry.
+
+    A test that wrote the developer's own window position would be a test with
+    a side effect on the machine it ran on.
+    """
+    from PySide6.QtCore import QSettings
+
+    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, str(tmp_path))
+    monkeypatch.setattr(
+        "odesuite_app.app.QSettings",
+        lambda *a, **k: QSettings(QSettings.IniFormat, QSettings.UserScope,
+                                  "odesuite-test", "odesuite-test"),
+    )
+    yield tmp_path
+
+
+def test_the_screen_you_were_on_is_remembered(qapp, scratch_settings):
+    """Reopening on Home every time is a small tax paid constantly."""
+    from odesuite_app.app import MainWindow
+
+    first = MainWindow()
+    first.go("quiz")
+    assert first.current_screen() == "quiz"
+    first.close()
+
+    second = MainWindow()
+    assert second.remembered_screen() == "quiz"
+    first.deleteLater()
+    second.deleteLater()
+
+
+def test_an_unknown_remembered_screen_is_ignored(qapp, scratch_settings):
+    """A screen key can disappear between versions, and a saved name that no
+    longer exists must not open nothing."""
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow()
+    window._settings.setValue("window/screen", "a-screen-that-went-away")
+    assert window.remembered_screen() == ""
+    window.deleteLater()
+
+
+def test_the_window_geometry_is_saved_and_restored(qapp, scratch_settings):
+    """Asserted at the settings level rather than by comparing sizes.
+
+    Under the offscreen platform `restoreGeometry` clamps to the minimum size
+    for a window that was never really shown, so comparing widths would be a
+    test of Qt on this platform rather than of anything here. What this code
+    is responsible for is storing the geometry on close and handing it back to
+    `restoreGeometry` on open, and that is what is checked.
+    """
+    from odesuite_app.app import MainWindow
+
+    first = MainWindow()
+    first.resize(1200, 780)
+    first.close()
+    saved = first._settings.value("window/geometry")
+    assert saved, "nothing was stored on close"
+
+    second = MainWindow()
+    assert second._settings.value("window/geometry") == saved
+    first.deleteLater()
+    second.deleteLater()
+
+
+def test_geometry_is_not_kept_in_the_progress_file(qapp, scratch_settings):
+    """Preference, not achievement. A geometry has no business in a file the
+    user may export to a machine with a different screen."""
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow()
+    window.resize(1100, 700)
+    window.close()
+
+    text = json.dumps(progress.load(), default=str)
+    assert "geometry" not in text
+    assert "1100" not in text
+    window.deleteLater()

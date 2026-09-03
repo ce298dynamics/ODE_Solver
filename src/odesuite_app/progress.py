@@ -46,10 +46,12 @@ import os
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import date as _date
 from pathlib import Path
 
 __all__ = [
     "VERSION",
+    "STALE_AFTER_DAYS",
     "MASTERED_STREAK",
     "State",
     "Answer",
@@ -64,11 +66,27 @@ __all__ = [
     "drills",
     "unit_progress",
     "weakest",
+    "stale",
     "UnitProgress",
+    "export_to",
+    "import_from",
 ]
 
 #: The format written. Older files are read; nothing writes an older one.
-VERSION = 2
+#:
+#: Version 3 adds `seen`, the day an answer was last recorded. Everything
+#: before it read as "never seen", which is what a file written by an older
+#: build honestly is -- so nothing is lost and nothing is invented.
+VERSION = 3
+
+#: How long before something answered correctly is worth seeing again.
+#:
+#: Twenty-one days rather than a tuned interval: this application records one
+#: verdict per question and has no model of how hard each was, so a real
+#: spacing schedule would be fitting a curve to data it does not have. What it
+#: can honestly say is "you have not looked at this in three weeks", and that
+#: is what the number means.
+STALE_AFTER_DAYS = 21
 
 #: Correct answers in a row before a drill counts as mastered. Three is Khan
 #: Academy's rule and a defensible one: one is luck, two is a coincidence, and
@@ -96,6 +114,32 @@ class Answer:
     #: the point: a drill is mastered by getting it right repeatedly, not by
     #: getting it right eventually.
     streak: int = 0
+    #: The day this was last answered, as ``YYYY-MM-DD``, or "" for a record
+    #: written before version 3. A date rather than a timestamp: nothing here
+    #: needs the hour, and a date is legible in a file a user may open.
+    seen: str = ""
+
+    @property
+    def days_since_seen(self) -> int | None:
+        """Whole days since this was last answered, or None if unknown."""
+        if not self.seen:
+            return None
+        try:
+            then = _date.fromisoformat(self.seen)
+        except ValueError:
+            return None
+        return max((_date.today() - then).days, 0)
+
+    @property
+    def is_stale(self) -> bool:
+        """Answered correctly, but long enough ago to be worth revisiting.
+
+        Only ever true of something already right: a question got wrong is not
+        stale, it is simply unfinished, and `weakest` already surfaces those.
+        """
+        days = self.days_since_seen
+        return bool(self.correct and days is not None
+                    and days >= STALE_AFTER_DAYS)
 
     @property
     def correct(self) -> bool:
@@ -162,9 +206,11 @@ def _answer(value: object) -> Answer | None:
             return None
         # `streak` arrived after the rest of version 2, so a file written
         # between the two reads as "no streak yet" rather than as broken.
+        seen = value.get("seen")
         return Answer(state=state, right=_count(value.get("right")),
                       tries=_count(value.get("tries")),
-                      streak=_count(value.get("streak")))
+                      streak=_count(value.get("streak")),
+                      seen=seen if isinstance(seen, str) else "")
     return None
 
 
@@ -176,8 +222,13 @@ def load() -> dict[str, dict[str, Answer]]:
     anything at all, and the interface must not be handed a string where it
     expects a mapping.
     """
+    return _read(path())
+
+
+def _read(where: Path) -> dict[str, dict[str, Answer]]:
+    """`load`, from any file. Never raises; see `load` for why it validates."""
     try:
-        raw = json.loads(path().read_text(encoding="utf-8"))
+        raw = json.loads(where.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     if not isinstance(raw, dict):
@@ -223,7 +274,8 @@ def record(lesson: str, question: str,
     kept = State.CORRECT if (before and before.correct) else state
     streak = ((before.streak if before else 0) + 1) if was_right else 0
     answers[question] = Answer(state=kept, right=right, tries=tries,
-                               streak=streak)
+                               streak=streak,
+                               seen=_date.today().isoformat())
     _save(everything)
     return everything
 
@@ -349,6 +401,107 @@ def weakest(units, everything: dict[str, dict[str, Answer]] | None = None,
     return [(lesson, unit) for _, lesson, unit in scored[:limit]]
 
 
+def _payload(everything: dict[str, dict[str, Answer]]) -> dict:
+    """The on-disk shape. One serialiser, so a file written by `export_to` and
+    one written by `_save` cannot drift apart."""
+    return {
+        "version": VERSION,
+        "answers": {
+            lesson: {
+                question: {"state": answer.state, "right": answer.right,
+                           "tries": answer.tries, "streak": answer.streak,
+                           "seen": answer.seen}
+                for question, answer in answers.items()
+            }
+            for lesson, answers in everything.items()
+        },
+    }
+
+
+def stale(units, everything: dict[str, dict[str, Answer]] | None = None,
+          limit: int = 3) -> list:
+    """Lessons answered correctly but long enough ago to be worth revisiting.
+
+    The counterpart to `weakest`, which ranks by *score*. A lesson finished in
+    July and untouched since scores perfectly and is exactly what a course
+    wants to bring back, so ranking by score alone can never surface it. Here
+    the ordering is by how long it has been, oldest first.
+
+    Deliberately not a spacing schedule. This application records one verdict
+    per question and nothing about how hard each felt, so fitting an interval
+    curve to it would be inventing data. "You have not looked at this in three
+    weeks" is a claim the file actually supports.
+    """
+    everything = load() if everything is None else everything
+    scored = []
+    for unit in units:
+        for lesson in unit.lessons:
+            answers = everything.get(lesson.key, {})
+            if not answers:
+                continue
+            ages = [answer.days_since_seen for answer in answers.values()
+                    if answer.is_stale]
+            if not ages:
+                continue
+            scored.append((max(ages), lesson, unit))
+    scored.sort(key=lambda item: (-item[0], item[1].key))
+    return [(lesson, unit, age) for age, lesson, unit in scored[:limit]]
+
+
+def export_to(destination) -> Path:
+    """Copy everything recorded to `destination`, and return where it went.
+
+    The whole point is that a reinstall, a new machine or a wiped profile does
+    not start from zero. It writes the same format the application reads, so
+    the exported file *is* a progress file -- there is no second schema to keep
+    in step, and someone can simply copy it into place by hand if they prefer.
+    """
+    destination = Path(destination)
+    payload = _payload(load())
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        json.dumps(payload, indent=1, sort_keys=True), encoding="utf-8"
+    )
+    return destination
+
+
+def import_from(source, *, merge: bool = True
+                ) -> dict[str, dict[str, Answer]]:
+    """Read `source` and take it on, returning what is now recorded.
+
+    **Merged by default, and the merge keeps the better record.** Replacing
+    outright would mean importing a file from a machine where you had done
+    less quietly deleting work -- the failure this feature exists to prevent,
+    committed by the feature itself. Where both files know a question, the one
+    with more correct answers wins, ties going to the longer streak and then
+    to the later date.
+
+    Reading goes through the same validation as `load`, because an imported
+    file is exactly as untrustworthy as the one on disk: plain JSON that
+    somebody may have edited.
+    """
+    incoming = _read(Path(source))
+    if not merge:
+        _save(incoming)
+        return incoming
+
+    everything = load()
+    for lesson, answers in incoming.items():
+        kept = everything.setdefault(lesson, {})
+        for question, answer in answers.items():
+            existing = kept.get(question)
+            if existing is None or _better(answer, existing):
+                kept[question] = answer
+    _save(everything)
+    return everything
+
+
+def _better(candidate: Answer, existing: Answer) -> bool:
+    """Whether `candidate` is the record worth keeping of the two."""
+    return ((candidate.right, candidate.streak, candidate.seen)
+            > (existing.right, existing.streak, existing.seen))
+
+
 def _save(everything: dict[str, dict[str, Answer]]) -> None:
     """Write atomically, and treat failure as not worth interrupting anyone for.
 
@@ -357,17 +510,7 @@ def _save(everything: dict[str, dict[str, Answer]]) -> None:
     this runs on. A crash halfway through leaves the previous file, not half of
     this one.
     """
-    payload = {
-        "version": VERSION,
-        "answers": {
-            lesson: {
-                question: {"state": answer.state, "right": answer.right,
-                           "tries": answer.tries, "streak": answer.streak}
-                for question, answer in answers.items()
-            }
-            for lesson, answers in everything.items()
-        },
-    }
+    payload = _payload(everything)
     try:
         folder = directory()
         folder.mkdir(parents=True, exist_ok=True)

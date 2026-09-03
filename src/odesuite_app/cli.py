@@ -210,6 +210,12 @@ def main(argv: list[str] | None = None) -> int:
         window.go("lab")
     if args.screen:
         window.go(args.screen)
+    elif not args.problem:
+        # Reopen where it was last closed. An explicit --screen or --problem
+        # wins, because someone who named a screen means it.
+        remembered = window.remembered_screen()
+        if remembered:
+            window.go(remembered)
     window.show()
     return app.exec()
 

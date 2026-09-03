@@ -77,7 +77,7 @@ gains nothing from it. `scipy.integrate.solve_ivp` has no equivalent.
 ## Verification
 
 Correctness evidence is the point of this project, so it is worth being specific about
-what is actually checked. **2847 tests**, of which the load-bearing ones are:
+what is actually checked. **2869 tests**, of which the load-bearing ones are:
 
 **Order conditions, algebraically.** `tests/test_tableaux.py` evaluates the rooted-tree
 order conditions through order 5 for every Butcher tableau, and asserts that the
@@ -115,7 +115,7 @@ controller running blind, was the wrong place to have a gap.
 oracle only — never as the basis of an order or accuracy claim.
 
 ```
-py -3.10 -m pytest tests/ -q          # 2828 passed, 19 skipped, ~7 min
+py -3.10 -m pytest tests/ -q          # 2850 passed, 19 skipped, ~8 min
 py -3.10 -m pytest tests/ -q -m 'not slow'   # the fast loop, ~3.5 min
 py -3.10 -m ruff check . && py -3.10 -m mypy # lint and types, both clean
 py -3.10 benchmarks/run_all.py        # regenerate every static figure below
@@ -507,6 +507,27 @@ not transcribed, so a lesson cannot drift out of step with the tool that explain
 `tests/test_lessons.py` runs the real narrator over every example and every question to
 prove each one has an answer the app can actually produce. Every example, not merely the
 first: the one nobody checked is the one that rots.
+
+**Progress can be taken with you.** *Export* writes everything answered to a file, and
+*Import* merges one back in — merges, not replaces, because importing a file from a
+machine where you had done less would otherwise delete work, which is the exact failure
+the feature exists to prevent. Where both files know a question the stronger record
+wins: more correct answers, then the longer streak, then the later date. The exported
+file *is* a progress file, so there is no second format to keep in step and it can be
+copied into place by hand.
+
+**The Course Map also says what has gone quiet.** "Worth another look" ranks by score,
+which can never surface a lesson finished in July and untouched since — it scores
+perfectly. So a second line asks the other question: what has not been seen in three
+weeks. Deliberately not a spacing schedule; this application records one verdict per
+question and nothing about how hard each felt, so fitting an interval curve to it would
+be inventing data. *You have not looked at this in three weeks* is a claim the file
+actually supports.
+
+**The window reopens where you left it** — size, position, and the screen you were on —
+kept in `QSettings` rather than the progress file. That is preference, not achievement: a
+geometry has no business in a file you may export to a machine with a different screen.
+An explicit `--screen` or `--problem` still wins.
 
 Progress is remembered between sessions in a small JSON file in your config directory,
 with a reset button beside it. It is the only thing this application stores on disk. It
@@ -921,7 +942,7 @@ src/odesuite_app/                                    the studio
              learn_problems learn_quiz               Learning Hub
   widgets/                                           sliders, cards, plots, figures, maths
 
-tests/         2847 tests
+tests/         2869 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```
