@@ -11,7 +11,15 @@ with when none of chapter 1's techniques applies.
 
 from __future__ import annotations
 
-from .model import Choice, Example, Lesson, Note, Solve, Template
+from .model import (
+    Choice,
+    Example,
+    Lesson,
+    Note,
+    Passage,
+    Solve,
+    Template,
+)
 
 __all__ = ["POPULATION", "EQUILIBRIA", "MOTION", "NUMERICAL",
            "RUNGEKUTTA", "LESSONS"]
@@ -24,6 +32,72 @@ POPULATION = Lesson(
             "what its two parameters mean.",
     tool="worked",
     reference="Edwards 2.1",
+    motivation=(
+        "Where the equations of the first unit came from was never asked. "
+        "This unit asks it, because a differential equation is not handed "
+        "down — it is *derived*, from a statement about a rate — and "
+        "population is the first place that happens with nothing hidden.\n\n"
+        "The observable fact about a colony is not its size as a function of "
+        "time. It is that each individual reproduces at some rate; multiply "
+        "by how many there are and the result is a statement about the "
+        "derivative. That gives exponential growth, and exponential growth is "
+        "wrong. Nothing grows without bound, because food and space run out.\n\n"
+        "The fix is not to abandon the model but to question the one "
+        "assumption that was made silently — that the per-capita rate is a "
+        "constant. Let it fall as the population rises and the logistic "
+        "equation appears. It is the first nonlinear equation in this course "
+        "that anyone actually needs, and it is separable, so the previous "
+        "unit already solves it."
+    ),
+    derivation=(
+        Passage(
+            prose="Start from what is observable. Each individual contributes births at "
+                  "some rate, so with P of them the total rate is that rate times P. "
+                  "Written out, that is a statement about the derivative and nothing "
+                  "else.",
+            latex=r"P' = r\,P",
+        ),
+        Passage(
+            prose="That equation is separable, and the previous unit finishes it in two "
+                  "lines: exponential growth, with every solution a multiple of a "
+                  "single exponential and the constant turning out to be the starting "
+                  "population.",
+            latex=r"P(t) = P_0\,e^{rt}",
+        ),
+        Passage(
+            prose="Now look at what was assumed rather than at what came out. The rate "
+                  "r was taken to be the same at a population of ten and at a "
+                  "population of a million — every individual reproducing as freely in "
+                  "a crowd as alone. Written as a per-capita rate the assumption is "
+                  "impossible to miss, and it is the one that fails.",
+            latex=r"\frac{P'}{P} = r \quad \text{(the per-capita rate, assumed constant)}",
+        ),
+        Passage(
+            prose="So let the per-capita rate fall as the population rises, and take "
+                  "the simplest fall there is: linear, reaching zero at some population "
+                  "K. Nothing about K has to be interpreted — it is defined as where "
+                  "the per-capita rate runs out.",
+            latex=r"\frac{P'}{P} = r\left(1 - \frac{P}{K}\right)",
+        ),
+        Passage(
+            prose="Multiplying back gives the logistic equation, and K now needs no "
+                  "explaining: it is where the right-hand side vanishes, so it is a "
+                  "constant solution, and it is the only population at which growth "
+                  "stops without the colony being empty. The carrying capacity was not "
+                  "added to the model; it was already in the assumption.",
+            latex=r"P' = r\,P\left(1 - \frac{P}{K}\right)",
+        ),
+        Passage(
+            prose="It is separable, and the integral is where the S-shape comes from. "
+                  "The left-hand side splits by partial fractions into two pieces, each "
+                  "of which integrates to a logarithm; a difference of logarithms is "
+                  "the logarithm of a ratio; and solving that for P gives the sigmoid. "
+                  "The curve is a consequence of the algebra rather than a shape chosen "
+                  "because it looks right.",
+            latex=r"\int\frac{dP}{P\left(1 - P/K\right)} = \int r\,dt "
+                  r"\;\Longrightarrow\; P = \frac{K}{1 + Ce^{-rt}}",
+        ),
+    ),
     prerequisites=("separable",),
     objectives=(
         "Write down exponential growth from a statement about a rate.",
@@ -39,6 +113,18 @@ POPULATION = Lesson(
             why="The model in its simplest form: a rate proportional to the "
                 "population. Unbounded growth, which is what makes it wrong "
                 "for anything real and right as a starting point.",
+            commentary=(
+                "Watch how little the working needs. One separation, one integration, "
+                "and the constant of integration turns out to be the population you "
+                "started with — which is why this answer can be written straight down "
+                "once it has been derived a single time.\n\n"
+                "Then ask the answer about doubling. Set it equal to twice its "
+                "starting value and the starting value cancels off both sides, "
+                "leaving a time that depends only on the rate. A colony of ten and a "
+                "colony of a million take exactly as long to double. That is the "
+                "signature of this model, and it is also the clearest statement of "
+                "why it cannot hold for long."
+            ),
         ),
         Example(
             equation="y' = 0.5*y*(1 - y/20)",
@@ -47,6 +133,18 @@ POPULATION = Lesson(
                 "almost exponentially at first and then flatten — and notice "
                 "the capacity, 20, appearing in the answer without having been "
                 "put there by hand.",
+            commentary=(
+                "Two things to watch in the separation. The integral needs partial "
+                "fractions, and the two logarithms it produces are what become the "
+                "ratio in the final expression — so the S-shape is the algebra's "
+                "doing, not a curve fitted because it looked plausible.\n\n"
+                "Then check both ends against the equation rather than against the "
+                "graph. Early on the bracket is close to one, so the equation is very "
+                "nearly the previous example and the growth is very nearly "
+                "exponential. As the population climbs, the same bracket closes on "
+                "zero, so the rate does too — and it never crosses, since being above "
+                "the ceiling is the only way to make that rate negative."
+            ),
         ),
     ),
     notes=(
@@ -220,6 +318,77 @@ EQUILIBRIA = Lesson(
             "you everything about the long run.",
     tool="worked",
     reference="Edwards 2.2",
+    motivation=(
+        "The logistic equation was solved, and the answer was informative — "
+        "but solving it was work, and most autonomous equations cannot be "
+        "solved at all. Add a harvest term, or a threshold below which the "
+        "colony fails, and the integral stops being elementary. So the "
+        "question is whether the long-run behaviour actually needs the "
+        "solution.\n\n"
+        "It does not, and the reason is that an autonomous equation carries "
+        "no clock. The slope depends on where you are and not on when you got "
+        "there, so position alone determines the entire future — and a "
+        "picture of the line, marked with which way the arrows point, holds "
+        "every qualitative fact about every solution at once.\n\n"
+        "This is the first genuinely different kind of answer in the course, "
+        "and it is worth being clear that nothing about it is approximate. "
+        "The claim that a solution starting just above zero rises towards the "
+        "carrying capacity and never overshoots it is exact, and it is "
+        "obtained without integrating anything."
+    ),
+    derivation=(
+        Passage(
+            prose="Autonomous means the right-hand side never mentions t. So the same "
+                  "value of y gives the same slope whenever it occurs, and a solution "
+                  "slid along in time is still a solution — which is why one curve's "
+                  "shape describes a whole family rather than one member of it.",
+            latex=r"y' = f(y) \;\Longrightarrow\; y(t - c) \text{ solves it too}",
+        ),
+        Passage(
+            prose="Wherever f vanishes the slope is zero, so the constant function sits "
+                  "there forever. Those are the equilibria, and they are the *only* "
+                  "constant solutions there can be: a constant has zero derivative, "
+                  "which the equation then forces f to match.",
+            latex=r"f(y_0) = 0 \;\Longleftrightarrow\; y \equiv y_0 \text{ solves it}",
+        ),
+        Passage(
+            prose="Between two consecutive equilibria f keeps one sign, because a "
+                  "change of sign would be another root. So every solution in that "
+                  "interval is monotone throughout, and it cannot leave: arriving at an "
+                  "equilibrium would put two solutions through one point, which the "
+                  "uniqueness theorem forbids.",
+            latex=r"f > 0 \text{ on } (a,b) \;\Longrightarrow\; y \text{ "
+                  r"rises, and stays in } (a,b)",
+        ),
+        Passage(
+            prose="That is already the whole qualitative answer. The sign of f on each "
+                  "side of an equilibrium settles its character — arrows in from both "
+                  "sides is stable, out from both is unstable, one of each is semi- "
+                  "stable — and a line marked with those arrows can be read off faster "
+                  "than any solution can be computed.",
+            latex=r"f(y_0) = 0,\ f > 0 \text{ below},\ f < 0 \text{ above} "
+                  r"\;\Longrightarrow\; \text{stable}",
+        ),
+        Passage(
+            prose="The derivative test is usually presented as a rule to remember, and "
+                  "it is worth deriving instead. Stand just off the equilibrium: "
+                  "put y = y₀ + ε for a small displacement ε, expand f about y₀, "
+                  "and use f(y₀) = 0. What is left is the linear equation from the "
+                  "first unit, whose solution grows or decays according to the "
+                  "sign of a single number.",
+            latex=r"\varepsilon' = f(y_0 + \varepsilon) \approx f'(y_0)\,\varepsilon "
+                  r"\;\Longrightarrow\; \varepsilon \approx \varepsilon_0\,e^{f'(y_0)t}",
+        ),
+        Passage(
+            prose="The same derivation says exactly when the test is useless. If "
+                  "f'(y_0) is zero the linear term has vanished and the approximation "
+                  "makes no claim at all, so the next term decides and the sign of f on "
+                  "each side has to be looked at directly. That is not a gap in the "
+                  "rule; it is the rule being honest about what it approximated away.",
+            latex=r"f'(y_0) = 0 \;\Longrightarrow\; \varepsilon' \approx 0 "
+                  r"\quad \text{(which says nothing)}",
+        ),
+    ),
     prerequisites=("population",),
     figure="phase_line",
     objectives=(
@@ -235,6 +404,19 @@ EQUILIBRIA = Lesson(
             why="Two equilibria, one stable and one not. Starting between them "
                 "the solution falls towards −2, which the phase line predicts "
                 "before any of the algebra happens.",
+            commentary=(
+                "Draw the phase line on paper before reading a line of the working. "
+                "The right-hand side factors, so its roots are immediate; it is "
+                "positive outside them and negative in between; and those three signs "
+                "already say which way every solution goes and where it ends up.\n\n"
+                "Then treat the closed form as a check on the picture rather than the "
+                "other way round. It confirms that the limit is approached and never "
+                "attained, which is what an equilibrium being a limit means. And it "
+                "adds the one thing the phase line cannot supply: a rate. The "
+                "exponent in the answer is the derivative of the right-hand side at "
+                "that equilibrium, exactly as the linearisation in the derivation "
+                "predicts."
+            ),
         ),
         Example(
             equation="y' = 4 - y",
@@ -242,6 +424,19 @@ EQUILIBRIA = Lesson(
             why="One equilibrium, and everything approaches it. The simplest "
                 "case, and the one where the exponential in the answer is "
                 "visibly the approach to y = 4.",
+            commentary=(
+                "This is the linearisation being exact rather than approximate, which "
+                "makes it the right place to see the argument work. The right-hand "
+                "side is already linear, so expanding it about the equilibrium "
+                "changes nothing at all, and the small-displacement equation of the "
+                "derivation is simply the original equation with the derivative equal "
+                "to minus one.\n\n"
+                "So read the exponent as a rate of approach. It says the gap between "
+                "the solution and the equilibrium shrinks by a fixed proportion in "
+                "every unit of time, whatever the gap happened to be — which is why "
+                "one curve, shifted sideways, describes a start at ten and a start at "
+                "four hundred equally well."
+            ),
         ),
     ),
     notes=(
@@ -393,6 +588,82 @@ MOTION = Lesson(
             "interesting part is what the resistance term does.",
     tool="worked",
     reference="Edwards 2.3",
+    motivation=(
+        "Population produced one equation from one assumption. Mechanics "
+        "produces most of the rest of this subject from a single law, and the "
+        "law is already a differential equation: acceleration is the second "
+        "derivative of position, so any statement about forces is a statement "
+        "about a second derivative.\n\n"
+        "What makes the problem interesting is not gravity but the "
+        "resistance. With gravity alone a falling object accelerates forever, "
+        "which is visibly false — a raindrop does not arrive at the speed of "
+        "a bullet. Something removes the excess, and whatever it is must "
+        "depend on the speed, because an object at rest feels no air "
+        "resistance at all.\n\n"
+        "The moment that term is written down, the equation turns into one "
+        "already solved. In terms of velocity it is first order and linear, "
+        "so the integrating factor ends it; and the terminal velocity "
+        "everyone knows about turns out to be an equilibrium of exactly the "
+        "kind the previous lesson classified. Nothing new is needed here — "
+        "two earlier lessons meet."
+    ),
+    derivation=(
+        Passage(
+            prose="Newton's law is a statement about the second derivative of position. "
+                  "Written in terms of velocity instead it is first order, which is why "
+                  "every problem in this lesson is solved for the velocity first and "
+                  "integrated for the position afterwards.",
+            latex=r"m\,\frac{d^2y}{dt^2} = \sum F \;\Longrightarrow\; "
+                  r"m\,\frac{dv}{dt} = \sum F",
+        ),
+        Passage(
+            prose="Choose a positive direction and hold to it. This is where these "
+                  "problems go wrong far more often than in any of the calculus: with "
+                  "up positive, gravity contributes a fixed negative term whatever the "
+                  "object is doing, while the resistance always opposes the motion and "
+                  "so carries the sign opposite to the velocity.",
+            latex=r"m\,v' = -mg - k\,v",
+        ),
+        Passage(
+            prose="Divide through by the mass — the same first move as in the "
+                  "integrating-factor lesson — and the shape is familiar. It is the "
+                  "standard form with p and q both constant, so the factor is a plain "
+                  "exponential and one integration finishes the problem.",
+            latex=r"v' + \frac{k}{m}\,v = -g",
+        ),
+        Passage(
+            prose="But it is also autonomous, so the previous lesson applies without "
+                  "solving anything. Setting the right-hand side to zero gives the one "
+                  "velocity at which the two forces balance, and the sign of the right- "
+                  "hand side on either side of it shows every solution moving towards "
+                  "it. Terminal velocity is a stable equilibrium, and it costs a "
+                  "division to find.",
+            latex=r"v' = 0 \;\Longrightarrow\; v_\infty = -\frac{mg}{k}",
+        ),
+        Passage(
+            prose="The closed form agrees, and it is worth reading once for its shape. "
+                  "The answer is the terminal velocity plus a decaying exponential, so "
+                  "the starting speed is forgotten at a rate set by k/m — a heavier "
+                  "object with the same drag coefficient forgets it more slowly, which "
+                  "is the whole of why mass matters here.",
+            latex=r"v(t) = -\frac{mg}{k} + \left(v_0 + \frac{mg}{k}\right)e^{-kt/m}",
+        ),
+        Passage(
+            prose="Position takes one more integration, and that brings the second "
+                  "constant, which is the starting height. Two integrations, two "
+                  "constants, two conditions: the count from the very first lesson of "
+                  "the course, now attached to something physical.",
+            latex=r"y(t) = y_0 + \int_0^{t} v(s)\,ds",
+        ),
+        Passage(
+            prose="All of that assumed drag proportional to the speed. At higher speeds "
+                  "the resistance goes as the square instead, and then the equation is "
+                  "no longer linear in v — the integrating factor simply does not "
+                  "apply. It is separable rather than linear, which is why the two "
+                  "cases are taught apart instead of as one.",
+            latex=r"m\,v' = -mg + k\,v^{2} \qquad (v < 0)",
+        ),
+    ),
     prerequisites=("linear",),
     objectives=(
         "Turn a statement of forces into a differential equation.",
@@ -407,6 +678,20 @@ MOTION = Lesson(
             why="Falling with linear drag. The equation is linear in v, and "
                 "the answer is an exponential approach to a terminal velocity "
                 "you can read off the equation beforehand: −49.",
+            commentary=(
+                "Find the terminal velocity before looking at the working: set the "
+                "right-hand side to zero and it is one division. Having that number "
+                "in hand first turns the closed form into a confirmation instead of a "
+                "revelation, and forming that habit is most of what this lesson is "
+                "for.\n\n"
+                "Then watch what the initial condition does to the shape. Starting "
+                "from rest makes the exponential's coefficient the entire terminal "
+                "value, so the answer is that value times one minus a decaying "
+                "exponential — the object has the whole gap to close. And read the "
+                "time scale off the exponent while you are there: with 0.2 in it, the "
+                "gap is closed to within a percent in about twenty-five seconds, "
+                "which nothing in the problem statement said out loud."
+            ),
         ),
         Example(
             equation="y' = -9.8",
@@ -414,6 +699,17 @@ MOTION = Lesson(
             why="The same problem with no resistance. One integration, a "
                 "straight line, and no terminal velocity at all — which is "
                 "what the drag term is there to fix.",
+            commentary=(
+                "Worth working precisely because nothing happens. Take the resistance "
+                "away and what is left is the y' = f(t) of the very first lesson. It "
+                "takes a single integration, and the velocity it gives is a line with "
+                "no value on it anywhere at which the right-hand side vanishes.\n\n"
+                "Then set it beside the previous example over a short interval. Early "
+                "on the drag has removed almost nothing and the two velocities nearly "
+                "coincide, which is why this model is not so much wrong as *early* — "
+                "it is the first stretch of the other answer, and it stops being "
+                "usable at exactly the speed where the resistance starts to count."
+            ),
         ),
     ),
     notes=(
@@ -560,6 +856,71 @@ NUMERICAL = Lesson(
             "— starting with the simplest thing that could work.",
     tool="byhand",
     reference="Edwards 2.4–2.5",
+    motivation=(
+        "Every technique so far has needed the equation to have a shape. Most "
+        "equations do not have one. y' = y² − t is perfectly ordinary, has "
+        "perfectly ordinary solutions, and has no elementary formula at all — "
+        "and it is far more typical than anything in the first unit. The "
+        "honest position is that closed forms are the exception.\n\n"
+        "What is always available is the equation itself. It gives the slope "
+        "at every point of the plane, which is exactly what the slope-field "
+        "lesson used to trace solutions by eye. Following a slope with a "
+        "ruler is something a machine can do far more patiently than a hand, "
+        "and that is the whole idea here — the least clever idea in the "
+        "subject, and the most used.\n\n"
+        "The interesting part is not the method but its error. A step that "
+        "follows one slope is wrong the moment the slope changes, so the "
+        "question is how wrong, and how the wrongness accumulates over "
+        "thousands of steps. Answering that is what separates a numerical "
+        "method from a guess, and it is what this lesson is actually about."
+    ),
+    derivation=(
+        Passage(
+            prose="The equation names the slope at the point you are standing on. "
+                  "Follow it for a short distance and you land somewhere near the "
+                  "solution. That is the entire method: the tangent-line approximation "
+                  "from first-year calculus, applied again at each new point.",
+            latex=r"y_{n+1} = y_n + h\,f(t_n, y_n)",
+        ),
+        Passage(
+            prose="To find the error, compare a step against the truth. Taylor's "
+                  "theorem expands the exact solution about the current point, and its "
+                  "first two terms are precisely the Euler step — so everything the "
+                  "method throws away is sitting in the remainder, where it can be "
+                  "looked at.",
+            latex=r"y(t_n + h) = y_n + h\,y'(t_n) + \frac{h^{2}}{2}y''(\xi)",
+        ),
+        Passage(
+            prose="So a single step is wrong by an amount proportional to the square of "
+                  "the step. Halving the step makes one step four times as accurate, "
+                  "which sounds far better than it turns out to be.",
+            latex=r"\text{local error} = \frac{h^{2}}{2}y''(\xi) = O(h^{2})",
+        ),
+        Passage(
+            prose="Here is why. Crossing a fixed interval takes more steps as the step "
+                  "shrinks — about one over h of them — so the per-step error has to be "
+                  "multiplied by a count that grows as h falls. One power of h is lost "
+                  "in the multiplication, and that is where *first order* comes from. "
+                  "It is a statement about the whole journey, not about one step.",
+            latex=r"\frac{b - a}{h} \times O(h^{2}) = O(h)",
+        ),
+        Passage(
+            prose="Which is a poor return: one more correct decimal digit costs a "
+                  "tenfold smaller step and therefore tenfold the work. That arithmetic "
+                  "is the honest reason nobody uses this method for real computation, "
+                  "and it is the reason the next lesson exists.",
+            latex=r"h \to h/10 \;\Longrightarrow\; \text{error} \to \text{error}/10",
+        ),
+        Passage(
+            prose="One more thing that accounting quietly assumed: that the errors "
+                  "merely add up. They need not. Each step sets out from a point "
+                  "already slightly wrong, and the equation itself then amplifies or "
+                  "damps that error along with everything else — which is why a step "
+                  "size that behaves well on one equation can diverge on another just "
+                  "as smooth.",
+            latex=r"y' = -100y,\ h = 0.1 \;\Longrightarrow\; |1 + h\lambda| = 9 > 1",
+        ),
+    ),
     prerequisites=("basics", "separable"),
     figure="euler_error",
     objectives=(
@@ -576,6 +937,19 @@ NUMERICAL = Lesson(
                 "error in each step can be read directly rather than "
                 "estimated. Solved here in closed form; the numerical table is "
                 "on Methods by Hand, beside this exact curve.",
+            commentary=(
+                "The closed form is the whole reason for this choice of equation, so "
+                "use it as a ruler. Take one step of size 0.1 by hand: it lands on "
+                "1.1, the true value is 1.10517, and the difference is 0.0052 — which "
+                "is h²/2 to two figures, exactly what the second passage of the "
+                "derivation says it should be.\n\n"
+                "Then take ten such steps and compare again. They give 1.1 raised to "
+                "the tenth, about 2.5937, against e at about 2.7183 — an error of "
+                "0.125, some twenty-four times the single-step error rather than ten "
+                "times it. That gap between the local picture and the global one is "
+                "the thing to carry away, and it is why the count of steps has to "
+                "enter the error estimate at all."
+            ),
         ),
     ),
     notes=(
@@ -719,6 +1093,88 @@ RUNGEKUTTA = Lesson(
             "dearer.",
     tool="byhand",
     reference="Edwards 2.6",
+    motivation=(
+        "Euler's method works, and its error analysis is honest, and together "
+        "they produce a discouraging piece of arithmetic: each additional "
+        "decimal digit costs ten times the work. Anything that needs six "
+        "digits is out of reach, and six digits is a modest request.\n\n"
+        "The way out is not a smaller step but a better use of each one. "
+        "Euler commits to the slope at the start of the interval and then "
+        "travels the whole way on it, which is the crudest possible reading "
+        "of a slope that is turning throughout. Sampling it more than once "
+        "costs more per step, and the whole question is whether the accuracy "
+        "bought exceeds what it cost.\n\n"
+        "It does, by a wide margin. Four evaluations arranged carefully give "
+        "a method whose error falls with the *fourth* power of the step, so "
+        "halving the step divides the error by sixteen rather than by two. "
+        "That trade is why essentially every general-purpose solver in "
+        "existence is built this way — and it is also why methods have to be "
+        "compared by evaluations rather than by steps."
+    ),
+    derivation=(
+        Passage(
+            prose="Euler travels on the slope at one end of the interval and uses "
+                  "nothing else, which is exact only when the slope is constant. "
+                  "Everything in this lesson follows from one question: what would be a "
+                  "better single number to travel on?",
+            latex=r"y_{n+1} = y_n + h\,f(t_n, y_n)",
+        ),
+        Passage(
+            prose="The obvious candidate is the slope at the middle rather than at the "
+                  "start, and it is already much better — a midpoint slope represents "
+                  "an interval whose slope is turning far more faithfully than either "
+                  "end does. The catch is that the midpoint is not known in advance, so "
+                  "it has to be estimated first, and that pattern is what the whole "
+                  "method is built from.",
+            latex=r"k_1 = f(t_n, y_n), \qquad k_2 = f\left(t_n + \frac{h}{2},\ "
+                  r"y_n + \frac{h}{2}k_1\right)",
+        ),
+        Passage(
+            prose="Then repeat the idea. Use the better midpoint slope to make a better "
+                  "estimate of the midpoint, and use that to reach the far end. Four "
+                  "evaluations, each an ordinary use of f at a point already computed — "
+                  "nothing here is implicit, and nothing has to be solved for.",
+            latex=r"k_3 = f\left(t_n + \frac{h}{2},\ y_n + "
+                  r"\frac{h}{2}k_2\right), \qquad k_4 = f(t_n + h,\ y_n + "
+                  r"h\,k_3)",
+        ),
+        Passage(
+            prose="Now combine them, with the two midpoint slopes counting double. The "
+                  "weights come from a Taylor expansion: they are chosen so that the "
+                  "combination agrees with the exact solution's expansion through the "
+                  "h⁴ term, and everything up to that order cancels by construction. "
+                  "Deriving them is a long and unilluminating calculation; knowing what "
+                  "they were chosen to do is the part that matters.",
+            latex=r"y_{n+1} = y_n + \frac{h}{6}\left(k_1 + 2k_2 + 2k_3 + k_4\right)",
+        ),
+        Passage(
+            prose="The local error is therefore one order higher again, and the same "
+                  "accumulation argument as before costs one power of h. That is the "
+                  "whole claim, and note what kind of claim it is: *fourth order* says "
+                  "how the error responds to a change in h, and says nothing about how "
+                  "accurate any particular run happens to be.",
+            latex=r"\frac{b - a}{h} \times O(h^{5}) = O(h^{4})",
+        ),
+        Passage(
+            prose="Which brings the comparison that has to be made carefully. One step "
+                  "here costs four evaluations, so it must be judged against four Euler "
+                  "steps — that is, against Euler run at a quarter of the step, not at "
+                  "the same one. Euler's error is then proportional to h/4 while this "
+                  "method's is proportional to h⁴, and for any h small enough the "
+                  "second is smaller by a factor that grows as h shrinks.",
+            latex=r"h = 0.1: \quad \frac{h}{4} = 0.025 \quad \text{against} "
+                  r"\quad h^{4} = 0.0001",
+        ),
+        Passage(
+            prose="It is also how an order is measured rather than taken on trust. "
+                  "Halve the step repeatedly and take the ratio of successive errors: "
+                  "the ratio tends to two raised to the order, so a column of ratios "
+                  "reading 2 identifies a first-order method and one reading 16 a "
+                  "fourth-order one. They arrive at those values from below, because "
+                  "the next term in the expansion is only negligible once h is small.",
+            latex=r"\frac{E(h)}{E(h/2)} \longrightarrow 2^{\,p}",
+        ),
+    ),
     prerequisites=("numerical",),
     objectives=(
         "Say what the four stages of RK4 are averaging.",
@@ -734,6 +1190,21 @@ RUNGEKUTTA = Lesson(
                 "measured error at each step size can be compared against "
                 "h⁴ directly. Methods by Hand halves the step four times "
                 "beside this curve and prints the ratios.",
+            commentary=(
+                "A decaying exponential is chosen deliberately: the exact answer is a "
+                "single term, so there is nothing to disentangle and the error at any "
+                "step size is one subtraction. It also has a real time scale — the "
+                "solution loses half its size every 0.35 or so — which means a step "
+                "of 0.5 is large for this equation and 0.05 is comfortable, and the "
+                "tables show the difference plainly.\n\n"
+                "Watch the ratios rather than the errors. Any single error is a "
+                "number without a meaning attached; the ratio between two of them is "
+                "the order, and here it should climb towards sixteen. That it climbs "
+                "rather than landing exactly is expected — behind the leading term is "
+                "a smaller one that is only negligible once the step is small — so an "
+                "early row reading twelve is the method behaving correctly, not a "
+                "mistake in the arithmetic."
+            ),
         ),
     ),
     notes=(

@@ -207,6 +207,11 @@ FULL_DEPTH = (
     "linear",
     "exact",
     "substitutions",
+    "population",
+    "equilibria",
+    "motion",
+    "numerical",
+    "rungekutta",
 )
 
 DEEP = [by_key(key) for key in FULL_DEPTH]
