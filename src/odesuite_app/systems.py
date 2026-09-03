@@ -37,7 +37,8 @@ import sympy as sp
 
 from .steps import Derivation, Step, _is_zero
 
-__all__ = ["derive", "matrix_of", "classify", "TITLE"]
+__all__ = ["derive", "matrix_of", "split_system", "classify",
+           "fundamental_matrix", "TITLE"]
 
 _T = sp.Symbol("t", real=True)
 _L = sp.Symbol("lambda")
@@ -58,16 +59,16 @@ def _eq(lhs, rhs) -> str:
     return f"{_latex(lhs)} = {_latex(rhs)}"
 
 
-def matrix_of(equations, functions):
-    """``A`` for ``x' = A x``, or None when the system is not that.
+def split_system(equations, functions):
+    """``(A, f)`` for ``x' = A x + f(t)``, or None when it is not that.
 
-    Only constant-coefficient homogeneous first-order systems. A `t` anywhere
-    in a coefficient, a forcing term, or a second derivative all mean the
-    eigenvalue method does not apply as stated, and saying so plainly beats
-    narrating a method whose hypotheses have failed.
+    Constant coefficients and first order; the forcing may be anything in `t`.
+    A `t` in a *coefficient*, a product of unknowns, or a second derivative all
+    mean the eigenvalue method does not apply as stated, and saying so plainly
+    beats narrating a method whose hypotheses have failed.
     """
     states = [f(_T) for f in functions]
-    rows = []
+    rows, forcing = [], []
     for equation, function in zip(equations, functions):
         derivative = function(_T).diff(_T)
         solved = sp.solve(equation, derivative, dict=True)
@@ -80,13 +81,28 @@ def matrix_of(equations, functions):
             if coefficient.has(_T) or any(coefficient.has(s) for s in states):
                 return None
             row.append(sp.simplify(coefficient))
-        # Anything left once the linear part is removed is forcing or a
-        # constant, and this narration is for the homogeneous case.
+        # Whatever is left once the linear part is removed is the forcing. It
+        # may depend on t, and it may be zero -- which is the homogeneous case
+        # and the one every other lesson in the unit is about.
         remainder = sp.simplify(rhs - sum(c * s for c, s in zip(row, states)))
-        if remainder != 0:
+        if any(remainder.has(state) for state in states):
             return None
         rows.append(row)
-    return sp.Matrix(rows)
+        forcing.append(remainder)
+    return sp.Matrix(rows), sp.Matrix(forcing)
+
+
+def matrix_of(equations, functions):
+    """``A`` for a *homogeneous* ``x' = A x``, or None.
+
+    Kept as the narrower question because most of this module asks it: the
+    eigenvalue method proper is about the homogeneous system, and forcing is
+    handled by varying the constants afterwards.
+    """
+    parts = split_system(equations, functions)
+    if parts is None or any(entry != 0 for entry in parts[1]):
+        return None
+    return parts[0]
 
 
 def classify(eigenvalues) -> str:
@@ -139,13 +155,15 @@ def derive(equations, functions, *, ics: dict | None = None) -> Derivation:
 
 
 def _build(equations, functions, ics: dict, derivation: Derivation) -> None:
-    matrix = matrix_of(equations, functions)
-    if matrix is None:
+    parts = split_system(equations, functions)
+    if parts is None:
         derivation.message = (
-            "the eigenvalue method needs a homogeneous first-order system "
-            "with constant coefficients"
+            "the eigenvalue method needs a first-order system with constant "
+            "coefficients"
         )
         return
+    matrix, forcing = parts
+    driven = any(entry != 0 for entry in forcing)
 
     states = [f(_T) for f in functions]
     vector = sp.Matrix(states)
@@ -153,16 +171,20 @@ def _build(equations, functions, ics: dict, derivation: Derivation) -> None:
     derivation.steps.append(Step(
         title="Write it as one matrix equation",
         latex=(rf"\frac{{d}}{{dt}}{sp.latex(vector)} = "
-               rf"{sp.latex(matrix)}{sp.latex(vector)}"),
+               rf"{sp.latex(matrix)}{sp.latex(vector)}"
+               + (rf" + {sp.latex(forcing)}" if driven else "")),
         note="Neither equation can be solved without the other, so they stop "
              "being two problems and become one. Everything that follows is "
-             "about the matrix, not about the equations.",
-        # The matrix has to reproduce the equations it came from.
+             "about the matrix, not about the equations."
+             + ("  The forcing rides along on the right, and is set aside "
+                "until the homogeneous part is solved." if driven else ""),
+        # The matrix and the forcing have to reproduce the equations they came
+        # from -- both of them, not merely the matrix.
         verified=all(
             _is_zero(sp.simplify(
                 sp.solve(equation, function(_T).diff(_T), dict=True)[0][
                     function(_T).diff(_T)]
-                - (matrix * vector)[index]
+                - (matrix * vector + forcing)[index]
             ))
             for index, (equation, function) in enumerate(zip(equations,
                                                              functions))
@@ -227,23 +249,33 @@ def _build(equations, functions, ics: dict, derivation: Derivation) -> None:
     general = sp.simplify(general)
 
     derivation.steps.append(Step(
-        title="The general solution",
+        title=("The homogeneous solution" if driven
+               else "The general solution"),
         latex=_eq(sp.latex(vector), sp.latex(general)),
         note=f"One arbitrary constant per equation, as a {size}×{size} system "
-             "must have. Every solution of the system is one of these.",
+             "must have."
+             + ("  Now for one solution of the forced system."
+                if driven else
+                "  Every solution of the system is one of these."),
         verified=_solves(matrix, general),
     ))
 
-    derivation.steps.append(Step(
-        title="What the origin is",
-        latex=_eq(r"\text{origin}", sp.latex(sp.Matrix([0] * size).T)),
-        note=f"Read off the eigenvalues alone: {classify(values)}. "
-             "The trajectories were decided the moment the roots were.",
-    ))
+    if not driven:
+        derivation.steps.append(Step(
+            title="What the origin is",
+            latex=_eq(r"\text{origin}", sp.latex(sp.Matrix([0] * size).T)),
+            note=f"Read off the eigenvalues alone: {classify(values)}. "
+                 "The trajectories were decided the moment the roots were.",
+        ))
+    else:
+        general = _particular(matrix, forcing, basis, general, derivation)
+        if general is None:
+            return
 
     derivation.result = general
-    derivation.verified = _solves(matrix, general)
-    _apply_conditions(general, constants, functions, ics, matrix, derivation)
+    derivation.verified = _solves(matrix, general, forcing)
+    _apply_conditions(general, constants, functions, ics, matrix, derivation,
+                      forcing)
 
 
 # ---------------------------------------------------------------------------
@@ -393,17 +425,128 @@ def _defective_basis(matrix, ordered, derivation: Derivation):
 # ---------------------------------------------------------------------------
 
 
-def _solves(matrix, column) -> bool:
-    """Whether a vector function satisfies ``x' = A x`` identically."""
+def _solves(matrix, column, forcing=None) -> bool:
+    """Whether a vector function satisfies ``x' = A x + f`` identically.
+
+    `forcing` defaults to zero, which is what every basis solution has to
+    satisfy: the basis solves the *homogeneous* system, and checking it
+    against a forced one would report a correct fundamental set as wrong --
+    the same trap the second-order narrator documents.
+    """
     try:
-        residual = sp.simplify(sp.expand(column.diff(_T) - matrix * column))
+        right = matrix * column
+        if forcing is not None:
+            right = right + forcing
+        residual = sp.simplify(sp.expand(column.diff(_T) - right))
         return all(_is_zero(entry) for entry in residual)
     except Exception:
         return False
 
 
+def fundamental_matrix(basis):
+    """``Phi(t)``: the basis solutions as columns.
+
+    Everything about a forced system is expressed through this. It is
+    invertible for every t precisely because the columns are independent,
+    which is what the eigenvector work established.
+    """
+    return sp.Matrix.hstack(*basis)
+
+
+def _particular(matrix, forcing, basis, homogeneous, derivation: Derivation):
+    """Vary the constants: ``x_p = Phi * integral of Phi^-1 f``.
+
+    The systems counterpart of variation of parameters, and the same idea
+    exactly -- let the constants become functions of t. It is written with the
+    fundamental matrix because that is what makes it one formula instead of a
+    system of them: `Phi^-1 f` is the vector of `u_i'`, and integrating it is
+    the whole of the method.
+
+    Undetermined coefficients would also work for the forcing terms a course
+    sets, and is not narrated here: it needs a resonance correction whenever
+    the forcing matches an eigenvalue, and that correction is fiddlier for
+    systems than for one equation. This route never needs one.
+    """
+    phi = fundamental_matrix(basis)
+    determinant = sp.simplify(phi.det())
+    derivation.steps.append(Step(
+        title="Build the fundamental matrix",
+        latex=_eq(r"\Phi(t)", phi),
+        note="The basis solutions as columns. Its determinant is non-zero for "
+             "every t — which is what independence bought — so it can be "
+             "inverted, and everything below divides by it.",
+        verified=bool(determinant != 0),
+    ))
+    if determinant == 0:
+        derivation.message = "the fundamental matrix is singular"
+        return None
+
+    try:
+        integrand = sp.simplify(phi.inv() * forcing)
+    except Exception:
+        derivation.message = "the fundamental matrix could not be inverted"
+        return None
+
+    derivation.steps.append(Step(
+        title="Vary the constants",
+        latex=(r"\mathbf{x}_p = \Phi(t)\int \Phi^{-1}(t)\,"
+               rf"\mathbf{{f}}(t)\,dt, \qquad \Phi^{{-1}}\mathbf{{f}} = "
+               rf"{sp.latex(integrand)}"),
+        note="Replace the constant vector by a function of t. Requiring "
+             "Φ·c′ = f is what makes the derivative work out, and it leaves "
+             "c′ = Φ⁻¹f — one integral per constant.",
+        verified=_is_zero(sp.simplify((phi * integrand - forcing).norm())),
+    ))
+
+    integrated = integrand.applyfunc(lambda entry: sp.integrate(entry, _T))
+    if integrated.has(sp.Integral):
+        derivation.message = (
+            "the formula is right but the integrals have no closed form"
+        )
+        return None
+    derivation.steps.append(Step(
+        title="Integrate",
+        latex=_eq(r"\int \Phi^{-1}\mathbf{f}\,dt", integrated),
+        note="No constants of integration: they would only add multiples of "
+             "the basis solutions back in, and the homogeneous part already "
+             "carries those with arbitrary coefficients.",
+        verified=all(_is_zero(sp.simplify(item.diff(_T) - prime))
+                     for item, prime in zip(integrated, integrand)),
+    ))
+
+    particular = sp.simplify(phi * integrated)
+    derivation.steps.append(Step(
+        title="A particular solution",
+        latex=_eq(r"\mathbf{x}_p(t)", particular),
+        note="One solution of the forced system — no constants in it at all, "
+             "which is what makes it particular.",
+        verified=_solves(matrix, particular, forcing),
+    ))
+
+    general = sp.simplify(homogeneous + particular)
+    derivation.steps.append(Step(
+        title="The general solution",
+        latex=_eq(r"\mathbf{x}(t)", sp.latex(general)),
+        note="Homogeneous plus particular, as for any linear equation. The "
+             "constants are still arbitrary; the forcing has not touched them.",
+        verified=_solves(matrix, general, forcing),
+    ))
+    return general
+
+
+def matrix_exponential(matrix):
+    """``e^{At}``, the fundamental matrix that is the identity at t = 0.
+
+    Not needed to solve anything -- Phi built from the basis does that -- but
+    it is the object the theory is stated in, and it is worth being able to
+    show: any two fundamental matrices differ by a constant matrix on the
+    right, and this is the one normalised so that x(t) = e^{At} x(0).
+    """
+    return sp.simplify(sp.exp(matrix * _T))
+
+
 def _apply_conditions(general, constants, functions, ics: dict, matrix,
-                      derivation: Derivation) -> None:
+                      derivation: Derivation, forcing=None) -> None:
     """Pin the constants from ``x(0) = ...`` values, if there are any."""
     if not ics:
         return
@@ -448,7 +591,7 @@ def _apply_conditions(general, constants, functions, ics: dict, matrix,
         latex=_eq(sp.latex(sp.Matrix([f(_T) for f in functions])),
                   sp.latex(particular)),
         note="One trajectory now, rather than a family of them.",
-        verified=_solves(matrix, particular),
+        verified=_solves(matrix, particular, forcing),
     ))
     derivation.result = particular
-    derivation.verified = _solves(matrix, particular)
+    derivation.verified = _solves(matrix, particular, forcing)

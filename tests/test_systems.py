@@ -20,7 +20,10 @@ from odesuite_app.systems import (  # noqa: E402
     TITLE,
     classify,
     derive,
+    fundamental_matrix,
+    matrix_exponential,
     matrix_of,
+    split_system,
 )
 
 T = sp.Symbol("t", real=True)
@@ -55,22 +58,34 @@ def test_the_matrix_is_read_off_the_equations():
 
 
 @pytest.mark.parametrize("equations", [
-    # Forced: the eigenvalue method as stated is for the homogeneous case.
-    [sp.Eq(X(T).diff(T), X(T) + 1), sp.Eq(Y(T).diff(T), Y(T))],
     # A coefficient that depends on t.
     [sp.Eq(X(T).diff(T), T * X(T)), sp.Eq(Y(T).diff(T), Y(T))],
-    # Nonlinear.
+    # Nonlinear: a product of two unknowns.
     [sp.Eq(X(T).diff(T), X(T) * Y(T)), sp.Eq(Y(T).diff(T), Y(T))],
 ])
 def test_a_system_the_method_does_not_fit_is_declined(equations):
     """Declined rather than narrated badly. A method whose hypotheses have
     failed should say so, not produce steps that look like working."""
+    assert split_system(equations, [X, Y]) is None
     assert matrix_of(equations, [X, Y]) is None
 
     derivation = derive(equations, [X, Y])
     assert derivation.result is None
-    assert "homogeneous first-order system" in derivation.message
+    assert "constant coefficients" in derivation.message
     assert not derivation.steps
+
+
+def test_forcing_is_split_off_rather_than_refused():
+    """`matrix_of` asks the narrower question -- is this homogeneous -- and a
+    forced system is correctly not that. But it is still solvable, and
+    `split_system` is what says so."""
+    forced = [sp.Eq(X(T).diff(T), X(T) + 2 * Y(T) + sp.exp(T)),
+              sp.Eq(Y(T).diff(T), 3 * X(T) + 2 * Y(T))]
+
+    assert matrix_of(forced, [X, Y]) is None
+    matrix, forcing = split_system(forced, [X, Y])
+    assert matrix == sp.Matrix([[1, 2], [3, 2]])
+    assert forcing == sp.Matrix([sp.exp(T), 0])
 
 
 # ---------------------------------------------------------------------------
@@ -230,3 +245,87 @@ def test_systems_needs_no_interface_toolkit():
     done = subprocess.run([sys.executable, "-c", code], capture_output=True,
                           text=True)
     assert done.returncode == 0, done.stderr[-400:]
+
+
+# ---------------------------------------------------------------------------
+# Forcing: varying the constants
+# ---------------------------------------------------------------------------
+
+
+FORCED = [sp.Eq(X(T).diff(T), X(T) + 2 * Y(T) + sp.exp(T)),
+          sp.Eq(Y(T).diff(T), 3 * X(T) + 2 * Y(T))]
+
+
+def test_a_forced_system_is_solved_and_verified():
+    derivation = derive(FORCED, [X, Y])
+
+    assert derivation.result is not None, derivation.message
+    assert derivation.verified is True
+    assert derivation.complete
+    assert not [s for s in derivation.steps if s.verified is False]
+
+
+def test_the_forced_narration_solves_the_homogeneous_part_first():
+    titles = [s.title for s in derive(FORCED, [X, Y]).steps]
+
+    assert "The homogeneous solution" in titles
+    assert "Build the fundamental matrix" in titles
+    assert "Vary the constants" in titles
+    assert "A particular solution" in titles
+    assert titles[-1] == "The general solution"
+    # The origin is not classified for a forced system: with forcing there is
+    # generally no equilibrium at the origin to classify.
+    assert "What the origin is" not in titles
+
+
+def test_the_basis_is_judged_against_the_homogeneous_system():
+    """The fundamental set solves x' = Ax, not the forced system. Checking it
+    against the forced one would report a correct basis as wrong -- the trap
+    the second-order narrator documents and this one has to avoid too."""
+    step = next(s for s in derive(FORCED, [X, Y]).steps
+                if s.title == "Each pair gives a solution")
+    assert step.verified is True
+
+
+def test_the_particular_solution_carries_no_constants():
+    derivation = derive(FORCED, [X, Y])
+    step = next(s for s in derivation.steps
+                if s.title == "A particular solution")
+    assert "C_{1}" not in step.latex and "C_{2}" not in step.latex
+
+
+def test_conditions_apply_to_a_forced_system():
+    derivation = derive(FORCED, [X, Y], ics={X(0): 1, Y(0): 0})
+
+    assert derivation.complete
+    assert not derivation.result.free_symbols - {T}
+    assert sp.simplify(derivation.result[0].subs(T, 0) - 1) == 0
+    assert sp.simplify(derivation.result[1].subs(T, 0)) == 0
+
+
+def test_a_homogeneous_system_is_untouched_by_the_forcing_branch():
+    """The path every other lesson in the unit uses must not change."""
+    titles = [s.title for s in _derive(*CASES["distinct"]).steps]
+    assert "Build the fundamental matrix" not in titles
+    assert titles[-1] == "What the origin is"
+
+
+def test_the_fundamental_matrix_is_the_basis_as_columns():
+    basis = [sp.Matrix([1, 1]) * sp.exp(-T), sp.Matrix([2, 3]) * sp.exp(4 * T)]
+    phi = fundamental_matrix(basis)
+
+    assert phi.shape == (2, 2)
+    assert phi[:, 0] == basis[0]
+    assert sp.simplify(phi.det()) != 0
+
+
+def test_the_matrix_exponential_is_the_identity_at_zero():
+    """Any two fundamental matrices differ by a constant matrix on the right;
+    e^{At} is the one normalised so that x(t) = e^{At}x(0)."""
+    exponential = matrix_exponential(sp.Matrix([[1, 2], [3, 2]]))
+
+    assert sp.simplify(exponential.subs(T, 0) - sp.eye(2)) == sp.zeros(2, 2)
+    # And it solves the system, column by column.
+    assert sp.simplify(exponential.diff(T)
+                       - sp.Matrix([[1, 2], [3, 2]]) * exponential) == \
+        sp.zeros(2, 2)

@@ -8,6 +8,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Nonhomogeneous systems, and the last lesson of the course.** `x' = Ax + f`
+  by varying the constants, with the basis solutions as the columns of a
+  fundamental matrix: `x_p = Φ ∫ Φ⁻¹f dt`. Variation of parameters with the
+  bookkeeping done by a matrix, and it never needs the resonance correction
+  that guessing a form would. `e^{At}` is shown for what it is — the
+  fundamental matrix normalised so `x(t) = e^{At}x(0)`.
+
+  With it Unit 6 is complete and so is the curriculum: **thirty-five lessons
+  across seven units**, which is the whole of the plan.
+
+  The basis is still checked against the *homogeneous* system, not the forced
+  one — checking it against the forced one would report a correct fundamental
+  set as wrong, which is the trap the second-order narrator documents.
+
 - **`Unit Quiz` — a mixed set from one unit.** The Lessons screen asks about
   one topic at a time, which is how you learn a technique and not how you are
   examined on one. Working out *which* method a question wants is most of the
@@ -382,6 +396,16 @@ All notable changes to this project are documented here. The format follows
   property that mattered.
 
 ### Fixed
+
+- **A system's answer was shown unchecked, and its structure not shown at
+  all.** `_verify` skipped systems outright, so the Studio presented a closed
+  form with no verdict on it; `characteristic_analysis` returned nothing, so
+  the root table was blank — which reads as "this equation has no structure"
+  rather than as "we did not look". Both now work: the polynomial is
+  `det(A − λI)`, whose roots are the eigenvalues, and the answer is verified
+  with every component substituted into every equation at once. A pair that
+  satisfies the first equation and fails the second is caught, which
+  substituting one equation at a time would not do.
 
 - **sympy's unevaluated `InverseLaplaceTransform` was shown as the answer.**
   Where the inverse transform has no elementary form, sympy either returns

@@ -77,7 +77,7 @@ gains nothing from it. `scipy.integrate.solve_ivp` has no equivalent.
 ## Verification
 
 Correctness evidence is the point of this project, so it is worth being specific about
-what is actually checked. **2769 tests**, of which the load-bearing ones are:
+what is actually checked. **2804 tests**, of which the load-bearing ones are:
 
 **Order conditions, algebraically.** `tests/test_tableaux.py` evaluates the rooted-tree
 order conditions through order 5 for every Butcher tableau, and asserts that the
@@ -115,7 +115,7 @@ controller running blind, was the wrong place to have a gap.
 oracle only — never as the basis of an order or accuracy claim.
 
 ```
-py -3.10 -m pytest tests/ -q          # 2750 passed, 19 skipped, ~8 min
+py -3.10 -m pytest tests/ -q          # 2785 passed, 19 skipped, ~6 min
 py -3.10 -m pytest tests/ -q -m 'not slow'   # the fast loop, ~3.5 min
 py -3.10 -m ruff check . && py -3.10 -m mypy # lint and types, both clean
 py -3.10 benchmarks/run_all.py        # regenerate every static figure below
@@ -342,7 +342,7 @@ be written.
 **Lessons** is where the work happens. One lesson at a time, in four parts: **Learn**
 (what you should be able to do afterwards, then the notes), **Examples** (each worked
 through by the narrator, on request), **Practice** (your turn), and **Drill** (below).
-Thirty-four lessons today, filed under the chapters of Edwards, Penney and Calvis, which
+Thirty-five lessons today, filed under the chapters of Edwards, Penney and Calvis, which
 is the course this follows:
 
 - **First-order equations** — what a differential equation is; slope fields, existence
@@ -362,7 +362,8 @@ is the course this follows:
 
 - **Linear systems** — first-order systems and how everything becomes one; the
   eigenvalue method with real distinct eigenvalues; complex eigenvalues; repeated
-  eigenvalues and defective matrices; phase portraits.
+  eigenvalues and defective matrices; nonhomogeneous systems and the matrix
+  exponential; phase portraits.
 
 - **Series solutions** — power series and ordinary points; recurrence relations and the
   radius of convergence; regular singular points, and what Frobenius is for.
@@ -504,9 +505,23 @@ full rather than quoted. A **defective** matrix gets a generalised eigenvector f
 `(A − λI)w = v`, and the `t` in `(vt + w)e^{λt}` is there to cancel a leftover term
 rather than by convention.
 
-Everything is checked: the matrix is reconstructed into the equations it came from,
-the characteristic polynomial is expanded back, every eigenvector goes through
-`Av = λv`, and every basis solution is substituted into the system.
+**Forcing is handled by varying the constants**, with the basis solutions as the columns
+of a fundamental matrix: `x_p = Φ ∫ Φ⁻¹f dt`. It is variation of parameters with the
+bookkeeping done by a matrix, and it never needs the resonance correction that guessing
+a form would. `e^{At}` is shown for what it is — the fundamental matrix normalised so
+that `x(t) = e^{At}x(0)`, which is the same shape as the scalar `e^{at}y(0)`.
+
+Everything is checked: the matrix and the forcing are reconstructed into the equations
+they came from, the characteristic polynomial is expanded back, every eigenvector goes
+through `Av = λv`, and every basis solution is substituted into the **homogeneous**
+system — checking it against a forced one would report a correct fundamental set as
+wrong.
+
+**A system's answer is analysed and verified like any other.** Its characteristic
+polynomial is `det(A − λI)` — the same object under another name, whose roots are the
+eigenvalues — and the closed form is substituted back with every component going into
+every equation at once. Both used to be skipped, which left the Studio showing a
+system's root table blank and its answer unchecked.
 
 **Check your answer works on systems as well**, component by component. A system's
 answer is several functions, so it is typed as several lines — `x = ...` on one and
@@ -886,7 +901,7 @@ src/odesuite_app/                                    the studio
              learn_problems learn_quiz               Learning Hub
   widgets/                                           sliders, cards, plots, figures, maths
 
-tests/         2769 tests
+tests/         2804 tests
 benchmarks/    the four static figures
 packaging/     PyInstaller spec and launcher
 ```

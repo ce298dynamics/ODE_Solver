@@ -20,8 +20,8 @@ from __future__ import annotations
 
 from .model import Choice, Example, Lesson, Note, Solve, Template
 
-__all__ = ["FIRSTORDER", "DISTINCT", "COMPLEX", "REPEATED", "PORTRAITS",
-           "LESSONS"]
+__all__ = ["FIRSTORDER", "DISTINCT", "COMPLEX", "REPEATED",
+           "NONHOMOGENEOUS", "PORTRAITS", "LESSONS"]
 
 
 FIRSTORDER = Lesson(
@@ -974,4 +974,196 @@ PORTRAITS = Lesson(
 )
 
 
-LESSONS = (FIRSTORDER, DISTINCT, COMPLEX, REPEATED, PORTRAITS)
+NONHOMOGENEOUS = Lesson(
+    key="forced-systems",
+    title="Nonhomogeneous systems and the matrix exponential",
+    summary="What to do when something is driving the system, and the one "
+            "matrix that expresses the whole answer.",
+    tool="steps",
+    reference="Edwards 5.5–5.6",
+    prerequisites=("eigenvalues", "variation"),
+    objectives=(
+        "Split a forced system into its matrix and its forcing.",
+        "Build the fundamental matrix from the basis solutions.",
+        "Find a particular solution by varying the constants.",
+        "Say what e^{At} is, and why it is the natural fundamental matrix.",
+    ),
+    examples=(
+        Example(
+            equation="x' = x + 2*y + exp(t); y' = 3*x + 2*y",
+            narrator="systems",
+            why="The saddle from two lessons ago, now with something pushing "
+                "on it. Watch the homogeneous work happen unchanged, and the "
+                "forcing handled entirely afterwards.",
+        ),
+        Example(
+            equation="x' = -2*x + y + 1; y' = x - 2*y",
+            narrator="systems",
+            why="Constant forcing on a stable node, which is the case with a "
+                "constant particular solution — the system settles to a new "
+                "equilibrium away from the origin rather than to zero.",
+        ),
+    ),
+    notes=(
+        Note(
+            "Homogeneous first, forcing second",
+            "The structure is the one every linear problem has: the general "
+            "solution is the homogeneous family plus any one solution of the "
+            "forced system. So none of the eigenvalue work is wasted — it is "
+            "the first half of the answer, unchanged.",
+            r"\mathbf{x} = \mathbf{x}_h + \mathbf{x}_p",
+        ),
+        Note(
+            "The fundamental matrix",
+            "Put the basis solutions in as columns. Φ(t) is invertible at "
+            "every t precisely because those columns are independent, which "
+            "is what the eigenvector work established — and everything below "
+            "divides by it.",
+            r"\Phi(t) = \big[\ \mathbf{x}_1 \ \ \mathbf{x}_2\ \big]",
+            "formula",
+        ),
+        Note(
+            "Vary the constants, again",
+            "Replace the constant vector c by a function of t. Requiring "
+            "Φc′ = f is what makes the derivative come out right, and it "
+            "leaves c′ = Φ⁻¹f — one integral per constant. It is variation of "
+            "parameters with the bookkeeping done by a matrix.",
+            r"\mathbf{x}_p = \Phi(t)\int \Phi^{-1}(t)\,\mathbf{f}(t)\,dt",
+            "formula",
+        ),
+        Note(
+            "No constants when you integrate",
+            "As in the scalar case: a constant of integration would only add "
+            "a multiple of a basis solution back in, and the homogeneous part "
+            "already carries every one of those with an arbitrary "
+            "coefficient.",
+            r"\int \Phi^{-1}\mathbf{f}\,dt \quad (\text{no } +\mathbf{c})",
+            "pitfall",
+        ),
+        Note(
+            "e^{At} is the fundamental matrix normalised at zero",
+            "Any two fundamental matrices differ by a constant matrix on the "
+            "right, so there is a whole family of them. The exponential is "
+            "the one that is the identity at t = 0, which makes the answer to "
+            "the homogeneous problem simply x(t) = e^{At}x(0) — the same "
+            "shape as the scalar e^{at}y(0), and the reason it is written "
+            "that way.",
+            r"e^{At}\big|_{t=0} = I, \qquad \mathbf{x}(t) = "
+            r"e^{At}\mathbf{x}(0)",
+            "idea",
+        ),
+    ),
+    questions=(
+        Choice(
+            key="q1",
+            prompt="For x′ = Ax + f, the general solution is…",
+            options=(
+                "any solution of x′ = Ax",
+                "the homogeneous family plus one solution of the forced system",
+                "any solution of x′ = Ax + f",
+                "e^{At} times the forcing",
+            ),
+            answer=1,
+            becauses=(
+                "That solves the wrong equation — it ignores f entirely, and "
+                "substituting it leaves f behind.",
+                "The same structure as every linear problem: x_h carries the "
+                "arbitrary constants and x_p accounts for the forcing. Both "
+                "halves are needed, and neither alone is general.",
+                "One solution of the forced system is *particular*, not "
+                "general — it has no constants and so cannot meet an "
+                "arbitrary initial condition.",
+                "e^{At} solves the homogeneous system. Multiplying it by f is "
+                "not a solution of anything in particular.",
+            ),
+        ),
+        Choice(
+            key="q2",
+            prompt="What is Φ(t) built from?",
+            options=(
+                "the eigenvalues, down the diagonal",
+                "the basis solutions, as columns",
+                "the eigenvectors alone, as columns",
+                "the forcing term",
+            ),
+            answer=1,
+            becauses=(
+                "A diagonal matrix of eigenvalues is A in a different basis, "
+                "not a matrix of solutions. Φ has to solve the system column "
+                "by column.",
+                "Each column is one solution of x′ = Ax, so Φ′ = AΦ. Its "
+                "determinant is non-zero for every t because the solutions "
+                "are independent, which is what lets the formula divide by "
+                "it.",
+                "The eigenvectors are constant; the columns must be "
+                "*functions* of t, so each carries its e^{λt} with it.",
+                "Φ describes the system, not what is driving it. The forcing "
+                "enters only in the integral.",
+            ),
+        ),
+        Choice(
+            key="q3",
+            prompt="Why is there no constant of integration in "
+                   "∫Φ⁻¹f dt?",
+            options=(
+                "The integral is definite",
+                "It would only re-add multiples of the basis solutions",
+                "Φ⁻¹f always integrates to zero",
+                "Constants are added at the end instead",
+            ),
+            answer=1,
+            becauses=(
+                "You may write it as a definite integral, but that is a "
+                "choice of form; the reason the constant is harmless is the "
+                "one below.",
+                "A constant vector c₀ contributes Φc₀, which is exactly a "
+                "combination of the basis solutions — and the homogeneous "
+                "part already carries every one of those with an arbitrary "
+                "coefficient.",
+                "It does not. It integrates to whatever it integrates to, and "
+                "that is the particular solution.",
+                "The arbitrary constants are the homogeneous ones, and they "
+                "were there before the integral was taken.",
+            ),
+        ),
+        Choice(
+            key="q4",
+            prompt="What distinguishes e^{At} from any other fundamental "
+                   "matrix?",
+            options=(
+                "It is the only invertible one",
+                "It equals the identity at t = 0",
+                "It is diagonal",
+                "It is the only one whose columns solve the system",
+            ),
+            answer=1,
+            becauses=(
+                "Every fundamental matrix is invertible at every t — that is "
+                "what makes it fundamental.",
+                "Any two differ by a constant matrix on the right, so the "
+                "family is large; e^{At} is the member normalised so that "
+                "x(t) = e^{At}x(0) with no extra factor to work out.",
+                "It is diagonal only when A is. For the saddle in this unit "
+                "it is emphatically not.",
+                "Every fundamental matrix has that property, by definition.",
+            ),
+        ),
+        Solve(
+            key="q5",
+            prompt="A driven saddle.",
+            equation="x' = x + 2*y + exp(t); y' = 3*x + 2*y",
+            hints=(
+                "Solve the homogeneous system first — it is the saddle from "
+                "the eigenvalue lesson, with eigenvalues −1 and 4.",
+                "Put the two basis solutions in as columns to get Φ(t), then "
+                "form Φ⁻¹f with f = (eᵗ, 0).",
+                "Integrate each entry, multiply back by Φ, and add the result "
+                "to the homogeneous solution.",
+            ),
+        ),
+    ),
+)
+
+
+LESSONS = (FIRSTORDER, DISTINCT, COMPLEX, REPEATED,
+           NONHOMOGENEOUS, PORTRAITS)

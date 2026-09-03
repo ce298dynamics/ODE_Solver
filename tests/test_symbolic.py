@@ -23,7 +23,9 @@ from odesuite_app.custom import ParseError  # noqa: E402
 from odesuite_app.symbolic import (  # noqa: E402
     EXAMPLES,
     EquationSpec,
+    SymbolicSolution,
     characteristic_analysis,
+    describe_roots,
     parse_equation,
     solve_symbolically,
     to_first_order,
@@ -414,3 +416,110 @@ def test_every_example_parses_and_integrates(name):
     problem = to_first_order(parsed)
     numeric = solve(problem, method="radau", rtol=1e-8, atol=1e-11, max_steps=300_000)
     assert numeric.success, f"{name}: {numeric.message}"
+
+
+# ---------------------------------------------------------------------------
+# Systems reach the analysis and the verification
+# ---------------------------------------------------------------------------
+
+
+def _parsed_system(equations=None, conditions=""):
+    return parse_equation(EquationSpec(
+        equations=equations or ["x' = x + 2*y", "y' = 3*x + 2*y"],
+        variables=["x", "y"], initial_conditions=conditions,
+    ))
+
+
+def test_a_system_gets_a_characteristic_analysis():
+    """It used to return nothing at all, which left the Studio's root table
+    blank -- reading as "this equation has no structure" rather than as "we did
+    not look"."""
+    analysis = characteristic_analysis(_parsed_system())
+
+    assert analysis["linear"] is True
+    assert analysis["constant_coefficients"] is True
+    assert analysis["homogeneous"] is True
+    assert analysis["poly"] is not None
+    assert [value for value, _ in analysis["roots"]] == [-1, 4]
+    assert len(analysis["fundamental_set"]) == 2
+
+
+def test_the_systems_polynomial_is_the_determinant():
+    """det(A - lambda I) is the characteristic polynomial under another name,
+    and its roots are the eigenvalues."""
+    analysis = characteristic_analysis(_parsed_system())
+    lam = sp.Symbol("lambda")
+
+    assert sp.simplify(analysis["poly"] - (lam**2 - 3 * lam - 4)) == 0
+    for value, _ in analysis["roots"]:
+        assert sp.simplify(analysis["poly"].subs(lam, value)) == 0
+
+
+def test_a_forced_system_is_reported_as_nonhomogeneous():
+    analysis = characteristic_analysis(_parsed_system(
+        ["x' = x + 2*y + exp(t)", "y' = 3*x + 2*y"]
+    ))
+    assert analysis["homogeneous"] is False
+    assert analysis["forcing"] is not None
+
+
+def test_a_system_the_analysis_cannot_read_still_reports_nothing():
+    """Nonlinear: there is no matrix to take a determinant of, and inventing
+    one would be worse than an empty table."""
+    analysis = characteristic_analysis(_parsed_system(
+        ["x' = x*y", "y' = y"]
+    ))
+    assert analysis["poly"] is None
+    assert analysis["roots"] == []
+
+
+def test_the_words_come_from_the_general_branch_for_a_system():
+    """A parsed system has order 1, so `describe_roots` avoids the damping
+    vocabulary -- which belongs to a second-order equation, not to a saddle."""
+    parsed = _parsed_system()
+    analysis = characteristic_analysis(parsed)
+    words = describe_roots(analysis["roots"], parsed.order)
+
+    assert "damped" not in words
+    assert "grows without bound" in words
+
+
+def test_a_systems_answer_is_verified_rather_than_left_unchecked():
+    """`_verify` used to skip systems outright, so the Studio showed a
+    system's closed form with no verdict on it at all."""
+    from odesuite_app.symbolic import _verify
+
+    parsed = _parsed_system()
+    solution = SymbolicSolution()
+    c1, c2 = sp.Symbol("C1"), sp.Symbol("C2")
+    solution.general = [
+        -c1 * sp.exp(-T) + 2 * c2 * sp.exp(4 * T) / 3,
+        c1 * sp.exp(-T) + c2 * sp.exp(4 * T),
+    ]
+    _verify(parsed, solution)
+
+    assert solution.verified is True
+
+
+def test_a_wrong_systems_answer_is_caught_in_every_equation():
+    """The near-miss worth catching: a pair can satisfy the first equation and
+    fail the second, and substituting one equation at a time would miss it."""
+    from odesuite_app.symbolic import _verify
+
+    parsed = _parsed_system()
+    solution = SymbolicSolution()
+    solution.general = [sp.exp(T), sp.exp(T)]
+    _verify(parsed, solution)
+
+    assert solution.verified is False
+
+
+def test_a_component_short_is_reported_as_undecided():
+    from odesuite_app.symbolic import _verify
+
+    parsed = _parsed_system()
+    solution = SymbolicSolution()
+    solution.general = [sp.exp(-T)]
+    _verify(parsed, solution)
+
+    assert solution.verified is None

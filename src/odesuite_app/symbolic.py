@@ -415,8 +415,58 @@ def characteristic_analysis(parsed: ParsedEquation) -> dict:
     complex pair.
     """
     if parsed.is_system:
-        return _no_analysis()
+        return _system_analysis(parsed)
     return analyse_linear(parsed.equation, parsed.function, parsed.order)
+
+
+def _system_analysis(parsed: ParsedEquation) -> dict:
+    """The same table, read off a matrix instead of a polynomial.
+
+    A system has no characteristic *polynomial* in the scalar sense, but it
+    has the same object under a different name: ``det(A - lambda I)``, whose
+    roots are the eigenvalues and decide the behaviour exactly as the
+    characteristic roots do. Reporting nothing here left the Studio's root
+    table blank for systems, which read as "this equation has no structure"
+    rather than "we did not look".
+
+    `describe_roots` then summarises these through its general branch, because
+    a parsed system has `order == 1` -- and that is the right branch. The
+    damping vocabulary belongs to a second-order *equation*; a system's origin
+    is named saddle or node or spiral, which `systems.classify` does inside
+    the narration where the eigenvectors are also to hand.
+    """
+    from .systems import split_system
+
+    result = _no_analysis()
+    parts = split_system(parsed.equations, parsed.functions)
+    if parts is None:
+        return result
+    matrix, forcing = parts
+
+    lam = sp.Symbol("lambda")
+    polynomial = sp.expand((matrix - lam * sp.eye(matrix.shape[0])).det())
+    try:
+        roots = sp.roots(sp.Poly(polynomial, lam))
+    except Exception:
+        return result
+    if not roots:
+        return result
+
+    basis: list = []
+    for value, multiplicity, vectors in matrix.eigenvects():
+        for vector in vectors[:multiplicity]:
+            basis.append(vector * sp.exp(value * _T))
+
+    return {
+        "linear": True,
+        "homogeneous": all(entry == 0 for entry in forcing),
+        "constant_coefficients": True,
+        "poly": polynomial,
+        "roots": sorted(roots.items(), key=lambda item: sp.default_sort_key(
+            item[0])),
+        "fundamental_set": basis,
+        "forcing": forcing if any(entry != 0 for entry in forcing) else None,
+    }
 
 
 def _no_analysis() -> dict:
@@ -797,7 +847,10 @@ def _verify(parsed: ParsedEquation, solution: SymbolicSolution) -> None:
     certain.
     """
     candidate = solution.best
-    if candidate is None or parsed.is_system:
+    if candidate is None:
+        return
+    if parsed.is_system:
+        _verify_system(parsed, solution, candidate)
         return
     try:
         equation = parsed.equation
@@ -808,6 +861,36 @@ def _verify(parsed: ParsedEquation, solution: SymbolicSolution) -> None:
         )
         solution.residual = residual
         solution.verified = bool(sp.simplify(residual) == 0)
+    except Exception:
+        solution.verified = None
+
+
+def _verify_system(parsed: ParsedEquation, solution: SymbolicSolution,
+                   candidate) -> None:
+    """The same substitution, all components into all equations at once.
+
+    A system's answer is one function per unknown, so every component has to
+    go into every equation together -- substituting them one equation at a
+    time would call a pair correct that satisfies the first and fails the
+    second. This used to be skipped entirely, which left the Studio showing a
+    system's answer unchecked even though checking it is no harder than
+    checking a scalar one.
+    """
+    parts = candidate if isinstance(candidate, (list, tuple)) else [candidate]
+    if len(parts) != len(parsed.functions):
+        solution.verified = None
+        return
+    try:
+        substitutions = {function(_T): part
+                         for function, part in zip(parsed.functions, parts)}
+        residuals = [
+            sp.simplify((equation.lhs - equation.rhs)
+                        .subs(substitutions).doit())
+            for equation in parsed.equations
+        ]
+        solution.residual = sp.Matrix(residuals)
+        solution.verified = all(sp.simplify(residual) == 0
+                                for residual in residuals)
     except Exception:
         solution.verified = None
 
