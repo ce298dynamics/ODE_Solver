@@ -13,7 +13,15 @@ steady state -- and two figures to move.
 
 from __future__ import annotations
 
-from .model import Choice, Example, Lesson, Note, Solve, Template
+from .model import (
+    Choice,
+    Example,
+    Lesson,
+    Note,
+    Passage,
+    Solve,
+    Template,
+)
 
 __all__ = ["FREE", "FORCED", "CIRCUITS", "LESSONS"]
 
@@ -25,6 +33,94 @@ FREE = Lesson(
             "decides which one you get.",
     tool="steps",
     reference="Edwards 3.4",
+    motivation=(
+        "The previous unit solved second-order constant-coefficient equations "
+        "completely, and left the impression that the three cases — two real "
+        "roots, a repeated root, a complex pair — are three pieces of algebra "
+        "to keep straight. They are not. They are three physically distinct "
+        "behaviours, and the point of this unit is that the algebra was "
+        "telling you which one you had all along.\n\n"
+        "The setting is the most-used equation in engineering: a mass, "
+        "something pulling it back towards where it started, and something "
+        "removing energy. A car's suspension, a building in wind, the needle "
+        "of a meter, an atom in a lattice. All three parameters are positive "
+        "and physical, and the question is what combinations of them produce "
+        "what motion.\n\n"
+        "One number answers it. Not three parameters but a single combination "
+        "of them decides whether the mass oscillates, and the reason is that "
+        "the discriminant of the characteristic polynomial is that "
+        "combination. So the boundary between ringing and not ringing is not "
+        "a rule to remember; it is the point where a square root changes "
+        "sign."
+    ),
+    derivation=(
+        Passage(
+            prose="Write down the forces. A spring pulls back in proportion to the "
+                  "displacement, and a damper resists in proportion to the velocity — "
+                  "both with a minus sign, because both oppose. Newton's law then gives "
+                  "the equation, with all three constants positive.",
+            latex=r"m\,x'' = -k\,x - c\,x' \;\Longrightarrow\; m\,x'' + c\,x' + k\,x = 0",
+        ),
+        Passage(
+            prose="It has constant coefficients, so the previous unit applies without "
+                  "modification: the roots of the characteristic polynomial decide "
+                  "everything, and they are given by the quadratic formula.",
+            latex=r"m\,r^{2} + c\,r + k = 0 \;\Longrightarrow\; r = \frac{-c "
+                  r"\pm \sqrt{c^{2} - 4mk}}{2m}",
+        ),
+        Passage(
+            prose="Look at what is under the root, and notice that it is the only place "
+                  "any choice is made. Everything else in that formula is real and "
+                  "negative-leaning; the sign of the discriminant alone decides whether "
+                  "the roots are two reals, one repeated real, or a complex pair. Three "
+                  "cases, one number.",
+            latex=r"c^{2} - 4mk \;\; > 0,\; = 0,\; < 0",
+        ),
+        Passage(
+            prose="So the boundary sits where the discriminant vanishes, and that gives "
+                  "the critical damping. It is not a remembered formula: it is where "
+                  "the square root runs out, and the reason it involves the geometric "
+                  "mean of the mass and the stiffness is that the discriminant is a "
+                  "difference of a square and a product.",
+            latex=r"c^{2} = 4mk \;\Longleftrightarrow\; c_{\text{crit}} = 2\sqrt{mk}",
+        ),
+        Passage(
+            prose="Below that value the roots are a complex pair, and the previous unit "
+                  "already converted such a pair into real form. The real part is "
+                  "negative — it is minus c over twice the mass, whatever k does — so "
+                  "the envelope always decays. Underdamped never means undamped, and "
+                  "the decay rate does not depend on the stiffness at all.",
+            latex=r"x = e^{-ct/2m}\left(c_1\cos\omega_d t + c_2\sin\omega_d "
+                  r"t\right), \quad \omega_d = \frac{\sqrt{4mk - c^{2}}}{2m}",
+        ),
+        Passage(
+            prose="Above it both roots are real and both negative, since their sum is "
+                  "negative and their product positive. So the motion is a sum of two "
+                  "decays with no oscillation anywhere in it — and the slower of the "
+                  "two roots governs the long run, which is why adding *more* damping "
+                  "past critical makes the return slower rather than faster.",
+            latex=r"r_1 r_2 = \frac{k}{m} > 0, \quad r_1 + r_2 = -\frac{c}{m} < 0",
+        ),
+        Passage(
+            prose="Exactly at the boundary the root repeats, and the factor of t from "
+                  "the previous unit appears. That single case is the fastest return "
+                  "with no crossing of zero, and both halves of that claim come from "
+                  "the algebra: the repeated root is the largest the decay rate can be "
+                  "made, and a constant plus a multiple of t changes sign at most once.",
+            latex=r"x = \left(c_1 + c_2 t\right)e^{-ct/2m}",
+        ),
+        Passage(
+            prose="One last simplification worth making. Divide the equation by the "
+                  "mass and two combinations appear: a natural frequency and a "
+                  "dimensionless ratio. Written that way the three cases are decided by "
+                  "whether that one dimensionless number is below, at, or above one — "
+                  "and two systems of quite different size behave identically when it "
+                  "matches.",
+            latex=r"x'' + 2\zeta\omega_0 x' + \omega_0^{2}x = 0, \quad "
+                  r"\omega_0 = \sqrt{\frac{k}{m}}, \quad \zeta = "
+                  r"\frac{c}{2\sqrt{mk}}",
+        ),
+    ),
     prerequisites=("roots",),
     figure="damping",
     objectives=(
@@ -40,6 +136,20 @@ FREE = Lesson(
             why="Underdamped: c = 2 against a critical value of 2√5 ≈ 4.47. "
                 "The complex pair −1 ± 2i gives the oscillation inside a "
                 "decaying envelope, which is what a real suspension does.",
+            commentary=(
+                "Compute the discriminant before anything else, and notice you do not "
+                "have to evaluate the square root to know the answer: the damping "
+                "squared is 4 and four times the product is 20, so the discriminant "
+                "is negative and the motion oscillates. One subtraction decides the "
+                "entire qualitative picture.\n\n"
+                "Then read the two halves of the root as two separate physical facts. "
+                "The real part is the decay rate of the envelope and depends only on "
+                "the damping and the mass; the imaginary part is the frequency at "
+                "which the mass actually crosses zero, and it is *lower* than the "
+                "undamped natural frequency because the damping steals from it. Both "
+                "facts are available before the constants are fitted, and the "
+                "conditions only decide the phase."
+            ),
         ),
         Example(
             equation="y'' + 4*y' + 4*y = 0",
@@ -47,6 +157,19 @@ FREE = Lesson(
             why="Critically damped, exactly. c = 4 = 2√(1·4), the repeated "
                 "root, and the factor of t that comes with it — the fastest "
                 "return to rest with no overshoot at all.",
+            commentary=(
+                "Check the discriminant and watch it vanish exactly — this is the "
+                "knife edge, and it is worth confirming by hand that the damping "
+                "squared equals four times the product rather than taking the label "
+                "on trust. Nothing about the equation looks special; only that one "
+                "arithmetic coincidence makes it so.\n\n"
+                "Then watch the factor of t and ask whether it can make the motion "
+                "grow. It cannot: t against a decaying exponential still tends to "
+                "zero, and the exponential wins from the start because it decays at "
+                "the same rate as the fastest available. Notice too that this "
+                "solution crosses zero at most once, which is the precise content of "
+                "*no overshoot* — a claim about a sign change, not about a shape."
+            ),
         ),
     ),
     notes=(
@@ -227,6 +350,96 @@ FORCED = Lesson(
             "its natural frequency is destructive.",
     tool="steps",
     reference="Edwards 3.6",
+    motivation=(
+        "A free vibration is a system left alone, and it always ends the same "
+        "way: at rest. Nothing interesting survives, because nothing is "
+        "putting energy in. Every use of these equations that matters has a "
+        "driving term — a road surface under a wheel, a rotor slightly out of "
+        "balance, a transmitter feeding an antenna.\n\n"
+        "Undetermined coefficients already solves such an equation, so this "
+        "lesson adds no technique. What it adds is the reading of the answer, "
+        "and that turns out to be where all the engineering is. The solution "
+        "splits into a part that remembers how the motion started and a part "
+        "that only knows about the forcing, and after a while only the second "
+        "one is left.\n\n"
+        "Two phenomena come out of that split, and both are famous for good "
+        "reason. Drive a system near its own frequency and the response "
+        "swells; drive it *at* its own frequency with no damping and the "
+        "response grows without limit. Neither is a special case to memorise "
+        "— the first is a denominator getting small and the second is that "
+        "denominator reaching zero."
+    ),
+    derivation=(
+        Passage(
+            prose="Start from the structure, which the undetermined-coefficients lesson "
+                  "established from linearity alone: one particular solution plus the "
+                  "homogeneous family. Here that split has a physical name, because the "
+                  "homogeneous part carries the initial conditions and decays whenever "
+                  "there is any damping at all.",
+            latex=r"x(t) = x_p(t) + x_h(t)",
+        ),
+        Passage(
+            prose="So after long enough only the particular solution is left, whatever "
+                  "the motion started as. That is the steady state, and it is why two "
+                  "identical machines started differently end up behaving identically — "
+                  "a fact about the equation, not about the machines.",
+            latex=r"x_h \to 0 \;\Longrightarrow\; x(t) \to x_p(t)",
+        ),
+        Passage(
+            prose="Now take the undamped case and drive it at a frequency of its own "
+                  "choosing. The trial form is a cosine at the driving frequency, and "
+                  "substituting it gives the amplitude directly. Notice what sits in "
+                  "the denominator.",
+            latex=r"x'' + \omega_0^{2}x = F\cos\omega t \;\Longrightarrow\; "
+                  r"x_p = \frac{F}{\omega_0^{2} - \omega^{2}}\cos\omega t",
+        ),
+        Passage(
+            prose="That denominator is the whole story of resonance, and it needs no "
+                  "new idea. Drive far from the natural frequency and it is large, so "
+                  "the response is small. Bring the two frequencies together and it "
+                  "shrinks, so the response swells — smoothly, with nothing sudden "
+                  "happening until the two are equal.",
+            latex=r"\omega \to \omega_0 \;\Longrightarrow\; \omega_0^{2} - \omega^{2} \to 0",
+        ),
+        Passage(
+            prose="Before they are equal, watch what the sum of two nearby frequencies "
+                  "does. A sum of two cosines is a product of two: one at the average "
+                  "of the frequencies and one at half their difference. If the "
+                  "difference is small, the second factor is slow — so the fast "
+                  "oscillation is heard inside a slowly swelling envelope. Beats are "
+                  "not an interference effect layered on top; they are a trigonometric "
+                  "identity.",
+            latex=r"\cos A - \cos B = 2\sin\frac{B+A}{2}\,\sin\frac{B-A}{2}",
+        ),
+        Passage(
+            prose="At equality the denominator is zero, and the trial form has failed "
+                  "for the reason the undetermined-coefficients lesson gave: the "
+                  "forcing is itself a homogeneous solution, so the operator "
+                  "annihilates the guess. The repair is the same as there — multiply by "
+                  "t.",
+            latex=r"L\left[\cos\omega_0 t\right] = 0 \;\Longrightarrow\; x_p = "
+                  r"t\left(A\cos\omega_0 t + B\sin\omega_0 t\right)",
+        ),
+        Passage(
+            prose="Which gives an amplitude growing linearly and without bound. The "
+                  "growth is the arithmetic consequence of the collision, not an extra "
+                  "physical assumption — and it requires the damping to be exactly "
+                  "zero. With any damping at all the roots are not on the imaginary "
+                  "axis, the forcing is not a homogeneous solution, and the response is "
+                  "large but finite.",
+            latex=r"c > 0 \;\Longrightarrow\; \text{amplitude bounded for every } \omega",
+        ),
+        Passage(
+            prose="With damping present, one further detail that is often stated and "
+                  "seldom shown. Maximising the steady-state amplitude over the driving "
+                  "frequency puts the peak slightly *below* the natural frequency, and "
+                  "it moves further down as the damping rises — until, past a certain "
+                  "damping, there is no peak at all and the response simply falls away "
+                  "from its value at zero.",
+            latex=r"\omega_{\text{peak}} = \omega_0\sqrt{1 - 2\zeta^{2}}, "
+                  r"\qquad \zeta < \frac{1}{\sqrt{2}}",
+        ),
+    ),
     prerequisites=("undetermined", "free-vibration"),
     figure="resonance",
     objectives=(
@@ -242,6 +455,20 @@ FORCED = Lesson(
             why="Driven off resonance: ω = 1 against ω₀ = 2. The particular "
                 "solution is an ordinary cosine, and the two frequencies "
                 "together produce the beating envelope.",
+            commentary=(
+                "Compute the denominator from the derivation before reading the "
+                "working: the natural frequency squared is 4 and the driving "
+                "frequency squared is 1, so the amplitude of the response is one "
+                "third of the forcing. Having that number first makes the closed form "
+                "a confirmation rather than a surprise.\n\n"
+                "Then look at why both frequencies survive here. Nothing in this "
+                "equation removes energy, so the homogeneous part never decays and "
+                "there is no steady state to settle into — the two oscillations "
+                "coexist forever. That is what makes the envelope visible at all, and "
+                "it is also why a real system shows beats only briefly: the moment "
+                "there is damping, one of the two frequencies dies and the pattern "
+                "goes with it."
+            ),
         ),
         Example(
             equation="y'' + 4*y = cos(2*t)",
@@ -249,6 +476,19 @@ FORCED = Lesson(
             why="Pure resonance: the forcing is already a solution of the "
                 "homogeneous equation, so the guess has to be multiplied by "
                 "t. That t is the amplitude growing without bound.",
+            commentary=(
+                "Try the plain trial form first and watch the denominator from the "
+                "third passage become zero. That is not an algebra slip, and it is "
+                "not a division to be worked around — it is the sixth passage "
+                "arriving in a concrete case: the operator annihilates the guess, "
+                "so no multiple of it can produce anything but zero.\n\n"
+                "Then read the corrected answer's claim carefully, because it is easy "
+                "to over-generalise. The amplitude grows without limit, and it does "
+                "so only because the damping here is exactly zero — an idealisation "
+                "no physical system meets. What a real system does is respond largely "
+                "and finitely, and the unbounded answer is the limiting case that "
+                "explains why the finite one gets big."
+            ),
         ),
     ),
     notes=(
@@ -443,6 +683,84 @@ CIRCUITS = Lesson(
             "who knows springs already knows circuits.",
     tool="steps",
     reference="Edwards 3.7",
+    motivation=(
+        "A mass on a spring and a circuit with a coil and a capacitor have "
+        "nothing in common physically. One stores energy in a stretched "
+        "spring and in motion; the other stores it in a magnetic field and in "
+        "separated charge. Nothing about either suggests the other.\n\n"
+        "They obey the same equation. Not a similar equation — the same one, "
+        "term for term, with different letters in front. That is a genuinely "
+        "surprising fact and it is the most useful thing in this unit, "
+        "because it means every result already proved about vibration "
+        "transfers to circuits with no work at all: the three damping "
+        "regimes, the critical value, the resonant denominator, the peak "
+        "sitting below the natural frequency.\n\n"
+        "It also runs the other way, which is how the analogy earns its keep "
+        "in practice. Circuits are easy to build and easy to measure, so a "
+        "mechanical system can be studied by building its electrical twin — "
+        "and the one thing to be careful about is which quantity plays which "
+        "role, because the capacitance enters upside down."
+    ),
+    derivation=(
+        Passage(
+            prose="Kirchhoff's voltage law says the applied voltage equals the sum of "
+                  "the drops around the loop. Write the three drops in terms of the "
+                  "current: a resistor's is proportional to it, an inductor's to its "
+                  "rate of change, and a capacitor's to the accumulated charge.",
+            latex=r"L\,\frac{dI}{dt} + R\,I + \frac{1}{C}\,Q = E(t)",
+        ),
+        Passage(
+            prose="That mixes two unknowns, current and charge, so it is not yet an "
+                  "equation. But current *is* the rate of change of charge, so choosing "
+                  "charge as the unknown eliminates the current entirely and leaves one "
+                  "second-order equation.",
+            latex=r"I = \frac{dQ}{dt} \;\Longrightarrow\; L\,Q'' + R\,Q' + "
+                  r"\frac{1}{C}\,Q = E(t)",
+        ),
+        Passage(
+            prose="Now set it beside the mechanical equation and compare term by term. "
+                  "Every term matches, with one constant standing in for another, and "
+                  "nothing is left over on either side. This is not an analogy in the "
+                  "loose sense — it is the same differential equation.",
+            latex=r"m\,x'' + c\,x' + k\,x = F(t) \quad\longleftrightarrow\quad "
+                  r"L\,Q'' + R\,Q' + \frac{1}{C}\,Q = E(t)",
+        ),
+        Passage(
+            prose="Reading the correspondence off gives the dictionary, and it is worth "
+                  "noting what each pairing means rather than memorising the table. "
+                  "Inductance resists a change of current as mass resists a change of "
+                  "velocity; resistance dissipates as a damper does; and the "
+                  "*reciprocal* of the capacitance is the stiffness, because a small "
+                  "capacitor pushes back hard against accumulated charge.",
+            latex=r"L \leftrightarrow m, \quad R \leftrightarrow c, \quad "
+                  r"\frac{1}{C} \leftrightarrow k",
+        ),
+        Passage(
+            prose="Which explains the one thing that catches people. The capacitance is "
+                  "not the stiffness, it is the *compliance* — the electrical "
+                  "equivalent of a soft spring is a large capacitor. Substituting C "
+                  "where 1/C belongs inverts the natural frequency and misplaces the "
+                  "critical damping, and the answer looks plausible throughout.",
+            latex=r"\omega_0 = \frac{1}{\sqrt{LC}}, \qquad R_{\text{crit}} = "
+                  r"2\sqrt{\frac{L}{C}}",
+        ),
+        Passage(
+            prose="With the dictionary in hand every earlier result transfers "
+                  "mechanically. Too little resistance and the charge oscillates as it "
+                  "drains; too much and it decays without ever crossing zero; at the "
+                  "critical value the roots repeat and a factor of t appears — the same "
+                  "three cases, and the same discriminant deciding between them.",
+            latex=r"R^{2} - \frac{4L}{C} \;\; > 0,\; = 0,\; < 0",
+        ),
+        Passage(
+            prose="And the resonant denominator transfers too, which is what a radio "
+                  "is. Driving the loop at its own frequency makes the response large "
+                  "while every other frequency is suppressed, so tuning is nothing more "
+                  "than changing the capacitance until the natural frequency matches "
+                  "the station — and the resistance sets how sharply the peak selects.",
+            latex=r"\omega = \frac{1}{\sqrt{LC}} \;\Longrightarrow\; \text{maximum response}",
+        ),
+    ),
     prerequisites=("free-vibration", "forced-vibration"),
     objectives=(
         "Write the RLC equation from Kirchhoff's voltage law.",
@@ -457,6 +775,19 @@ CIRCUITS = Lesson(
             why="L = 1, R = 4, 1/C = 3 — an overdamped circuit, the charge "
                 "decaying without ringing. The same equation as an "
                 "overdamped spring, and it is solved the same way.",
+            commentary=(
+                "Translate before solving. Read the three coefficients as an "
+                "inductance, a resistance and a reciprocal capacitance, then compute "
+                "the discriminant in those terms: it is positive, so the roots are "
+                "real and the charge drains without ringing. The whole qualitative "
+                "answer arrives before any algebra, exactly as it did for the spring.\n\n"
+                "Then note what the answer describes. The unknown here is charge, not "
+                "displacement, so its derivative is the current — and the current is "
+                "therefore a difference of the same two exponentials, which means it "
+                "starts at zero, rises, and dies. A circuit that never rings still "
+                "has a current that peaks and falls, and that peak is invisible in "
+                "the charge alone."
+            ),
         ),
         Example(
             equation="y'' + 2*y' + 26*y = 0",
@@ -464,6 +795,19 @@ CIRCUITS = Lesson(
             why="A ringing circuit: roots −1 ± 5i. The oscillation is the "
                 "charge sloshing between the capacitor and the inductor, "
                 "with the resistance draining it.",
+            commentary=(
+                "Here the discriminant is negative, so the pair is complex and the "
+                "circuit rings. Work out what is physically oscillating: energy "
+                "moving from the capacitor into the inductor's magnetic field and "
+                "back, with the resistance taking a share on every pass. The "
+                "imaginary part of the root is how fast it changes hands and the real "
+                "part is how fast the resistance empties it.\n\n"
+                "Then look at the conditions, which are the other way round from the "
+                "previous example: no charge to begin with, but a current already "
+                "flowing. In mechanical terms that is a mass at its rest position "
+                "with a velocity — a plucked string rather than a released one. The "
+                "equation cannot tell the difference, and neither can the answer."
+            ),
         ),
     ),
     notes=(

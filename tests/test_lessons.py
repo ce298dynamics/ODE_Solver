@@ -218,6 +218,9 @@ FULL_DEPTH = (
     "variation",
     "cauchy",
     "higher",
+    "free-vibration",
+    "forced-vibration",
+    "circuits",
 )
 
 DEEP = [by_key(key) for key in FULL_DEPTH]
