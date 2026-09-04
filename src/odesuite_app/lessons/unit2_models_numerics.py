@@ -363,7 +363,7 @@ EQUILIBRIA = Lesson(
         Passage(
             prose="That is already the whole qualitative answer. The sign of f on each "
                   "side of an equilibrium settles its character — arrows in from both "
-                  "sides is stable, out from both is unstable, one of each is semi- "
+                  "sides is stable, out from both is unstable, one of each is semi-"
                   "stable — and a line marked with those arrows can be read off faster "
                   "than any solution can be computed.",
             latex=r"f(y_0) = 0,\ f > 0 \text{ below},\ f < 0 \text{ above} "
@@ -634,7 +634,7 @@ MOTION = Lesson(
         Passage(
             prose="But it is also autonomous, so the previous lesson applies without "
                   "solving anything. Setting the right-hand side to zero gives the one "
-                  "velocity at which the two forces balance, and the sign of the right- "
+                  "velocity at which the two forces balance, and the sign of the right-"
                   "hand side on either side of it shows every solution moving towards "
                   "it. Terminal velocity is a stable equilibrium, and it costs a "
                   "division to find.",

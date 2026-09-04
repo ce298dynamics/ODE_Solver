@@ -11,7 +11,15 @@ case belong here too, and arrive with the narrator each needs.
 
 from __future__ import annotations
 
-from .model import Choice, Example, Lesson, Note, Solve, Template
+from .model import (
+    Choice,
+    Example,
+    Lesson,
+    Note,
+    Passage,
+    Solve,
+    Template,
+)
 
 __all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED", "VARIATION",
            "CAUCHY", "HIGHER", "LESSONS"]
@@ -24,6 +32,77 @@ ROOTS = Lesson(
             "becomes a quadratic.",
     tool="steps",
     reference="Edwards 3.1–3.3",
+    motivation=(
+        "Superposition says that two independent solutions are the whole "
+        "answer. It does not say how to find even one of them, and for a "
+        "general second-order equation with varying coefficients nobody can. "
+        "The case that goes through completely is the one where the "
+        "coefficients are constants — which is also, by a wide margin, the "
+        "case that arises.\n\n"
+        "The reason constants are tractable is worth stating plainly. With "
+        "constant coefficients the equation does not care where the origin of "
+        "time is, so its solutions must be functions whose *shape* is "
+        "unchanged by a shift in time. There is essentially one such "
+        "function, and that is the whole of why the exponential is the right "
+        "thing to try.\n\n"
+        "What follows is the most mechanical procedure in the course: write a "
+        "polynomial, find its roots, read off the answer. It repays being "
+        "understood rather than memorised, because the two awkward cases — a "
+        "repeated root and a complex pair — both look arbitrary if the reason "
+        "for the exponential is not clear."
+    ),
+    derivation=(
+        Passage(
+            prose="Try an exponential and watch what the operator does to it. Every "
+                  "derivative multiplies by the same constant, so the exponential comes "
+                  "straight back out and what is left in front of it is a polynomial.",
+            latex=r"L\left[e^{rt}\right] = \left(a r^{2} + b r + c\right)e^{rt}",
+        ),
+        Passage(
+            prose="An exponential is never zero, so the whole equation collapses to "
+                  "that polynomial being zero. Solving a differential equation has been "
+                  "traded for solving a quadratic, and the trade *is* the method.",
+            latex=r"a r^{2} + b r + c = 0",
+        ),
+        Passage(
+            prose="Two distinct real roots give two exponentials, and their determinant "
+                  "is a non-zero multiple of an exponential — so the previous lesson "
+                  "certifies them as a basis and there is nothing left to do.",
+            latex=r"W\left(e^{r_1 t}, e^{r_2 t}\right) = (r_2 - r_1)e^{(r_1 + r_2)t} \neq 0",
+        ),
+        Passage(
+            prose="A complex pair still gives two solutions, but they are complex, and "
+                  "the equation had real coefficients — so real answers must be "
+                  "available. Superposition supplies them: half the sum of the two, and "
+                  "the difference divided by twice the imaginary unit, are both "
+                  "combinations and both real. Euler's formula names them.",
+            latex=r"\frac{e^{(\alpha + i\beta)t} + e^{(\alpha - i\beta)t}}{2} "
+                  r"= e^{\alpha t}\cos\beta t",
+        ),
+        Passage(
+            prose="So the real part of the root becomes the envelope and the imaginary "
+                  "part the frequency. Nothing was approximated on the way: the complex "
+                  "exponentials were a route, and the answer they lead to is exactly "
+                  "real.",
+            latex=r"y = e^{\alpha t}\left(c_1\cos\beta t + c_2\sin\beta t\right)",
+        ),
+        Passage(
+            prose="A repeated root is the genuinely awkward case, because the method "
+                  "has produced one solution where two are needed. Watch what happens "
+                  "as two distinct roots collide. The difference of their exponentials, "
+                  "divided by the gap between the roots, is a solution by superposition "
+                  "for every gap — and it has a limit.",
+            latex=r"\lim_{r_2 \to r_1}\frac{e^{r_2 t} - e^{r_1 t}}{r_2 - r_1} = t\,e^{r_1 t}",
+        ),
+        Passage(
+            prose="That is where the factor of t comes from. It is not a rule bolted on "
+                  "for an awkward case; it is what the second solution was already "
+                  "turning into as the roots approached each other. Substituting "
+                  "confirms it solves the equation, and the determinant confirms the "
+                  "pair is independent.",
+            latex=r"y = \left(c_1 + c_2 t\right)e^{r_1 t}",
+        ),
+    ),
     objectives=(
         "Turn a constant-coefficient equation into its characteristic "
         "polynomial, and say why that is allowed.",
@@ -37,6 +116,20 @@ ROOTS = Lesson(
             conditions="y(0) = 1, y'(0) = 0",
             why="Two distinct real roots — the case where the machinery is "
                 "plainest, and the two conditions pin the two constants.",
+            commentary=(
+                "The polynomial factors, so take the two roots off it before looking "
+                "at the working — and notice that both are negative. Without solving "
+                "anything, every solution of this equation decays. The signs of the "
+                "roots are the qualitative answer; the constants only settle the "
+                "details.\n\n"
+                "Then watch the conditions produce a system rather than two separate "
+                "statements. What comes out is a difference of two decaying "
+                "exponentials with the faster one subtracted, and that is what makes "
+                "the curve leave the axis flat: at the start the two decay rates "
+                "cancel exactly, which is what a zero initial slope means. After that "
+                "the fast term dies and the slow one governs, so the long run belongs "
+                "to the root nearer zero."
+            ),
         ),
         Example(
             equation="y'' + 2*y' + 5*y = 0",
@@ -44,6 +137,19 @@ ROOTS = Lesson(
             why="A complex pair, −1 ± 2i. Watch the exponentials become a "
                 "cosine and a sine, with the real part left outside as the "
                 "decaying envelope.",
+            commentary=(
+                "Read the two halves of the root separately and predict the picture "
+                "before any algebra. The real part is negative, so whatever "
+                "oscillation there is must die away; the imaginary part is two, so it "
+                "oscillates at that rate. Neither statement needed the closed form.\n\n"
+                "Then satisfy yourself that the answer is genuinely real. The route "
+                "ran through complex exponentials, which can feel like a sleight of "
+                "hand, so substitute the finished expression back — this application "
+                "does — and note that no imaginary part survives anywhere in it. The "
+                "complex numbers were scaffolding, and the derivation says why: the "
+                "two combinations that were taken are exactly the ones whose "
+                "imaginary halves cancel."
+            ),
         ),
     ),
     notes=(
@@ -215,6 +321,82 @@ UNDETERMINED = Lesson(
             "of its response.",
     tool="steps",
     reference="Edwards 3.5",
+    motivation=(
+        "Every second-order equation so far has had nothing on the right, and "
+        "nothing on the right means nothing driving the system. An undriven "
+        "spring is not much of a model. A radio has a signal in it, a "
+        "building has an earthquake under it, a circuit has a source — the "
+        "forced equation is the one that actually gets used.\n\n"
+        "The shape of the answer is settled by linearity before any technique "
+        "appears. If two functions produce the same forcing then their "
+        "difference produces nothing, so it is a homogeneous solution. Every "
+        "solution is therefore one particular solution plus the homogeneous "
+        "family, and the only new work is finding a single particular "
+        "solution.\n\n"
+        "For that there is a method which looks too good to be true: guess "
+        "the shape of the answer, leave its coefficients unknown, and let the "
+        "equation determine them. It works — but only for certain forcings, "
+        "and both why it works and why it sometimes collapses are worth "
+        "having rather than remembering."
+    ),
+    derivation=(
+        Passage(
+            prose="First the structure, which needs no guessing at all. Take any single "
+                  "solution of the forced equation and any other one, and apply the "
+                  "operator to their difference: the forcing appears twice and cancels.",
+            latex=r"L\left[y - y_p\right] = f - f = 0",
+        ),
+        Passage(
+            prose="So the general solution is one particular solution plus the general "
+                  "homogeneous solution, and the homogeneous half is already known from "
+                  "the previous lesson. Note where the constants live — in the "
+                  "homogeneous part. A particular solution needs none of its own.",
+            latex=r"y = y_p + c_1 y_1 + c_2 y_2",
+        ),
+        Passage(
+            prose="Now the guessing, and here is why a finite guess can work at all. "
+                  "Look at what differentiation does to a polynomial times an "
+                  "exponential times a sinusoid: it gives back another function of "
+                  "exactly that shape. The family is closed under differentiation, so "
+                  "the operator maps it into itself.",
+            latex=r"\frac{d}{dt}\left(t^{n}e^{at}\cos bt\right) \text{ stays "
+                  r"in the same family}",
+        ),
+        Passage(
+            prose="Which turns the problem into algebra. Write the trial function with "
+                  "unknown coefficients and apply the operator; both sides now lie in "
+                  "the same finite family, so matching coefficients is a finite linear "
+                  "system and solving it is the whole method. Nothing is guessed except "
+                  "the family, and the forcing chooses the family.",
+            latex=r"L\left[A\cos bt + B\sin bt\right] = f \;\Longrightarrow\; "
+                  r"\text{solve for } A,\ B",
+        ),
+        Passage(
+            prose="It also explains why the trial form must carry terms the forcing "
+                  "does not have. Differentiating a cosine produces a sine, so the "
+                  "operator returns a combination of both; offering only a cosine "
+                  "leaves the equation no way to cancel the sine that appears. The "
+                  "family has to be complete, not minimal.",
+            latex=r"L\left[A\cos bt\right] \text{ contains } \sin bt",
+        ),
+        Passage(
+            prose="And it explains the failure. If the trial function is itself a "
+                  "homogeneous solution then the operator sends it to zero, so no "
+                  "choice of coefficients can produce a non-zero forcing — the system "
+                  "is unsolvable rather than merely awkward. That is resonance, and it "
+                  "is the forcing lying inside what the operator kills.",
+            latex=r"L\left[y_{\text{trial}}\right] = 0 \;\Longrightarrow\; "
+                  r"\text{no coefficient works}",
+        ),
+        Passage(
+            prose="The repair is the same idea as the repeated root: multiply by t "
+                  "until the trial function is no longer a homogeneous solution. So the "
+                  "growing amplitude of a resonant response is not a fudge — the factor "
+                  "of t is the only thing left in the family that the operator does not "
+                  "annihilate.",
+            latex=r"y_p = t\left(A\cos bt + B\sin bt\right)",
+        ),
+    ),
     prerequisites=("roots",),
     objectives=(
         "Split a forced equation into homogeneous and particular parts, and "
@@ -230,6 +412,20 @@ UNDETERMINED = Lesson(
             why="Natural frequency 2, driven at 1 — no clash, so the guess "
                 "goes straight through. Watch both a sine and a cosine enter "
                 "the trial form even though the forcing has only one of them.",
+            commentary=(
+                "Check for a clash first, because that check is what decides whether "
+                "this method applies at all. The homogeneous solutions here oscillate "
+                "at one rate and the forcing at another, so nothing in the trial form "
+                "is annihilated by the operator and the plain guess is admissible. "
+                "Two seconds of arithmetic saves the whole problem.\n\n"
+                "Then read the finished answer as two superimposed oscillations at "
+                "different rates rather than as one formula. One of them is the "
+                "response to the forcing and lasts exactly as long as the forcing "
+                "does; the other carries the constants and is there only because of "
+                "how the motion started. Both persist here, because nothing in this "
+                "equation removes energy — which is precisely what the vibrations "
+                "unit changes."
+            ),
         ),
         Example(
             equation="y'' + y = cos(t)",
@@ -237,6 +433,19 @@ UNDETERMINED = Lesson(
             why="Driven at exactly its own natural frequency. The obvious "
                 "guess substitutes to zero, and correcting it produces the t "
                 "that makes the amplitude grow without bound.",
+            commentary=(
+                "Try the plain trial form yourself before reading on. It takes a "
+                "single substitution and it collapses to zero, which is the failure "
+                "the sixth passage predicts rather than an algebra slip. Watching it "
+                "fail once is worth more than remembering a rule about when to bring "
+                "in a factor of t.\n\n"
+                "Then look at what the corrected answer claims physically. The "
+                "amplitude grows steadily and without limit, which no real spring "
+                "does — so the model is reporting that something it left out must "
+                "eventually intervene: friction, or the spring ceasing to be linear. "
+                "An unbounded answer is not automatically a wrong answer. Here it is "
+                "an honest statement of what the assumptions imply."
+            ),
         ),
     ),
     notes=(
@@ -434,6 +643,81 @@ CAUCHY = Lesson(
             "the powers of t line up.",
     tool="steps",
     reference="Edwards 3.3",
+    motivation=(
+        "Constant coefficients were tractable because the equation does not "
+        "care where the origin of time sits. There is a second kind of "
+        "equation that is tractable for a closely related reason, and it "
+        "turns up wherever a problem has no natural length scale — steady "
+        "heat flow in a disc, a potential written in polar coordinates, the "
+        "stress in a thick pipe.\n\n"
+        "In those problems the coefficients are not constant, but they are "
+        "arranged so that each derivative arrives with the matching power of "
+        "t in front of it. The effect is that the equation is unchanged by "
+        "*rescaling* t rather than by shifting it, and that symmetry is every "
+        "bit as strong. It says what kind of function to try, and the answer "
+        "is not an exponential.\n\n"
+        "Powers of t are the functions whose shape survives a rescaling, so a "
+        "power is the thing to try — and after that every step follows the "
+        "constant-coefficient pattern exactly, including a repeated root and "
+        "a complex pair. The one visible difference is that logarithms appear "
+        "where factors of t used to, and the substitution at the end of the "
+        "derivation is what explains them."
+    ),
+    derivation=(
+        Passage(
+            prose="Recognise the shape first: each term pairs the kth derivative with t "
+                  "raised to the kth power. That pairing is the entire point, because "
+                  "it is what makes the operator blind to the scale of t.",
+            latex=r"a\,t^{2}y'' + b\,t\,y' + c\,y = 0",
+        ),
+        Passage(
+            prose="Check the symmetry rather than taking it on trust. Differentiating k "
+                  "times introduces k factors of one over the scale, and the t to the "
+                  "kth in front cancels every one of them — so replacing t by any "
+                  "multiple of itself leaves the equation exactly as it was.",
+            latex=r"t \to \lambda t \;\Longrightarrow\; "
+                  r"t^{k}\frac{d^{k}}{dt^{k}} \text{ unchanged}",
+        ),
+        Passage(
+            prose="So try a function whose shape survives rescaling, which is a power. "
+                  "Applying the operator gives the same power back, multiplied by a "
+                  "number — exactly what an exponential does for constant coefficients.",
+            latex=r"t^{k}\frac{d^{k}}{dt^{k}}t^{r} = r(r-1)\cdots(r-k+1)\,t^{r}",
+        ),
+        Passage(
+            prose="Which turns the equation into a polynomial again: the indicial "
+                  "equation. Look closely at its coefficients — the second-derivative "
+                  "term contributes r(r−1) and not r², because differentiating a power "
+                  "twice gives exactly that. It is the single most common error in this "
+                  "topic.",
+            latex=r"a\,r(r-1) + b\,r + c = 0",
+        ),
+        Passage(
+            prose="Distinct real roots give two powers, and they are independent. But "
+                  "something was assumed quietly: a power is only defined and only "
+                  "continuous away from the origin, and the origin is exactly where the "
+                  "equation's leading coefficient vanishes. So the answer holds on one "
+                  "side of zero and makes no claim at zero itself.",
+            latex=r"y = c_1 t^{r_1} + c_2 t^{r_2}, \qquad t > 0",
+        ),
+        Passage(
+            prose="Now explain the logarithms instead of asserting them. Substitute t "
+                  "for an exponential of a new variable. Each pairing of a power with a "
+                  "derivative becomes a plain derivative in that variable, so the "
+                  "equation *is* a constant-coefficient equation wearing a disguise, "
+                  "and a power of t is an exponential in the new variable.",
+            latex=r"t = e^{s} \;\Longrightarrow\; t\frac{d}{dt} = \frac{d}{ds}",
+        ),
+        Passage(
+            prose="Everything then follows from the previous lesson with no new work at "
+                  "all. A repeated root there brings a factor of the new variable, and "
+                  "that variable is the logarithm of t; a complex pair brings a cosine "
+                  "and a sine of it. The three cases here are not three rules — they "
+                  "are one rule seen through a substitution.",
+            latex=r"\left(c_1 + c_2 s\right)e^{rs} \;\Longrightarrow\; "
+                  r"\left(c_1 + c_2\ln t\right)t^{r}",
+        ),
+    ),
     prerequisites=("roots",),
     objectives=(
         "Recognise a Cauchy–Euler equation by matching powers to derivatives.",
@@ -448,12 +732,38 @@ CAUCHY = Lesson(
             why="Distinct indicial roots ±1, so the answer is a power and its "
                 "reciprocal — the plainest case, and the one that shows why "
                 "t = 0 has to be excluded.",
+            commentary=(
+                "Form the indicial equation by hand before reading the working, and "
+                "take care over the first term: it contributes r(r−1), not r². Get "
+                "that wrong and the polynomial becomes r² + r − 1, whose roots are "
+                "irrational and nothing like the answer shown — which is exactly the "
+                "pitfall this lesson names, seen from the inside.\n\n"
+                "Then look at what the two solutions do near the origin, since that "
+                "is the point of this example. One of them is unbounded there and the "
+                "other is not, so no combination behaves well at zero except the one "
+                "that discards the first — and even that is not a solution *at* zero, "
+                "because the equation loses its leading coefficient there. The "
+                "interval has to be stated along with the answer."
+            ),
         ),
         Example(
             equation="t**2*y'' - 3*t*y' + 4*y = 0",
             why="A repeated indicial root at 2. The second solution picks up "
                 "ln t rather than t, which is the substitution t = e^s showing "
                 "through.",
+            commentary=(
+                "Check the discriminant first: the indicial polynomial is a perfect "
+                "square here, and its vanishing discriminant is the only thing that "
+                "has to be noticed. Everything after that is the repeated-root case "
+                "of the previous lesson, transported.\n\n"
+                "Then confirm where the logarithm comes from rather than accepting "
+                "it. In the substituted variable the answer would read as a constant "
+                "plus that variable, multiplying an exponential — precisely the "
+                "repeated-root form — and the variable is the logarithm of t. "
+                "Substituting the second solution back into the original equation is "
+                "the other confirmation, and this application performs it: the "
+                "logarithm survives both differentiations and cancels exactly."
+            ),
         ),
     ),
     notes=(
@@ -604,6 +914,79 @@ SUPERPOSITION = Lesson(
             "to tell whether the two you have will do.",
     tool="steps",
     reference="Edwards 3.1",
+    motivation=(
+        "Everything so far has been first order, and first order means one "
+        "constant and one condition. The physical world is mostly second "
+        "order, because Newton's law is: a mass on a spring, a pendulum, a "
+        "beam, a circuit. So the subject has to move up an order, and the "
+        "useful question is what actually changes.\n\n"
+        "What changes is that there are now two constants to find, and that "
+        "raises something the first-order case never had to face. Where do "
+        "two independent solutions come from, and how would you know when you "
+        "had *enough* of them? Two solutions that are secretly multiples of "
+        "one another look like two and behave like one, and no pair of "
+        "conditions can then be met.\n\n"
+        "Almost everything in this unit rests on a single structural fact: "
+        "these equations are linear, so solutions can be added. That one "
+        "property is what makes a two-parameter family the whole answer "
+        "rather than merely part of it. It is worth establishing before any "
+        "technique appears, because every technique in the unit assumes it."
+    ),
+    derivation=(
+        Passage(
+            prose="Collect the derivatives on the left and give that side a name. What "
+                  "sits there is a *machine*: hand it a function and it returns another "
+                  "one. Naming it makes the structure visible and every argument below "
+                  "shorter.",
+            latex=r"L[y] = a(t)\,y'' + b(t)\,y' + c(t)\,y",
+        ),
+        Passage(
+            prose="The machine is linear — it distributes over sums and lets constants "
+                  "through — because differentiation does. That is one line to check, "
+                  "and it is the source of everything else in this unit.",
+            latex=r"L[c_1 y_1 + c_2 y_2] = c_1 L[y_1] + c_2 L[y_2]",
+        ),
+        Passage(
+            prose="So if two functions are each sent to zero, every combination of them "
+                  "is too. Superposition is not a trick peculiar to this equation; it "
+                  "is linearity, and it fails the instant the equation is not linear. "
+                  "Two solutions of y'' = y² have a sum that solves nothing.",
+            latex=r"L[y_1] = L[y_2] = 0 \;\Longrightarrow\; L[c_1 y_1 + c_2 y_2] = 0",
+        ),
+        Passage(
+            prose="That produces a two-parameter family. Whether it is *all* of the "
+                  "solutions turns on the two being genuinely different: if one is a "
+                  "multiple of the other the family quietly collapses to a one-"
+                  "parameter one, and two conditions can no longer be satisfied.",
+            latex=r"y_2 = k\,y_1 \;\Longrightarrow\; c_1 y_1 + c_2 y_2 = (c_1 + k c_2)\,y_1",
+        ),
+        Passage(
+            prose="So test it by asking whether the conditions can be met at all. "
+                  "Fitting a value and a slope at one instant is a pair of linear "
+                  "equations in the two constants — an ordinary 2×2 system, and nothing "
+                  "about differential equations is left in it.",
+            latex=r"c_1 y_1(t_0) + c_2 y_2(t_0) = y_0, \quad c_1 y_1'(t_0) + "
+                  r"c_2 y_2'(t_0) = v_0",
+        ),
+        Passage(
+            prose="Such a system is solvable for every pair of conditions exactly when "
+                  "its determinant is non-zero, and that determinant is the Wronskian. "
+                  "It is not a definition handed down to be remembered: it is the "
+                  "condition for the two constants to exist, written out.",
+            latex=r"W(y_1, y_2) = y_1 y_2' - y_2 y_1' \neq 0",
+        ),
+        Passage(
+            prose="And here is the step usually waved at — why testing one instant "
+                  "settles every instant. Differentiate the Wronskian and use the "
+                  "equation to replace both second derivatives. Almost everything "
+                  "cancels, and what is left is a first-order linear equation for the "
+                  "Wronskian itself. Its solution is a constant times an exponential, "
+                  "and an exponential is never zero, so the Wronskian vanishes "
+                  "everywhere or nowhere at all.",
+            latex=r"W' = -\frac{b(t)}{a(t)}W \;\Longrightarrow\; W(t) = "
+                  r"W(t_0)\exp\left(-\int \frac{b}{a}\,dt\right)",
+        ),
+    ),
     prerequisites=("basics",),
     objectives=(
         "State what makes an equation linear, and check whether one is.",
@@ -619,12 +1002,37 @@ SUPERPOSITION = Lesson(
             why="The plainest case. e^t and e^{-t} both solve it, their "
                 "Wronskian is −2, and every solution is a combination of "
                 "them — there is nothing else out there.",
+            commentary=(
+                "Substitute both functions before reading anything else. Each check "
+                "takes one line and it is the only part of this lesson that needs no "
+                "theory at all. Then form the determinant of the pair by hand and "
+                "notice that it comes out the same at every instant.\n\n"
+                "That constancy is not a coincidence, and it is the fastest possible "
+                "confirmation of the last passage of the derivation. This equation "
+                "has no first-derivative term, so the coefficient in the equation "
+                "governing the determinant is zero and its derivative vanishes. Any "
+                "equation missing its y' term has this property, which is a small "
+                "thing to notice and a useful one."
+            ),
         ),
         Example(
             equation="y'' + 4*y = 0",
             conditions="y(0) = 1, y'(0) = 2",
             why="cos 2t and sin 2t, Wronskian 2. The two conditions pick one "
                 "member of the family, which is what two constants are for.",
+            commentary=(
+                "Watch the two conditions being applied and notice they are applied "
+                "to different things — one to the function, one to its derivative. "
+                "That is what makes them a solvable pair rather than the same "
+                "statement twice, and it is the 2×2 system from the derivation with "
+                "numbers in it.\n\n"
+                "Then compare the determinant of that system against the pair's "
+                "determinant at the same instant. They are the same number, because "
+                "they are the same determinant — it was never a separate quantity "
+                "computed for its own sake. And note that the amplitude of the "
+                "finished answer is not one, even though the starting value is: the "
+                "condition on the slope contributes to it as well."
+            ),
         ),
     ),
     notes=(
@@ -812,6 +1220,79 @@ VARIATION = Lesson(
             "guess.",
     tool="steps",
     reference="Edwards 3.5",
+    motivation=(
+        "Undetermined coefficients works because one particular family of "
+        "functions is closed under differentiation. Step outside that family "
+        "and the method offers nothing at all — not a harder calculation, but "
+        "no calculation. Differentiate sec t, or ln t, or an exponential over "
+        "t, repeatedly: the list of new functions never closes, so there is "
+        "no finite trial form to write down.\n\n"
+        "These are not exotic forcings. A resistance that varies with time, a "
+        "source that fades as one over t, a driving term that is itself the "
+        "answer to something else — each leaves the trial-set method behind "
+        "while remaining a perfectly ordinary equation with a perfectly "
+        "ordinary answer.\n\n"
+        "What is wanted is a method that builds a particular solution out of "
+        "the *homogeneous* solutions rather than out of a guess about the "
+        "forcing. Remarkably, one exists, and it never fails to describe the "
+        "answer. It costs two integrals, which may not be elementary — and "
+        "that is the price of generality, since an integral left unevaluated "
+        "is still a finished answer."
+    ),
+    derivation=(
+        Passage(
+            prose="Start from the homogeneous solutions, which are taken as known. The "
+                  "homogeneous family is those two with *constant* coefficients in "
+                  "front of them, so keep the shape and let the coefficients vary with "
+                  "t instead. That is where the method's name comes from, and it is the "
+                  "whole of the idea.",
+            latex=r"y_p = u_1(t)\,y_1 + u_2(t)\,y_2",
+        ),
+        Passage(
+            prose="Differentiate it. Two terms appear that would not be there if the "
+                  "coefficients were constant, and they are the entire difficulty of "
+                  "the method.",
+            latex=r"y_p' = u_1 y_1' + u_2 y_2' + \left(u_1' y_1 + u_2' y_2\right)",
+        ),
+        Passage(
+            prose="Here is the step that looks like cheating and is not. There are two "
+                  "unknown functions and only one equation for them to satisfy, so the "
+                  "problem is underdetermined and one further condition may simply be "
+                  "*chosen*. Any choice that makes the algebra close is legitimate, so "
+                  "choose the one that deletes the awkward bracket.",
+            latex=r"u_1' y_1 + u_2' y_2 = 0 \qquad \text{(chosen, not derived)}",
+        ),
+        Passage(
+            prose="With that choice the first derivative reads exactly as it would for "
+                  "constants, so differentiating again brings only one extra bracket. "
+                  "Substitute into the equation and almost everything cancels — because "
+                  "the two solutions already satisfy the homogeneous equation, which is "
+                  "the only property of them being used.",
+            latex=r"a\left(u_1' y_1' + u_2' y_2'\right) = f(t)",
+        ),
+        Passage(
+            prose="So two conditions on the two derivatives are left, and they are a "
+                  "2×2 linear system whose determinant is the Wronskian. It is non-zero "
+                  "precisely because the two solutions are independent, which is what "
+                  "that lesson was for.",
+            latex=r"u_1' y_1 + u_2' y_2 = 0, \qquad u_1' y_1' + u_2' y_2' = \frac{f}{a}",
+        ),
+        Passage(
+            prose="Solve the system and integrate. The resulting formula is not worth "
+                  "memorising — the derivation above is three lines and reconstructs it "
+                  "on demand — but the two signs in it are exactly where errors happen, "
+                  "so it is worth writing out once.",
+            latex=r"u_1 = -\int\frac{y_2 f}{a\,W}\,dt, \qquad u_2 = \int\frac{y_1 f}{a\,W}\,dt",
+        ),
+        Passage(
+            prose="Two cautions the derivation makes obvious. The forcing inside those "
+                  "integrals is the one that appears *after* dividing by the leading "
+                  "coefficient, because that is where it entered. And no constants are "
+                  "added at the integration: a constant there merely adds a homogeneous "
+                  "solution, which the general answer already carries.",
+            latex=r"u_1 + C \;\Longrightarrow\; y_p + C\,y_1 \text{, already in the family}",
+        ),
+    ),
     prerequisites=("roots", "undetermined"),
     objectives=(
         "Say why undetermined coefficients cannot touch sec t or ln t.",
@@ -826,12 +1307,39 @@ VARIATION = Lesson(
                 "cannot begin: differentiating sec t produces sec t·tan t, "
                 "then more, and the list never closes. Watch log(cos t) "
                 "appear — nothing you would have guessed.",
+            commentary=(
+                "The homogeneous half is the easy half, so write it down first: a "
+                "cosine and a sine, whose determinant comes out as one. A determinant "
+                "of one is a small mercy that makes the two integrals as clean as "
+                "this method ever gets, and it is why this is the example every book "
+                "uses.\n\n"
+                "Then watch which of the two integrals does the work. One of them "
+                "integrates to something elementary and dull; the other produces a "
+                "logarithm, and no amount of differentiating a trial family will ever "
+                "produce a logarithm — which is the concrete form of the claim that "
+                "the previous method could not have begun. Note too that the answer "
+                "is valid only where the forcing is defined, so the interval stops at "
+                "the first place the cosine vanishes."
+            ),
         ),
         Example(
             equation="y'' - 2*y' + y = exp(t)/t",
             why="A repeated root, so the basis is e^t and t·e^t, and the "
                 "forcing is an exponential divided by t. Dividing is what "
                 "puts it out of reach of a trial set.",
+            commentary=(
+                "Compute the determinant of the two homogeneous solutions before "
+                "starting anything else: it is a single exponential, and it cancels "
+                "against the exponential in the forcing. That cancellation is the "
+                "only reason this problem is workable by hand, and spotting it in "
+                "advance turns two intimidating integrals into two easy ones.\n\n"
+                "Then look at the integrands that remain after it. One is a constant "
+                "and the other is one over t — and the second is where the logarithm "
+                "comes from, which is the whole reason a trial set was hopeless here. "
+                "Notice also that the particular solution comes out carrying a term "
+                "that is already a homogeneous solution; dropping it changes nothing, "
+                "because the general answer absorbs it into a constant."
+            ),
         ),
     ),
     notes=(
@@ -999,6 +1507,72 @@ HIGHER = Lesson(
             "and multiplicity to respect.",
     tool="steps",
     reference="Edwards 3.2–3.3",
+    motivation=(
+        "Second order covers a mass on a spring. Higher orders appear as soon "
+        "as more than one thing is storing energy: a beam's deflection is "
+        "fourth order, a circuit with two loops is fourth order, and a "
+        "control system with a lag in it can be of any order at all.\n\n"
+        "Nothing about the method changes, and that is worth saying out loud, "
+        "because the notation grows alarmingly and suggests otherwise. The "
+        "operator is still linear, so superposition still holds. An "
+        "exponential still comes back multiplied by a polynomial, so the "
+        "characteristic equation is still the whole story. What grows is the "
+        "bookkeeping.\n\n"
+        "The one genuinely new thing is multiplicity beyond two. A root "
+        "repeated three or four times has to supply three or four independent "
+        "solutions, so the pattern that produced a single factor of t for a "
+        "double root needs extending — which it does, and for exactly the "
+        "same reason."
+    ),
+    derivation=(
+        Passage(
+            prose="The operator at order n is still linear, and it still returns an "
+                  "exponential multiplied by a polynomial — now of degree n. Nothing in "
+                  "that argument ever used the fact that the order was two.",
+            latex=r"L\left[e^{rt}\right] = \left(a_n r^{n} + \cdots + a_1 r + a_0\right)e^{rt}",
+        ),
+        Passage(
+            prose="So the characteristic equation is a polynomial of degree n, and it "
+                  "has n roots once multiplicity is counted. The count is what matters "
+                  "here: n roots, n solutions, n constants, n conditions — the "
+                  "accounting from the very first lesson of the course, unchanged.",
+            latex=r"a_n r^{n} + \cdots + a_1 r + a_0 = 0",
+        ),
+        Passage(
+            prose="Distinct roots need no new argument at all. A root repeated m times "
+                  "supplies only one exponential, so m − 1 further solutions must come "
+                  "from somewhere — and the colliding-roots argument extends: each "
+                  "further collision contributes one more power of t.",
+            latex=r"r \text{ with multiplicity } m \;\Longrightarrow\; "
+                  r"e^{rt},\ t e^{rt},\ \ldots,\ t^{m-1}e^{rt}",
+        ),
+        Passage(
+            prose="A complex root of a real polynomial always arrives with its "
+                  "conjugate, so a repeated complex pair repeats *both* halves and the "
+                  "powers of t multiply the cosine and the sine alike. Forgetting the "
+                  "second half is the commonest way to finish short of solutions.",
+            latex=r"\alpha \pm i\beta \text{ twice} \;\Longrightarrow\; "
+                  r"e^{\alpha t}\cos\beta t,\ t e^{\alpha t}\cos\beta t,\ "
+                  r"e^{\alpha t}\sin\beta t,\ t e^{\alpha t}\sin\beta t",
+        ),
+        Passage(
+            prose="The count is the check, and it is worth doing before any condition "
+                  "is applied. The multiplicities must add up to the order; if the "
+                  "collected solutions number fewer than that, a repetition was missed, "
+                  "and the conditions will turn out unsatisfiable rather than merely "
+                  "give a wrong answer.",
+            latex=r"\sum_j m_j = n",
+        ),
+        Passage(
+            prose="Forcing behaves exactly as it did at second order, because the "
+                  "structure argument used only linearity. One particular solution plus "
+                  "the homogeneous family is still the general answer, and the "
+                  "resonance repair is still to multiply by t until the trial function "
+                  "is no longer homogeneous — with the multiplicity deciding how many "
+                  "times.",
+            latex=r"y = y_p + \sum_j \left(\text{terms from the root } r_j\right)",
+        ),
+    ),
     prerequisites=("roots", "undetermined"),
     objectives=(
         "Factor a cubic or quartic characteristic polynomial.",
@@ -1012,6 +1586,20 @@ HIGHER = Lesson(
             why="Three distinct real roots, 1, 2 and 3 — the plainest "
                 "higher-order case, and a reminder that the machinery does "
                 "not change, only the bookkeeping.",
+            commentary=(
+                "Factor the cubic before reading the working, and do it with the "
+                "rational root test rather than a formula: the constant term is six, "
+                "so the candidates are its divisors and the first one tried succeeds. "
+                "Higher-order exercises are set with factorable characteristic "
+                "polynomials for precisely this reason, and reaching for a cubic "
+                "formula is a sign of having missed that.\n\n"
+                "Then check the count and read the behaviour off the roots. Three "
+                "roots, three constants — and all three positive, so every solution "
+                "grows and the largest root eventually dominates whatever the "
+                "starting values were. Three conditions would be needed to single one "
+                "out, and none are given here, so what is shown is the whole family "
+                "rather than one member of it."
+            ),
         ),
         Example(
             equation="y''' + y'' = t",
@@ -1019,6 +1607,20 @@ HIGHER = Lesson(
                 "part carries a constant and a t. The forcing is a "
                 "polynomial that resonates with both, which is where the "
                 "correction matters most.",
+            commentary=(
+                "Factor the characteristic polynomial and look hard at what a "
+                "repeated zero root means. Its exponential is the constant function, "
+                "and the extra power of t makes the second solution t itself. A zero "
+                "root is easy to overlook precisely because neither of the solutions "
+                "it contributes looks like an exponential.\n\n"
+                "Then watch the correction to the trial polynomial. A polynomial "
+                "forcing would ordinarily be met with a polynomial of the same "
+                "degree, but a constant and a t are both already homogeneous here — "
+                "so the trial form has to be multiplied by t twice before the "
+                "operator stops annihilating it. That is the multiplicity deciding "
+                "how many factors are needed, and it is why the particular solution "
+                "ends up two degrees higher than the forcing."
+            ),
         ),
     ),
     notes=(

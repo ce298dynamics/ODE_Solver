@@ -212,6 +212,12 @@ FULL_DEPTH = (
     "motion",
     "numerical",
     "rungekutta",
+    "superposition",
+    "roots",
+    "undetermined",
+    "variation",
+    "cauchy",
+    "higher",
 )
 
 DEEP = [by_key(key) for key in FULL_DEPTH]
