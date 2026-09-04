@@ -8,9 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- **The first unit reads as a textbook section rather than a set of cards.**
-  Each of its six lessons now opens with *why this comes up* — where the
-  equation arises, what goes wrong with the tools already in hand, and why the
+- **Every lesson reads as a textbook section rather than a set of cards.**
+  All thirty-five now open with *why this comes up* — where the equation
+  arises, what goes wrong with the tools already in hand, and why the
   technique is the natural response — and then *where this comes from*, the
   argument that the method is legitimate, in numbered steps.
 
@@ -30,11 +30,25 @@ All notable changes to this project are documented here. The format follows
   example exists has spent its first paragraph saying nothing, which is how
   the first draft of all twelve read.
 
-  Measured: about 5,500 characters of explanation per rewritten lesson,
-  against 1,500 for one still in its original form. The other six units are
-  the same work and no new machinery, and the list of what has been written up
-  lives in `tests/test_lessons.py` so that what is left is visible in the
-  tests rather than in a plan.
+  Measured: about 198,000 characters of explanation across the curriculum,
+  some 5,700 per lesson against 1,500 before. The list of what has been
+  written up lives in `tests/test_lessons.py` and now names every lesson —
+  which is what it was for. While the work was in progress it kept the
+  remainder visible in the tests rather than in a plan, and it still gates:
+  a lesson cannot be written up without being listed, or listed without being
+  written.
+
+  The derivations are the part worth reading. Separable equations justify
+  their two integrals by the chain rule rather than by calling the `dy` loose
+  shorthand; the integrating factor and the eigenvalue method are each derived
+  from a single substitution; Abel's identity explains why testing the
+  Wronskian at one instant settles every instant; undetermined coefficients
+  says why a *finite* trial set can work at all, and resonance becomes the
+  forcing lying inside what the operator annihilates; one integration by parts
+  produces the whole Laplace method; and the convolution theorem comes out of
+  exchanging the order of a double integral over a wedge. Where a derivation
+  would be beyond a first course it says so and stops — the Runge–Kutta
+  weights are stated as being chosen to match a Taylor expansion, not derived.
 
 - **Typeset equations announce themselves to a screen reader.** `MathLabel`
   renders to an image, and an image with no alternative text is invisible —

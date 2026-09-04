@@ -196,10 +196,13 @@ def test_every_example_says_why_it_is_there():
 
 
 #: Lessons rewritten to full depth -- motivation, a derivation, and commentary
-#: on every worked example. Listed rather than inferred, and one unit is added
-#: at a time, so what is left to write is visible here in the tests instead of
-#: in a plan file somewhere. A lesson that grows a motivation without being
-#: listed fails below: the list has to stay honest in both directions.
+#: on every worked example. Every lesson in the course is now on it, which is
+#: the point: the list was built one unit at a time so that what remained to be
+#: written was visible here rather than in a plan file, and it is empty.
+#:
+#: It still earns its keep. A lesson added later is not full-depth until it is
+#: listed, and a lesson that grows a motivation without being listed fails
+#: below -- the list has to stay honest in both directions.
 FULL_DEPTH = (
     "basics",
     "slopefields",
@@ -221,6 +224,21 @@ FULL_DEPTH = (
     "free-vibration",
     "forced-vibration",
     "circuits",
+    "transform",
+    "laplace",
+    "shifting",
+    "convolution",
+    "step-forcing",
+    "impulses",
+    "systems-intro",
+    "eigenvalues",
+    "complex-eigenvalues",
+    "repeated-eigenvalues",
+    "forced-systems",
+    "phase-portraits",
+    "power-series",
+    "recurrence",
+    "frobenius",
 )
 
 DEEP = [by_key(key) for key in FULL_DEPTH]

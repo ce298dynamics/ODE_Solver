@@ -29,6 +29,7 @@ from .model import (
     Example,
     Lesson,
     Note,
+    Passage,
     Solve,
     Template,
 )
@@ -44,6 +45,83 @@ LAPLACE = Lesson(
             "that switches on partway through.",
     tool="laplace",
     reference="Edwards 7.1–7.6",
+    motivation=(
+        "With the transform of a derivative in hand, the method can be run "
+        "end to end. What makes it worth learning is not that it solves "
+        "equations the earlier methods could not reach in principle — for "
+        "smooth forcing it produces exactly the same answer that undetermined "
+        "coefficients would. It is what it does with the *shape* of the "
+        "problem.\n\n"
+        "Two features stand out. The initial conditions enter at the "
+        "beginning rather than at the end: there is no general solution with "
+        "constants in it waiting to be pinned down, because the conditions "
+        "were absorbed the moment the derivatives were transformed. That "
+        "removes an entire stage of the work and with it an entire class of "
+        "mistakes.\n\n"
+        "And the forcing can be discontinuous. A switch thrown at two "
+        "seconds, or a hammer blow at one, is hopeless for a trial-set method "
+        "— there is no single formula on both sides of the switch — but under "
+        "the transform it is one more row of the table. That is what the "
+        "transform is really for, and it is why this unit sits where it does "
+        "in the course."
+    ),
+    derivation=(
+        Passage(
+            prose="Transform every term of the equation. The derivatives become powers "
+                  "of s times the transform of the answer, each dragging its own piece "
+                  "of initial data with it, and the forcing becomes whatever its "
+                  "transform is.",
+            latex=r"\mathcal{L}\{y''\} + a\,\mathcal{L}\{y'\} + "
+                  r"b\,\mathcal{L}\{y\} = \mathcal{L}\{f\}",
+        ),
+        Passage(
+            prose="Collect the terms. Everything multiplying the transform of the "
+                  "answer is a polynomial in s — and it is the characteristic "
+                  "polynomial of the equation, unchanged, which is the first sign that "
+                  "this method is not unrelated to the previous unit.",
+            latex=r"\left(s^{2} + a s + b\right)Y(s) = F(s) + \left(s + a\right)y(0) + y'(0)",
+        ),
+        Passage(
+            prose="Divide. The answer's transform is now written down completely, with "
+                  "no constants left undetermined anywhere — which is the structural "
+                  "difference from every earlier method. The conditions are not fitted "
+                  "afterwards because they were never left out.",
+            latex=r"Y(s) = \frac{F(s) + (s + a)y(0) + y'(0)}{s^{2} + a s + b}",
+        ),
+        Passage(
+            prose="Notice the two halves of that numerator, because they are the split "
+                  "the vibrations unit spent a lesson on. One piece comes from the "
+                  "forcing and one from the initial data, and since the whole thing is "
+                  "divided by the same polynomial, the transform is already the steady "
+                  "state plus the transient — separated before anything is inverted.",
+            latex=r"Y(s) = \frac{F(s)}{P(s)} + \frac{(s+a)y(0) + y'(0)}{P(s)}",
+        ),
+        Passage(
+            prose="Then invert, and this is where the work is. The expression almost "
+                  "never matches a table row as it stands, so it has to be taken apart "
+                  "into pieces that do — partial fractions when the denominator "
+                  "factors, completing the square when it does not, and the shifting "
+                  "theorems for everything that has been displaced.",
+            latex=r"Y(s) = \sum_j \frac{A_j}{s - r_j} \;\Longrightarrow\; y(t) "
+                  r"= \sum_j A_j e^{r_j t}",
+        ),
+        Passage(
+            prose="The roots of that denominator are the roots of the characteristic "
+                  "polynomial, so the exponentials that come back are the ones the "
+                  "previous unit would have produced. For smooth forcing this method is "
+                  "a different route to the same answer, and knowing that is what makes "
+                  "it possible to check one against the other.",
+            latex=r"P(r) = 0 \;\Longleftrightarrow\; e^{rt} \text{ appears in } y",
+        ),
+        Passage(
+            prose="What is genuinely new is that the forcing need not be smooth. A "
+                  "step, a pulse, an impulse — each has a perfectly ordinary transform, "
+                  "so each passes through the division untroubled. No earlier method "
+                  "can even state such a problem in one piece, and that is the reason "
+                  "this unit exists.",
+            latex=r"\mathcal{L}\{u(t-a)\} = \frac{e^{-as}}{s}",
+        ),
+    ),
     prerequisites=("roots", "undetermined", "transform"),
     objectives=(
         "Transform a derivative, and place the initial conditions where they "
@@ -61,6 +139,19 @@ LAPLACE = Lesson(
             why="Smooth forcing and nonzero conditions — the case that shows "
                 "the conditions entering at the *start*, through the transform "
                 "of y'', rather than arriving at the end as constants to pin.",
+            commentary=(
+                "Smooth forcing and non-zero conditions, so this is the case where "
+                "the two methods can be compared directly. Factor the denominator and "
+                "look at its roots: they are the characteristic roots of the "
+                "equation, so the exponentials that come back are exactly the ones "
+                "the previous unit would have produced.\n\n"
+                "Then count where the work went. There is no stage at which a general "
+                "solution is written down and constants are fitted, because the "
+                "conditions were absorbed at the transform. What replaced that stage "
+                "is the partial fraction split — which is more algebra, not less, and "
+                "that is the honest trade. The method wins on problems where the old "
+                "stage was impossible, not on problems where it was merely tedious."
+            ),
         ),
         Example(
             equation="y' + y = Heaviside(t - 2)",
@@ -69,6 +160,19 @@ LAPLACE = Lesson(
             why="A switch thrown at two seconds. Not separable, no integrating "
                 "factor worth writing, and not what undetermined coefficients "
                 "is for — this is the problem the transform exists for.",
+            commentary=(
+                "Try, briefly, to solve this any other way. Separation gives two "
+                "problems and no way to join them; an integrating factor works on "
+                "each side of the switch and then needs the two answers matched by "
+                "hand at the join. The transform never notices that anything "
+                "discontinuous happened.\n\n"
+                "Then look at what the exponential factor in the transform does on "
+                "the way back. It does not scale the answer — it *delays* it, and the "
+                "Heaviside factor that appears alongside is what makes the answer "
+                "identically zero beforehand. Check that by substituting a time "
+                "before the switch: every term vanishes, which is the correct "
+                "physical claim rather than an artefact of the notation."
+            ),
         ),
     ),
     notes=(
@@ -259,6 +363,90 @@ TRANSFORM = Lesson(
             "only part you need to memorise.",
     tool="laplace",
     reference="Edwards 7.1",
+    motivation=(
+        "Every method so far has attacked the differential equation directly. "
+        "There is a completely different strategy, and it is one used all "
+        "over mathematics: if a problem is hard in the form it arrives in, "
+        "move it somewhere it is easy, solve it there, and come back. "
+        "Logarithms do this for multiplication — they turn products into "
+        "sums, which are easier, and the exponential brings you home.\n\n"
+        "The Laplace transform does it for differentiation. It converts a "
+        "function of t into a function of a new variable, and under that "
+        "conversion differentiating becomes *multiplying*. So a differential "
+        "equation becomes an algebraic one, and algebra is something anyone "
+        "can do. That is the entire proposition, and it rests on a single "
+        "integration by parts carried out once and reused forever.\n\n"
+        "The price is that you must be able to get back, and there is no "
+        "formula for the return trip that is usable by hand. What is used "
+        "instead is a table read in reverse — which is why this lesson spends "
+        "as long on recognising a transform as on computing one, and why "
+        "partial fractions matter so much later."
+    ),
+    derivation=(
+        Passage(
+            prose="The definition is an integral against a decaying exponential, over "
+                  "all positive time. Nothing about it is obvious in advance; what "
+                  "justifies it is what happens two passages from here.",
+            latex=r"\mathcal{L}\{f\}(s) = F(s) = \int_0^{\infty} e^{-st}f(t)\,dt",
+        ),
+        Passage(
+            prose="It is linear, because integration is. That is worth stating early "
+                  "because it is doing most of the work in every problem: a transform "
+                  "of a sum is a sum of transforms, and constants come straight out.",
+            latex=r"\mathcal{L}\{af + bg\} = a\,\mathcal{L}\{f\} + b\,\mathcal{L}\{g\}",
+        ),
+        Passage(
+            prose="Now the computation the whole method rests on. Transform a "
+                  "*derivative* and integrate by parts: the derivative moves off f and "
+                  "onto the exponential, which simply brings down a factor of s.",
+            latex=r"\int_0^{\infty}e^{-st}f'(t)\,dt = "
+                  r"\left[e^{-st}f(t)\right]_0^{\infty} + "
+                  r"s\int_0^{\infty}e^{-st}f(t)\,dt",
+        ),
+        Passage(
+            prose="Evaluate the boundary term. At infinity the exponential wins "
+                  "provided f does not grow too fast, so that end contributes nothing; "
+                  "at zero the exponential is one and what is left is the starting "
+                  "value. Two things have happened at once — differentiation became "
+                  "multiplication, and the initial condition arrived uninvited.",
+            latex=r"\mathcal{L}\{f'\} = s\,F(s) - f(0)",
+        ),
+        Passage(
+            prose="Apply the same result twice for a second derivative. The pattern is "
+                  "the point: each derivative costs one factor of s and drags in one "
+                  "more piece of initial data, which is exactly as much data as an "
+                  "equation of that order needs.",
+            latex=r"\mathcal{L}\{f''\} = s^{2}F(s) - s\,f(0) - f'(0)",
+        ),
+        Passage(
+            prose="So a linear equation with constant coefficients transforms into an "
+                  "algebraic equation for the transform of the answer, with the initial "
+                  "conditions already inside it. Solving it is division. That is the "
+                  "whole method, and everything after this is about getting back.",
+            latex=r"P(s)\,Y(s) = F(s) + \left(\text{terms in } y(0),\, y'(0)\right)",
+        ),
+        Passage(
+            prose="Getting back is the asymmetry. The inverse transform is a contour "
+                  "integral in the complex plane and no help by hand, so in practice "
+                  "the table is read from right to left: manipulate the answer until "
+                  "each piece matches a row you recognise. That is why the table has to "
+                  "be learned in *both* directions, and why a partial-fraction "
+                  "decomposition is not algebra for its own sake — it is the act of "
+                  "turning one unrecognisable expression into a sum of recognisable "
+                  "ones.",
+            latex=r"Y(s) = \frac{1}{s+2} - \frac{1}{s+3} \;\Longrightarrow\; y "
+                  r"= e^{-2t} - e^{-3t}",
+        ),
+        Passage(
+            prose="One limitation is built into the definition and is easy to overlook. "
+                  "The integral runs from zero, so nothing before t = 0 is ever seen "
+                  "and no answer produced this way makes any claim about negative time. "
+                  "That is a genuine restriction, and it is also exactly right for the "
+                  "problems the method is used on, which start when something is "
+                  "switched on.",
+            latex=r"t < 0 \text{ contributes nothing to } F(s)",
+        ),
+    ),
     prerequisites=("roots",),
     objectives=(
         "State the definition, and say what the integral converges for.",
@@ -276,6 +464,20 @@ TRANSFORM = Lesson(
                 "forcing term, and a single row of the table each way. Watch "
                 "the initial condition enter at the transform rather than at "
                 "the end.",
+            commentary=(
+                "Transform each of the three terms separately and notice that only "
+                "one of them needs the result from the fourth passage. The rest is "
+                "linearity moving constants around, which is why this problem is the "
+                "right first one — the machinery is visible because there is so "
+                "little of it.\n\n"
+                "Then look at where the answer's two pieces come from. A constant "
+                "forcing contributes a pole at zero, which inverts to a constant; the "
+                "equation contributes a pole at minus two, which inverts to a "
+                "decaying exponential. The first is the level the system settles at "
+                "and the second is how it gets there — the steady state and the "
+                "transient, arriving here as two rows of a table rather than as two "
+                "integrals."
+            ),
         ),
         Example(
             equation="y' + 3*y = exp(-t)",
@@ -284,6 +486,20 @@ TRANSFORM = Lesson(
             why="Two rows of the table and a non-zero starting value, so the "
                 "y(0) term is actually carrying something. The answer needs "
                 "partial fractions on the way back.",
+            commentary=(
+                "Here the starting value is not zero, so the term the integration by "
+                "parts produced is actually carrying something. Watch it travel: it "
+                "enters as a constant on the algebraic side, gets divided along with "
+                "everything else, and lands in the answer as a contribution to one of "
+                "the coefficients. Nothing was fitted at the end.\n\n"
+                "Then watch the return trip need real work for the first time. What "
+                "comes out of the division matches no row of the table, and splitting "
+                "it into two pieces that do is the whole difficulty of the method in "
+                "miniature. Notice that the two poles are at different places, so the "
+                "split is the easy kind — a repeated pole would need a second term "
+                "for the same factor, which is the case the shifting lesson deals "
+                "with."
+            ),
         ),
     ),
     notes=(
@@ -462,6 +678,81 @@ SHIFTING = Lesson(
             "lists, and the algebra that gets Y(s) into their shape.",
     tool="laplace",
     reference="Edwards 7.2–7.3",
+    motivation=(
+        "The method reduces every problem to the same final difficulty: an "
+        "expression in s that has to be recognised as something on the table. "
+        "The table is short, so almost nothing matches it directly, and the "
+        "entire practical skill of this unit is turning what you have into "
+        "what the table has.\n\n"
+        "Two moves do nearly all of it. The first is a theorem that says "
+        "multiplying by an exponential in t is the same as *sliding* along "
+        "the s axis — so a table with four entries covers sixteen cases, "
+        "since every entry can be shifted. The second is partial fractions, "
+        "which is not really algebra practice at all but the act of breaking "
+        "one unrecognisable expression into a sum of recognisable ones.\n\n"
+        "There is also a trap worth naming in advance. There are two shifting "
+        "theorems, they look alike written down, and they do opposite things: "
+        "one shifts in s and one shifts in t. Confusing them is the single "
+        "most common error in this unit, and the way to keep them apart is to "
+        "remember which variable each one moves."
+    ),
+    derivation=(
+        Passage(
+            prose="Take the definition and multiply the function by an exponential "
+                  "before transforming it. The two exponentials in the integral "
+                  "combine, and what is left is the original integral with a different "
+                  "value of s.",
+            latex=r"\int_0^{\infty}e^{-st}e^{at}f(t)\,dt = \int_0^{\infty}e^{-(s-a)t}f(t)\,dt",
+        ),
+        Passage(
+            prose="So multiplying by an exponential in t translates the transform along "
+                  "the s axis. That is the first shifting theorem, it costs one line, "
+                  "and it multiplies the reach of a short table enormously.",
+            latex=r"\mathcal{L}\left\{e^{at}f(t)\right\} = F(s - a)",
+        ),
+        Passage(
+            prose="Read it backwards and it becomes a recipe. Any transform in which s "
+                  "appears only as a shifted combination is an exponential times "
+                  "something simpler — so the task is to make the shift visible, and "
+                  "for a quadratic denominator that means completing the square.",
+            latex=r"\frac{1}{s^{2} + 2s + 5} = \frac{1}{(s+1)^{2} + 4}",
+        ),
+        Passage(
+            prose="Which is exactly the damped oscillation of the vibrations unit, seen "
+                  "from the other side. The amount of the shift is the decay rate and "
+                  "what remains is the frequency — the real and imaginary parts of the "
+                  "characteristic root, arriving as a translation rather than as a "
+                  "root.",
+            latex=r"\frac{2}{(s+1)^{2} + 4} \;\Longrightarrow\; e^{-t}\sin 2t",
+        ),
+        Passage(
+            prose="When the denominator does factor, the job is different: split the "
+                  "fraction into pieces the table knows. Each distinct linear factor "
+                  "contributes one term, and matching numerators determines the "
+                  "coefficients — a finite linear system, exactly as undetermined "
+                  "coefficients was.",
+            latex=r"\frac{1}{(s+1)(s+2)} = \frac{1}{s+1} - \frac{1}{s+2}",
+        ),
+        Passage(
+            prose="A repeated factor needs a term for *each* power of it, and the "
+                  "reason is a counting argument rather than a convention: a "
+                  "denominator of degree n needs n coefficients to match against, and "
+                  "one term per distinct factor would supply too few. The extra terms "
+                  "invert to powers of t, which is the same factor of t that a repeated "
+                  "characteristic root produced.",
+            latex=r"\frac{1}{(s+1)^{2}} \;\Longrightarrow\; t\,e^{-t}",
+        ),
+        Passage(
+            prose="Finally, the trap. The *second* shifting theorem concerns a delay in "
+                  "t rather than a shift in s, and it produces an exponential factor in "
+                  "front of the transform instead of a translation inside it. The two "
+                  "are not variants of each other; they move different variables, and "
+                  "the step-forcing lesson is about the other one.",
+            latex=r"\mathcal{L}\left\{e^{at}f(t)\right\} = F(s-a) "
+                  r"\quad\text{versus}\quad "
+                  r"\mathcal{L}\left\{u(t-a)f(t-a)\right\} = e^{-as}F(s)",
+        ),
+    ),
     prerequisites=("laplace",),
     objectives=(
         "Apply the first shifting theorem: multiplying by e^{at} in t is "
@@ -479,6 +770,19 @@ SHIFTING = Lesson(
             why="Completing the square turns s² + 2s + 5 into (s+1)² + 4, "
                 "which is a shifted sine and cosine — the first shifting "
                 "theorem doing exactly what it is for.",
+            commentary=(
+                "Complete the square on the denominator before doing anything else, "
+                "and read the two numbers off: the amount of the shift and what is "
+                "left underneath. Those are the real and imaginary parts of the "
+                "characteristic root, so the answer's decay rate and frequency are "
+                "available from the transform without inverting anything.\n\n"
+                "Then watch the numerator have to be adjusted to match the table. It "
+                "is rarely in the right form on its own, and forcing it there — "
+                "adding and subtracting a multiple of the shift — is the fiddly part "
+                "of this method. Compare the finished answer against what the "
+                "characteristic roots would have given in the second-order unit: "
+                "identical, which is the check worth doing at least once."
+            ),
         ),
         Example(
             equation="y'' + 3*y' + 2*y = exp(-t)",
@@ -487,6 +791,18 @@ SHIFTING = Lesson(
             why="The forcing shares a root with the equation, so Y(s) has a "
                 "repeated factor and the partial fractions bring in a term "
                 "with t in front — resonance seen from the s side.",
+            commentary=(
+                "Factor the denominator and count the factors carefully, because one "
+                "of them appears twice: the forcing contributes a pole that the "
+                "equation already had. That coincidence is the whole content of this "
+                "example, and it is visible in the transform long before any "
+                "inversion.\n\n"
+                "So the split needs two terms for that one factor, not one — and the "
+                "second of them inverts to something with a t in front. That t is the "
+                "resonance of the second-order unit seen from the s side: the same "
+                "phenomenon, the same factor, arriving here as a counting fact about "
+                "partial fractions rather than as a rule about trial forms."
+            ),
         ),
     ),
     notes=(
@@ -664,6 +980,80 @@ CONVOLUTION = Lesson(
     summary="What to do when Y(s) is a product that refuses to split.",
     tool="laplace",
     reference="Edwards 7.4",
+    motivation=(
+        "Everything so far has relied on the transform of the answer being "
+        "recognisable once it is split apart. That assumes the forcing has a "
+        "transform on the table in the first place, and plenty of perfectly "
+        "ordinary forcings do not: one over one plus t, or a measured signal "
+        "with no formula at all.\n\n"
+        "There is also a structural question that the partial-fraction "
+        "machinery keeps hiding. The transform of the answer is a *product* — "
+        "the forcing's transform times one over the characteristic polynomial "
+        "— and the second factor has nothing to do with the forcing at all. "
+        "It belongs to the system. It would be useful to know what that "
+        "product means back in t, independently of what the forcing happens "
+        "to be.\n\n"
+        "It does not mean the product of the two functions, which is the "
+        "first guess and is wrong. It means a particular integral of one "
+        "against a reversed copy of the other, and that integral has a "
+        "physical reading: the system's response now is everything the "
+        "forcing did earlier, each part weighted by how long ago it happened."
+    ),
+    derivation=(
+        Passage(
+            prose="Start with the wrong guess, because it is worth killing explicitly. "
+                  "The transform of a product is not the product of the transforms — "
+                  "check it on any two table rows and the two sides disagree.",
+            latex=r"\mathcal{L}\{fg\} \neq F(s)\,G(s)",
+        ),
+        Passage(
+            prose="So ask the opposite question: given the product of two transforms, "
+                  "what function of t is it the transform of? Write each factor as its "
+                  "own integral and multiply. What appears is a double integral over "
+                  "the whole positive quadrant, with the two exponentials combining "
+                  "into one.",
+            latex=r"F(s)G(s) = \int_0^{\infty}\!\!\int_0^{\infty} e^{-s(\tau + "
+                  r"\sigma)}f(\tau)g(\sigma)\,d\tau\,d\sigma",
+        ),
+        Passage(
+            prose="The exponent depends on the two variables only through their sum, so "
+                  "change variables to that sum and one of the originals. The region "
+                  "becomes a wedge — for each total time, the first variable runs from "
+                  "zero up to it — and the integral over the wedge can be taken in the "
+                  "other order.",
+            latex=r"t = \tau + \sigma \;\Longrightarrow\; 0 \leq \tau \leq t",
+        ),
+        Passage(
+            prose="Doing so puts the whole thing back in the shape of a transform: an "
+                  "integral against a decaying exponential, of some inner integral in "
+                  "t. That inner integral is the function whose transform is the "
+                  "product — and it has a name.",
+            latex=r"F(s)G(s) = \int_0^{\infty}e^{-st}\,h(t)\,dt, \qquad "
+                  r"h(t) = \int_0^{t}f(\tau)\,g(t - \tau)\,d\tau",
+        ),
+        Passage(
+            prose="That inner integral is the convolution. Note its shape: one function "
+                  "runs forwards while the other runs backwards, and the two arguments "
+                  "always sum to the current time.",
+            latex=r"(f * g)(t) = \int_0^{t} f(\tau)\,g(t - \tau)\,d\tau",
+        ),
+        Passage(
+            prose="Now use it on the transform of an answer. With zero initial "
+                  "conditions, that transform is the forcing's transform divided by the "
+                  "characteristic polynomial — a product of two things, one belonging "
+                  "to the forcing and one to the system alone.",
+            latex=r"Y(s) = \frac{1}{P(s)}F(s) = G(s)F(s)",
+        ),
+        Passage(
+            prose="So the answer is the convolution of the forcing with one fixed "
+                  "function of the system, and that function is what the system does "
+                  "when struck once. Every response to every forcing is that single "
+                  "response, smeared over the history of the input — which is why an "
+                  "unevaluated convolution integral is a finished answer and not a "
+                  "failure to finish.",
+            latex=r"y = g * f, \qquad g = \mathcal{L}^{-1}\left\{\frac{1}{P(s)}\right\}",
+        ),
+    ),
     prerequisites=("shifting",),
     objectives=(
         "State the convolution theorem, and get the order of the arguments "
@@ -680,6 +1070,19 @@ CONVOLUTION = Lesson(
             why="1/(1+t) has no tabulated transform, so there is nothing to "
                 "split. The convolution integral is the answer — and this one "
                 "happens to evaluate, into the sine and cosine integrals.",
+            commentary=(
+                "Find the system's own response first, before the forcing is "
+                "considered at all. Invert one over the characteristic polynomial and "
+                "what comes back is a sine — that is what this oscillator does when "
+                "struck once, and it does not depend on what is driving it.\n\n"
+                "Then check why nothing else in this unit could have started. The "
+                "forcing has no transform on any table, so there is no expression in "
+                "s to split and no rows to match; the convolution needs none of that, "
+                "because it never transforms the forcing at all. The integral it "
+                "produces happens to evaluate here, into functions with names of "
+                "their own — but it would have been just as complete left as it "
+                "stood."
+            ),
         ),
         Example(
             equation="y'' + y = 1/(2+t)",
@@ -688,6 +1091,18 @@ CONVOLUTION = Lesson(
             why="The same shape with the pole moved. Watch the impulse "
                 "response sin t come out of the transfer function alone, "
                 "before the forcing is involved at all.",
+            commentary=(
+                "Compare this with the previous example before working it, since only "
+                "one thing differs. The equation is identical, so the function that "
+                "comes out of the transfer function is identical too — the same sine, "
+                "obtained the same way, and it would be the same for any forcing "
+                "whatever.\n\n"
+                "That is the observation the lesson is built on. Moving the pole "
+                "changes the forcing and therefore the convolution integral, but not "
+                "the thing it is convolved against. A system is characterised once, "
+                "by what it does when struck, and after that every input is handled "
+                "by the same integral with a different second factor."
+            ),
         ),
     ),
     notes=(
@@ -846,6 +1261,78 @@ STEPFORCING = Lesson(
             "technique in this course handles.",
     tool="laplace",
     reference="Edwards 7.5",
+    motivation=(
+        "The transform's real advantage is forcing that no formula covers in "
+        "one piece. A voltage switched on at two seconds, a load applied and "
+        "removed, a valve opened: each is described by different expressions "
+        "on different intervals, and every earlier method needs the problem "
+        "cut into pieces and the pieces matched at the joins by hand.\n\n"
+        "That matching is not a formality. Position and velocity have to "
+        "agree across each join, which means solving one problem, evaluating "
+        "it, using the values as initial conditions for the next, and "
+        "repeating. With three switches there are four problems and three "
+        "matchings, and every one is an opportunity to lose a sign.\n\n"
+        "The transform does all of it at once, and the reason is that a "
+        "switch has a perfectly ordinary transform. Once the unit step is "
+        "available as a function rather than as a case distinction, a "
+        "piecewise forcing is a single expression — and a single expression "
+        "passes through the method without anything special happening to it."
+    ),
+    derivation=(
+        Passage(
+            prose="Define the switch as a function rather than as a case distinction: "
+                  "zero before a given instant and one after it. Multiplying by it "
+                  "turns anything on at that instant, and subtracting a later copy "
+                  "turns it off again — so any piecewise-constant forcing is a "
+                  "combination of these.",
+            latex=r"u(t-a) = 0 \;\; (t < a), \qquad u(t-a) = 1 \;\; (t \geq a)",
+        ),
+        Passage(
+            prose="Transform it straight from the definition. The step is zero over the "
+                  "first part of the range, so the integral simply starts later, and "
+                  "what comes out is the transform of the constant one with an "
+                  "exponential in front.",
+            latex=r"\mathcal{L}\{u(t-a)\} = \int_a^{\infty}e^{-st}\,dt = \frac{e^{-as}}{s}",
+        ),
+        Passage(
+            prose="Now do the same for a whole function switched on and delayed. "
+                  "Substituting for the shifted time turns the integral back into an "
+                  "ordinary transform, and the shift comes out as a factor that does "
+                  "not depend on the function at all.",
+            latex=r"\int_a^{\infty}e^{-st}f(t-a)\,dt \;\;\left(\tau = t - "
+                  r"a\right)\;\; = "
+                  r"e^{-as}\int_0^{\infty}e^{-s\tau}f(\tau)\,d\tau",
+        ),
+        Passage(
+            prose="That is the second shifting theorem: a delay in t becomes a factor "
+                  "in s. Compare it with the first, which was a shift *inside* the "
+                  "transform — these are different statements about different "
+                  "variables, and this is the one that handles switches.",
+            latex=r"\mathcal{L}\left\{u(t-a)f(t-a)\right\} = e^{-as}F(s)",
+        ),
+        Passage(
+            prose="Using it in reverse is where care is needed, because the theorem is "
+                  "about f(t − a) and not about f(t). Peel the exponential off, invert "
+                  "what remains, and only then replace t by t − a *everywhere* in the "
+                  "result — and attach the step, which is what makes the answer zero "
+                  "beforehand.",
+            latex=r"e^{-as}F(s) \;\Longrightarrow\; u(t-a)\,f(t-a)",
+        ),
+        Passage(
+            prose="The step is not decoration. Without it the inverted expression would "
+                  "claim a non-zero value before the switch was thrown, which is not "
+                  "what the equation says: nothing has driven the system yet, so an "
+                  "answer starting from rest must be identically zero there.",
+            latex=r"t < a \;\Longrightarrow\; y(t) = 0",
+        ),
+        Passage(
+            prose="And a pulse needs no new theory at all. On at one instant, off at "
+                  "another, is one step minus another, and linearity carries both "
+                  "through the method separately — so the answer is a difference of two "
+                  "delayed responses, each switched on at its own time.",
+            latex=r"u(t-1) - u(t-2) \;\Longrightarrow\; y_1(t)u(t-1) - y_1(t-1)u(t-2)",
+        ),
+    ),
     prerequisites=("shifting",),
     objectives=(
         "Write a piecewise forcing term as a combination of unit steps.",
@@ -862,6 +1349,19 @@ STEPFORCING = Lesson(
                 "and then the system starts climbing towards its new "
                 "equilibrium. The Heaviside factor in the answer is what "
                 "enforces the 'nothing happens' part.",
+            commentary=(
+                "Work out what the system settles at before solving. After the switch "
+                "the equation is driven by a constant, so it climbs towards the value "
+                "where the right-hand side balances — and that number can be read "
+                "straight off the equation. The transform's job is only to say how it "
+                "gets there and when it starts.\n\n"
+                "Then check the answer at a time before the switch by substituting "
+                "it. Every term carries the step factor, so the whole expression is "
+                "zero, and that is a claim about physics rather than about notation: "
+                "the system has not been touched yet. An answer that gave a non-zero "
+                "value there would be wrong, and it is the commonest way this method "
+                "is misapplied."
+            ),
         ),
         Example(
             equation="y'' + 4*y = Heaviside(t - 1) - Heaviside(t - 2)",
@@ -870,6 +1370,19 @@ STEPFORCING = Lesson(
             why="A single pulse, on at t = 1 and off at t = 2, written as a "
                 "difference of two steps. The system rings afterwards, "
                 "because nothing removes the energy the pulse put in.",
+            commentary=(
+                "Read the forcing as two switches rather than as a pulse, because "
+                "that is how the method sees it. Linearity then carries each through "
+                "separately, so there are two delayed copies of the same response and "
+                "the second is subtracted — which is what makes the driving stop.\n\n"
+                "Then look at what happens after the second switch, where the forcing "
+                "is back to nothing. The system does not return to rest: it keeps "
+                "oscillating, because this equation has no damping term and nothing "
+                "removes what the pulse deposited. Compare that with the first "
+                "example, which settles — the difference is one term in the equation, "
+                "and it is visible in the answer as the absence of any decaying "
+                "factor."
+            ),
         ),
     ),
     notes=(
@@ -1063,6 +1576,89 @@ IMPULSES = Lesson(
             "and what that does to a system.",
     tool="laplace",
     reference="Edwards 7.6",
+    motivation=(
+        "A pulse can be made shorter and taller at the same time. A hammer "
+        "blow, a spark, a collision: each delivers its effect over an "
+        "interval so brief that the interval itself is of no interest, and "
+        "only the total effect matters. The natural thing to do is take the "
+        "limit.\n\n"
+        "The limit does not exist as a function, and that is not a "
+        "technicality to be waved through. There is no function that is zero "
+        "everywhere except one point and still has area one — the value at a "
+        "single point cannot contribute anything to an integral. So whatever "
+        "the delta is, it is not a function, and every manipulation of it "
+        "needs a justification that is not the usual one.\n\n"
+        "What makes it usable anyway is that it is only ever met *inside an "
+        "integral*, and there its behaviour is perfectly definite: it picks "
+        "out the value of whatever it is multiplied by at one instant. Treat "
+        "that picking-out as the definition, forget the picture of an "
+        "infinite spike, and the transform method absorbs it without "
+        "difficulty."
+    ),
+    derivation=(
+        Passage(
+            prose="Start with an honest pulse: a rectangle of some short duration, "
+                  "whose height is chosen so that the area is one. Whatever the "
+                  "duration, the total impulse delivered is the same, and only the "
+                  "duration is being sent to zero.",
+            latex=r"p_\varepsilon(t) = \frac{1}{\varepsilon} \;\; (0 \leq t < "
+                  r"\varepsilon), \qquad \int\, p_\varepsilon = 1",
+        ),
+        Passage(
+            prose="Integrate it against a continuous function and let the duration "
+                  "shrink. Over a shorter and shorter interval that function is more "
+                  "and more nearly constant, so the integral tends to the function's "
+                  "value at the instant — and it is this limit, not the pulse itself, "
+                  "that survives.",
+            latex=r"\int\, p_\varepsilon(t - a)\,f(t)\,dt \;\longrightarrow\; f(a)",
+        ),
+        Passage(
+            prose="So *define* the delta by that behaviour rather than by a picture. It "
+                  "is not a function that happens to be infinite somewhere; it is a "
+                  "rule that assigns to each function its value at one point, and "
+                  "everything below follows from this line alone.",
+            latex=r"\int_{-\infty}^{\infty}\delta(t - a)\,f(t)\,dt = f(a)",
+        ),
+        Passage(
+            prose="Its transform is then immediate, since transforming *is* integrating "
+                  "against a function. No table row is needed and no limit has to be "
+                  "taken a second time.",
+            latex=r"\mathcal{L}\{\delta(t-a)\} = e^{-as}",
+        ),
+        Passage(
+            prose="Which is as simple as a transform gets — for an impulse at time "
+                  "zero, just one. An impulse is therefore the easiest forcing this "
+                  "method handles, despite being the one that cannot be written as a "
+                  "function at all.",
+            latex=r"\mathcal{L}\{\delta(t)\} = 1",
+        ),
+        Passage(
+            prose="Now what it does to a mechanical system. Integrate the equation "
+                  "across the instant of the blow. The delta term contributes one; the "
+                  "term in y contributes nothing, because y is bounded and the interval "
+                  "is vanishing. What is left says the *velocity* jumps and the "
+                  "position does not.",
+            latex=r"\int_{a^-}^{a^+}\left(m y'' + k y\right)dt = 1 "
+                  r"\;\Longrightarrow\; m\left[y'\right]_{a^-}^{a^+} = 1",
+        ),
+        Passage(
+            prose="Which is exactly what a blow does physically — a struck object "
+                  "leaves instantly with a velocity, from where it was standing. The "
+                  "delta was an awkward object, and it has produced a completely "
+                  "unsurprising answer, which is the best evidence that the definition "
+                  "was the right one.",
+            latex=r"y(a^+) = y(a^-), \qquad y'(a^+) = y'(a^-) + \frac{1}{m}",
+        ),
+        Passage(
+            prose="One more consequence, and it is the reason impulses matter beyond "
+                  "the exam. With zero conditions the transform of the answer is the "
+                  "transfer function times one — so the response to an impulse *is* the "
+                  "function the convolution lesson convolved everything against. Strike "
+                  "a system once and you have characterised it for every input it will "
+                  "ever see.",
+            latex=r"\mathcal{L}\{\delta\} = 1 \;\Longrightarrow\; Y(s) = \frac{1}{P(s)} = G(s)",
+        ),
+    ),
     prerequisites=("step-forcing",),
     objectives=(
         "Say what δ(t − a) is, and what it is not.",
@@ -1078,6 +1674,19 @@ IMPULSES = Lesson(
             why="Nothing at all until t = 3, then a struck oscillator ringing "
                 "forever at unit amplitude. The impulse response, delayed — "
                 "which is what an impulse at t = 3 must produce.",
+            commentary=(
+                "Predict the answer from the sixth passage before reading the "
+                "working. The system is at rest, the blow gives it a velocity and "
+                "leaves its position alone, and after that nothing drives it — so "
+                "what follows must be free oscillation started from zero displacement "
+                "with a velocity, at the system's own frequency.\n\n"
+                "Then notice what makes this the *impulse response*: the amplitude "
+                "comes out at exactly the value the transfer function alone predicts, "
+                "because the transform of the forcing was one. This answer is the "
+                "function the convolution lesson used as its second factor, computed "
+                "directly rather than inferred, and the delay is the exponential "
+                "factor and nothing more."
+            ),
         ),
         Example(
             equation="y'' + 2*y' + 2*y = DiracDelta(t - 1)",
@@ -1086,6 +1695,19 @@ IMPULSES = Lesson(
             why="The same blow to a damped system: it rings and dies away "
                 "rather than ringing forever. Compare the two answers to see "
                 "what the damping term is doing.",
+            commentary=(
+                "The blow is the same, so the difference between this answer and the "
+                "previous one is entirely the system's doing. Look at the "
+                "characteristic roots first: they are a complex pair with a negative "
+                "real part, so whatever starts must decay, and the envelope's rate is "
+                "fixed before the forcing is considered at all.\n\n"
+                "Then compare the two answers as a pair, which is what this example "
+                "is for. One rings forever and one dies away, and the term "
+                "responsible is present in one equation and absent from the other. "
+                "Both are the impulse response of their own system, so a single "
+                "strike has characterised each of them — and the contrast shows what "
+                "characterisation actually captures."
+            ),
         ),
     ),
     notes=(

@@ -372,10 +372,10 @@ is the course this follows:
 All seven units are complete: the whole of a first course, from what a differential
 equation is to what to do when it has no closed form.
 
-**The first unit is written up as a textbook section, and the rest are not yet.** The
-difference is measurable and worth stating plainly: a rewritten lesson carries about
-5,500 characters of explanation, against 1,500 for one still in its original form. What
-the extra buys is three things a card full of facts cannot.
+**Every lesson is written up as a textbook section.** The difference from a set of
+cards is measurable and worth stating plainly: the curriculum carries about 198,000
+characters of explanation, some 5,700 per lesson, against 1,500 before this was done.
+What the extra buys is three things a card full of facts cannot.
 
 *Why this comes up*, before any technique is named — where the equation arises, what
 goes wrong with the tools already in hand, and why this method is the natural response.
@@ -395,9 +395,10 @@ moves are allowed.
 have gone wrong a step earlier, what the shape of the answer is telling you. The
 narrator supplies the steps and cannot supply the reading of them.
 
-The remaining six units are the same work and no new machinery: `tests/test_lessons.py`
-holds the list of lessons written up so far, so what is left is visible in the tests
-rather than in a plan.
+`tests/test_lessons.py` holds the list of lessons written up, and it now names all
+thirty-five — which is what it was for: while the work was in progress, what remained
+was visible in the tests rather than in a plan. It still gates. A lesson cannot be
+written up without being listed, or listed without being written.
 
 Notes come in kinds, and a **common mistake** does not read like an idea: it is the same
 card with a warning stripe down it, because the thing that catches people is worth

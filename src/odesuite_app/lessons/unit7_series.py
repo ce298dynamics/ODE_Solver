@@ -46,6 +46,7 @@ from .model import (
     Example,
     Lesson,
     Note,
+    Passage,
     Solve,
 )
 
@@ -59,6 +60,83 @@ POWERSERIES = Lesson(
             "time.",
     tool="steps",
     reference="Edwards 8.1",
+    motivation=(
+        "The whole course so far has been a search for equations that can be "
+        "solved in closed form, and the honest summary is that they are a "
+        "thin and unrepresentative slice. Change one coefficient of a "
+        "solvable equation from a constant to t and every technique in the "
+        "course stops applying, while the equation itself remains perfectly "
+        "ordinary and its solutions perfectly well behaved.\n\n"
+        "That is not a rare misfortune. Bessel's equation, Legendre's, "
+        "Airy's, Hermite's — the equations that describe a vibrating drum, a "
+        "potential on a sphere, light near a caustic, a quantum oscillator — "
+        "none of them has an elementary solution, and all of them are "
+        "ordinary second-order linear equations with polynomial coefficients.\n\n"
+        "So the last technique of the course changes what an answer is "
+        "allowed to look like. Rather than searching for a formula in terms "
+        "of functions that already have names, build the solution coefficient "
+        "by coefficient as a power series. The equation itself supplies the "
+        "rule for the coefficients, and that rule *is* the answer — a "
+        "complete description, even when no elementary function matches it."
+    ),
+    derivation=(
+        Passage(
+            prose="Assume the answer is a power series about the point of interest, "
+                  "with the coefficients unknown. This is a genuine assumption and the "
+                  "next two passages are about when it is safe — but grant it for a "
+                  "moment and see what the equation does with it.",
+            latex=r"y(t) = \sum_{n=0}^{\infty} a_n t^{n}",
+        ),
+        Passage(
+            prose="Inside its interval of convergence such a series can be "
+                  "differentiated term by term, so the derivatives are series of the "
+                  "same kind. That is the property being relied on, and it is what "
+                  "makes the whole method work rather than merely look plausible.",
+            latex=r"y'(t) = \sum_{n=1}^{\infty} n\,a_n t^{n-1}, \qquad y''(t) "
+                  r"= \sum_{n=2}^{\infty} n(n-1)\,a_n t^{n-2}",
+        ),
+        Passage(
+            prose="Now the condition. Write the equation with the second derivative's "
+                  "coefficient equal to one — the same first move as the integrating "
+                  "factor lesson — and ask whether the two remaining coefficients are "
+                  "analytic at the point, meaning each has a power series of its own "
+                  "there. A point where they are is called ordinary.",
+            latex=r"y'' + p(t)y' + q(t)y = 0, \qquad p,\ q \text{ analytic at } t_0",
+        ),
+        Passage(
+            prose="At such a point the assumption is guaranteed, not hoped for: there "
+                  "are two independent solutions, each a power series, each converging "
+                  "at least as far as the nearest point where p or q fails. The theorem "
+                  "is what turns the method from a gamble into a procedure.",
+            latex=r"t_0 \text{ ordinary} \;\Longrightarrow\; \text{two series solutions exist}",
+        ),
+        Passage(
+            prose="Substituting the series into the equation gives a series equal to "
+                  "zero, and one fact makes that usable: a power series vanishing on an "
+                  "interval must have every coefficient zero. So the single equation "
+                  "splits into infinitely many, one for each power, each relating a few "
+                  "coefficients — and solving them is arithmetic, not calculus.",
+            latex=r"\sum_n c_n t^{n} = 0 \text{ on an interval} "
+                  r"\;\Longrightarrow\; c_n = 0 \text{ for every } n",
+        ),
+        Passage(
+            prose="The first two coefficients are never determined by any of those "
+                  "equations, and that is exactly right. Evaluating the series and its "
+                  "derivative at the point shows why: they *are* the two initial "
+                  "conditions, so the freedom the equation leaves is precisely the "
+                  "freedom a second-order equation is supposed to have.",
+            latex=r"y(t_0) = a_0, \qquad y'(t_0) = a_1",
+        ),
+        Passage(
+            prose="One caution about what has been produced. Any finite number of terms "
+                  "is an approximation and is wrong away from the point — but the "
+                  "series itself is not an approximation, and neither is the rule that "
+                  "generates it. Truncating is a choice made when a number is wanted, "
+                  "and it should not be confused with the answer.",
+            latex=r"y \approx a_0 + a_1 t + a_2 t^{2} + \cdots \text{ "
+                  r"(truncated, not incomplete)}",
+        ),
+    ),
     prerequisites=("roots",),
     objectives=(
         "Say what an ordinary point is, and test whether one is.",
@@ -74,6 +152,20 @@ POWERSERIES = Lesson(
             why="Legendre's equation at n = 2. The even branch stops at t², so "
                 "the conditions given pick out the exact polynomial 1 − 3t² — "
                 "a series solution that happens to be finite.",
+            commentary=(
+                "Check the point before assuming anything, since that is the step the "
+                "derivation insists on. Divide through so the second derivative "
+                "stands alone: the coefficients acquire a denominator that vanishes "
+                "at plus and minus one, and nowhere else. The origin is comfortably "
+                "clear of both, so the theorem applies and two series solutions are "
+                "guaranteed.\n\n"
+                "Then watch the recurrence terminate. The numerator of the ratio hits "
+                "zero at one particular index, so every coefficient past it is zero "
+                "and the infinite series collapses to a polynomial. That is not the "
+                "method failing to produce a series — it is producing one whose tail "
+                "is entirely zeros, and it is why this family of equations turns up "
+                "wherever a physical problem needs an answer that stays finite."
+            ),
         ),
         Example(
             equation="y'' - 2*t*y' + 4*y = 0",
@@ -82,6 +174,19 @@ POWERSERIES = Lesson(
             why="Hermite's equation at n = 2, giving 1 − 2t². The same "
                 "phenomenon from a different family, and worth comparing: the "
                 "recurrences differ but both terminate.",
+            commentary=(
+                "The coefficients here are polynomials with no denominator at all, so "
+                "every point of the line is ordinary and the guaranteed radius is "
+                "infinite. Compare that with the previous example, where the "
+                "guarantee stopped at one — the difference is visible in the equation "
+                "before any coefficient is computed.\n\n"
+                "Then set the two recurrences side by side. They are not the same "
+                "rule, and the coefficients they generate differ — yet both "
+                "terminate, and for the same structural reason: a numerator that "
+                "vanishes at one index and therefore zeros everything after it. Two "
+                "different families, one mechanism, and it is the mechanism rather "
+                "than either answer that is worth carrying away."
+            ),
         ),
     ),
     notes=(
@@ -277,6 +382,86 @@ RECURRENCE = Lesson(
             "answer it builds can be trusted.",
     tool="steps",
     reference="Edwards 8.2",
+    motivation=(
+        "Assuming a series and substituting it is the easy half. What comes "
+        "back is an equation between three or four infinite sums whose powers "
+        "do not line up, and turning that into something usable is where the "
+        "actual work of this unit lives.\n\n"
+        "The obstacle is bookkeeping rather than mathematics, and it has a "
+        "standard remedy. Differentiating shifts the exponent down, "
+        "multiplying by t shifts it up, so the sums arrive misaligned — and "
+        "before any coefficient can be compared with any other, they have to "
+        "be re-indexed onto a common power. Almost every error in this topic "
+        "happens in that step.\n\n"
+        "Once aligned, one fact does everything: a power series that vanishes "
+        "on an interval has every coefficient zero. That converts a single "
+        "equation into an infinite family of ordinary ones, each linking a "
+        "coefficient to earlier ones — and that rule, not any list of "
+        "numbers, is the answer. There is also a second dividend, since the "
+        "equation announces in advance how far the series will be good for."
+    ),
+    derivation=(
+        Passage(
+            prose="Substitute the series and its derivatives. Each term arrives with "
+                  "its own starting index and its own exponent, and no two of the sums "
+                  "are expressed in the same power of t — which is why nothing can yet "
+                  "be compared.",
+            latex=r"\sum_{n\geq 2} n(n-1)a_n t^{n-2} + \cdots + \sum_{n\geq 0} a_n t^{n} = 0",
+        ),
+        Passage(
+            prose="So shift the index before collecting anything. Replacing the "
+                  "summation variable moves the exponent without changing the sum — "
+                  "this is renaming, not manipulation — and the starting index moves by "
+                  "the same amount, which is the half that gets forgotten.",
+            latex=r"\sum_{n\geq 2} n(n-1)a_n t^{n-2} = \sum_{k\geq 0}(k+2)(k+1)a_{k+2}t^{k}",
+        ),
+        Passage(
+            prose="With every sum on the same power, collect the coefficient of each. "
+                  "The equation is now a single series set equal to zero, and "
+                  "everything depends on what that permits.",
+            latex=r"\sum_{k\geq 0}\left[(k+2)(k+1)a_{k+2} + \cdots\right]t^{k} = 0",
+        ),
+        Passage(
+            prose="What it permits is nothing. A power series that vanishes throughout "
+                  "an interval must have every coefficient zero — evaluate at the "
+                  "centre to kill the first, differentiate and evaluate again for the "
+                  "second, and so on indefinitely. That is the identity theorem, and it "
+                  "is the licence for everything that follows.",
+            latex=r"c_k = 0 \quad \text{for every } k",
+        ),
+        Passage(
+            prose="Each of those equations expresses a later coefficient in terms of "
+                  "earlier ones, so the whole infinite family collapses into a single "
+                  "rule. Two coefficients stay free, they are the initial conditions, "
+                  "and the rule generates every other coefficient from them.",
+            latex=r"a_{k+2} = -\frac{\left(\text{terms in } a_k,\ a_{k+1}\right)}{(k+2)(k+1)}",
+        ),
+        Passage(
+            prose="The rule is the answer, and it is worth being firm about that. A "
+                  "list of the first six coefficients is a truncation; the recurrence "
+                  "is complete, generates as many terms as anyone asks for, and shows "
+                  "structure a list conceals — such as every third coefficient "
+                  "vanishing, which is invisible in the numbers and obvious in the "
+                  "rule.",
+            latex=r"a_{k+3} = \frac{a_k}{(k+2)(k+3)} \;\Longrightarrow\; a_2 = a_5 = a_8 = 0",
+        ),
+        Passage(
+            prose="Finally, how far the series is good for, which the equation answers "
+                  "before any coefficient is computed. Put the equation in standard "
+                  "form and find where its coefficients fail; the radius of convergence "
+                  "reaches at least to the nearest such point. Nothing has to be tested "
+                  "for convergence by hand.",
+            latex=r"\rho \geq \min\left|t_{\text{singular}} - t_0\right|",
+        ),
+        Passage(
+            prose="And that nearest point may be complex, which is the surprise. A real "
+                  "equation with no real trouble anywhere can still have its series "
+                  "stop, because a root of the leading coefficient off the real axis is "
+                  "just as close and just as fatal — a fact about the real line that "
+                  "only the complex plane explains.",
+            latex=r"1 + t^{2} = 0 \;\Longrightarrow\; t = \pm i \;\Longrightarrow\; \rho = 1",
+        ),
+    ),
     prerequisites=("power-series",),
     objectives=(
         "Shift indices so every sum runs over the same power of t.",
@@ -292,6 +477,18 @@ RECURRENCE = Lesson(
             why="Legendre at n = 1, whose odd branch stops immediately: the "
                 "answer is just t. Worth seeing because the recurrence is the "
                 "same machinery producing a one-term answer.",
+            commentary=(
+                "Find the singular points first: the leading coefficient factors, so "
+                "the two of them are immediate and the guaranteed radius is the "
+                "distance from the origin to the nearer one. That number is available "
+                "before a single coefficient is computed, and having it first is the "
+                "habit this lesson is for.\n\n"
+                "Then watch a recurrence do something surprising. The numerator "
+                "vanishes at the very first step of the odd branch, so every odd "
+                "coefficient after the first is zero and the whole branch is a single "
+                "term. The machinery did not fail and no shortcut was taken — the "
+                "rule simply generated zeros, which is what a rule is entitled to do."
+            ),
         ),
         Example(
             equation="y'' - t*y = 0",
@@ -300,6 +497,20 @@ RECURRENCE = Lesson(
                 "recurrence skips every third coefficient — a₂ = a₅ = 0 — and "
                 "that pattern is visible in the answer, which is what makes "
                 "the recurrence worth writing down rather than just the terms.",
+            commentary=(
+                "The leading coefficient is one and never vanishes, so the guaranteed "
+                "radius is infinite and the series converges everywhere. That is "
+                "worth noting precisely because the answer is not elementary: "
+                "convergence for all t and expressibility in closed form are "
+                "different questions, and this equation settles them opposite ways.\n\n"
+                "Then read the pattern rather than the numbers. The rule connects "
+                "each coefficient to the one three places back, so the sequence "
+                "splits into three independent chains — two started by the free "
+                "constants and one started by a zero, which therefore stays zero "
+                "forever. A printed list of terms shows a scattering of zeros with no "
+                "evident cause; the recurrence shows why they are there and which "
+                "ones come next."
+            ),
         ),
     ),
     notes=(
@@ -480,6 +691,83 @@ FROBENIUS = Lesson(
             "that rescues it.",
     tool="steps",
     reference="Edwards 8.3",
+    motivation=(
+        "The series method came with a condition: the point must be ordinary. "
+        "The points that are not ordinary are exactly the interesting ones. A "
+        "singular point is usually where the geometry does something — the "
+        "centre of a disc, the axis of a cylinder, the pole of a sphere — and "
+        "the boundary condition that matters is usually stated there.\n\n"
+        "Assuming a plain power series at such a point simply fails, and it "
+        "fails informatively. Substituting one into a Cauchy–Euler equation "
+        "forces every coefficient to zero, so the method reports that the "
+        "only solution of its assumed shape is the zero function. The "
+        "assumption was wrong, not the equation.\n\n"
+        "What is wrong with it is visible in Unit 3. The solutions of a "
+        "Cauchy–Euler equation are powers with exponents that are usually "
+        "neither whole numbers nor positive, and no power series contains "
+        "such a thing. So allow one factor of an arbitrary power in front of "
+        "an ordinary series — and that single change is the whole of "
+        "Frobenius."
+    ),
+    derivation=(
+        Passage(
+            prose="First distinguish the singular points that can be handled from those "
+                  "that cannot. Write the equation in standard form; if the "
+                  "coefficients blow up no faster than a fixed rate — one factor for "
+                  "the first derivative's coefficient, two for the other's — the point "
+                  "is called regular, and the method applies.",
+            latex=r"(t - t_0)\,p(t) \text{ and } (t - t_0)^{2}q(t) \text{ analytic at } t_0",
+        ),
+        Passage(
+            prose="The reason that is the right condition is worth seeing rather than "
+                  "accepting. Multiply through by the square of the distance from the "
+                  "point and the leading behaviour of every coefficient is a constant — "
+                  "which is to say the equation looks, near that point, exactly like a "
+                  "Cauchy–Euler equation.",
+            latex=r"(t-t_0)^{2}y'' + (t-t_0)\,\left[(t-t_0)p\right]y' + "
+                  r"\left[(t-t_0)^{2}q\right]y = 0",
+        ),
+        Passage(
+            prose="And that lesson already says what such an equation does: its "
+                  "solutions are powers, with the exponent given by a quadratic. So "
+                  "near a regular singular point the solution must behave like some "
+                  "power — and there is no reason at all for the exponent to be a whole "
+                  "number.",
+            latex=r"y \sim (t - t_0)^{r} \text{ near } t_0",
+        ),
+        Passage(
+            prose="So assume that behaviour and correct it with an ordinary series. The "
+                  "leading coefficient is taken non-zero, which is what makes the "
+                  "exponent mean what it should — otherwise it could be raised at will "
+                  "and would say nothing.",
+            latex=r"y = (t - t_0)^{r}\sum_{n=0}^{\infty}a_n (t-t_0)^{n}, \qquad a_0 \neq 0",
+        ),
+        Passage(
+            prose="Substitute and collect the lowest power. Its coefficient involves "
+                  "only the leading term, and setting it to zero gives a quadratic in "
+                  "the exponent — which is precisely the indicial equation of the "
+                  "Cauchy–Euler equation from the second passage. The two lessons share "
+                  "it because they are looking at the same leading behaviour.",
+            latex=r"r(r-1) + p_0\,r + q_0 = 0",
+        ),
+        Passage(
+            prose="The larger root always works and always produces a solution. The "
+                  "smaller one usually does too, and the exception is worth knowing: "
+                  "when the two roots differ by a whole number, the smaller root's "
+                  "series can collide with the larger one's and break down partway "
+                  "through.",
+            latex=r"r_1 - r_2 \notin \mathbb{Z} \;\Longrightarrow\; \text{two "
+                  r"Frobenius series}",
+        ),
+        Passage(
+            prose="When it does break down the repair is the one this course has used "
+                  "twice already — for a repeated characteristic root and for a "
+                  "repeated indicial root. Something is missing, and what supplies it "
+                  "carries a logarithm, which is what the substitution in the "
+                  "Cauchy–Euler lesson showed a repeated exponent must produce.",
+            latex=r"y_2 = C\,y_1\ln(t-t_0) + (t-t_0)^{r_2}\sum_n b_n (t-t_0)^{n}",
+        ),
+    ),
     prerequisites=("recurrence", "cauchy"),
     objectives=(
         "Classify a singular point as regular or irregular.",
@@ -504,6 +792,19 @@ FROBENIUS = Lesson(
                 "Frobenius produces at this singular point — which is the "
                 "point of the lesson: Frobenius is y = t^r with a series "
                 "attached.",
+            commentary=(
+                "Confirm the point is regular before anything else: in standard form "
+                "the coefficients have one and two factors of t underneath them "
+                "respectively, which is exactly the rate the first passage permits. "
+                "Had either been worse, no method in this course would apply at that "
+                "point.\n\n"
+                "Then do the comparison this example exists for. Form the indicial "
+                "equation here and set it beside the one Unit 3 produced for the same "
+                "equation: they are identical, because this equation *is* its own "
+                "leading behaviour — there is nothing for the series to correct, so "
+                "every coefficient after the first comes out zero and Frobenius "
+                "returns the Cauchy–Euler answer exactly."
+            ),
         ),
         Example(
             equation="t**2*y'' - 3*t*y' + 4*y = 0",
@@ -512,6 +813,19 @@ FROBENIUS = Lesson(
                 "shortfall as a repeated characteristic root, and the same "
                 "repair — and it is exactly the case Frobenius finds awkward "
                 "when the roots differ by an integer.",
+            commentary=(
+                "The indicial equation is a perfect square, so the two exponents "
+                "coincide — which is the extreme case of roots differing by a whole "
+                "number, since they differ by zero. One Frobenius series is all that "
+                "this exponent can produce, and a second solution has to come from "
+                "somewhere else.\n\n"
+                "It comes with a logarithm, and the shortfall is the same one this "
+                "course has met twice before: a repeated characteristic root gave one "
+                "exponential where two solutions were needed, and a repeated indicial "
+                "root gives one power. Three different settings, one pattern — "
+                "something is missing, and what fills the gap carries an extra factor "
+                "that the first solution does not have."
+            ),
         ),
     ),
     notes=(

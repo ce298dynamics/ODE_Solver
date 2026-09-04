@@ -18,7 +18,15 @@ enumeration cannot tell in advance which draws those are.
 
 from __future__ import annotations
 
-from .model import Choice, Example, Lesson, Note, Solve, Template
+from .model import (
+    Choice,
+    Example,
+    Lesson,
+    Note,
+    Passage,
+    Solve,
+    Template,
+)
 
 __all__ = ["FIRSTORDER", "DISTINCT", "COMPLEX", "REPEATED",
            "NONHOMOGENEOUS", "PORTRAITS", "LESSONS"]
@@ -31,6 +39,80 @@ FIRSTORDER = Lesson(
             "equation turns into one.",
     tool="steps",
     reference="Edwards 4.1",
+    motivation=(
+        "Every equation so far has had one unknown function. Very little in "
+        "the world comes that way. Two tanks exchanging brine, two masses "
+        "joined by a spring, a predator and its prey, the currents in two "
+        "coupled loops — in each case there are two unknowns, and each one's "
+        "rate of change depends on both.\n\n"
+        "Coupling is what makes this genuinely new rather than two problems "
+        "side by side. Neither equation can be solved first, because each "
+        "needs the answer to the other. Substituting one into the other "
+        "sometimes works and produces a single higher-order equation, but it "
+        "is laborious and it fails as soon as there are three unknowns "
+        "instead of two.\n\n"
+        "What works instead is to stop treating the unknowns separately. "
+        "Collect them into a vector and the coupling becomes a matrix, at "
+        "which point the equation looks exactly like the very first one in "
+        "the course — a rate proportional to the amount — and the whole of "
+        "linear algebra is available to say what a matrix does. That change "
+        "of viewpoint is the unit."
+    ),
+    derivation=(
+        Passage(
+            prose="Write the two equations with their unknowns collected on the right, "
+                  "and notice that the coefficients form an array. Stacking the "
+                  "unknowns into a column turns the pair into a single equation between "
+                  "vectors.",
+            latex=r"x_1' = a x_1 + b x_2, \quad x_2' = c x_1 + d x_2 "
+                  r"\;\Longrightarrow\; \mathbf{x}' = A\mathbf{x}",
+        ),
+        Passage(
+            prose="That form is worth staring at, because it is the equation the course "
+                  "opened with. A rate proportional to the amount — only the constant "
+                  "of proportionality is now a matrix, and the entire difficulty of "
+                  "this unit is that multiplying by a matrix, unlike multiplying by a "
+                  "number, changes direction as well as size.",
+            latex=r"y' = ky \quad\longleftrightarrow\quad \mathbf{x}' = A\mathbf{x}",
+        ),
+        Passage(
+            prose="The same form also swallows every higher-order equation met so far. "
+                  "Name the derivatives as new unknowns: each one's rate is the next in "
+                  "the list, and the equation itself supplies the last. No information "
+                  "is added or lost.",
+            latex=r"x_1 = y,\ x_2 = y' \;\Longrightarrow\; x_1' = x_2, \quad "
+                  r"x_2' = -\frac{c}{a}x_1 - \frac{b}{a}x_2",
+        ),
+        Passage(
+            prose="This is not a trick for exam questions, and it is worth saying why. "
+                  "The vector of a solution's value and its derivative is precisely the "
+                  "information needed to continue from an instant — it is the *state* — "
+                  "which is exactly why an equation of order n takes n conditions. The "
+                  "conversion turns one statement about that count into another.",
+            latex=r"\text{order } n \;\Longleftrightarrow\; n \text{ "
+                  r"components} \;\Longleftrightarrow\; n \text{ conditions}",
+        ),
+        Passage(
+            prose="It also runs the other way, which is what makes the unit worth "
+                  "learning rather than merely possible. Every numerical method in the "
+                  "course was written for first-order equations, and every general "
+                  "solver in existence takes a system — so converting is how a "
+                  "fourth-order equation is handed to software that has never heard of "
+                  "fourth-order equations.",
+            latex=r"y^{(n)} = f\left(t, y, \ldots, y^{(n-1)}\right) "
+                  r"\;\Longrightarrow\; \mathbf{x}' = \mathbf{F}(t, "
+                  r"\mathbf{x})",
+        ),
+        Passage(
+            prose="Superposition survives the move intact, since matrix multiplication "
+                  "is linear. So the plan is the same as it was at second order: find "
+                  "enough independent solutions, combine them with constants, and fit "
+                  "the conditions. Only the meaning of *independent* needs restating, "
+                  "and linear algebra has that word already.",
+            latex=r"A(c_1\mathbf{x}_1 + c_2\mathbf{x}_2) = c_1 A\mathbf{x}_1 + "
+                  r"c_2 A\mathbf{x}_2",
+        ),
+    ),
     prerequisites=("roots",),
     objectives=(
         "Say what makes a system coupled, and why that stops you solving one "
@@ -47,6 +129,20 @@ FIRSTORDER = Lesson(
                 "x₁ = y and x₂ = y' turns it into a two-by-two system whose "
                 "eigenvalues are exactly the characteristic roots — the same "
                 "answer, reached the other way round.",
+            commentary=(
+                "Do the conversion by hand and keep track of what each row is saying. "
+                "The first row is a definition — the second unknown *is* the "
+                "derivative of the first — and only the second row carries any "
+                "physics. That asymmetry is worth noticing, because it means the "
+                "matrix produced this way always has the same shape whatever the "
+                "equation.\n\n"
+                "Then compute the eigenvalues of that matrix and set them beside the "
+                "characteristic roots from the second-order unit. They are the same "
+                "two numbers, and they must be: the determinant of A minus lambda I "
+                "comes out as the characteristic polynomial itself. The eigenvalue "
+                "method is not an alternative to that unit, it is the same "
+                "computation with different notation around it."
+            ),
         ),
         Example(
             equation="y'' + 4*y = 0",
@@ -54,6 +150,19 @@ FIRSTORDER = Lesson(
             why="An oscillator, whose system form has a complex pair of "
                 "eigenvalues. Worth holding on to for the lesson on complex "
                 "eigenvalues, where the same matrix reappears.",
+            commentary=(
+                "Convert this one too, and note that the matrix has zeros on its "
+                "diagonal — nothing damps it, and each unknown drives only the other. "
+                "That is a rotation written out, and it is worth recognising as such "
+                "before any eigenvalue is computed.\n\n"
+                "Then hold on to the matrix, because it returns in the lesson on "
+                "complex eigenvalues and it is easier to meet twice than once. Its "
+                "characteristic polynomial has no real roots at all, which for a "
+                "single equation meant an oscillation. Here it will mean trajectories "
+                "that go round the origin instead of into or away from it — the same "
+                "fact about the same numbers, seen in the plane rather than against "
+                "time."
+            ),
         ),
     ),
     notes=(
@@ -229,6 +338,85 @@ DISTINCT = Lesson(
             "collapses into an eigenvalue problem.",
     tool="steps",
     reference="Edwards 5.2",
+    motivation=(
+        "The system is written as a matrix times a vector, and the difficulty "
+        "is entirely that a matrix changes direction. Multiply a vector by a "
+        "number and it stretches; multiply it by a matrix and it usually "
+        "turns as well, so the neat exponential answer from the first lesson "
+        "of the course has nothing obvious to attach itself to.\n\n"
+        "Unless the direction happens to survive. For any matrix there are "
+        "usually a few special directions that come back unturned — stretched "
+        "perhaps, or reversed, but pointing the same way. Along one of those, "
+        "the matrix *is* just a number, and the vector equation collapses to "
+        "the scalar one the course began with.\n\n"
+        "So the method is to look for solutions that keep a fixed direction "
+        "and only change in length. That single guess turns the differential "
+        "equation into an eigenvalue problem, which is a piece of linear "
+        "algebra with nothing differential left in it — and after that the "
+        "whole unit is bookkeeping."
+    ),
+    derivation=(
+        Passage(
+            prose="Guess a solution that never changes direction: a fixed vector whose "
+                  "length is scaled by a function of time. Nothing about this is "
+                  "arbitrary — it is the only shape for which multiplying by A can "
+                  "possibly behave like multiplying by a number.",
+            latex=r"\mathbf{x}(t) = \mathbf{v}\,f(t), \qquad \mathbf{v} \text{ fixed}",
+        ),
+        Passage(
+            prose="Substitute it. The derivative touches only the scalar factor, and "
+                  "the matrix touches only the vector, so the equation separates into a "
+                  "statement that A applied to that vector must point along the vector "
+                  "again — with the ratio of the two sides equal to the logarithmic "
+                  "derivative of the scalar.",
+            latex=r"\mathbf{v}f'(t) = f(t)\,A\mathbf{v}",
+        ),
+        Passage(
+            prose="For that to hold at every instant, A applied to the vector must be a "
+                  "constant multiple of it, and the scalar factor must satisfy the "
+                  "simplest equation in the course. So the exponential comes back, and "
+                  "the direction question is now pure linear algebra.",
+            latex=r"A\mathbf{v} = \lambda\mathbf{v}, \qquad f' = \lambda f "
+                  r"\;\Longrightarrow\; \mathbf{x} = \mathbf{v}e^{\lambda t}",
+        ),
+        Passage(
+            prose="Finding those directions is the standard eigenvalue computation. A "
+                  "non-zero vector sent to zero by a matrix exists exactly when that "
+                  "matrix is singular, so the eigenvalues are the roots of a "
+                  "determinant — and for a two-by-two system that determinant is a "
+                  "quadratic, which is why this unit looks so much like the "
+                  "second-order one.",
+            latex=r"(A - \lambda I)\mathbf{v} = \mathbf{0},\ \mathbf{v} \neq "
+                  r"\mathbf{0} \;\Longleftrightarrow\; \det(A - \lambda I) = 0",
+        ),
+        Passage(
+            prose="Each eigenvector is determined only up to scale, and that is not a "
+                  "defect. Rescaling it multiplies the solution by a constant, and a "
+                  "constant is exactly what the general solution already carries — so "
+                  "any convenient multiple may be taken, and choosing the one with "
+                  "small integers in it is the only sensible thing to do.",
+            latex=r"\mathbf{v} \to k\mathbf{v} \;\Longrightarrow\; "
+                  r"c\,\mathbf{v}e^{\lambda t} \text{ unchanged in form}",
+        ),
+        Passage(
+            prose="Distinct eigenvalues give independent eigenvectors, so two of them "
+                  "give the general solution by superposition. The count matches: two "
+                  "unknowns, two constants, two conditions — the same accounting as "
+                  "everywhere else in the course.",
+            latex=r"\mathbf{x} = c_1\mathbf{v}_1 e^{\lambda_1 t} + "
+                  r"c_2\mathbf{v}_2 e^{\lambda_2 t}",
+        ),
+        Passage(
+            prose="The geometry is worth reading off, because it is what a system "
+                  "offers that a single equation does not. Starting exactly on an "
+                  "eigenvector, the solution never leaves that line — the "
+                  "eigendirections are the only straight-line trajectories there are. "
+                  "Every other solution is a mix, and the sign of each eigenvalue says "
+                  "whether its line runs in or out.",
+            latex=r"\lambda_1 < 0 < \lambda_2 \;\Longrightarrow\; \text{one "
+                  r"line in, one line out}",
+        ),
+    ),
     prerequisites=("systems-intro",),
     objectives=(
         "Explain why x = v·e^{λt} turns the system into Av = λv.",
@@ -244,6 +432,20 @@ DISTINCT = Lesson(
                 "which makes the origin a saddle. The classic first example, "
                 "and the one where the straight-line solutions are easiest to "
                 "see.",
+            commentary=(
+                "Compute the determinant and factor it before looking at the working. "
+                "The two eigenvalues have opposite signs, and that alone settles the "
+                "picture: one direction along which everything falls into the origin, "
+                "one along which everything runs away, and no starting point except "
+                "the origin itself that stays put.\n\n"
+                "Then find each eigenvector and check it by multiplying rather than "
+                "by trusting the algebra: A applied to it should come back as a plain "
+                "multiple. Take whichever scaling makes the entries small integers, "
+                "since the constant absorbs the choice. Starting exactly on either "
+                "line, the solution stays on it forever — which is the geometric fact "
+                "the closed form encodes and the reason these two lines organise the "
+                "whole plane."
+            ),
         ),
         Example(
             equation="x' = -2*x + y; y' = x - 2*y",
@@ -251,6 +453,19 @@ DISTINCT = Lesson(
             why="Both eigenvalues negative, so every trajectory runs into the "
                 "origin — a stable node. Compare the picture with the saddle "
                 "above; the algebra is identical and only the signs differ.",
+            commentary=(
+                "The algebra here is identical to the previous example and only the "
+                "signs of the answers differ, which is exactly why the two are set "
+                "together. Compute the eigenvalues and note that both are negative, "
+                "so both directions run inwards and every trajectory reaches the "
+                "origin.\n\n"
+                "Then ask which of the two dominates, because that is the detail the "
+                "formula hides. The term with the more negative eigenvalue dies "
+                "first, so after a short while what is left is almost entirely the "
+                "other one — every trajectory ends up nearly parallel to the *slower* "
+                "eigendirection, whatever direction it set out in. That is the "
+                "observation the phase portrait lesson is built on."
+            ),
         ),
     ),
     notes=(
@@ -432,6 +647,86 @@ COMPLEX = Lesson(
             "quietly contains both real ones.",
     tool="steps",
     reference="Edwards 5.3",
+    motivation=(
+        "The eigenvalue method works whenever the eigenvalues are real and "
+        "distinct. Nothing guarantees that. A matrix with entirely real "
+        "entries can perfectly well have a characteristic polynomial with no "
+        "real roots — the rotation that sends the first axis to the second is "
+        "the simplest example, and there is no direction it leaves alone.\n\n"
+        "Which is the point, geometrically. Real eigenvalues gave "
+        "straight-line trajectories, and a system whose solutions circle the "
+        "origin cannot have any. So the absence of real eigenvalues is not a "
+        "defect of the method; it is the algebra reporting that the picture "
+        "has no straight lines in it.\n\n"
+        "The complex roots still work, and they still produce solutions. The "
+        "only difficulty is that a real system with real initial data must "
+        "have a real answer, so the complex exponentials have to be converted "
+        "back — and the conversion is the same one the second-order unit "
+        "used, applied now to a vector as well as to a scalar."
+    ),
+    derivation=(
+        Passage(
+            prose="A real matrix has a real characteristic polynomial, so complex roots "
+                  "arrive in conjugate pairs — and the eigenvectors do too, since "
+                  "conjugating the whole eigenvalue equation gives the conjugate one "
+                  "back. Nothing has to be computed twice.",
+            latex=r"A\mathbf{v} = \lambda\mathbf{v} \;\Longrightarrow\; "
+                  r"A\overline{\mathbf{v}} = "
+                  r"\overline{\lambda}\,\overline{\mathbf{v}}",
+        ),
+        Passage(
+            prose="So one complex eigenvalue and its eigenvector give a solution in the "
+                  "usual way. It is complex, so it is not the answer — but it does "
+                  "satisfy the equation, and that is enough to extract two real "
+                  "solutions from it.",
+            latex=r"\mathbf{x}(t) = \mathbf{v}e^{\lambda t} \text{ solves } "
+                  r"\mathbf{x}' = A\mathbf{x}",
+        ),
+        Passage(
+            prose="Here is why. Split it into its real and imaginary parts and "
+                  "substitute. Since A is real, applying it never mixes the two halves, "
+                  "so the equation holds separately for each — and both halves are real "
+                  "solutions of the original system.",
+            latex=r"\mathbf{x} = \mathbf{p} + i\mathbf{q} \;\Longrightarrow\; "
+                  r"\mathbf{p}' = A\mathbf{p}, \quad \mathbf{q}' = A\mathbf{q}",
+        ),
+        Passage(
+            prose="Computing them means expanding the complex exponential, and the "
+                  "pitfall is here: Euler's formula applies to the scalar factor, but "
+                  "the *eigenvector* is complex too, so its real and imaginary parts "
+                  "have to be separated as well. Both products contribute to both "
+                  "halves.",
+            latex=r"\left(\mathbf{a} + i\mathbf{b}\right)e^{\alpha "
+                  r"t}\left(\cos\beta t + i\sin\beta t\right)",
+        ),
+        Passage(
+            prose="Multiplying out and collecting gives the two real solutions. Each is "
+                  "a combination of two fixed real vectors with a cosine and a sine, "
+                  "wrapped in one exponential envelope — and the conjugate eigenvalue "
+                  "produces nothing new, which is why only one of the pair is ever "
+                  "used.",
+            latex=r"\mathbf{p} = e^{\alpha t}\left(\mathbf{a}\cos\beta t - "
+                  r"\mathbf{b}\sin\beta t\right)",
+        ),
+        Passage(
+            prose="The geometry follows directly from the two parts of the root. The "
+                  "imaginary part turns the solution round the origin, at a rate that "
+                  "does not depend on where it started; the real part scales it, so the "
+                  "sign of that part alone decides whether the spiral runs inwards or "
+                  "outwards, and a zero real part gives closed loops.",
+            latex=r"\alpha < 0 \text{ inwards}, \quad \alpha = 0 \text{ "
+                  r"closed}, \quad \alpha > 0 \text{ outwards}",
+        ),
+        Passage(
+            prose="Which is the underdamped spring of Unit 4 in a different picture. "
+                  "There the real part was the decay of an envelope and the imaginary "
+                  "part the frequency; here they are the tightening of a spiral and its "
+                  "rate of turning. Same roots, same numbers, and the same equation "
+                  "underneath.",
+            latex=r"e^{\alpha t}\cos\beta t \quad\longleftrightarrow\quad "
+                  r"\text{a spiral of rate } \alpha \text{ and turn } \beta",
+        ),
+    ),
     prerequisites=("eigenvalues",),
     objectives=(
         "Recognise a complex pair from the characteristic equation.",
@@ -447,6 +742,19 @@ COMPLEX = Lesson(
             why="Eigenvalues ±i, a pure rotation. The simplest complex case "
                 "there is, and the one where the real and imaginary parts "
                 "come out as plainly cos and sin.",
+            commentary=(
+                "Look at the matrix before computing anything: each unknown drives "
+                "the other and nothing drives itself. That is a rotation, and its "
+                "eigenvalues have to be purely imaginary — a rotation leaves no "
+                "direction fixed and changes no length, so the real part has nowhere "
+                "to come from.\n\n"
+                "Then check that what the derivation extracts is the obvious pair. "
+                "With no envelope to complicate matters it produces a cosine in one "
+                "component against a sine in the other, and the trajectory is a "
+                "circle traced at constant speed. Every later example in this lesson "
+                "is this one with an envelope on it, so it is worth being able to see "
+                "this case without any algebra at all."
+            ),
         ),
         Example(
             equation="x' = -x - 2*y; y' = 2*x - x",
@@ -455,6 +763,19 @@ COMPLEX = Lesson(
                 "eigenvalue is negative, so the rotation is inside a decaying "
                 "envelope. Compare the answer with the underdamped spring "
                 "from Unit 4 — it is the same shape.",
+            commentary=(
+                "Compute the eigenvalues and read the two parts separately. The real "
+                "part is negative, so whatever happens is shrinking; the imaginary "
+                "part is non-zero, so it is also turning. Those two facts fix the "
+                "picture as an inward spiral before a single eigenvector has been "
+                "found.\n\n"
+                "Then do the comparison this example exists for. Take the answer's "
+                "first component alone and set it beside the underdamped spring: a "
+                "decaying exponential multiplying a combination of a cosine and a "
+                "sine, with the same two numbers in the same two places. Watching one "
+                "motion in time and one trajectory in the plane makes them look "
+                "unrelated, and the algebra says they are the same thing."
+            ),
         ),
     ),
     notes=(
@@ -610,6 +931,86 @@ REPEATED = Lesson(
             "provides one direction.",
     tool="steps",
     reference="Edwards 5.4",
+    motivation=(
+        "A two-by-two system needs two independent solutions, and the "
+        "eigenvalue method supplies one per eigenvector. When the "
+        "characteristic polynomial has a repeated root there may be only one "
+        "direction to be had, and then the method has produced half an "
+        "answer.\n\n"
+        "It is worth being precise about when this actually happens, because "
+        "the usual statement is too strong. A repeated eigenvalue does *not* "
+        "mean a shortage of eigenvectors — a multiple of the identity has one "
+        "eigenvalue twice and leaves every direction fixed, so it has as many "
+        "independent eigenvectors as anyone could want. The trouble is a "
+        "particular kind of matrix, not a particular kind of polynomial.\n\n"
+        "When the shortage is real, the repair follows the second-order unit "
+        "exactly. There a repeated characteristic root gave one exponential "
+        "and the missing solution came with a factor of t; here the same "
+        "factor appears, for the same reason, and the only new thing is that "
+        "a vector has to come with it."
+    ),
+    derivation=(
+        Passage(
+            prose="First distinguish the two cases, since they look identical from the "
+                  "polynomial. Solve for the eigenvectors of the repeated eigenvalue "
+                  "and count them: if two independent ones exist there is no problem at "
+                  "all and the previous lesson finishes the job.",
+            latex=r"\dim\ker(A - \lambda I) = 2 \;\Longrightarrow\; \text{two "
+                  r"eigenvectors, nothing new}",
+        ),
+        Passage(
+            prose="The awkward case is a single line of eigenvectors where two "
+                  "dimensions are needed. Such a matrix is called defective, and the "
+                  "name is apt: the deficiency is in the matrix, and no amount of "
+                  "cleverness will find a second straight-line solution that is not "
+                  "there.",
+            latex=r"\dim\ker(A - \lambda I) = 1 \;\text{ with } \lambda \text{ repeated}",
+        ),
+        Passage(
+            prose="So look for the next simplest shape instead, taking the hint from "
+                  "the second-order unit: an exponential multiplied by something linear "
+                  "in t. Leave both vectors unknown and let the equation determine "
+                  "them.",
+            latex=r"\mathbf{x} = \left(\mathbf{w} + t\,\mathbf{v}\right)e^{\lambda t}",
+        ),
+        Passage(
+            prose="Substitute and collect. The terms without a t and the terms with one "
+                  "must balance separately, because a function and t times a function "
+                  "cannot cancel each other at every instant. Two vector equations fall "
+                  "out of one.",
+            latex=r"\lambda\mathbf{w} + \mathbf{v} + \lambda t\mathbf{v} = "
+                  r"A\mathbf{w} + t\,A\mathbf{v}",
+        ),
+        Passage(
+            prose="The equation carrying the t says the second vector is an "
+                  "eigenvector, which was already known. The other one is the new "
+                  "content: it asks for a vector that A sends to the eigenvector rather "
+                  "than to zero — one step further out than an eigenvector, which is "
+                  "what *generalised* means.",
+            latex=r"(A - \lambda I)\mathbf{v} = \mathbf{0}, \qquad (A - "
+                  r"\lambda I)\mathbf{w} = \mathbf{v}",
+        ),
+        Passage(
+            prose="Such a vector exists precisely when the matrix is defective, which "
+                  "is the tidy part of the story: the same shortage that removed the "
+                  "second eigenvector is what makes the second equation solvable. It is "
+                  "determined only up to adding a multiple of the eigenvector, and that "
+                  "freedom changes the answer by a multiple of the first solution — "
+                  "already in the family.",
+            latex=r"\mathbf{w} \to \mathbf{w} + k\mathbf{v} "
+                  r"\;\Longrightarrow\; \mathbf{x} \to \mathbf{x} + "
+                  r"k\mathbf{v}e^{\lambda t}",
+        ),
+        Passage(
+            prose="So the factor of t appears here for exactly the reason it appeared "
+                  "at second order — a solution is missing and this is the next shape "
+                  "available — and it has the same effect on the motion. Against a "
+                  "decaying exponential it makes the solution grow before it falls, "
+                  "which is the critically damped spring, drawn in the plane.",
+            latex=r"\mathbf{x} = c_1\mathbf{v}e^{\lambda t} + "
+                  r"c_2\left(\mathbf{w} + t\mathbf{v}\right)e^{\lambda t}",
+        ),
+    ),
     prerequisites=("eigenvalues",),
     objectives=(
         "Tell a defective matrix from a repeated eigenvalue that is not.",
@@ -625,6 +1026,19 @@ REPEATED = Lesson(
             why="A double eigenvalue at 3 with only one eigenvector — the "
                 "defective case. Watch the generalised eigenvector arrive, "
                 "and the t with it.",
+            commentary=(
+                "Confirm the shortage rather than assuming it. The eigenvalue is "
+                "repeated, but that alone decides nothing — solve for the "
+                "eigenvectors and count the independent ones. Here there is a single "
+                "line of them where two dimensions are needed, and that is what makes "
+                "the extra machinery necessary.\n\n"
+                "Then watch the generalised vector being found. It solves a system "
+                "whose matrix is singular, so it is not unique, and any choice "
+                "differing by a multiple of the eigenvector is as good — the "
+                "difference is absorbed into the first constant. This is a place "
+                "where two people's answers can look unlike each other and both be "
+                "right, which is worth seeing once."
+            ),
         ),
         Example(
             equation="x' = -x + y; y' = -y",
@@ -632,6 +1046,17 @@ REPEATED = Lesson(
             why="The same shape with a negative eigenvalue, so it decays. The "
                 "t makes the solution rise before it falls, exactly as in the "
                 "critically damped spring.",
+            commentary=(
+                "The structure is the same as the previous example and only the sign "
+                "of the eigenvalue has changed, so run the same check and then read "
+                "what the sign does. Everything decays now, and the question is what "
+                "the extra factor does on the way.\n\n"
+                "The extra factor pushes the trajectory outward first. A t against a "
+                "decaying exponential has a single maximum, so a start off the "
+                "eigendirection moves *away* from the origin for a while before "
+                "turning back — which is the same algebra that gives a critically "
+                "damped spring its detour on the way to rest."
+            ),
         ),
     ),
     notes=(
@@ -810,6 +1235,85 @@ PORTRAITS = Lesson(
             "any trajectory is drawn.",
     tool="steps",
     reference="Edwards 6.1–6.2",
+    motivation=(
+        "The eigenvalue method produces a formula, and a formula for a system "
+        "is harder to read than a formula for a single equation. Two "
+        "components, each a combination of two exponentials with vector "
+        "coefficients: it is correct, and almost nothing about the behaviour "
+        "is visible in it.\n\n"
+        "What is wanted is the picture — not the two components against time, "
+        "but the path traced in the plane they live in. A trajectory shows "
+        "the whole history at once, and a sketch of several of them shows "
+        "what happens from every possible start, which is the question a "
+        "designer actually asks.\n\n"
+        "The remarkable thing is how little that picture costs. Not the "
+        "eigenvectors, not even the eigenvalues — two numbers taken straight "
+        "from the matrix are enough to classify it completely, because those "
+        "two numbers determine the characteristic polynomial and therefore "
+        "everything that follows from it."
+    ),
+    derivation=(
+        Passage(
+            prose="Expand the characteristic determinant for a two-by-two matrix and "
+                  "look at what the coefficients actually are. The linear one is the "
+                  "sum of the diagonal and the constant one is the determinant — so the "
+                  "polynomial depends on the matrix only through those two numbers.",
+            latex=r"\det(A - \lambda I) = \lambda^{2} - \tau\lambda + \Delta, "
+                  r"\qquad \tau = \operatorname{tr}A, \;\; \Delta = \det A",
+        ),
+        Passage(
+            prose="Everything about the solutions comes from the eigenvalues, and the "
+                  "eigenvalues come from that polynomial, so the entire classification "
+                  "is a statement about two numbers. Two quite different-looking "
+                  "matrices with the same trace and determinant have qualitatively "
+                  "identical portraits.",
+            latex=r"\lambda = \frac{\tau \pm \sqrt{\tau^{2} - 4\Delta}}{2}",
+        ),
+        Passage(
+            prose="Take the determinant first. It is the product of the eigenvalues, so "
+                  "a negative determinant forces them to have opposite signs — one "
+                  "direction in, one out, and every other trajectory sweeping past the "
+                  "origin. That is a saddle, and it is settled by the sign of one "
+                  "number.",
+            latex=r"\Delta < 0 \;\Longrightarrow\; \lambda_1 < 0 < \lambda_2 "
+                  r"\;\;\text{(saddle)}",
+        ),
+        Passage(
+            prose="With a positive determinant the eigenvalues share a sign, and the "
+                  "trace — their sum — says which. Negative trace means everything runs "
+                  "in, positive means everything runs out. Stability is decided by two "
+                  "signs, with no eigenvalue computed.",
+            latex=r"\Delta > 0: \quad \tau < 0 \text{ stable}, \qquad \tau > 0 "
+                  r"\text{ unstable}",
+        ),
+        Passage(
+            prose="Whether it is a node or a spiral is the discriminant, which is the "
+                  "same quantity that separated overdamped from underdamped in Unit 4 — "
+                  "and it is the same statement, since that unit's equation converts to "
+                  "a system whose trace and determinant are its damping and stiffness.",
+            latex=r"\tau^{2} - 4\Delta > 0 \text{ node}, \qquad \tau^{2} - "
+                  r"4\Delta < 0 \text{ spiral}",
+        ),
+        Passage(
+            prose="For a node the eigendirections do more than sit there. The faster "
+                  "exponential dies first, so after a short time every trajectory is "
+                  "dominated by the slower one — which means they all arrive at the "
+                  "origin tangent to the slow eigendirection, whatever direction they "
+                  "set off in. That detail is invisible in the formula and obvious in "
+                  "the picture.",
+            latex=r"\left|\lambda_1\right| < \left|\lambda_2\right| "
+                  r"\;\Longrightarrow\; \text{tangent to } \mathbf{v}_1",
+        ),
+        Passage(
+            prose="One last thing worth noticing about all these pictures: the origin "
+                  "is the only place where nothing moves. A linear system has exactly "
+                  "one equilibrium unless the matrix is singular, so the whole portrait "
+                  "is organised around a single point — which is precisely what stops "
+                  "being true the moment the system is nonlinear.",
+            latex=r"A\mathbf{x} = \mathbf{0},\ \det A \neq 0 "
+                  r"\;\Longrightarrow\; \mathbf{x} = \mathbf{0}",
+        ),
+    ),
     prerequisites=("eigenvalues", "complex-eigenvalues"),
     figure="eigenlines",
     objectives=(
@@ -825,6 +1329,19 @@ PORTRAITS = Lesson(
             why="The saddle again, now for the picture rather than the "
                 "formula: the two eigendirections are the only straight-line "
                 "trajectories, and every other curve bends between them.",
+            commentary=(
+                "Classify it from the trace and the determinant alone, without "
+                "touching an eigenvalue. The determinant is negative, so the "
+                "eigenvalues have opposite signs and the picture is settled — one "
+                "line in, one line out. Two arithmetic operations have replaced the "
+                "whole computation.\n\n"
+                "Then find the eigendirections and note what they organise. They "
+                "divide the plane into four regions, and no trajectory can cross "
+                "either line, because a solution starting on one stays on it and two "
+                "solutions cannot meet. So a trajectory's region is decided at the "
+                "start and never changes, which is why the picture looks the way it "
+                "does."
+            ),
         ),
         Example(
             equation="x' = -2*x + y; y' = x - 2*y",
@@ -832,6 +1349,19 @@ PORTRAITS = Lesson(
             why="A stable node. Both eigendirections point inwards, and "
                 "trajectories arrive tangent to the slower one — which is the "
                 "detail a formula never makes obvious.",
+            commentary=(
+                "Run the same two checks. The determinant is positive, so the "
+                "eigenvalues share a sign; the trace is negative, so that sign is "
+                "negative and everything runs inwards. Then take the discriminant to "
+                "separate node from spiral — it is positive here, so the trajectories "
+                "arrive without turning.\n\n"
+                "Then look for the detail this example is set for. The two "
+                "eigenvalues are not equal, so one term dies faster, and near the "
+                "origin every trajectory is almost entirely the slower one — they all "
+                "come in tangent to that direction and only the two straight-line "
+                "solutions do anything else. No amount of staring at the closed form "
+                "suggests it, and the picture makes it unmistakable."
+            ),
         ),
     ),
     notes=(
@@ -981,6 +1511,78 @@ NONHOMOGENEOUS = Lesson(
             "matrix that expresses the whole answer.",
     tool="steps",
     reference="Edwards 5.5–5.6",
+    motivation=(
+        "Everything in this unit so far has had nothing on the right-hand "
+        "side, and the same objection applies as at second order: an unforced "
+        "system is a system with nothing happening to it. Real ones have "
+        "inflows, applied voltages, injected currents — a vector of things "
+        "pushing on them, which may depend on time.\n\n"
+        "The structure carries over unchanged, because it only ever depended "
+        "on linearity. One particular solution plus the homogeneous family is "
+        "still the general answer, so all the eigenvalue work stays and the "
+        "only new question is how to find a single particular solution.\n\n"
+        "Variation of parameters answers it, and the matrix setting turns out "
+        "to be *tidier* than the scalar one. There the method needed a "
+        "determinant and two sign-carrying integrals; here it is one matrix "
+        "inverse and one integral, and the awkward chosen condition of the "
+        "scalar derivation is not needed at all."
+    ),
+    derivation=(
+        Passage(
+            prose="Collect the homogeneous solutions as the columns of a matrix. Each "
+                  "column satisfies the system, so the matrix satisfies it as a whole — "
+                  "and its determinant is non-zero exactly when the solutions are "
+                  "independent, which is the Wronskian idea in matrix form.",
+            latex=r"\Phi(t) = \left[\ \mathbf{x}_1 \ \ \mathbf{x}_2\ \right], "
+                  r"\qquad \Phi' = A\Phi",
+        ),
+        Passage(
+            prose="The homogeneous family is then that matrix times a constant vector, "
+                  "which is a tidier way of writing a combination with two constants in "
+                  "it. Fitting initial conditions becomes solving one linear system.",
+            latex=r"\mathbf{x}_h = \Phi(t)\,\mathbf{c}",
+        ),
+        Passage(
+            prose="Now vary the constants, exactly as at second order: let the constant "
+                  "vector depend on t and substitute. The product rule gives two terms, "
+                  "and the first cancels against the right-hand side because the matrix "
+                  "already solves the homogeneous system.",
+            latex=r"\left(\Phi\mathbf{u}\right)' = \Phi'\mathbf{u} + "
+                  r"\Phi\mathbf{u}' = A\Phi\mathbf{u} + \Phi\mathbf{u}'",
+        ),
+        Passage(
+            prose="What is left is one equation for the derivative of the varying "
+                  "vector, and it needs no chosen side condition — the scalar "
+                  "derivation had to invent one because it had two unknown functions "
+                  "and one equation, and here the count already matches.",
+            latex=r"\Phi\,\mathbf{u}' = \mathbf{f}(t) \;\Longrightarrow\; "
+                  r"\mathbf{u}' = \Phi^{-1}\mathbf{f}",
+        ),
+        Passage(
+            prose="Integrate and multiply back. That is the whole formula, and it is "
+                  "shorter than the scalar one it generalises — the determinant in the "
+                  "denominator there is the matrix inverse here, and the two minus "
+                  "signs are the two entries of the adjugate.",
+            latex=r"\mathbf{x}_p = \Phi(t)\int \Phi^{-1}(t)\,\mathbf{f}(t)\,dt",
+        ),
+        Passage(
+            prose="No constant is added at that integration, for the reason it never "
+                  "is: a constant vector there contributes the matrix times a constant "
+                  "vector, which is a homogeneous solution and already in the family.",
+            latex=r"\int \to \int + \mathbf{k} \;\Longrightarrow\; "
+                  r"\mathbf{x}_p + \Phi\mathbf{k}",
+        ),
+        Passage(
+            prose="One normalisation is worth naming. Any fundamental matrix may be "
+                  "multiplied on the right by a constant invertible matrix and still be "
+                  "one, so there is a choice — and choosing the one that is the "
+                  "identity at time zero gives the matrix exponential. With that choice "
+                  "the solution of the unforced system is that matrix applied to the "
+                  "starting vector, which is the first equation of the course with a "
+                  "matrix in the exponent.",
+            latex=r"\left.e^{At}\right|_{t=0} = I, \qquad \mathbf{x}(t) = e^{At}\mathbf{x}(0)",
+        ),
+    ),
     prerequisites=("eigenvalues", "variation"),
     objectives=(
         "Split a forced system into its matrix and its forcing.",
@@ -995,6 +1597,19 @@ NONHOMOGENEOUS = Lesson(
             why="The saddle from two lessons ago, now with something pushing "
                 "on it. Watch the homogeneous work happen unchanged, and the "
                 "forcing handled entirely afterwards.",
+            commentary=(
+                "The homogeneous half is a saddle already solved two lessons ago, so "
+                "lift it rather than redoing it, and assemble the two solutions into "
+                "the columns of a matrix. Everything after that point is the forcing, "
+                "and watching where the two halves separate is the point of this "
+                "example.\n\n"
+                "Then look at the forcing's exponent against the eigenvalues. It "
+                "matches neither, so nothing resonates and the particular solution is "
+                "an ordinary exponential — had it matched, the integral would have "
+                "produced a logarithm or a factor of t, which is the same collision "
+                "the undetermined-coefficients lesson described, arriving here as an "
+                "integral that changes character."
+            ),
         ),
         Example(
             equation="x' = -2*x + y + 1; y' = x - 2*y",
@@ -1002,6 +1617,18 @@ NONHOMOGENEOUS = Lesson(
             why="Constant forcing on a stable node, which is the case with a "
                 "constant particular solution — the system settles to a new "
                 "equilibrium away from the origin rather than to zero.",
+            commentary=(
+                "Constant forcing is the case worth doing by hand as well as by "
+                "formula. Look for a constant solution: its derivative vanishes, so "
+                "it solves an ordinary linear system with no calculus in it, and the "
+                "answer is a fixed point away from the origin.\n\n"
+                "That is where the system now settles, and the reason is the "
+                "eigenvalues rather than the forcing. Both are negative, so the "
+                "homogeneous part dies and only the constant survives — the "
+                "trajectory ends at the new fixed point from wherever it began. Move "
+                "the forcing and the destination moves; change the matrix and the "
+                "whole picture may stop settling at all."
+            ),
         ),
     ),
     notes=(
