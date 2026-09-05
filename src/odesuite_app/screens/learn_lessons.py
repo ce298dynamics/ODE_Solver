@@ -434,9 +434,10 @@ class LessonsScreen(QWidget):
         for name, button in self.segment_buttons.items():
             button.setEnabled(True)
             # A lesson with no templates has no Drill, and the button goes
-            # rather than opening an empty page. Euler and RK4 have no closed
-            # form for the grader to substitute into, so a drill there could
-            # never say "right" — which is worse than not offering one.
+            # rather than opening an empty page. No lesson is in that position
+            # any more -- `tests/test_templates.py` asserts every one has a
+            # drill -- but the guard stays, because it is what keeps a lesson
+            # added without one from opening a blank page.
             button.setVisible(name != "Drill" or bool(lesson.templates))
         if self._segment == "Drill" and not lesson.templates:
             self._segment = "Practice"
@@ -558,16 +559,17 @@ class LessonsScreen(QWidget):
         # Which grading is described depends on what this lesson drills. A
         # multiple-choice drill is not graded by substitution, and saying it is
         # would tell the reader something false about the tick they get.
-        substituting = any(item.kind == "template" for item in lesson.templates)
-        choosing = any(item.kind == "choice-template"
-                       for item in lesson.templates)
-        how = (
-            "your answer is substituted into its own equation, so any correct "
-            "form passes" if substituting and not choosing else
-            "pick the right option" if choosing and not substituting else
-            "typed answers are substituted into their own equation; the "
-            "multiple-choice ones are marked against their answer"
-        )
+        kinds = {item.kind for item in lesson.templates}
+        described = {
+            "template": "an answer you type is substituted into its own "
+                        "equation, so any correct form passes",
+            "choice-template": "pick the right option",
+            "numeric-template": "a number you type is marked to a tolerance",
+        }
+        parts = [described[kind] for kind in
+                 ("template", "choice-template", "numeric-template")
+                 if kind in kinds]
+        how = "; ".join(parts) if parts else "answers are marked"
         blurb = QLabel(
             f"Fresh numbers every time — {how}. "
             f"{progress.MASTERED_STREAK} right in a row and the drill is "
@@ -753,11 +755,14 @@ class LessonsScreen(QWidget):
         prompt.setWordWrap(True)
         layout.addWidget(prompt)
 
-        # A generated multiple-choice drill takes the other path. It has no
-        # hint ladder and no narrator -- a `Choice` carries neither -- so the
-        # Hint and "Show me" buttons are absent rather than present and inert.
+        # The other two kinds take their own paths. Neither has a narrator, so
+        # neither offers "Show me": a button that cannot do anything is worse
+        # than an absent one. A `Choice` has no hints either; a `Numeric` may.
         if question.kind == "choice":
             self._build_choice_drill(lesson, template, question, run, layout)
+            return frame
+        if question.kind == "numeric":
+            self._build_numeric_drill(lesson, template, question, run, layout)
             return frame
 
         shown = question.equation + (
@@ -905,6 +910,91 @@ class LessonsScreen(QWidget):
             self._show()
 
         check.clicked.connect(graded)
+        again.clicked.connect(next_question)
+
+    def _build_numeric_drill(self, lesson, template, question, run: QLabel,
+                             layout) -> None:
+        """The typed-number half of a drill, for a generated `Numeric`.
+
+        Closer to the `Solve` drill than to the `Choice` one -- there is a box
+        to type in and a ladder of hints behind it -- but there is no narrator,
+        because what is being asked for is a step of a method rather than a
+        solution to be worked through. So no "Show me"; the reason the answer
+        is what it is arrives with the verdict instead.
+        """
+        palette = self.palette_obj
+        if question.latex:
+            layout.addWidget(MathLabel(self.palette_obj, question.latex,
+                                       point_size=15))
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        answer = QLineEdit()
+        answer.setPlaceholderText("a number")
+        answer.setClearButtonEnabled(True)
+        row.addWidget(answer, 1)
+
+        if question.units:
+            # Beside the box rather than inside it: the units are never part of
+            # what is typed, and a placeholder that showed them would invite
+            # somebody to type them.
+            units = QLabel(question.units)
+            units.setProperty("role", "muted")
+            row.addWidget(units)
+
+        check = QPushButton("Check")
+        check.setToolTip("Mark the number you have entered")
+        check.setProperty("role", "primary")
+        check.setCursor(Qt.PointingHandCursor)
+        row.addWidget(check)
+
+        hint_button = QPushButton("Hint")
+        hint_button.setToolTip(
+            "Reveal the next hint. They come one at a time, and never the "
+            "answer."
+        )
+        hint_button.setCursor(Qt.PointingHandCursor)
+        hint_button.setEnabled(bool(question.hints))
+        row.addWidget(hint_button)
+
+        again = QPushButton("New question")
+        again.setToolTip("Draw another of the same kind, with new numbers")
+        again.setCursor(Qt.PointingHandCursor)
+        row.addWidget(again)
+        layout.addLayout(row)
+
+        verdict = QLabel("")
+        verdict.setWordWrap(True)
+        verdict.setTextFormat(Qt.RichText)
+        layout.addWidget(verdict)
+        self._verdicts[template.key] = verdict
+
+        hints = QLabel("")
+        hints.setProperty("role", "muted")
+        hints.setWordWrap(True)
+        hints.setVisible(False)
+        layout.addWidget(hints)
+
+        self._wire_hints(question, hints, hint_button)
+
+        def graded() -> None:
+            self._check_numeric(lesson, question, answer, verdict,
+                                bucket=progress.drill_key(lesson.key),
+                                key=template.key)
+            now, done = self._streak_of(lesson, template)
+            run.setText(self._streak_text(now, done))
+            run.setStyleSheet(
+                f"color: {palette.success if done else palette.text_muted};"
+            )
+
+        def next_question() -> None:
+            self._drill_seed[template.key] = (
+                self._drill_seed.get(template.key, 0) + 1
+            )
+            self._show()
+
+        check.clicked.connect(graded)
+        answer.returnPressed.connect(graded)
         again.clicked.connect(next_question)
 
     def _question_card(self, lesson, number: int, question) -> QWidget:
@@ -1109,13 +1199,16 @@ class LessonsScreen(QWidget):
                      verdict: QLabel, *, bucket: str = "",
                      key: str = "") -> None:
         from ..laplace import EXTRA_FUNCTIONS
-        from ..symbolic import EquationSpec, check_answer, parse_equation
+        from ..symbolic import check_answer, parse_equation, spec_for
 
         palette = self.palette_obj
         try:
+            # `spec_for` rather than a one-equation spec: a systems drill
+            # writes its question as "x' = ...; y' = ...", and splitting on
+            # that semicolon is what turns it into a system rather than one
+            # unparseable line.
             parsed = parse_equation(
-                EquationSpec(equations=[question.equation],
-                             initial_conditions=question.conditions),
+                spec_for(question.equation, question.conditions),
                 extra_functions=EXTRA_FUNCTIONS,
             )
         except Exception as exc:                  # a broken question, not a
@@ -1139,6 +1232,38 @@ class LessonsScreen(QWidget):
             detail = (f'<br><span style="color:{palette.text_muted};'
                       f'font-size:12px;">what is left over: '
                       f"{result.residual}</span>")
+        verdict.setStyleSheet("")
+        verdict.setText(f'<span style="color:{colour};">{text}</span>{detail}')
+        self._record(bucket or lesson.key, key or question.key, state)
+
+    def _check_numeric(self, lesson, question, answer: QLineEdit,
+                       verdict: QLabel, *, bucket: str = "",
+                       key: str = "") -> None:
+        """Mark a typed number, and say why the answer is the answer.
+
+        Three verdicts rather than two, as everywhere else here: right, wrong,
+        and *could not read that*. The third records an attempt but says
+        nothing about the mathematics, because a typo is not a mistake about
+        Euler's method.
+        """
+        from ..symbolic import grade_numeric
+
+        palette = self.palette_obj
+        right, message = grade_numeric(question, answer.text())
+        if right is True:
+            colour, text = palette.success, "✓ " + message
+            state = progress.State.CORRECT
+        elif right is False:
+            colour, text = palette.danger, "✗ " + message
+            state = progress.State.ATTEMPTED
+        else:
+            colour, text = palette.text_muted, message
+            state = progress.State.ATTEMPTED
+
+        detail = ""
+        if right is not None and question.because:
+            detail = (f'<br><span style="color:{palette.text_muted};'
+                      f'font-size:12px;">{question.because}</span>')
         verdict.setStyleSheet("")
         verdict.setText(f'<span style="color:{colour};">{text}</span>{detail}')
         self._record(bucket or lesson.key, key or question.key, state)

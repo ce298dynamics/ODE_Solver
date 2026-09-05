@@ -321,6 +321,7 @@ UNDETERMINED = Lesson(
             "of its response.",
     tool="steps",
     reference="Edwards 3.5",
+    figure="forced_structure",
     motivation=(
         "Every second-order equation so far has had nothing on the right, and "
         "nothing on the right means nothing driving the system. An undriven "
@@ -643,6 +644,7 @@ CAUCHY = Lesson(
             "the powers of t line up.",
     tool="steps",
     reference="Edwards 3.3",
+    figure="powers",
     motivation=(
         "Constant coefficients were tractable because the equation does not "
         "care where the origin of time sits. There is a second kind of "

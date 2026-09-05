@@ -18,6 +18,11 @@ reason *per option*. A tick that does not say why teaches nothing, and a cross
 that does not say why teaches less: the reason a wrong option was tempting is
 usually the thing the student actually got wrong.
 
+**`Numeric` questions are for when the answer is a number**, which a
+substitution check cannot grade and four options misrepresent. One Euler step,
+a terminal velocity, the trace of a matrix: each has a single right value, and
+what a grader owes it is a tolerance rather than a comparison of strings.
+
 **`Example`s are equations a narrator can work through**, never transcribed
 working. An example that drifted out of step with the tool that explains it
 would be worse than none.
@@ -40,8 +45,10 @@ __all__ = [
     "Example",
     "Choice",
     "Solve",
+    "Numeric",
     "Template",
     "ChoiceTemplate",
+    "NumericTemplate",
     "Lesson",
     "Unit",
     "grade_choice",
@@ -151,6 +158,46 @@ class Solve:
 
 
 @dataclass(frozen=True)
+class Numeric:
+    """Compute it and type the number; graded to a tolerance.
+
+    The one question type in this application that stores its answer, and the
+    reason is that there is nothing else to store. A `Solve` keeps only the
+    equation because substituting into it *is* the grading; here the equation
+    has no closed form, or the thing asked for is a step of a method rather
+    than a solution at all, and a number is what there is.
+
+    That makes the tolerance a correctness question rather than a cosmetic one.
+    A drill asking for one Runge-Kutta step is asking for the *method's* value,
+    which sits a few parts in ten thousand from the exact solution -- so a
+    tolerance loose enough to accept the exact answer would mark a student
+    right for having done the wrong thing.
+    """
+
+    key: str
+    prompt: str
+    #: The value expected, already evaluated.
+    answer: float
+    #: How close counts, relative to the size of the answer. Not a display
+    #: choice: see the class docstring.
+    tolerance: float = 1e-6
+    #: Shown after the entry box, and never part of what is typed.
+    units: str = ""
+    #: Why that is the answer, shown once the attempt is marked. A number with
+    #: no account of itself is the least instructive verdict there is.
+    because: str = ""
+    #: The equation the question is about, if it is about one.
+    latex: str = ""
+    hints: tuple[str, ...] = ()
+
+    kind: str = field(default="numeric", init=False)
+
+    @property
+    def hint(self) -> str:
+        return self.hints[0] if self.hints else ""
+
+
+@dataclass(frozen=True)
 class Template:
     """A practice question with its numbers left open.
 
@@ -228,6 +275,47 @@ class ChoiceTemplate:
 
 
 @dataclass(frozen=True)
+class NumericTemplate:
+    """A `Numeric` question with its numbers left open.
+
+    The third of the template types, and the one that reaches the lessons the
+    other two could not. `Template` needs a closed form to substitute into, and
+    Euler's method has none. `ChoiceTemplate` needs a handful of plausible
+    options, and "what is y after one step" has no natural four -- offering
+    them would either give the answer away or invent distractors nobody would
+    have written down.
+
+    `answer` is a **format string that is an expression**, not a callable, so a
+    lesson module stays data that can be read: ``"{y0} + {h}*({a}*{y0})"`` is
+    an Euler step written out. `generate.draw_numeric` formats and evaluates
+    it.
+
+    That declarative form is what makes the drill checkable against the rest of
+    the application. A stored number could quietly disagree with the tool the
+    lesson teaches; an expression can be evaluated in a test beside
+    `byhand.walk`, `analysis.phase_line` or the library's own solver, and
+    `tests/test_templates.py` does exactly that for every draw. It is the
+    property `Template` gets for free from substitution, bought back.
+    """
+
+    key: str
+    title: str
+    #: A format string over the slot names, as for `Template`.
+    prompt: str
+    #: An expression over the slot names, evaluated once the slots are filled.
+    answer: str
+    tolerance: float = 1e-6
+    units: str = ""
+    because: str = ""
+    latex: str = ""
+    hints: tuple[str, ...] = ()
+    slots: tuple[tuple[str, tuple], ...] = ()
+    reject: Callable[[Mapping[str, object]], bool] | None = None
+
+    kind: str = field(default="numeric-template", init=False)
+
+
+@dataclass(frozen=True)
 class Lesson:
     key: str
     title: str
@@ -254,10 +342,13 @@ class Lesson:
     derivation: tuple[Passage, ...] = ()
     #: Worked through by the narrator, in the order they should be read.
     examples: tuple[Example, ...] = ()
-    #: Practice that never runs out. A lesson with none simply has no Drill —
-    #: Euler and RK4 have no closed form to substitute into, and a drill whose
-    #: verdict could never be "right" would be worse than no drill.
-    templates: tuple[Template | ChoiceTemplate, ...] = ()
+    #: Practice that never runs out, and every lesson has some. It did not
+    #: always: Euler and RK4 have no closed form to substitute into, so a
+    #: `Solve` drill there could never say "right", and those lessons went
+    #: without rather than be given a verdict that meant nothing. What was
+    #: missing was a question graded another way, which is what
+    #: `ChoiceTemplate` and `NumericTemplate` are.
+    templates: tuple[Template | ChoiceTemplate | NumericTemplate, ...] = ()
     #: Lesson keys worth having met first. Advisory: nothing is locked.
     prerequisites: tuple[str, ...] = ()
     #: A figure to put at the top of Learn, named by key rather than built

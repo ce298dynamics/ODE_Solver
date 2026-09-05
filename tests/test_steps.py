@@ -978,11 +978,16 @@ def test_a_technique_sympy_never_named_is_not_handed_back_to_dsolve():
 
     from odesuite_app.dsolve_worker import solve_payload
 
-    start = time.perf_counter()
+    # Processor time, not wall clock. `dsolve` runs in this process, so if it
+    # were asked the twelve-second budget would be twelve seconds of *work*
+    # -- whereas wall clock also counts the other fifteen workers a parallel
+    # run has on the machine, and this measured seventeen seconds that way
+    # while doing under two seconds of anything.
+    start = time.process_time()
     reply = solve_payload(_payload(EXACT))
-    took = time.perf_counter() - start
+    took = time.process_time() - start
 
-    assert took < 10, f"dsolve was asked anyway ({took:.0f}s)"
+    assert took < 10, f"dsolve was asked anyway ({took:.0f}s of work)"
     assert reply["ok"]
     assert reply["derivation"]["technique"] == "1st_exact"
     assert "1st_exact" not in reply["hints"], "the premise has changed"

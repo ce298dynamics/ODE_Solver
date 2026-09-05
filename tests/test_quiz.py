@@ -117,19 +117,31 @@ def test_a_short_set_still_touches_several_lessons():
 def test_every_question_is_one_the_hub_already_grades():
     """The whole design. If these were a new kind of question they would need a
     new grader, and a second grader is a second opinion about what is correct.
-    Both kinds come straight from the lessons: a `Solve` graded by
-    substitution, a `Choice` by `grade_choice`."""
-    from odesuite_app.lessons.model import Choice, Solve
 
+    All three kinds come straight from the lessons: a `Solve` graded by
+    substituting it into its own equation, a `Choice` by `grade_choice`, and a
+    `Numeric` by `grade_numeric` to a tolerance. Each is the type the Drill
+    segment already shows, which is why the quiz has no grader of its own.
+    """
+    from odesuite_app.lessons.model import Choice, Numeric, Solve
+
+    seen = set()
     for unit in buildable():
         for _lesson, _template, question in build(unit, 4, seed=3):
-            assert isinstance(question, (Solve, Choice))
+            assert isinstance(question, (Solve, Choice, Numeric))
+            seen.add(question.kind)
             if isinstance(question, Solve):
                 assert question.equation
                 assert question.hints, "a Solve keeps its hint ladder"
-            else:
+            elif isinstance(question, Choice):
                 assert question.options
                 assert len(question.becauses) == len(question.options)
+            else:
+                assert question.tolerance > 0
+                assert question.because, "a number needs a reason"
+    assert seen == {"solve", "choice", "numeric"}, (
+        f"the quiz never draws one of the three kinds: {sorted(seen)}"
+    )
 
 
 def test_a_choice_question_reaches_the_quiz_and_is_graded_there(screen, qapp):
@@ -170,10 +182,13 @@ def test_a_choice_question_with_nothing_picked_says_so(screen, qapp):
 
 
 def test_the_same_seed_gives_the_same_set():
+    # By key rather than by equation: only a `Solve` has one, and the key
+    # names the draw, which is what has to be reproducible.
     unit = buildable()[0]
-    first = [q.equation for _, _, q in build(unit, 6, seed=11)]
-    again = [q.equation for _, _, q in build(unit, 6, seed=11)]
+    first = [q.key for _, _, q in build(unit, 6, seed=11)]
+    again = [q.key for _, _, q in build(unit, 6, seed=11)]
     assert first == again
+    assert len(set(first)) > 1, "a set of six identical questions is not a set"
 
 
 # ---------------------------------------------------------------------------
@@ -255,30 +270,46 @@ def test_the_report_lists_the_lessons_behind_the_misses(screen, qapp):
     assert seen
 
 
+def _typed(screen, qapp):
+    """Advance to the first question with a box to type into.
+
+    Two of the three question kinds have one; a multiple-choice question does
+    not, and which kind arrives first depends on the unit and the seed. So the
+    test looks for one rather than assuming the set opens with it.
+    """
+    for _ in range(len(screen._questions)):
+        if screen.answer is not None:
+            return screen._questions[screen._index]
+        screen._advance()
+        qapp.processEvents()
+    raise AssertionError("no question in this set can be typed into")
+
+
 def test_a_second_press_of_check_cannot_turn_a_miss_into_a_hit(screen, qapp):
     """Otherwise the report records persistence rather than what was known."""
-    screen.length.setValue(4)
+    screen.length.setValue(6)
     screen._start()
     qapp.processEvents()
 
-    lesson, _template, question = screen._questions[0]
+    lesson, _template, question = _typed(screen, qapp)
+    index = screen._index
     screen.answer.setText("0")                  # almost certainly wrong
     screen._check(lesson, question)
     qapp.processEvents()
-    assert screen._verdicts.get(0) is False
+    assert screen._verdicts.get(index) is False
 
     # The screen has not advanced, so the same question can be answered again.
-    if screen._index == 0:
+    if screen._index == index:
         screen._check(lesson, question)
-        assert screen._verdicts[0] is False
+        assert screen._verdicts[index] is False
 
 
 def test_answering_records_progress(screen, qapp, store):
-    screen.length.setValue(4)
+    screen.length.setValue(6)
     screen._start()
     qapp.processEvents()
 
-    lesson, _template, question = screen._questions[0]
+    lesson, _template, question = _typed(screen, qapp)
     screen.answer.setText("0")
     screen._check(lesson, question)
 

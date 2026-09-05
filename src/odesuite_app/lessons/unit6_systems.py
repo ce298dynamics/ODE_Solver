@@ -23,6 +23,7 @@ from .model import (
     Example,
     Lesson,
     Note,
+    NumericTemplate,
     Passage,
     Solve,
     Template,
@@ -647,6 +648,7 @@ COMPLEX = Lesson(
             "quietly contains both real ones.",
     tool="steps",
     reference="Edwards 5.3",
+    figure="spiral",
     motivation=(
         "The eigenvalue method works whenever the eigenvalues are real and "
         "distinct. Nothing guarantees that. A matrix with entirely real "
@@ -919,6 +921,30 @@ COMPLEX = Lesson(
                 "Work through one eigenvalue only, then split the product "
                 "into real and imaginary parts.",
             ),
+        ),
+    ),
+    templates=(
+        Template(
+            key="spiral-system",
+            title="A complex pair, back to real form",
+            prompt="Find the eigenvalues, and give a real general solution.",
+            equation="x' = {a}*x - {b}*y; y' = {b}*x + {a}*y",
+            technique="systems",
+            narrator="systems",
+            hints=(
+                "The characteristic polynomial has no real roots. Work out "
+                "the pair anyway: it is {a} ± {b}i.",
+                "Take the eigenvector for {a} + {b}i and form one complex "
+                "solution. Its real and imaginary parts each solve the "
+                "system, because the matrix is real.",
+                "Both come out as e^({a}t) times a combination of cos {b}t "
+                "and sin {b}t. The real part sets the envelope; the "
+                "imaginary part sets how fast it turns.",
+            ),
+            # Neither may be 1: the hints say "e^(1t)" and "2 + 1i"
+            # otherwise, and both read as generated rather than
+            # written.
+            slots=(("a", (-3, -2, 2, 3)), ("b", (2, 3, 4))),
         ),
     ),
 )
@@ -1501,6 +1527,31 @@ PORTRAITS = Lesson(
             ),
         ),
     ),
+    templates=(
+        NumericTemplate(
+            key="determinant-decides",
+            title="The determinant, and what it settles",
+            prompt="For the system x' = {a}*x + {b}*y, y' = {c}*x + {d}*y, "
+                   "what is the determinant of its matrix?",
+            answer="{a}*{d} - {b}*{c}",
+            because="It is the product of the eigenvalues, so its sign alone "
+                    "decides whether they share one: negative means opposite "
+                    "signs, which is a saddle. No eigenvalue has to be found.",
+            latex=r"\Delta = \det A = ad - bc",
+            hints=(
+                "The matrix has the coefficients of x along the top row and "
+                "the coefficients of y down the second column.",
+                "For a two-by-two matrix the determinant is the product of "
+                "the diagonal minus the product of the other two.",
+            ),
+            # No zero entries. `tidy` clears "1*x" and "+ -y" but will not
+            # drop a term, and rightly so -- "0*x" would have to disappear
+            # rather than be tidied, which is a different claim about the
+            # equation.
+            slots=(("a,b", ((1, 2), (-2, 1), (3, -1), (2, 3))),
+                   ("c,d", ((3, 2), (1, -2), (1, 1), (-1, 2)))),
+        ),
+    ),
 )
 
 
@@ -1787,6 +1838,27 @@ NONHOMOGENEOUS = Lesson(
                 "Integrate each entry, multiply back by Φ, and add the result "
                 "to the homogeneous solution.",
             ),
+        ),
+    ),
+    templates=(
+        Template(
+            key="constant-forcing",
+            title="A stable system pushed off the origin",
+            prompt="Solve the homogeneous system first, then the forcing.",
+            equation="x' = -2*x + y + {f}; y' = x - 2*y",
+            conditions="x(0) = {p}, y(0) = 0",
+            technique="systems",
+            narrator="systems",
+            hints=(
+                "The matrix has eigenvalues −1 and −3, so the homogeneous "
+                "part dies and the answer settles somewhere.",
+                "The forcing is constant, so look for a constant particular "
+                "solution: its derivative is zero, which leaves an ordinary "
+                "linear system with no calculus in it.",
+                "Add the homogeneous family to that constant, then use "
+                "x(0) = {p} and y(0) = 0 to fix the two constants.",
+            ),
+            slots=(("f", (1, 2, 3)), ("p", (0, 1, 2))),
         ),
     ),
 )

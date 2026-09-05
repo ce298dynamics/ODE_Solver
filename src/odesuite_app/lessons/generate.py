@@ -27,24 +27,39 @@ import random
 import re
 from collections.abc import Iterator
 
-from .model import Choice, ChoiceTemplate, Solve, Template
+from .model import (
+    Choice,
+    ChoiceTemplate,
+    Numeric,
+    NumericTemplate,
+    Solve,
+    Template,
+)
 
-__all__ = ["draws", "draw", "draw_choice", "combinations",
-           "every", "tidy"]
+__all__ = ["draws", "draw", "draw_choice", "draw_numeric",
+           "combinations", "every", "tidy"]
 
 
 #: Cosmetic repairs to a formatted equation, in order. Substituting numbers
-#: into a template leaves `1*y`, `t**1` and `+ -3*t`, which is how you can tell
-#: a question was generated -- and a drill whose questions look generated reads
-#: as busywork rather than as practice. None of these changes what is parsed:
-#: the tidied string is the one both shown *and* solved, and the whole draw set
-#: is checked through the real narrator either way.
+#: into a template leaves `1*y`, `t**1`, `+ -3*t` and `0*y'`, which is how you
+#: can tell a question was generated -- and a drill whose questions look
+#: generated reads as busywork rather than as practice. None of these changes
+#: what is parsed: the tidied string is the one both shown *and* solved, and
+#: the whole draw set is checked through the real narrator either way.
 _TIDY = (
     (re.compile(r"\*t\*\*0(?![\d.])"), ""),       # 2*t**0*y -> 2*y
     (re.compile(r"t\*\*0\*"), ""),                # t**0*y   -> y
     (re.compile(r"\*\*1(?![\d.])"), ""),          # t**1  -> t
     (re.compile(r"(?<![\d.])1\*"), ""),           # 1*y   -> y,  -1*(…) -> -(…)
     (re.compile(r"\+\s*-\s*"), "- "),             # + -3*t -> - 3*t
+    # A zero coefficient has to take its whole term with it. The rules above
+    # only rewrite what is in front of a term; this one deletes it, which is a
+    # different claim about the equation and so is kept visibly separate.
+    # Undamped and missing-root draws are the interesting ones, so the fix
+    # cannot be to keep zero out of the slots.
+    (re.compile(r"[+\-]\s*0\*[A-Za-z][\w']*"), ""),   # y'' + 0*y' -> y''
+    (re.compile(r"(^|=)\s*0\*[A-Za-z][\w']*\s*\+\s*"), r"\1 "),  # = 0*x + y
+    (re.compile(r"  +"), " "),                    # the gaps those leave
 )
 
 
@@ -103,9 +118,10 @@ def _slots_for(template, seed: int) -> tuple[int, dict[str, object]]:
 def draw(template, seed: int):
     """One question, as the ordinary type the template produces.
 
-    A `Template` gives a `Solve` and a `ChoiceTemplate` gives a `Choice`, and
-    the dispatch lives here so that every caller -- the drill card, the quiz,
-    `every()` -- can ask for a question without knowing which kind it will get.
+    A `Template` gives a `Solve`, a `ChoiceTemplate` a `Choice` and a
+    `NumericTemplate` a `Numeric`, and the dispatch lives here so that every
+    caller -- the drill card, the quiz, `every()` -- can ask for a question
+    without knowing which kind it will get.
 
     The same seed always gives the same question, and the key names the draw
     rather than the seed, so the twentieth and the second version of an
@@ -113,6 +129,8 @@ def draw(template, seed: int):
     """
     if isinstance(template, ChoiceTemplate):
         return draw_choice(template, seed)
+    if isinstance(template, NumericTemplate):
+        return draw_numeric(template, seed)
     index, slots = _slots_for(template, seed)
     return Solve(
         key=f"{template.key}#{index}",
@@ -151,6 +169,47 @@ def draw_choice(template: ChoiceTemplate, seed: int) -> Choice:
         answer=order.index(template.answer),
         becauses=tuple(reasons[position] for position in order),
         latex=template.latex.format(**slots) if template.latex else "",
+    )
+
+
+def draw_numeric(template: NumericTemplate, seed: int) -> Numeric:
+    """One question whose answer is a number, with the number worked out.
+
+    The template's `answer` is an expression over the slots, so filling the
+    slots and evaluating it is the whole of the work. It goes through sympy
+    rather than `eval`, for the reason everything in this application does --
+    and `float` at the end rather than leaving it symbolic, because the grader
+    compares magnitudes and a comparison is not the place to discover that an
+    answer never simplified.
+
+    A draw whose answer will not evaluate to a real number is a broken
+    template, and it raises here rather than reaching a card that would have to
+    apologise for it. `tests/test_templates.py` walks every draw of every
+    template, so that cannot reach anyone.
+    """
+    import sympy as sp
+
+    index, slots = _slots_for(template, seed)
+    value = sp.sympify(template.answer.format(**slots))
+    number = complex(value.evalf())
+    if abs(number.imag) > 1e-12:
+        raise ValueError(
+            f"template {template.key!r} draw {index} has a complex answer: "
+            f"{value}"
+        )
+    return Numeric(
+        key=f"{template.key}#{index}",
+        # Tidied, because a numeric prompt states its equation inline and a
+        # substituted coefficient leaves "+ -1*t" behind. `tidy` is written
+        # for exactly that and touches nothing else in a sentence -- its
+        # patterns all need an adjacent `*` or `**`.
+        prompt=tidy(template.prompt.format(**slots)),
+        answer=number.real,
+        tolerance=template.tolerance,
+        units=template.units,
+        because=template.because.format(**slots),
+        latex=template.latex.format(**slots) if template.latex else "",
+        hints=tuple(hint.format(**slots) for hint in template.hints),
     )
 
 

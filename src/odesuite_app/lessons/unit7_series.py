@@ -60,6 +60,7 @@ POWERSERIES = Lesson(
             "time.",
     tool="steps",
     reference="Edwards 8.1",
+    figure="partial_sums",
     motivation=(
         "The whole course so far has been a search for equations that can be "
         "solved in closed form, and the honest summary is that they are a "

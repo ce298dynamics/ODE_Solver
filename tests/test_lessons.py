@@ -17,6 +17,7 @@ index is in range, the reason is present, and no option is duplicated.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 
@@ -1286,22 +1287,49 @@ def _drill(screen, qapp, key: str):
     return lesson
 
 
-def test_drill_is_offered_only_where_the_lesson_has_templates(screen, qapp):
-    """A lesson with no templates loses the button rather than opening an
-    empty page. Euler and RK4 have no closed form for the grader to substitute
-    into, so a drill there could never say "right"."""
-    _open(screen, qapp, "separable", "Learn")
-    assert screen.segment_buttons["Drill"].isVisibleTo(screen)
+def test_the_drill_is_offered_on_every_lesson(screen, qapp):
+    """This was once the opposite test.
 
-    _open(screen, qapp, "numerical", "Learn")
-    assert not screen.segment_buttons["Drill"].isVisibleTo(screen)
+    Ten lessons had no drill, because a `Solve` question is graded by
+    substituting the answer into its own equation and Euler's method has no
+    closed form to substitute into. Now that a question can be graded to a
+    tolerance instead, every lesson has one and the button is offered on all
+    of them.
+    """
+    for lesson in LESSONS:
+        _open(screen, qapp, lesson.key, "Learn")
+        assert screen.segment_buttons["Drill"].isVisibleTo(screen), lesson.key
 
 
-def test_choosing_drill_on_a_lesson_without_one_falls_back(screen, qapp):
+@contextlib.contextmanager
+def _lesson_replaced(lesson):
+    """Hand the screen a modified lesson, and put the real one back."""
+    original = content.by_key
+    content.by_key = (lambda key: lesson if key == lesson.key
+                      else original(key))
+    try:
+        yield
+    finally:
+        content.by_key = original
+
+
+def test_drill_is_withheld_from_a_lesson_that_has_none(screen, qapp):
+    """The guard is unreachable from the content, and is kept anyway.
+
+    Nothing in the course is without a drill, so this drives the screen with a
+    lesson whose templates have been taken away -- the shape a lesson added
+    without one would arrive in. The button goes rather than opening an empty
+    page, and an already-open Drill falls back to Practice.
+    """
+    import dataclasses
+
+    lesson = dataclasses.replace(content.by_key("separable"), templates=())
     _drill(screen, qapp, "separable")
-    _open(screen, qapp, "numerical", "Drill")
-    assert screen._segment == "Practice"
-    assert screen.segment_buttons["Practice"].isChecked()
+    with _lesson_replaced(lesson):
+        screen._show()
+        assert not screen.segment_buttons["Drill"].isVisibleTo(screen)
+        assert screen._segment == "Practice"
+        assert screen.segment_buttons["Practice"].isChecked()
 
 
 def test_the_drill_page_offers_every_template(screen, qapp):
@@ -1471,9 +1499,19 @@ def _figure(key: str, palette: str = "dark"):
     return made
 
 
-@pytest.mark.parametrize("key", ["slope_field", "phase_line", "euler_error"])
+def _figure_keys() -> list[str]:
+    from odesuite_app.widgets.lessonfigure import FIGURES
+
+    return sorted(FIGURES)
+
+
+@pytest.mark.parametrize("key", _figure_keys())
 @pytest.mark.parametrize("palette", ["dark", "light"])
 def test_every_figure_draws_in_both_palettes(qapp, key, palette):
+    """Over the registry, not over a list somebody has to remember to extend.
+
+    Three of the six were named here when there were six. A figure added
+    without being added to this line would be the one nobody ever drew."""
     made = _figure(key, palette)
     made.resize(700, 480)
     qapp.processEvents()
@@ -1596,8 +1634,108 @@ def test_a_lesson_with_a_figure_shows_it_and_one_without_does_not(screen, qapp):
     _open(screen, qapp, "slopefields", "Practice")
     assert not screen._page.findChildren(LessonFigure)
 
-    _open(screen, qapp, "separable", "Learn")
+    # A lesson genuinely without one. Eighteen of the thirty-five have a
+    # figure and seventeen do not, because a figure earns its place only
+    # where the lesson has a parameter worth turning.
+    _open(screen, qapp, "basics", "Learn")
     assert not screen._page.findChildren(LessonFigure)
+
+
+# ---------------------------------------------------------------------------
+# The figures that make a measurable claim
+# ---------------------------------------------------------------------------
+
+
+def test_the_order_figure_measures_the_orders_it_claims(qapp):
+    """Its whole point is that 1 and 4 are *measured*, not asserted.
+
+    The numbers come from `byhand.refinement`, the same function Methods by
+    Hand tabulates, so a figure that quietly disagreed with the by-hand screen
+    would be worse than none. Read back off the last halving, where the
+    asymptotic claim is closest to true.
+    """
+    import numpy as np
+
+    made = _figure("order_slope")
+    for method, wanted in (("euler", 1.0), ("rk4", 4.0)):
+        steps, errors = made._measured(method)
+        slope = ((np.log(errors[-2]) - np.log(errors[-1]))
+                 / (np.log(steps[-2]) - np.log(steps[-1])))
+        assert abs(slope - wanted) < 0.15, f"{method} measured {slope:.2f}"
+    made.deleteLater()
+
+
+def test_the_convolution_figure_shades_the_overlap(qapp):
+    """The shading is the figure.
+
+    Everything else in that pane is two curves, which any plot has. What makes
+    it a picture of a convolution is the region between them being filled --
+    so this counts the pixels actually painted in the blend of the accent
+    colour over the plot background, rather than asserting the widget exists.
+    """
+    import collections
+
+    from odesuite_app.theme import PALETTES
+
+    made = _figure("convolution")
+    made.resize(1000, 520)
+    qapp.processEvents()
+    image = made.grab().toImage()
+
+    counts: collections.Counter = collections.Counter()
+    for y in range(0, image.height(), 2):
+        for x in range(0, image.width() // 2, 2):
+            counts[image.pixelColor(x, y).name()] += 1
+    background = PALETTES["dark"].plot_background.lower()
+    shaded = [count for name, count in counts.items()
+              if name != background and _is_blend(name)]
+    assert sum(shaded) > 300, "the overlap is not shaded"
+    made.deleteLater()
+
+
+def _is_blend(name: str) -> bool:
+    """Is this the accent colour laid over the plot background?
+
+    Between the two, channel by channel, and not equal to either -- which is
+    what a semi-transparent fill produces and what nothing else on that pane
+    does.
+    """
+    from odesuite_app.theme import PALETTES
+
+    accent = PALETTES["dark"].accent.lstrip("#")
+    ground = PALETTES["dark"].plot_background.lstrip("#")
+    try:
+        parts = [int(name.lstrip("#")[at:at + 2], 16) for at in (0, 2, 4)]
+    except ValueError:
+        return False
+    for index, value in enumerate(parts):
+        low = int(ground[index * 2:index * 2 + 2], 16)
+        high = int(accent[index * 2:index * 2 + 2], 16)
+        if not low < value < high:
+            return False
+    return True
+
+
+def test_the_partial_sums_figure_reaches_further_with_more_terms(qapp):
+    """More terms, more agreement -- and never past the radius.
+
+    Both halves of the lesson's claim. The reach is computed by the figure
+    itself from the curves it drew, so this is checking the picture rather
+    than repeating its arithmetic.
+    """
+    made = _figure("partial_sums")
+    reaches = []
+    for terms in (2, 6, 14):
+        made.sliders["n"].set_value(terms)
+        made.draw()
+        qapp.processEvents()
+        # Not "[\d.]+", which swallows the full stop that ends the sentence.
+        found = re.search(r"out to t = (\d+\.\d+)", made.readout.text())
+        assert found, made.readout.text()
+        reaches.append(float(found.group(1)))
+    assert reaches[0] < reaches[1] < reaches[2], reaches
+    assert reaches[-1] < 1.0, "the radius is 1 and nothing may reach past it"
+    made.deleteLater()
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,52 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Every lesson has a drill.** Ten had none, and the reason was grading
+  rather than effort: a typed answer is marked by substituting it into its own
+  equation, and Euler's method has no closed form to substitute into, so the
+  verdict there could never be "right". `NumericTemplate` is the missing
+  question type — a number, graded to a tolerance — and it reaches the seven
+  lessons whose answer *is* a number: one Euler step, one Runge–Kutta step, a
+  terminal velocity, an equilibrium, a slope, a determinant, a convolution.
+
+  Two of the ten needed nothing new at all. `complex-eigenvalues` and
+  `forced-systems` have closed forms, and an ordinary template with the
+  systems narrator solves them — which also fixed a real limitation, since
+  the drill's grader built its equation from a single line and so could not
+  read the `x' = …; y' = …` a system is written as.
+
+  The tolerance is a correctness question. The Runge–Kutta drill asks what the
+  *method* lands on, so an Euler step must be marked wrong — but the exact
+  solution must not be, because across these step sizes a fourth-order method
+  agrees with it to four decimal places. That was assumed the other way round
+  when the drill was written, and measuring it is what corrected the claim.
+
+  The stored answer is an expression over the template's slots rather than a
+  number, so every draw can be checked against the machinery the lesson
+  teaches: `byhand.walk` for both steps, `analysis.phase_line` for the
+  equilibria, `numpy.linalg.det` for the determinant. A `Solve` drill cannot
+  disagree with the rest of the application because substitution *is* its
+  grading; this type buys that property back.
+
+- **Twelve more figures**, taking eighteen of the thirty-five lessons to one
+  that moves. Where a lesson has a parameter worth turning: the two constant
+  solutions separating divides away, with every curve crowding them and none
+  crossing; the transient and the steady state drawn apart; the level curves
+  of an exact equation's potential over its own slope field; error against
+  step size on log axes with reference gradients of 1 and 4; a spiral whose
+  direction reverses as the real part of the eigenvalue crosses zero; poles in
+  the s-plane beside the response they invert to; partial sums converging with
+  the radius marked; and the convolution — one curve reversed and slid across
+  another with the overlap shaded, `t` on a slider, because dragging it *is*
+  the animation and a timer could not be tested.
+
+  Seventeen lessons still have none, deliberately. Superposition has nothing
+  to turn.
+
+  `lessonfigure.py` becomes a package, one module per unit. Six figures fitted
+  in one file and eighteen do not — the same argument, at very nearly the same
+  size, that made `lessons.py` a package.
+
 - **Every lesson reads as a textbook section rather than a set of cards.**
   All thirty-five now open with *why this comes up* — where the equation
   arises, what goes wrong with the tools already in hand, and why the
@@ -504,6 +550,19 @@ All notable changes to this project are documented here. The format follows
   property that mattered.
 
 ### Fixed
+
+- **A drawn coefficient of zero left its whole term in the equation.**
+  `y'' + 0*y' + 9*y = 0` is how nobody writes an undamped oscillator, and five
+  templates were producing it — the undamped and missing-root draws, which are
+  the pedagogically interesting ones and so could not just be dropped from the
+  slots. `tidy` removes the term now. The guard that should have caught it
+  looked for `0s` and `1t` but not `0*y'`, and it now covers every kind of
+  template rather than only the ones graded by substitution: a generated
+  prompt, hint or reason gives itself away exactly as an equation does.
+
+- **The order figure logged its data twice**, once itself and once through
+  pyqtgraph's log mode, which turned every negative exponent into a NaN and
+  warned on each redraw.
 
 - **Seventeen stored equations were printing their own LaTeX.** Mathtext
   implements a large subset of LaTeX and `is_renderable` only guarded against

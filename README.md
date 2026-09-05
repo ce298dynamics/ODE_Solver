@@ -405,10 +405,16 @@ card with a warning stripe down it, because the thing that catches people is wor
 setting apart from the thing that is merely true. Reading `p` straight off `t·y' + y = t`
 is one; forgetting the factor of `t` on a repeated root is another.
 
-**Six lessons have a figure you can move**, at the top of *Learn*. A note can say
+**Eighteen lessons have a figure you can move**, at the top of *Learn*. A note can say
 that raising the harvest rate eventually wipes out both equilibria; a figure lets you
 raise it and watch the two dots slide together and vanish, which is a different kind of
 knowing.
+
+Seventeen lessons have none, and that is a decision rather than a gap: a figure earns
+its place only where the lesson has a parameter worth turning. Drag `t` and watch one
+curve slide, flip and overlap another, with the area it sweeps traced beside it — that
+is a convolution, and no amount of prose does the same work. Superposition has no such
+knob, so it has no figure.
 
 - **Slope fields** draws the dashes `y' = a·y + b·t` demands at each point — no solving
   involved — and integrates a solution through anywhere you click. The curve comes out
@@ -485,6 +491,22 @@ answer, has nothing to substitute for Euler's method, and marks a truncated seri
 wrong. Those lessons do not need a `Solve` drill written; they need a question type
 graded some other way, and `Choice` already is one. `ChoiceTemplate` is to `Choice` what
 `Template` is to `Solve`.
+
+**And some are a number, graded to a tolerance.** Four options are the wrong shape for
+one Euler step or a terminal velocity: there is a single right value, and what a grader
+owes it is a tolerance rather than a list. `NumericTemplate` is the third of these, and
+with it **every lesson in the course has a drill** — ten had none when this began.
+
+The tolerance is a correctness question and not a display choice. A Runge–Kutta drill
+asks what the *method* lands on, so a step taken by Euler instead must be marked wrong;
+the exact solution must not be, because for these step sizes a fourth-order method
+agrees with it to four decimal places, which is the whole claim of the method.
+
+The stored answer is an *expression* over the template's slots rather than a number, so
+`tests/test_templates.py` can evaluate every draw against the machinery the lesson
+teaches — `byhand.walk` for the Euler and RK4 steps, `analysis.phase_line` for the
+equilibria, `numpy` for the determinant. A `Solve` drill gets that property free from
+substitution; this one buys it back.
 
 **The options are shuffled per draw**, deterministically from the template's key and the
 draw index, and each reason moves with its own option. Leaving the answer where the

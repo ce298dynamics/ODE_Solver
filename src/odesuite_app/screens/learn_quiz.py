@@ -265,8 +265,12 @@ class QuizScreen(QWidget):
         # just read the lesson, and fatal here: choosing the method *is* the
         # question a check-up asks, so anything that answers it has to go.
         choosing = question.kind == "choice"
+        counting = question.kind == "numeric"
+        # A numeric question's own prompt is shown for the same reason a
+        # choice's is: it asks for a specific number rather than naming a
+        # method, so it gives nothing away about which technique to reach for.
         prompt = QLabel(
-            question.prompt if choosing
+            question.prompt if choosing or counting
             else "Solve it." if not question.conditions
             else "Solve it, and satisfy the condition."
         )
@@ -277,7 +281,7 @@ class QuizScreen(QWidget):
         # text, which is shown monospaced. Running generated source through the
         # renderer produces a mangled image or a silent fallback, and typesetting
         # a `\,` as literal characters is just as wrong the other way.
-        if choosing:
+        if choosing or counting:
             if question.latex:
                 inner.addWidget(MathLabel(self.palette_obj, question.latex,
                                           point_size=15))
@@ -308,8 +312,18 @@ class QuizScreen(QWidget):
                 inner.addWidget(button)
         else:
             self.answer = QLineEdit()
-            self.answer.setPlaceholderText("y = …")
-            inner.addWidget(self.answer)
+            self.answer.setPlaceholderText(
+                "a number" if counting else "y = …"
+            )
+            if counting and question.units:
+                row = QHBoxLayout()
+                row.addWidget(self.answer, 1)
+                units = QLabel(question.units)
+                units.setProperty("role", "muted")
+                row.addWidget(units)
+                inner.addLayout(row)
+            else:
+                inner.addWidget(self.answer)
 
         self.verdict = QLabel("")
         self.verdict.setWordWrap(True)
@@ -343,7 +357,33 @@ class QuizScreen(QWidget):
         if question.kind == "choice":
             self._check_choice(lesson, question)
             return
+        if question.kind == "numeric":
+            self._check_numeric(lesson, question)
+            return
         self._check_solve(lesson, question)
+
+    def _check_numeric(self, lesson, question) -> None:
+        """Graded to a tolerance, which is what a number deserves.
+
+        The lessons whose answer is a number rather than a function -- one
+        Euler step, a terminal velocity, a trace -- reach the quiz through
+        here. As in the Drill segment there are three verdicts: a number that
+        could not be read is an attempt, not a mistake.
+        """
+        from ..symbolic import grade_numeric
+
+        palette = self.palette_obj
+        right, message = grade_numeric(question, self.answer.text())
+        if right is None:
+            self.verdict.setStyleSheet(f"color: {palette.text_muted};")
+            self.verdict.setText(message)
+            return
+        colour = palette.success if right else palette.danger
+        self.verdict.setStyleSheet(f"color: {colour};")
+        mark = "✓ " if right else "✗ "
+        because = f"  —  {question.because}" if question.because else ""
+        self.verdict.setText(mark + message + because)
+        self._settle(lesson, question, right)
 
     def _check_choice(self, lesson, question) -> None:
         """Graded by `grade_choice`, which is what this question type is for.

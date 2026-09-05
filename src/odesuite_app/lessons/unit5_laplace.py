@@ -29,6 +29,7 @@ from .model import (
     Example,
     Lesson,
     Note,
+    NumericTemplate,
     Passage,
     Solve,
     Template,
@@ -678,6 +679,7 @@ SHIFTING = Lesson(
             "lists, and the algebra that gets Y(s) into their shape.",
     tool="laplace",
     reference="Edwards 7.2–7.3",
+    figure="poles",
     motivation=(
         "The method reduces every problem to the same final difficulty: an "
         "expression in s that has to be recognised as something on the table. "
@@ -980,6 +982,7 @@ CONVOLUTION = Lesson(
     summary="What to do when Y(s) is a product that refuses to split.",
     tool="laplace",
     reference="Edwards 7.4",
+    figure="convolution",
     motivation=(
         "Everything so far has relied on the transform of the answer being "
         "recognisable once it is split apart. That assumes the forcing has a "
@@ -1251,6 +1254,28 @@ CONVOLUTION = Lesson(
             ),
         ),
     ),
+    templates=(
+        NumericTemplate(
+            key="step-response",
+            title="A convolution evaluated",
+            prompt="A system at rest has impulse response g(t) = e^(-{a}t). "
+                   "Driven by a constant 1, its response is (1 * g)(t). What "
+                   "is that at t = {t0}? Give four decimal places.",
+            answer="(1 - exp(-{a}*{t0}))/{a}",
+            tolerance=1e-4,
+            because="Convolving with the constant 1 integrates g from 0 to t, "
+                    "so the step response is the running total of the impulse "
+                    "response — and it climbs towards the reciprocal of the "
+                    "decay rate, which is where the system settles.",
+            latex=r"(1 * g)(t) = \int_0^{{t}} g(\tau)\,d\tau",
+            hints=(
+                "One of the two factors is the constant 1, so the convolution "
+                "integral loses that factor entirely.",
+                "What is left is the integral of e^(-{a}τ) from 0 to {t0}.",
+            ),
+            slots=(("a", (0.5, 2, 3, 4)), ("t0", (0.5, 1, 2, 3))),
+        ),
+    ),
 )
 
 
@@ -1261,6 +1286,7 @@ STEPFORCING = Lesson(
             "technique in this course handles.",
     tool="laplace",
     reference="Edwards 7.5",
+    figure="pulse_response",
     motivation=(
         "The transform's real advantage is forcing that no formula covers in "
         "one piece. A voltage switched on at two seconds, a load applied and "

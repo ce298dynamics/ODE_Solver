@@ -54,6 +54,10 @@ CHOICE_TEMPLATES = [(lesson, template) for lesson, template in TEMPLATES
                     if template.kind == "choice-template"]
 CHOICE_IDS = [f"{lesson.key}-{template.key}"
               for lesson, template in CHOICE_TEMPLATES]
+NUMERIC_TEMPLATES = [(lesson, template) for lesson, template in TEMPLATES
+                     if template.kind == "numeric-template"]
+NUMERIC_IDS = [f"{lesson.key}-{template.key}"
+               for lesson, template in NUMERIC_TEMPLATES]
 
 #: How many draws of each template the default run checks. Enough that a
 #: template broken for most of its range fails here rather than only in the
@@ -116,11 +120,23 @@ def test_there_are_templates_and_they_belong_to_lessons():
     assert len(set(keys)) == len(keys), "two templates share a key"
 
 
-def test_the_numerical_lesson_deliberately_has_no_drill():
-    """Euler and RK4 have no closed form for the grader to substitute into, so
-    a drill there could never say "right". Offering one anyway would be the
-    kind of stand-in this application has removed everywhere else."""
-    assert content.by_key("numerical").templates == ()
+def test_every_lesson_has_a_drill():
+    """This was once the opposite claim, and the change is worth recording.
+
+    Euler and RK4 have no closed form to substitute into, so a `Solve` drill
+    there could never say "right", and ten lessons went without one rather
+    than be given a verdict that meant nothing. The substitution grader did
+    not get better. What changed is that a question whose answer is a *number*
+    never needed it: `NumericTemplate` is graded to a tolerance, and the seven
+    lessons it reaches are exactly the ones asking for a number.
+
+    Two of the ten needed nothing new at all -- they have closed forms, and an
+    ordinary template with the systems narrator solves them -- and one takes a
+    `ChoiceTemplate`, because "which of these is a solution" has four honest
+    options and no natural number.
+    """
+    without = [lesson.key for lesson in LESSONS if not lesson.templates]
+    assert without == [], f"no drill for {without}"
 
 
 @pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
@@ -241,19 +257,42 @@ def test_every_slot_is_filled_in(lesson, template):
 #: whose questions look generated reads as busywork rather than as practice.
 GENERATED_LOOKING = re.compile(
     r"\*\*[01](?![\d.])"          # t**0, t**1
-    r"|(?<![\d.])[01](?=[a-zA-Z(])"   # 1t, 0s, 1e^, 1(
+    r"|(?<![\d.])[01](?=[^\W\d_]|\()"  # 1t, 0s, 1e^, 1(, and 1\u03c4
     r"|(?<![\d.])[01]·"           # 1·t
     r"|\+\s*-"                    # + -3
     r"|−\s*-"                     # − -3
+    r"|(?<![\d.])0\*"             # 0*y\', a term that should not be there
 )
 
 
-@pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
-                         ids=SOLVE_IDS)
+def _shown(question) -> list[str]:
+    """Every string a draw puts in front of somebody.
+
+    All three question kinds pass through here, and they carry different
+    fields -- a `Solve` has an equation, a `Choice` has options and a reason
+    per option, a `Numeric` has a single reason and its units. Anything
+    displayed is checked; nothing else is.
+    """
+    fields = ["prompt", "equation", "conditions", "latex", "because", "units"]
+    out = [getattr(question, name, "") or "" for name in fields]
+    out += list(getattr(question, "hints", ()))
+    out += list(getattr(question, "options", ()))
+    out += list(getattr(question, "becauses", ()))
+    return [text for text in out if text]
+
+
+@pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
 def test_no_draw_reads_as_machine_made(lesson, template):
+    """Over every template kind, not only the ones graded by substitution.
+
+    A generated prompt, hint or reason gives itself away exactly as an
+    equation does -- "into -1y + -1t", "it is 2 ± 1i", "y(6 - 1y)" -- and
+    those are not tidied, because `tidy` is for equations and these are
+    sentences. The wording has to state the rule rather than interpolate a
+    signed value, and this is what enforces that.
+    """
     for question in generate.every(template):
-        for text in (question.equation, question.prompt, question.conditions,
-                     *question.hints):
+        for text in _shown(question):
             found = GENERATED_LOOKING.search(text)
             assert not found, (
                 f"{template.key}: {text[max(0, found.start() - 20):]!r} "
@@ -269,6 +308,13 @@ def test_tidy_leaves_the_mathematics_alone():
     )
     # A two-digit coefficient is not a one followed by something.
     assert generate.tidy("y' + 12*y = 10*t") == "y' + 12*y = 10*t"
+    # A zero coefficient takes its whole term with it, wherever it sits.
+    assert generate.tidy("y'' + 0*y' + 9*y = 0") == "y'' + 9*y = 0"
+    assert generate.tidy("y''' - 0*y'' - y' - 0*y = 0") == "y''' - y' = 0"
+    assert generate.tidy("x' = 0*x + y") == "x' = y"
+    # But a right-hand side of zero is the equation, not a stray term.
+    assert generate.tidy("y'' + 4*y = 0") == "y'' + 4*y = 0"
+    assert generate.tidy("y(0) = 5") == "y(0) = 5"
     assert generate.tidy("y' = t**12") == "y' = t**12"
 
 
@@ -480,3 +526,206 @@ def test_every_unit_can_now_be_quizzed():
 
     without = [unit.key for unit in UNITS if not unit.quizzable]
     assert not without, f"these units still offer no quiz: {without}"
+
+
+# ---------------------------------------------------------------------------
+# Numeric drills: graded to a tolerance, and checked against the real tools
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("lesson,template", NUMERIC_TEMPLATES,
+                         ids=NUMERIC_IDS)
+def test_every_numeric_template_is_well_formed(lesson, template):
+    where = f"{lesson.key}/{template.key}"
+    assert template.title and template.prompt and template.answer
+    assert template.slots, f"{where}: nothing to vary"
+    assert template.because, f"{where}: a number with no account of itself"
+    assert 0 < template.tolerance < 1, f"{where}: {template.tolerance}"
+
+
+@pytest.mark.parametrize("lesson,template", NUMERIC_TEMPLATES,
+                         ids=NUMERIC_IDS)
+def test_every_numeric_draw_has_a_real_finite_answer(lesson, template):
+    import math
+
+    for question in generate.every(template):
+        assert math.isfinite(question.answer), (
+            f"{template.key}: {question.prompt} has no usable answer"
+        )
+        assert question.because, f"{template.key}: no reason given"
+
+
+@pytest.mark.parametrize("lesson,template", NUMERIC_TEMPLATES,
+                         ids=NUMERIC_IDS)
+def test_the_grader_accepts_the_answer_and_rejects_a_near_miss(lesson,
+                                                               template):
+    """The tolerance has to admit an honest rounding and refuse a wrong step.
+
+    Both halves matter. Too tight and somebody who worked to the number of
+    decimal places the prompt asked for is marked wrong; too loose and, for
+    the Runge-Kutta drill, the *exact* solution slips through -- which would
+    mark somebody right for having solved the equation rather than taken the
+    step.
+    """
+    from odesuite_app.symbolic import grade_numeric
+
+    for question in generate.every(template):
+        right, _ = grade_numeric(question, repr(question.answer))
+        assert right is True, f"{template.key}: rejects its own answer"
+
+        # A rounding at the precision the prompt asks for must pass.
+        places = 4 if "four decimal places" in question.prompt else 6
+        rounded = round(question.answer, places)
+        right, _ = grade_numeric(question, repr(rounded))
+        assert right is True, (
+            f"{template.key}: {question.answer} rounded to {places} places "
+            "is rejected"
+        )
+
+        # A wrong answer of the size these questions produce must fail.
+        off = question.answer + 10 * template.tolerance * max(
+            1.0, abs(question.answer)
+        )
+        right, _ = grade_numeric(question, repr(off))
+        assert right is False, f"{template.key}: accepts {off}"
+
+
+@pytest.mark.parametrize("text", ["", "   ", "banana", "y + 1", "sqrt(-1)"])
+def test_the_grader_declines_rather_than_marking_it_wrong(text):
+    """Three verdicts, not two. "I could not read that" is a claim about the
+    typing and must never be reported as a claim about the mathematics."""
+    from odesuite_app.lessons import Numeric
+    from odesuite_app.symbolic import grade_numeric
+
+    right, message = grade_numeric(Numeric("k", "p", 1.0), text)
+    assert right is None, text
+    assert message
+
+
+def _stepped(a: float, y0: float, h: float, method: str) -> float:
+    """One step of `method` on ``y' = a*y``, through the app's own walker."""
+    import numpy as np
+
+    from odesuite import ODEProblem
+    from odesuite_app import byhand
+
+    problem = ODEProblem(f=lambda t, y: np.array([a * y[0]]),
+                         t_span=(0.0, 10 * h), y0=np.array([float(y0)]))
+    return float(byhand.walk(problem, method, h, 1).rows[0].y_next[0])
+
+
+def test_the_euler_drill_agrees_with_the_by_hand_walker():
+    """The declarative answer against the machinery the lesson teaches.
+
+    A `Solve` drill cannot disagree with the rest of the application, because
+    substitution is the grading. A stored number can, so it is checked here
+    against `byhand.walk` -- the same function the Methods by Hand screen
+    steps with.
+    """
+    template = content.by_key("numerical").templates[0]
+    checked = 0
+    for index, slots in enumerate(generate.draws(template)):
+        question = generate.draw(template, index)
+        walked = _stepped(slots["a"], slots["y0"], slots["h"], "euler")
+        assert question.answer == pytest.approx(walked, abs=1e-12), (
+            f"{question.prompt}: drill says {question.answer}, "
+            f"byhand.walk says {walked}"
+        )
+        checked += 1
+    assert checked >= 20
+
+
+def test_the_runge_kutta_drill_agrees_with_the_walker_and_not_with_euler():
+    """Against the walker, and against the wrong answer that matters.
+
+    Not against the exact solution, which was the first thing tried and was
+    wrong: across these step sizes the method agrees with it to between seven
+    and four decimal places, so no tolerance that accepts an honest rounding
+    could separate them. That is fourth-order accuracy working, not a drill
+    that cannot tell. The answer this question really produces by mistake is
+    an *Euler* step, and that is a hundred times further away.
+    """
+    from odesuite_app.symbolic import grade_numeric
+
+    template = content.by_key("rungekutta").templates[0]
+    for index, slots in enumerate(generate.draws(template)):
+        question = generate.draw(template, index)
+        walked = _stepped(slots["a"], 1.0, slots["h"], "rk4")
+        assert question.answer == pytest.approx(walked, abs=1e-12), (
+            f"{question.prompt}: drill says {question.answer}, "
+            f"byhand.walk says {walked}"
+        )
+        euler = _stepped(slots["a"], 1.0, slots["h"], "euler")
+        right, _ = grade_numeric(question, repr(euler))
+        assert right is False, (
+            f"{question.prompt}: an Euler step of {euler} is accepted, so the "
+            "drill does not distinguish the two methods"
+        )
+
+
+def test_the_equilibrium_drill_agrees_with_the_phase_line():
+    import numpy as np
+
+    from odesuite import ODEProblem
+    from odesuite_app import analysis
+
+    template = content.by_key("equilibria").templates[0]
+    for index, slots in enumerate(generate.draws(template)):
+        question = generate.draw(template, index)
+        a, b = float(slots["a"]), float(slots["b"])
+        problem = ODEProblem(f=lambda t, y: np.array([a * y[0] - b * y[0] ** 2]),
+                             t_span=(0.0, 1.0), y0=np.array([0.5]))
+        found = [point.value
+                 for point in analysis.phase_line(problem, (-1.0, 12.0))]
+        assert any(abs(value - question.answer) < 1e-6 for value in found), (
+            f"{question.prompt}: {question.answer} is not among the equilibria "
+            f"the phase line finds, {found}"
+        )
+
+
+def test_the_determinant_drill_agrees_with_numpy():
+    import numpy as np
+
+    template = content.by_key("phase-portraits").templates[0]
+    for index, slots in enumerate(generate.draws(template)):
+        question = generate.draw(template, index)
+        matrix = np.array([[slots["a"], slots["b"]],
+                           [slots["c"], slots["d"]]], dtype=float)
+        assert question.answer == pytest.approx(float(np.linalg.det(matrix)))
+
+
+def test_the_convolution_drill_agrees_with_the_integral():
+    """The step response is the convolution with the constant one, which is
+    the integral of the impulse response -- so sympy can be asked directly."""
+    import sympy as sp
+
+    template = content.by_key("convolution").templates[0]
+    tau = sp.Symbol("tau", positive=True)
+    for index, slots in enumerate(generate.draws(template)):
+        question = generate.draw(template, index)
+        integral = sp.integrate(sp.exp(-sp.Rational(str(slots["a"])) * tau),
+                                (tau, 0, sp.Rational(str(slots["t0"]))))
+        assert question.answer == pytest.approx(float(integral))
+
+
+def test_the_terminal_velocity_drill_is_where_the_forces_balance():
+    template = content.by_key("motion").templates[0]
+    for index, slots in enumerate(generate.draws(template)):
+        question = generate.draw(template, index)
+        # The equation carries the mass now: m·v' = -m·9.8 - k·v, so the
+        # balance is between the weight and the drag, not between g and it.
+        residual = (-float(slots["m"]) * 9.8
+                    - float(slots["k"]) * question.answer)
+        assert abs(residual) < 1e-9, (
+            f"{question.prompt}: the acceleration at {question.answer} is "
+            f"{residual}, not zero"
+        )
+
+
+def test_the_slope_drill_is_the_right_hand_side_at_the_point():
+    template = content.by_key("slopefields").templates[0]
+    for index, slots in enumerate(generate.draws(template)):
+        question = generate.draw(template, index)
+        wanted = slots["a"] * slots["y0"] + slots["b"] * slots["t0"]
+        assert question.answer == pytest.approx(float(wanted))
+

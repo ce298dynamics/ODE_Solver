@@ -991,6 +991,69 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
     return check
 
 
+def grade_numeric(question, text: str) -> tuple[bool | None, str]:
+    """Mark a typed number against the one a `Numeric` question expects.
+
+    Here rather than beside `model.grade_choice` because it needs the parser,
+    and `lessons/` is content that holds no sympy -- the same layering that
+    makes `Lesson.figure` a string rather than a widget. `grade_choice` needs
+    nothing and can therefore live with the model; this cannot.
+
+    The text goes through `_parse_side`, the same hardened parser the rest of
+    the application uses, so ``11/10``, ``sqrt(2)`` and ``-4.9e1`` all work and
+    nothing with a name in it does. Somebody who worked the arithmetic out as a
+    fraction should not have to convert it first.
+
+    Returns `None` -- *cannot decide* -- for anything that will not parse or
+    does not come out as a real number, never `False`. That is the discipline
+    `check_answer` already keeps: a verdict of wrong is a claim about the
+    mathematics, and "I could not read that" is a claim about the typing.
+
+    The comparison is relative to the size of the answer, with an absolute
+    floor, so one tolerance means the same thing for a terminal velocity of
+    -49 and for a step of 0.0039.
+    """
+    if not text or not text.strip():
+        return None, "type a number to check"
+
+    try:
+        value = _parse_side(text.strip(), {})
+    except ParseError as exc:
+        return None, str(exc)
+
+    if value.free_symbols:
+        names = ", ".join(sorted(map(str, value.free_symbols)))
+        if value.is_Symbol:
+            return None, f"{names!r} is not a number"
+        return None, f"that still has {names} in it"
+
+    try:
+        got = complex(value.evalf())
+    except (TypeError, ValueError) as exc:
+        return None, f"that is not a number: {exc}"
+    if abs(got.imag) > 1e-12:
+        return None, "that is a complex number; this question wants a real one"
+
+    wanted = float(question.answer)
+    allowed = question.tolerance * max(1.0, abs(wanted))
+    if abs(got.real - wanted) <= allowed:
+        return True, f"correct: {_tidy_number(wanted)}"
+    return False, f"not quite -- the answer is {_tidy_number(wanted)}"
+
+
+def _tidy_number(value: float) -> str:
+    """A number as it would be written, not as a float repr.
+
+    ``0.5`` rather than ``0.5000000000000001``, and ``-49`` rather than
+    ``-49.0``: the verdict is read, and a tail of noise in it reads as though
+    the application is unsure of its own answer.
+    """
+    rounded = round(value, 6)
+    if abs(rounded - round(rounded)) < 1e-9:
+        return str(int(round(rounded)))
+    return f"{rounded:g}"
+
+
 def _check_system(parsed: ParsedEquation, text: str) -> AnswerCheck:
     """The same substitution check, component by component.
 

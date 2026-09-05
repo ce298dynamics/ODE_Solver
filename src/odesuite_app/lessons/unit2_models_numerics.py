@@ -16,6 +16,7 @@ from .model import (
     Example,
     Lesson,
     Note,
+    NumericTemplate,
     Passage,
     Solve,
     Template,
@@ -578,6 +579,33 @@ EQUILIBRIA = Lesson(
             ),
         ),
     ),
+    templates=(
+        NumericTemplate(
+            key="find-the-equilibrium",
+            title="Where the right-hand side vanishes",
+            prompt="The equation y' = {a}*y - {b}*y**2 has an equilibrium at "
+                   "y = 0. What is the other one?",
+            answer="{a}/{b}",
+            because="Factor the right-hand side as y({a} − {b}y). It vanishes "
+                    "at y = 0 and where {b}y = {a}, and those are the only "
+                    "constant solutions there are — a constant has zero "
+                    "derivative, so the equation forces f to match.",
+            latex=r"y' = {a}\,y - {b}\,y^{{2}}",
+            hints=(
+                "An equilibrium is a root of the right-hand side, so set it "
+                "to zero.",
+                "Factor out a y. The other factor is linear, and its root is "
+                "the equilibrium wanted.",
+            ),
+            # No coefficient of 1: the reason above reads "y(6 - 1y)"
+            # otherwise, which is how you can tell it was generated.
+            slots=(("a", (2, 3, 4, 6, 8)), ("b", (2, 3, 4))),
+            # a/b = 1 makes the two roots as close as they get and the
+            # arithmetic disappears; the drill is for the reading, not for
+            # spotting a coincidence.
+            reject=lambda slots: slots["a"] == slots["b"],
+        ),
+    ),
 )
 
 
@@ -588,6 +616,7 @@ MOTION = Lesson(
             "interesting part is what the resistance term does.",
     tool="worked",
     reference="Edwards 2.3",
+    figure="terminal_velocity",
     motivation=(
         "Population produced one equation from one assumption. Mechanics "
         "produces most of the rest of this subject from a single law, and the "
@@ -846,6 +875,30 @@ MOTION = Lesson(
             ),
         ),
     ),
+    templates=(
+        NumericTemplate(
+            key="terminal-velocity",
+            title="Terminal velocity, without solving",
+            # The mass appears as data and never inside the equation: writing
+            # it there would substitute to "-2*9.8", which nothing tidies.
+            prompt="A body of mass {m} kg falls under m*v' = -m*9.8 - {k}*v, "
+                   "with up positive. What is its terminal velocity?",
+            answer="-{m}*9.8/{k}",
+            units="m/s",
+            because="The equation is autonomous, so the previous lesson "
+                    "applies: set the right-hand side to zero and the two "
+                    "forces balance. It costs one division, and every "
+                    "solution approaches it whatever the speed at the start.",
+            latex=r"m\,v' = -m\,g - k\,v",
+            hints=(
+                "Nothing has to be solved. Terminal velocity is the one speed "
+                "at which the acceleration is zero.",
+                "Set the right-hand side to zero and divide by the drag "
+                "coefficient.",
+            ),
+            slots=(("k", (0.2, 0.25, 0.4, 0.5, 0.7)), ("m", (1, 2, 4))),
+        ),
+    ),
 )
 
 
@@ -1083,6 +1136,29 @@ NUMERICAL = Lesson(
             ),
         ),
     ),
+    templates=(
+        NumericTemplate(
+            key="one-euler-step",
+            title="One step of Euler's method",
+            prompt="For y' = {a}*y with y(0) = {y0}, take one Euler step of "
+                   "size h = {h}. What is the value it lands on?",
+            answer="{y0} + {h}*({a}*{y0})",
+            because="Evaluate the right-hand side at the starting point to get "
+                    "the slope, follow it for {h}, and add the rise to where "
+                    "you started. That is the whole method — and the exact "
+                    "solution has already curved away from it by about "
+                    "h²y″/2.",
+            latex=r"y_{{1}} = y_0 + h\,f(t_0, y_0)",
+            hints=(
+                "Evaluate the slope first: the equation gives it directly at "
+                "the starting point.",
+                "Then travel on that slope for a distance h, and add what you "
+                "gain to y(0).",
+            ),
+            slots=(("a", (-2, -1, 2, 3)), ("y0", (1, 2, 4)),
+                   ("h", (0.1, 0.2, 0.25, 0.5))),
+        ),
+    ),
 )
 
 
@@ -1093,6 +1169,7 @@ RUNGEKUTTA = Lesson(
             "dearer.",
     tool="byhand",
     reference="Edwards 2.6",
+    figure="order_slope",
     motivation=(
         "Euler's method works, and its error analysis is honest, and together "
         "they produce a discouraging piece of arithmetic: each additional "
@@ -1351,6 +1428,40 @@ RUNGEKUTTA = Lesson(
                 "RK4's stability region is actually the larger of the two. "
                 "Neither is remotely large enough for a stiff problem.",
             ),
+        ),
+    ),
+    templates=(
+        NumericTemplate(
+            key="one-rk4-step",
+            title="One step of RK4, to four decimal places",
+            prompt="For y' = {a}*y with y(0) = 1, take one RK4 step of size "
+                   "h = {h}. Give the value to four decimal places.",
+            answer="1 + ({a}*{h}) + ({a}*{h})**2/2 + ({a}*{h})**3/6 "
+                   "+ ({a}*{h})**4/24",
+            # Loose enough for the four decimal places the prompt asks for,
+            # and tight enough to reject an Euler step -- which is the wrong
+            # answer this question actually produces, and sits a hundred
+            # times further away than the tolerance.
+            #
+            # Not tight enough to reject the exact solution, and deliberately
+            # so: for these step sizes the method agrees with it to between
+            # seven and four decimal places, which is what fourth order buys.
+            # A drill cannot mark somebody wrong for writing down a number the
+            # method genuinely lands on.
+            tolerance=1e-4,
+            because="The four stages weighted 1, 2, 2, 1 over six reproduce "
+                    "the exponential series as far as the h⁴ term — which is "
+                    "what the weights were chosen to do. The exact answer is "
+                    "close but not equal, and the gap is the local error.",
+            latex=r"y_{{1}} = y_0 + \frac{{h}}{{6}}"
+                  r"\left(k_1 + 2k_2 + 2k_3 + k_4\right)",
+            hints=(
+                "k₁ is the slope at the start, k₂ and k₃ at the midpoint, k₄ "
+                "at the far end — each one an ordinary evaluation of f.",
+                "For y' = ay every stage is a multiple of y₀, so the step "
+                "comes out as y₀ times a polynomial in ah.",
+            ),
+            slots=(("a", (-2, -1, 1, 2)), ("h", (0.1, 0.2, 0.25))),
         ),
     ),
 )

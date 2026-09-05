@@ -11,9 +11,11 @@ from __future__ import annotations
 
 from .model import (
     Choice,
+    ChoiceTemplate,
     Example,
     Lesson,
     Note,
+    NumericTemplate,
     Passage,
     Solve,
     Template,
@@ -30,6 +32,7 @@ SEPARABLE = Lesson(
             "falls back on when it can.",
     tool="steps",
     reference="Edwards 1.4",
+    figure="separable_family",
     motivation=(
         "The general first-order equation y' = F(t, y) is not solvable in any "
         "systematic way — no technique in this course touches the general "
@@ -325,6 +328,7 @@ LINEAR = Lesson(
             "separate.",
     tool="steps",
     reference="Edwards 1.5",
+    figure="integrating_factor",
     motivation=(
         "Separation asked the right-hand side to factor, and an enormous class "
         "of equations refuses. y' = -2y + t is the plainest example: the two "
@@ -890,6 +894,37 @@ BASICS = Lesson(
             ),
         ),
     ),
+    templates=(
+        ChoiceTemplate(
+            key="which-solves-it",
+            title="Check it by substituting",
+            prompt="Which of these is a solution of y' = {a}*y?",
+            options=(
+                "y = e^({a}t)",
+                "y = e^(-{a}t)",
+                "y = {a}·e^t",
+                "y = t^{a}",
+            ),
+            answer=0,
+            becauses=(
+                "Differentiating gives {a}e^({a}t), which is {a} times the "
+                "function itself — exactly what the equation asks for. Any "
+                "constant multiple works too, which is the one arbitrary "
+                "constant a first-order equation is entitled to.",
+                "Differentiating gives −{a}e^(−{a}t), so this satisfies "
+                "y' = −{a}y instead. The sign of the exponent is the sign of "
+                "the growth rate, and it is the commonest slip there is.",
+                "Differentiating gives {a}e^t, but {a} times the function is "
+                "{a}·{a}e^t. The constant out front cannot fix a rate that is "
+                "wrong: it cancels from both sides.",
+                "Differentiating gives {a}t^({a}−1), and {a} times the "
+                "function is {a}t^{a}. Those agree only where t = 1, and a "
+                "solution has to satisfy the equation everywhere.",
+            ),
+            latex=r"y' = {a}\,y",
+            slots=(("a", (2, 3, 4, 5, 6, 7, 8)),),
+        ),
+    ),
 )
 
 
@@ -1171,6 +1206,30 @@ SLOPEFIELDS = Lesson(
             ),
         ),
     ),
+    templates=(
+        NumericTemplate(
+            key="slope-at-a-point",
+            title="Read the slope straight off the equation",
+            prompt="For y' = {a}*y + {b}*t, what slope does the field have "
+                   "at the point (t, y) = ({t0}, {y0})?",
+            answer="{a}*{y0} + {b}*{t0}",
+            because="No solving is involved: the equation gives the slope at "
+                    "every point, and the point is substituted into the "
+                    "right-hand side. That is the whole of what a slope field "
+                    "draws.",
+            # No `latex`: it would have to be built from the source slots and
+            # would read "y' = -1\,y + -2\,t", which nothing tidies -- and
+            # the prompt states the equation already.
+            hints=(
+                "The equation already is the answer, once the point is put "
+                "into it.",
+                "Substitute y = {y0} and t = {t0} into the right-hand "
+                "side, and evaluate.",
+            ),
+            slots=(("a", (-2, -1, 1, 2)), ("b", (-2, -1, 2, 3)),
+                   ("t0", (0, 1, 2)), ("y0", (-2, -1, 2, 3))),
+        ),
+    ),
 )
 
 
@@ -1181,6 +1240,7 @@ EXACT = Lesson(
             "the only work is finding what.",
     tool="steps",
     reference="Edwards 1.6",
+    figure="level_curves",
     motivation=(
         "Separation needs a product; the integrating factor needs linearity in "
         "y. An equation like 2ty + (t² + 3y²)y' = 0 offers neither — y "
