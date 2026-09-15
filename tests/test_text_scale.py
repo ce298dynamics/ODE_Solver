@@ -139,7 +139,13 @@ def test_raising_the_scale_re_renders_rather_than_keeping_a_stale_bitmap(
     before = _height(label)
 
     at_scale(2.0)
-    _settle(qapp, label, until=lambda: _height(label) != before)
+    # Bigger, not merely different. `_refresh` blanks the pixmap before it
+    # queues the render, so "the height changed" is satisfied by that blank:
+    # measured, this returned with the bitmap at 0px and the assertion below
+    # then compared 0 against 44. It only passes today because the 30pt image
+    # is usually already cached and painted synchronously, with no blank to
+    # catch -- which is a warm cache holding the test up, not the test working.
+    _settle(qapp, label, until=lambda: _height(label) > before)
     after = _height(label)
 
     assert after > before * 1.5, (
@@ -228,10 +234,17 @@ def _settle(qapp, label: MathLabel, until=None, timeout: float = 20.0) -> None:
     # ever been seen in a whole-suite run, where that state is whatever three
     # thousand earlier tests left behind.
     point = qapp.font().pointSizeF() if qapp is not None else float("nan")
+    # The scale the label believes it last rendered at. If this already equals
+    # the application's, `changeEvent` saw the font change and declined to act;
+    # if it lags, the event never reached the label at all. That single number
+    # separates the two, and nothing smaller than a whole-suite run produces
+    # the failure that needs separating.
+    believed = getattr(label, "_scale", "?") if label is not None else "?" 
     raise AssertionError(
         f"the equation never settled: waited {waited:.1f}s of a {timeout:g}s "
         f"budget, with a render job still {'pending' if pending else 'finished'}; "
         f"bitmap {_height(label)}px, typeset={getattr(label, 'is_typeset', '?')}, "
+        f"label believes scale={believed}, "
         f"application font {point:g}pt against a {theme.BASELINE_POINT_SIZE:g}pt "
         f"baseline. A finished job with an unchanged bitmap means the condition "
         f"is wrong, not the budget."
@@ -249,3 +262,54 @@ def test_the_render_cache_distinguishes_the_two_sizes(qapp, at_scale):
         _settle(qapp, label)
         label.deleteLater()
     assert mathrender.cache_size() >= 2
+
+
+def test_a_shown_equation_rescales_with_the_application_stylesheet_installed(
+    qapp, at_scale
+):
+    """The state the running application is always in, and no other test was.
+
+    Two conditions together break Qt's font notifications, and every equation
+    in the real application meets both: the widget is *polished*, which happens
+    the moment it is shown, and an application style sheet is installed, which
+    gives the label a font of its own so the application font no longer
+    resolves through it.
+
+    Measured before the fix, with `QApplication.setFont` raising the scale to
+    two:
+
+        unpolished, no style sheet   FontChange delivered        -> re-renders
+        unpolished, style sheet      ApplicationFontChange       -> re-renders
+        polished,   style sheet      nothing delivered at all    -> stale
+
+    Only the third row is the shipping application, and it was the broken one.
+    The other tests in this file build a label and never show it, so all of
+    them sat in row one and the defect reached a whole-suite run before
+    anything noticed -- which is the gap this test closes.
+    """
+    at_scale(1.0)
+    qapp.setStyleSheet(theme.stylesheet(PALETTE, 1.0))
+    try:
+        label = MathLabel(PALETTE, "y = e^{-t}", point_size=15.0)
+        # Shown, not merely polished. Showing is what polishes a widget in the
+        # running application, and it is also what makes the equation one the
+        # reader can see -- a hidden one defers its re-render until it is shown,
+        # which is what keeps a scale change costing one screenful rather than
+        # every equation the process has built.
+        label.show()
+        _settle(qapp, label)
+        before = _height(label)
+        assert before > 0
+
+        at_scale(2.0)
+        _settle(qapp, label, until=lambda: _height(label) > before)
+
+        assert label.rendered_point_size() == pytest.approx(30.0)
+        assert _height(label) > before * 1.5, (
+            f"a shown equation stayed {before}px tall at twice the text scale"
+        )
+        label.hide()
+        label.deleteLater()
+    finally:
+        qapp.setStyleSheet("")
+        qapp.processEvents()

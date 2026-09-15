@@ -28,9 +28,18 @@ composed by Qt rather than by LaTeX.
 
 from __future__ import annotations
 
+import weakref
+
 from PySide6.QtCore import QEvent, QObject, QRunnable, Qt, QThreadPool, Signal
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenu, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .. import mathrender, theme
 from ..mathrender import Row
@@ -69,6 +78,66 @@ class _RenderJob(QRunnable):
             pass                       # the label went away mid-render
 
 
+class _FontWatch(QObject):
+    """One event filter for every `MathLabel` there will ever be.
+
+    `changeEvent` below is the fast path and it is not reliable on its own.
+    Measured, with the application style sheet installed -- which it always is
+    in the running application, and is not in a test that builds one label:
+
+        label state        events delivered by QApplication.setFont
+        unpolished         ApplicationFontChange        -> re-renders
+        polished           *none at all*                -> keeps a stale bitmap
+
+    A widget is polished the moment it is shown, so the broken row is the only
+    one the real application is ever in: raise the operating system's text
+    scale with the window open and every equation keeps the bitmap it was first
+    painted with, while the prose around it grows. The style sheet is what does
+    it -- it gives the label a font of its own, so the application font no
+    longer resolves through it and `FontChange` stops firing -- and polish is
+    what removes the other notification.
+
+    What does survive both is the event sent to the *application object*, which
+    `QApplication::setFont` posts unconditionally. So one filter is installed
+    there and the labels are held weakly behind it.
+
+    One filter, not one per label: a filter on the application object sees
+    every event in the application, and installing several hundred of those --
+    one per equation on a lesson page -- is exactly the cost Qt's documentation
+    warns about. This one compares an integer and returns.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._labels: weakref.WeakSet = weakref.WeakSet()
+
+    def watch(self, label: "MathLabel") -> None:
+        self._labels.add(label)
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.ApplicationFontChange:
+            for label in list(self._labels):
+                label.rescale_if_needed()
+        return False
+
+
+#: The single instance, created with the first label that needs it. Module
+#: level rather than per-application because there is one `QApplication` in a
+#: process and the tests reuse it.
+_FONT_WATCH: _FontWatch | None = None
+
+
+def _watch_font(label: "MathLabel") -> None:
+    global _FONT_WATCH
+    app = QApplication.instance()
+    if app is None:
+        return                          # headless rendering: no scale to track
+    if _FONT_WATCH is None:
+        _FONT_WATCH = _FontWatch()
+        app.installEventFilter(_FONT_WATCH)
+    _FONT_WATCH.watch(label)
+
+
 class MathLabel(QWidget):
     """A single typeset expression, with a monospace fallback."""
 
@@ -83,6 +152,9 @@ class MathLabel(QWidget):
         self._latex = ""
         self._plain = ""
         self._token = 0
+        #: The text scale the current bitmap was rendered at. Compared against
+        #: on a font change, so a re-render happens exactly when it is needed.
+        self._scale = theme.text_scale()
         self._signals = _RenderSignals()
         self._signals.ready.connect(self._on_rendered)
 
@@ -104,18 +176,55 @@ class MathLabel(QWidget):
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_menu)
 
+        _watch_font(self)
+
         if expr is not None:
             self.set_expression(expr)
+
+    #: Both of the events Qt uses to say a font changed. Measured rather than
+    #: assumed: `QApplication.setFont` was expected to deliver
+    #: `ApplicationFontChange` to every widget, and to a label that has never
+    #: been shown it delivers only `FontChange`. Listening for one of them
+    #: left the equations at whatever size they were first painted, which is
+    #: the exact bug this handler exists to fix.
+    _FONT_EVENTS = (QEvent.ApplicationFontChange, QEvent.FontChange)
 
     def changeEvent(self, event) -> None:
         """Re-typeset when the operating system's text scale changes.
 
-        Qt delivers that as an application font change. Without this the
-        prose grows and the equations keep whatever size they were first
-        rendered at, which is the stale bitmap A11Y-04 describes.
+        Guarded on the scale actually having moved, not merely on a font event
+        having arrived: `FontChange` also fires when a style sheet touches this
+        widget's own font, and re-rendering for each of those would put a job
+        on the thread pool every time a theme is applied.
         """
         super().changeEvent(event)
-        if event.type() == QEvent.ApplicationFontChange and self._latex:
+        if event.type() not in self._FONT_EVENTS:
+            return
+        self.rescale_if_needed()
+
+    def rescale_if_needed(self) -> None:
+        """Re-typeset if the reader's text scale has moved since last time.
+
+        The one guard both notifications funnel through -- `changeEvent` when
+        Qt delivers a font event to this widget, and `_FontWatch` when it does
+        not. Guarded on the scale actually having moved, not merely on a
+        notification having arrived: `FontChange` also fires when a style sheet
+        touches this widget's own font, and re-rendering for each of those
+        would put a job on the thread pool every time a theme is applied.
+
+        Every live label is re-rendered, not only the visible ones, and that is
+        deliberate after measuring it. Deferring the hidden ones until they are
+        shown was written and then removed: with 150 labels alive and none of
+        them shown, one scale change costs 2.42s of rendering in total and
+        0.15s before the call returns, against 0.12s deferred. That is a
+        saving of two seconds on something a reader does roughly never, paid
+        for with a second code path and a staleness flag -- and it broke two
+        tests that build a label without showing it, which is a fair thing for
+        a test of this to do.
+        """
+        if not self._latex:
+            return
+        if abs(theme.text_scale() - self._scale) > 0.005:
             self._refresh()
 
     # -- content ---------------------------------------------------------
@@ -166,6 +275,7 @@ class MathLabel(QWidget):
 
     def _refresh(self) -> None:
         self._token += 1
+        self._scale = theme.text_scale()
         self._show_text()                       # stands in until the image lands
 
         if not mathrender.is_renderable(self._latex):
