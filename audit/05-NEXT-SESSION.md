@@ -44,7 +44,9 @@ is deliberately out of scope for this run.
 
 ## Step 0 — establish a baseline
 
-Install (`pip install -e ".[app,dev]"`; see `pyproject.toml`) and run
+**First, `git pull`** -- this brief is committed to the repository and may
+be older than `main`. Then install (`pip install -e ".[app,dev]"`; see
+`pyproject.toml`) and run
 `pytest -q -m "not slow"`. Record pass / fail / skip counts *before* touching
 anything.
 
@@ -58,10 +60,16 @@ Two known outstanding problems, both to fix before new work:
   `Benchmark` factory — it returns a tuple or `None` — so anything iterating
   the factories will break on it. Secondary suspects: hard-coded catalogue
   counts in `tests/test_thumbnails.py`, `test_sections.py`, `test_app.py`.
-- **`tests/test_app_portrait.py` does not complete in ten minutes** on the
-  author's machine, before or after the most recent change, and the cause is
-  not diagnosed. It contains newly written but **unrun** tests for the
-  bifurcation tab. Find out why it is slow; if the tests are wrong, fix them.
+- ~~`tests/test_app_portrait.py` does not complete in ten minutes.~~
+  **Fixed in `aec8245`, after this brief was first written. Do not spend time
+  on it; `git pull` before you start.** The cause was `analyse` passing the
+  grid resolution positionally into `streamlines`' fourth parameter, which is
+  matplotlib's `density` -- so every portrait was drawn at `density=33` against
+  an intended 1.1. Measured on the pendulum: 0.76s at 1.1, 45s at 10, no answer
+  at all at 33. The file now runs in 3m21s with all 21 unskipped tests passing.
+
+  If you find yourself waiting many minutes on anything that builds a phase
+  portrait, you are on an old checkout. Pull.
 
 ---
 
