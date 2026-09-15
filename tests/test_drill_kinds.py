@@ -181,6 +181,28 @@ def _equilibrium_of(case) -> str:
     return "undecided" if kind in ("centre", "non-hyperbolic") else kind
 
 
+def _point_kind_of(equation: str) -> str:
+    """What the application would call `t = 0` for this equation.
+
+    `series.split` then `series.point_kind` -- the first two moves the Series
+    narrator makes, and the ones whose answer decides whether it goes on to a
+    plain power series, to an indicial equation, or stops. Running the whole
+    narration would be more faithful and would cost a second an equation; this
+    is the same decision, and it is the decision the drill is claiming.
+
+    A `split` that declines means the equation is not the shape this drill is
+    about -- not second order, not homogeneous -- and that is a broken case
+    rather than a classification, so it says so instead of guessing.
+    """
+    from odesuite_app import series
+
+    parsed = _parsed(equation)
+    parts = series.split(parsed.equation, parsed.function)
+    if parts is None:
+        return f"not a second-order homogeneous equation: {equation}"
+    return series.point_kind(*parts)
+
+
 #: How each vocabulary's answers are checked. A `ClassifyTemplate` naming a
 #: table with no oracle here fails `test_every_vocabulary_has_an_oracle`,
 #: which is the point: the table is what makes the drill honest, and a table
@@ -196,6 +218,7 @@ ORACLES = {
     )[0],
     "damping": lambda case: _regime_of(case.equation),
     "equilibria": _equilibrium_of,
+    "points": lambda case: _point_kind_of(case.equation),
 }
 
 

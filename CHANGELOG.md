@@ -618,6 +618,34 @@ All notable changes to this project are documented here. The format follows
   Phase Portrait describes its window, its equilibria and their
   classification from the same `analysis` results the report beside it uses.
 
+- **Which method? — over the whole course, and over a series point.** The
+  *which method would you reach for first* drill existed in four units, and in
+  each of them the menu was the unit's own: told the options are `separable`,
+  `1st_linear`, `1st_exact`, homogeneous and Bernoulli, you have already been
+  told not to look for a characteristic equation. Two drills close that.
+
+  `which-method-cumulative`, on the last lesson of unit 3, offers **all nine**
+  methods the narrator knows over twenty equations drawn from units 1 and 3 —
+  the version an examination asks, where nothing on the page says which chapter
+  the question came from.
+
+  `which-kind-of-point`, on the last lesson of unit 7, asks the same question
+  about a different noun: is `t = 0` ordinary, regular singular, or irregular
+  singular? It is the first thing a course checks before writing a series and
+  the thing that decides whether a plain power series is enough, Frobenius is
+  needed, or a first course stops. Its answers are decided by
+  `series.point_kind` — the routine the Series screen narrates from — so the
+  drill cannot disagree with the tool that would answer it, and
+  `POINTS` joins `METHODS`, `PORTRAITS` and `DAMPING` as a vocabulary with an
+  oracle behind it.
+
+  No such drill was added for the models or the Laplace units, and
+  `vocabulary.py` now records why rather than leaving the gap looking like an
+  oversight: nothing in this application decides between Euler and RK4, and
+  `laplace.pairs_used` reports the pairs an answer used rather than deciding
+  which one applies. A table no routine can check is a stored answer key, which
+  is what every other table here is built to avoid.
+
 - **Four kinds of question the drills could not ask.** Every drill in the
   Hub handed you an equation and asked what to do with it. That is one of the
   things a course examines and not the main one, so there are now twenty more
