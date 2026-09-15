@@ -47,9 +47,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import exam
+from .. import exam, printable, theme
 from .. import lessons as content
-from .. import printable, theme
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
 from ..widgets.mathlabel import MathLabel

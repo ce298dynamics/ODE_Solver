@@ -486,7 +486,7 @@ def _solve_near(make_problem: Callable[[float], ODEProblem], value: float,
     return BranchPoint(value, point, values, kind, stability)
 
 
-def _refine_stability_crossing(make_problem, branch: "Branch", index: int,
+def _refine_stability_crossing(make_problem, branch: Branch, index: int,
                                window, span: float) -> BranchPoint:
     """Bisect the parameter for the zero of the leading real part.
 
@@ -534,7 +534,7 @@ def _refine_fold(make_problem, absent: float, present: float,
     return 0.5 * (absent + present)
 
 
-def _count_at(diagram: "Diagram", value: float) -> int:
+def _count_at(diagram: Diagram, value: float) -> int:
     """How many branches carry a sample at this parameter value."""
     return sum(1 for b in diagram.branches
                if any(p.parameter == value for p in b.points))
@@ -548,14 +548,14 @@ def _count_at(diagram: "Diagram", value: float) -> int:
 _SETTLE_IN = 3
 
 
-def _settled(branch: "Branch", side: str) -> str:
+def _settled(branch: Branch, side: str) -> str:
     """The stability of a branch a few samples in from one of its ends."""
     if side == "start":
         return branch.points[min(_SETTLE_IN, len(branch.points) - 1)].stability
     return branch.points[max(-_SETTLE_IN - 1, -len(branch.points))].stability
 
 
-def _find_bifurcations(make_problem, diagram: "Diagram", span: float,
+def _find_bifurcations(make_problem, diagram: Diagram, span: float,
                        values: Sequence[float]) -> list[Bifurcation]:
     found: list[Bifurcation] = []
     window = diagram.window
@@ -606,9 +606,11 @@ def _find_bifurcations(make_problem, diagram: "Diagram", span: float,
                 continue
 
             if side_a == "start":
-                present, absent = max(a.parameter, b.parameter), min(a.parameter, b.parameter) - step
+                present = max(a.parameter, b.parameter)
+                absent = min(a.parameter, b.parameter) - step
             else:
-                present, absent = min(a.parameter, b.parameter), max(a.parameter, b.parameter) + step
+                present = min(a.parameter, b.parameter)
+                absent = max(a.parameter, b.parameter) + step
             midpoint = 0.5 * (a.position + b.position)
             location = _refine_fold(make_problem, absent, present, midpoint,
                                     window, span)
@@ -646,7 +648,7 @@ def _find_bifurcations(make_problem, diagram: "Diagram", span: float,
     return found
 
 
-def _name_steady_crossing(diagram: "Diagram", crossing: BranchPoint,
+def _name_steady_crossing(diagram: Diagram, crossing: BranchPoint,
                           before: BranchPoint, after: BranchPoint,
                           fold_parameters: Sequence[float],
                           span: float) -> tuple[str, str]:

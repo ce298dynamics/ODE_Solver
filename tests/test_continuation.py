@@ -20,7 +20,6 @@ from odesuite import ODEProblem
 from odesuite_app import catalog, continuation
 from odesuite_app.analysis import STABLE, UNSTABLE
 
-
 # ---------------------------------------------------------------------------
 # Systems with a bifurcation at a known place
 # ---------------------------------------------------------------------------

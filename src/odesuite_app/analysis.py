@@ -1279,7 +1279,8 @@ def poincare_section(problem: ODEProblem, base=None, normal=None, *,
                      rtol=rtol, atol=atol, events=crossed, dense_output=True)
 
     times = np.asarray(solution.t_events[0], dtype=float) if solution.t_events else np.empty(0)
-    points = np.asarray(solution.y_events[0], dtype=float) if solution.y_events else np.empty((0, 2))
+    points = (np.asarray(solution.y_events[0], dtype=float)
+              if solution.y_events else np.empty((0, 2)))
     # The library reports event states column-wise for some shapes and
     # row-wise for others; settle it against the time count rather than
     # trusting either.

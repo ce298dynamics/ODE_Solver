@@ -46,7 +46,7 @@ from __future__ import annotations
 import base64
 import datetime as _datetime
 import struct
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from html import escape
 
 __all__ = ["Line", "Worked", "work_out", "typeset", "math_image",
