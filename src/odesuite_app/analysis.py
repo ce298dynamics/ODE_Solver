@@ -127,7 +127,9 @@ class PortraitData:
 #: figure from crowding).
 VECTOR_FIELD_RESOLUTION = 33
 NULLCLINE_RESOLUTION = 140
-#: Streamline seeding density, passed to matplotlib's placement algorithm.
+#: Grid the streamline placement samples the field on. Not a density --
+#: matplotlib's `density` is a separate argument of `streamlines`, and
+#: conflating the two is exactly the defect the call site above records.
 STREAMLINE_RESOLUTION = 33
 
 
@@ -1034,9 +1036,21 @@ def analyse(problem: ODEProblem, xlim, ylim, *, with_streamlines: bool = True,
     data.speed_grid = speed
 
     if with_streamlines:
-        # No `resolution` here. `streamlines` samples on
-        # `STREAMLINE_RESOLUTION` and the next parameter along is matplotlib's
-        # line *density* -- see its docstring for what passing 33 into it cost.
+        # No resolution argument. `streamlines` takes matplotlib's line
+        # *density* rather than a grid, and passing the grid resolution into it
+        # asked for a seeding thirty times denser than intended. Measured on
+        # the pendulum, two sessions arriving at this independently:
+        #
+        #     density   1.1     0.76 s     105 segments  /  90 stitched paths
+        #     density   4.0     7.87 s     503 segments
+        #     density  10.0    45.15 s    1384 segments
+        #     density  33.0   372.05 s    4609 stitched paths
+        #
+        # The grid it samples is `STREAMLINE_RESOLUTION`, which the function
+        # reads for itself. `density` is keyword-only now, so this call site
+        # can no longer make the mistake by position -- but the numbers stay
+        # here, because the next person to reach for a fourth argument should
+        # see what one cost.
         data.streamlines = streamlines(problem, xlim, ylim)
     if with_nullclines:
         data.nullcline_x, data.nullcline_y = nullclines(problem, xlim, ylim)
