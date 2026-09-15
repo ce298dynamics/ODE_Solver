@@ -52,14 +52,42 @@ anything.
 
 Two known outstanding problems, both to fix before new work:
 
-- **Roughly four failures** somewhere in the app-side modules, introduced by
-  recent catalogue additions (FitzHugh–Nagumo and SIR were added to
-  `odesuite/problems/__init__.py` and `odesuite_app/catalog.py`, taking the
-  catalogue from 28 entries to 30). Not yet diagnosed. The prime suspect is
-  `hopf_window`, which was added to `problems.__all__` but is **not** a
-  `Benchmark` factory — it returns a tuple or `None` — so anything iterating
-  the factories will break on it. Secondary suspects: hard-coded catalogue
-  counts in `tests/test_thumbnails.py`, `test_sections.py`, `test_app.py`.
+- ~~Roughly four failures somewhere in the app-side modules.~~ **Gone.** They
+  were the portrait hang below: with `density=33` the analysis never returned,
+  `_settle` timed out, and the assertions ran against `None`. `hopf_window` was
+  the suspect named here and it was the wrong one — `all_benchmarks()` iterates
+  the explicit `NONSTIFF`/`STIFF`/`DAE`/`TEXTBOOK` lists, not `__all__`, and
+  nothing in the suite policices `__all__` at all. Recorded because a wrong
+  suspect left standing costs the next reader an hour.
+
+- **Two failures remain, and they are real:**
+  `tests/test_text_scale.py::test_raising_the_scale_re_renders_rather_than_keeping_a_stale_bitmap`
+  and `::test_the_maths_tracks_the_body_text`, from the in-flight A11Y-04 work.
+
+  They reproduce **only** in a whole-suite `pytest -n 4` run — reliably there,
+  three runs out of three — and never alone (12 passed, 2.9s), under xdist
+  alone (`-n 1`, `-n 2`, `-n 4` all green), with their real predecessors from
+  that worker (119 passed), or under deliberate parallel load against four
+  CPU-heavy files (195 passed).
+
+  The failure message now carries the deciding state, and it says:
+
+      bitmap 44px, typeset=True, application font 18pt against a 9pt baseline
+
+  So the scale **is** applied (18pt against a 9pt baseline is exactly 2.0), the
+  label **is** typeset, the thread pool is **idle** — and the bitmap is still
+  44px, the height it had at scale 1.0. This is not a timeout and not load: the
+  equation simply never re-renders, which is precisely what the first of those
+  two tests is named to catch. The test is right and the feature is not
+  finished.
+
+  Where to look: `MathLabel.changeEvent` in
+  `src/odesuite_app/widgets/mathlabel.py` refreshes only when
+  `abs(theme.text_scale() - self._scale) > 0.005`. A stale 44px bitmap with no
+  null-pixmap flash in between means `_refresh` never ran, so the font event
+  never arrived at the label — the `_FONT_EVENTS` comment right above it
+  records that Qt's delivery here was already surprising once. Reproduce with
+  the full `-n 4` suite; nothing smaller has worked.
 - ~~`tests/test_app_portrait.py` does not complete in ten minutes.~~
   **Fixed in `aec8245`, after this brief was first written. Do not spend time
   on it; `git pull` before you start.** The cause was `analyse` passing the

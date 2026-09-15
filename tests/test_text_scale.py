@@ -222,11 +222,19 @@ def _settle(qapp, label: MathLabel, until=None, timeout: float = 20.0) -> None:
 
     waited = time.perf_counter() - started
     pending = not QThreadPool.globalInstance().waitForDone(0)
+    # The state that decides which of the two it is. An idle pool with an
+    # unchanged bitmap means the font change never reached the label, so the
+    # application font is the thing to look at -- and this failure has only
+    # ever been seen in a whole-suite run, where that state is whatever three
+    # thousand earlier tests left behind.
+    point = qapp.font().pointSizeF() if qapp is not None else float("nan")
     raise AssertionError(
         f"the equation never settled: waited {waited:.1f}s of a {timeout:g}s "
-        f"budget, with a render job still {'pending' if pending else 'finished'}. "
-        "A finished job means the condition is wrong; a pending one means the "
-        "budget is too small for the load."
+        f"budget, with a render job still {'pending' if pending else 'finished'}; "
+        f"bitmap {_height(label)}px, typeset={getattr(label, 'is_typeset', '?')}, "
+        f"application font {point:g}pt against a {theme.BASELINE_POINT_SIZE:g}pt "
+        f"baseline. A finished job with an unchanged bitmap means the condition "
+        f"is wrong, not the budget."
     )
 
 
