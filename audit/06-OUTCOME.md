@@ -48,6 +48,18 @@ so 24 tests each waited out a six-minute analysis. With the density passed
 correctly the file runs all 24 tests in 122 s. It was also a defect in what the
 screen *drew*: 4609 overlapping curves is a scribble. See `e69c7f1`.
 
+**Found twice, independently.** While this session was working, another pushed
+`aec8245` to `main` with the same diagnosis, reached the same way — timing the
+stages rather than reading the code. That is not a wasted afternoon so much as
+a fact about the defect: a positional argument that silently means something
+else is findable by measurement and invisible to reading, and two readers
+missed it before either measured. The merge in `fae32e3` keeps both sides —
+their measurement ladder at densities 4 and 10, their correction to the
+`STREAMLINE_RESOLUTION` comment, this branch's endpoint at 33 and its
+keyword-only `density` with the two regression tests. Their fix leaves the
+fourth positional slot open and guards it with a comment; the comment is good,
+and a comment is not a guard.
+
 ## A third thing the brief did not know about
 
 `ruff check .` was red at HEAD — twelve findings, all introduced by the
