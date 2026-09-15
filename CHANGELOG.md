@@ -43,6 +43,29 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Every phase portrait was drawn with thirty times the streamline density it
+  meant to ask for.** `analysis.streamlines` samples the field on
+  `STREAMLINE_RESOLUTION` and takes matplotlib's line-spacing `density` as its
+  next parameter; `analyse` passed its own `resolution` — 33 — into that slot
+  positionally. Two different quantities in adjacent parameter slots, and
+  nothing to catch it.
+
+  Measured on the pendulum over the window the screen opens on:
+
+      density=1.1      0.781 s      90 paths
+      density=33     372.045 s    4609 paths
+
+  A 476x slowdown, and 4609 overlapping curves is a scribble rather than a
+  picture of a flow. The screen's own docstring promised "a few hundred
+  milliseconds" and had been wrong for as long as the call existed, and
+  `tests/test_app_portrait.py` did not finish at all: its fixture builds a
+  screen per test and every one of them waited out a six-minute analysis. With
+  the density passed correctly that file runs all 24 of its tests in 122 s, the
+  slowest single test taking 6.4 s.
+
+  `density` is keyword-only now, so the two numbers can no longer be confused
+  by position.
+
 - **Radau missed the tolerance it was asked for, and reported success.** Below
   `rtol = 1e-9` the achieved error stopped tracking the request: 15x too large
   at 1e-10, 30x at 1e-11, 54x at 1e-12, 103x at 1e-13, while DOPRI5 held 1.8x

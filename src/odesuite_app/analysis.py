@@ -202,7 +202,7 @@ def slope_field(problem: ODEProblem, tlim, ylim, resolution: int = 21,
     return np.asarray(segments, dtype=float), np.asarray(slopes, dtype=float)
 
 
-def streamlines(problem: ODEProblem, xlim, ylim,
+def streamlines(problem: ODEProblem, xlim, ylim, *,
                 density: float = 1.1) -> list[np.ndarray]:
     """Evenly spaced streamlines of the vector field, as ``(n, 2)`` polylines.
 
@@ -210,6 +210,23 @@ def streamlines(problem: ODEProblem, xlim, ylim,
     the genuinely fiddly problem of spacing lines evenly without them crowding
     or colliding -- and then extracted as raw segments for pyqtgraph to draw.
     Only the geometry is borrowed; nothing is rendered.
+
+    **`density` is keyword-only, and that is a fix rather than a style.** The
+    grid this samples on is `STREAMLINE_RESOLUTION`, decided here and not by
+    the caller; `density` is matplotlib's line-spacing knob, which is a
+    different quantity that happens to sit in the next parameter slot. `analyse`
+    passed its own `resolution` -- 33 -- positionally into it, so every portrait
+    this application has drawn asked matplotlib for thirty times the intended
+    line spacing. Measured on the pendulum over its default window:
+
+        density=1.1      0.781 s     90 paths
+        density=33     372.045 s   4609 paths
+
+    A 476x slowdown, and 4609 overlapping curves is a scribble rather than a
+    picture. It is why `tests/test_app_portrait.py` did not finish -- the
+    fixture builds a screen per test and each one waited out an analysis -- and
+    why the module docstring's "a few hundred milliseconds" had quietly stopped
+    being true. Keyword-only is what stops the two being confused again.
     """
     import matplotlib
 
@@ -1017,7 +1034,10 @@ def analyse(problem: ODEProblem, xlim, ylim, *, with_streamlines: bool = True,
     data.speed_grid = speed
 
     if with_streamlines:
-        data.streamlines = streamlines(problem, xlim, ylim, resolution)
+        # No `resolution` here. `streamlines` samples on
+        # `STREAMLINE_RESOLUTION` and the next parameter along is matplotlib's
+        # line *density* -- see its docstring for what passing 33 into it cost.
+        data.streamlines = streamlines(problem, xlim, ylim)
     if with_nullclines:
         data.nullcline_x, data.nullcline_y = nullclines(problem, xlim, ylim)
 
