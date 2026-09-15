@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSettings, Qt, Signal
+from PySide6.QtCore import QEvent, QSettings, Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -44,7 +44,8 @@ SECTIONS = [
             ("laplace", "Laplace Transforms", "Ctrl+4"),
             ("byhand", "Methods by Hand", "Ctrl+5"),
             ("worked", "Worked Problems", "Ctrl+6"),
-            ("quiz", "Unit Quiz", "Ctrl+7"),
+            ("quiz", "Quiz & Exams", "Ctrl+7"),
+            ("print", "Print & Revise", "Ctrl+8"),
         ],
     ),
     (
@@ -98,14 +99,14 @@ class Sidebar(QFrame):
 
         brand = QLabel("odesuite")
         brand.setStyleSheet(
-            f"font-size: 17px; font-weight: 700; color: {palette.accent};"
-            f"padding: 0 8px 2px 8px;"
+            theme.scaled(f"font-size: 17px; font-weight: 700; color: {palette.accent};"
+                         f"padding: 0 8px 2px 8px;")
         )
         layout.addWidget(brand)
 
         tagline = QLabel("ODE solver studio")
         tagline.setProperty("role", "muted")
-        tagline.setStyleSheet("font-size: 11px; padding: 0 8px 14px 8px;")
+        tagline.setStyleSheet(theme.scaled("font-size: 11px; padding: 0 8px 14px 8px;"))
         layout.addWidget(tagline)
 
         self.buttons: dict[str, QPushButton] = {}
@@ -171,7 +172,7 @@ class Sidebar(QFrame):
 
         self.status = QLabel("ready")
         self.status.setProperty("role", "muted")
-        self.status.setStyleSheet("font-size: 10.5px; padding: 8px 8px 0 8px;")
+        self.status.setStyleSheet(theme.scaled("font-size: 10.5px; padding: 8px 8px 0 8px;"))
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
 
@@ -229,6 +230,12 @@ class MainWindow(QWidget):
         )
         self.state.result_changed.connect(self._on_result)
 
+        #: What `changeEvent` compares against. Qt sends an application font
+        #: change for reasons other than the text scale -- a palette swap is
+        #: one -- and rebuilding every screen for each of them would be a
+        #: visible stutter for no change on screen.
+        self._text_scale = theme.text_scale()
+
         self.go("home")
 
     # -- screens ---------------------------------------------------------
@@ -250,7 +257,7 @@ class MainWindow(QWidget):
         from .screens.learn_lessons import LessonsScreen
 
         lessons = LessonsScreen(self.state, self.palette_obj)
-        lessons.open_tool.connect(self.go)
+        lessons.open_tool.connect(self._open_tool)
         self._add("lessons", lessons)
 
         course = CourseScreen(self.state, self.palette_obj)
@@ -262,6 +269,10 @@ class MainWindow(QWidget):
         quiz = QuizScreen(self.state, self.palette_obj)
         quiz.open_lesson.connect(self._open_lesson)
         self._add("quiz", quiz)
+
+        from .screens.learn_print import PrintScreen
+
+        self._add("print", PrintScreen(self.state, self.palette_obj))
         from .screens.learn_steps import StepsScreen
 
         self._add("steps", StepsScreen(self.state, self.palette_obj))
@@ -400,6 +411,22 @@ class MainWindow(QWidget):
             lab.sync()
         self.go("lab")
 
+    def _open_tool(self, key: str, equation: str = "",
+                   conditions: str = "") -> None:
+        """Open the screen a lesson teaches, on that lesson's own example.
+
+        The screen is asked whether it can take an equation rather than
+        checked against a list of the ones that can. Two of the four tools a
+        lesson links to are driven by the catalogue and have no box to type
+        into; they simply open, as they always did.
+        """
+        screen = self._screens.get(key)
+        if screen is not None and equation and hasattr(screen, "load_equation"):
+            # Before `go`, so the screen is already working on the right
+            # equation by the time it becomes visible.
+            screen.load_equation(equation, conditions)
+        self.go(key)
+
     def _open_lesson(self, key: str) -> None:
         """Open `Lessons` at one lesson, for the Course Map's rows."""
         lessons = self._screens.get("lessons")
@@ -425,8 +452,16 @@ class MainWindow(QWidget):
         self.sidebar.theme_button.setText(
             "Dark theme" if self.palette_name == "light" else "Light theme"
         )
-        # Screens hold palette-derived colours, so they are rebuilt wholesale
-        # rather than patched piecemeal.
+        self.rebuild_screens()
+
+    def rebuild_screens(self) -> None:
+        """Throw every screen away and build it again, staying where we are.
+
+        Screens bake palette-derived colours and scaled font sizes into their
+        widgets at construction, so the two things that invalidate all of them
+        -- a theme switch and a change in the reader's text scale -- are both
+        served by rebuilding wholesale rather than by patching piecemeal.
+        """
         current = self.stack.currentWidget()
         current_key = next(
             (k for k, w in self._screens.items() if w is current), "home"
@@ -438,6 +473,25 @@ class MainWindow(QWidget):
         self._screens.clear()
         self._build_screens()
         self.go(current_key)
+
+    def changeEvent(self, event) -> None:
+        """Follow the operating system's text scale while running.
+
+        Raising it mid-session reaches Qt as an application font change. The
+        style sheet is written in pixels against the default font, so it has
+        to be re-generated at the new scale and the screens rebuilt to pick up
+        the inline sizes -- otherwise the reader gets a window that grew its
+        chrome and kept its content the size it was.
+        """
+        super().changeEvent(event)
+        if event.type() != QEvent.ApplicationFontChange:
+            return
+        scale = theme.text_scale()
+        if abs(scale - self._text_scale) < 0.005:
+            return
+        self._text_scale = scale
+        theme.apply_theme(QApplication.instance(), self.palette_obj)
+        self.rebuild_screens()
 
 
 def build_application(palette_name: str = "dark"):

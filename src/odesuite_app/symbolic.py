@@ -1071,6 +1071,11 @@ class AnswerCheck:
     #: True when it also satisfies the initial conditions, where any were given.
     matches_conditions: bool | None = None
     message: str = ""
+    #: What the residual says went wrong, in a sentence, or "" when the ladder
+    #: in `diagnose` recognised nothing. Never a substitute for `message`:
+    #: this says *how far the answer got*, which is a different claim from
+    #: whether it is right.
+    diagnosis: str = ""
 
     @property
     def ok(self) -> bool:
@@ -1145,7 +1150,207 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
         check.message = "it solves the equation, but not with these conditions"
     else:
         check.message = "verified: substituting it gives exactly zero"
+    check.diagnosis = diagnose(parsed, check)
     return check
+
+
+# ---------------------------------------------------------------------------
+# Reading the residual
+# ---------------------------------------------------------------------------
+#
+# A residual is not a verdict, it is evidence, and printing it raw asks the
+# person who has just got the question wrong to do the one piece of analysis
+# they have just shown they cannot do. Almost always it names the mistake:
+#
+# * left with exactly what substituting nothing leaves -> the left-hand side
+#   vanished, so this is the complementary function and no particular solution;
+# * a scalar multiple away from vanishing -> the shape is right and a
+#   coefficient was dropped, or at k = -1 a sign;
+# * a constant away -> a constant of integration went missing;
+# * zero residual but the conditions fail -> the method was right and the
+#   constants were not.
+#
+# Every rung is a *test that either fires or does not*, never a guess: each one
+# ends in ``simplify(...) == 0`` or in a root sympy actually found. A rung that
+# recognises nothing returns "", and the caller falls back to showing the
+# residual -- worth less than a sentence and a great deal more than silence.
+
+
+def diagnose(parsed: ParsedEquation, check: AnswerCheck) -> str:
+    """What the residual says went wrong, in a sentence, or "".
+
+    Never raises, and never contradicts `check`: it is asked only once the
+    verdict is settled, and it explains that verdict rather than revising it.
+    """
+    try:
+        if check.correct is True and check.matches_conditions is False:
+            return _diagnose_constants(parsed, check)
+        if check.correct is not False or check.residual is None:
+            return ""
+        if parsed.is_system:
+            return _diagnose_system(parsed, check)
+        return _diagnose_one(parsed, check)
+    except Exception:
+        return ""
+
+
+def _diagnose_constants(parsed: ParsedEquation, check: AnswerCheck) -> str:
+    """Right equation, wrong member of its family.
+
+    The most encouraging verdict in the ladder and the one most worth spelling
+    out: the method is entirely right and what is left is arithmetic. It names
+    the condition that fails and what the answer gives there instead, because
+    "solve for C1" is advice and "it gives 3 where the condition asks for 5" is
+    a place to start.
+    """
+    tail = ""
+    if not parsed.is_system and check.expression is not None:
+        name = parsed.function.__name__
+        for condition, value in parsed.ics.items():
+            order, point = _condition_at(condition)
+            if point is None:
+                continue
+            expression = check.expression
+            if order:
+                expression = sp.diff(expression, _T, order)
+            got = sp.simplify(expression.subs(_T, point))
+            if sp.simplify(got - value) == 0:
+                continue
+            marks = "'" * order
+            tail = (f" At t = {point} yours gives {name}{marks} = {got}, "
+                    f"where the condition asks for {value}.")
+            break
+    return ("The method is right and the constants are not: this solves the "
+            "equation, but it is the wrong member of the family." + tail
+            + " Put the condition into your general solution and solve for "
+              "the constant -- the hard part is already done.")
+
+
+def _diagnose_one(parsed: ParsedEquation, check: AnswerCheck) -> str:
+    """The ladder for a single equation. The rungs are listed above."""
+    candidate, residual = check.expression, check.residual
+    if candidate is None or residual is None:
+        return ""
+    name = parsed.function.__name__
+    unknown = parsed.function(_T)
+    operator = parsed.equation.lhs - parsed.equation.rhs
+
+    def leftover(expression) -> sp.Expr:
+        return sp.simplify(operator.subs(unknown, expression).doit())
+
+    if not candidate.has(_T):
+        return ("Your answer does not contain t at all, so every derivative "
+                "of it is zero and the equation collapses to whatever is left "
+                "when the derivatives go. A solution of this one has to "
+                "change with t.")
+
+    # Substituting nothing at all: for a linear L[y] = f this is exactly -f,
+    # so an answer that leaves the same thing has killed L and ignored f.
+    nothing = leftover(sp.Integer(0))
+    if nothing != 0 and sp.simplify(residual - nothing) == 0:
+        return ("You have the complementary function and no particular "
+                "solution. Substituting your answer leaves exactly what "
+                f"substituting {name} = 0 leaves, so it makes the homogeneous "
+                "equation vanish and does nothing whatever about the forcing "
+                "term. Find any one solution of the full equation and add it "
+                "on.")
+
+    # The additive rung is asked *before* the multiplicative one, and the order
+    # is not arbitrary. An answer carrying an arbitrary constant absorbs a
+    # scaling -- 5*(C1*exp(-t) + 1) solves y' + y = 5 as surely as C1*exp(-t)
+    # + 5 does -- so the coefficient rung fires on answers whose real mistake
+    # is a dropped constant, and says the less useful of two true things.
+    shift = sp.Symbol("_c")
+    for root in _roots(leftover(candidate + shift), shift):
+        if root == 0:
+            continue
+        # "adding -3" is how a program writes it and not how anybody says it.
+        move = (f"adding {root}" if root.is_positive
+                else f"subtracting {-root}")
+        return (f"You are one constant away: {move} makes your answer exact. "
+                f"A constant of integration, or the constant term of a "
+                f"particular solution, is what went missing.")
+
+    scale = sp.Symbol("_k")
+    for root in _roots(leftover(scale * candidate), scale):
+        if root in (0, 1):
+            continue
+        if root == -1:
+            return ("A sign, and nothing else: minus your answer satisfies "
+                    "the equation exactly. The shape and every coefficient "
+                    "inside it are right.")
+        return (f"The shape is right and a coefficient is not: {root} times "
+                f"your answer satisfies the equation exactly, so the "
+                f"functions are the ones the method gives and the constant in "
+                f"front of them was lost.")
+
+    return ""
+
+
+def _diagnose_system(parsed: ParsedEquation, check: AnswerCheck) -> str:
+    """The ladder for a system, where "half right" is a literal statement."""
+    if check.expression is None or check.residual is None:
+        return ""
+    components = list(check.expression)
+    residuals = list(check.residual)
+    names = [function.__name__ for function in parsed.functions]
+
+    def leftovers(assignment) -> list:
+        return [sp.simplify((equation.lhs - equation.rhs)
+                            .subs(assignment).doit())
+                for equation in parsed.equations]
+
+    if len(names) == 2 and len(components) == 2:
+        swapped = {parsed.functions[0](_T): components[1],
+                   parsed.functions[1](_T): components[0]}
+        if all(value == 0 for value in leftovers(swapped)):
+            return (f"The two components are the wrong way round: what you "
+                    f"wrote for {names[0]} is the answer for {names[1]}, and "
+                    f"the other way about. The mathematics is right.")
+
+    solved = [index for index, value in enumerate(residuals)
+              if sp.simplify(value) == 0]
+    if solved and len(solved) < len(residuals):
+        missed = [index for index in range(len(residuals))
+                  if index not in solved]
+        return ("Half-way: " + _equations(solved) + " comes out exactly zero "
+                "and " + _equations(missed) + " does not. A pair has to "
+                "satisfy both at once, which is the whole difficulty of a "
+                "system -- fixing one component on its own is what breaks the "
+                "other.")
+    return ""
+
+
+def _equations(indices: list) -> str:
+    """``equation 1``, or ``equations 1 and 3``, for a sentence."""
+    numbers = [str(index + 1) for index in indices]
+    if len(numbers) == 1:
+        return f"equation {numbers[0]}"
+    return "equations " + " and ".join([", ".join(numbers[:-1]), numbers[-1]])
+
+
+def _roots(expression: sp.Expr, symbol: sp.Symbol) -> list:
+    """Real numeric roots of `expression` in `symbol`, or none at all.
+
+    Numeric ones only: a root in terms of t would mean "your answer works at
+    one instant", which is nobody's mistake and not a sentence worth showing.
+    Anything sympy cannot solve reads as no roots, because this is a hint, and
+    a hint that raises is worse than no hint.
+    """
+    try:
+        if not expression.has(symbol):
+            return []
+        found = sp.solve(sp.Eq(expression, 0), symbol, dict=False)
+    except Exception:
+        return []
+    if not isinstance(found, (list, tuple)):
+        found = [found]
+    kept = []
+    for root in found:
+        root = sp.simplify(root)
+        if root.is_number and root.is_real:
+            kept.append(root)
+    return kept
 
 
 def grade_numeric(question, text: str) -> tuple[bool | None, str]:
@@ -1196,6 +1401,429 @@ def grade_numeric(question, text: str) -> tuple[bool | None, str]:
     if abs(got.real - wanted) <= allowed:
         return True, f"correct: {_tidy_number(wanted)}"
     return False, f"not quite -- the answer is {_tidy_number(wanted)}"
+
+
+# ---------------------------------------------------------------------------
+# Checking an equation, and checking one move of a method
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class EquivalenceCheck:
+    """The verdict on an equation, or on one intermediate expression.
+
+    `check_answer` grades a *solution* by substituting it into the equation,
+    which is the strongest check there is and needs nothing stored. Two kinds
+    of question cannot be graded that way, because what they ask for is not a
+    solution:
+
+    * **write the equation** -- for a situation described in words, or for a
+      family of curves. There is nothing to substitute it into; the equation
+      *is* the answer.
+    * **write one move of the method** -- the integrating factor, the
+      characteristic polynomial, the Wronskian, the transform of the forcing
+      term. Again not a solution, and again nothing to substitute into.
+
+    Both come down to the same question -- are these two pieces of mathematics
+    the same? -- so both use the same verdict, and it keeps the same three
+    values `AnswerCheck` does. `None` is *cannot tell*, never *wrong*.
+    """
+
+    #: What was parsed, or None if it could not be.
+    expression: sp.Expr | None = None
+    #: True when the two were proved the same, False when they were proved
+    #: different, None when neither could be shown. See `_same_expression`.
+    correct: bool | None = None
+    #: The constant multiple relating what was typed to what was wanted, where
+    #: the question allows one and one was found. ``1`` when they are equal
+    #: outright.
+    factor: sp.Expr | None = None
+    #: What is left when the answer is subtracted from the expected one, for a
+    #: wrong answer that could be lined up with it. This is the useful half of
+    #: a wrong verdict: a forgotten inflow term or a sign that went the other
+    #: way appears here by itself.
+    difference: sp.Expr | None = None
+    message: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return bool(self.correct)
+
+
+#: Values substituted when simplification will not decide. Rationals rather
+#: than floats, so the arithmetic stays exact, and none of them 0, 1 or -1:
+#: those are the points at which a wrong answer is most likely to agree with a
+#: right one by accident.
+_PROBE_VALUES = (
+    sp.Rational(2, 3), sp.Rational(7, 5), sp.Rational(-3, 4),
+    sp.Rational(5, 2), sp.Rational(-11, 7), sp.Rational(9, 4),
+    sp.Rational(3, 8), sp.Rational(-6, 5),
+)
+
+#: How many points to try. Two are enough to refute a constant multiple; the
+#: rest are there because a point can be unusable -- the expected expression
+#: can vanish at it, or fail to evaluate.
+_PROBE_ROUNDS = 5
+
+
+def _probe_at(symbols: list, round_index: int) -> dict:
+    """One point: a rational for every symbol, chosen without a pattern."""
+    return {
+        symbol: _PROBE_VALUES[(3 * round_index + 5 * position)
+                              % len(_PROBE_VALUES)]
+        for position, symbol in enumerate(symbols)
+    }
+
+
+def _exactly(expression):
+    """The same expression with its decimals read as exact rationals."""
+    try:
+        return sp.nsimplify(expression, rational=True)
+    except Exception:
+        return expression
+
+
+def _vanishes(expression) -> bool:
+    """Whether `expression` simplifies to exactly zero. Never raises."""
+    try:
+        return bool(sp.simplify(expression) == 0)
+    except Exception:
+        return False
+
+
+def _apart(left, right) -> bool:
+    """Whether two numbers are *definitely* different.
+
+    Numeric, and deliberately so: this is the refuting half of the check, and
+    what it needs is to be sure rather than to be exact. The threshold is
+    relative, and four orders of magnitude looser than the error either side
+    can carry, so it separates a wrong answer from a right one without ever
+    separating a right one from itself.
+    """
+    try:
+        gap = complex(sp.N(left - right))
+        scale = max(1.0, abs(complex(sp.N(left))), abs(complex(sp.N(right))))
+    except (TypeError, ValueError):
+        return False
+    return abs(gap) > 1e-9 * scale
+
+
+def _same_expression(student, reference, *, up_to_factor: bool):
+    """Whether two expressions are the same, up to a constant if allowed.
+
+    Both verdicts are proofs, and that is the design. **Right** is proved
+    symbolically: the difference simplifies to exactly zero. **Wrong** is
+    proved by evaluation: two expressions that agree everywhere agree at every
+    point, so one point where they differ settles it -- and where a constant
+    multiple is allowed, two points whose ratios differ settle it just as
+    firmly, because a constant is the same constant everywhere. Anything else
+    is *cannot tell*, which is the verdict `check_answer` already gives when
+    simplification will not decide, and for the same reason: failing to
+    simplify is not evidence of anything.
+
+    The constant multiple matters for both kinds of question this serves. An
+    equation multiplied through by 20 is the same equation, and an integrating
+    factor is only ever determined up to a constant -- ``e^{3t}`` and
+    ``5e^{3t}`` both work, and marking the second wrong would be teaching
+    something false.
+
+    Returns ``(verdict, factor)``.
+    """
+    # Decimals first, and this is not cosmetic. A reference equation written
+    # with 9.8 in it and an answer written with 9.8 in it are two different
+    # binary approximations the moment either is scaled, so the difference
+    # comes out as 7e-15 rather than as zero and a correct answer is reported
+    # as "cannot tell". `nsimplify` reads a decimal as the exact rational it
+    # was written as -- 9.8 is 49/5 -- and the arithmetic is exact again.
+    student, reference = _exactly(student), _exactly(reference)
+    symbols = sorted(student.free_symbols | reference.free_symbols, key=str)
+
+    if _vanishes(student - reference):
+        return True, sp.Integer(1)
+
+    ratios = []
+    for round_index in range(_PROBE_ROUNDS):
+        point = _probe_at(symbols, round_index)
+        try:
+            here = sp.simplify(student.subs(point))
+            there = sp.simplify(reference.subs(point))
+        except Exception:
+            continue
+        if here.free_symbols or there.free_symbols:
+            continue                       # a symbol nothing substituted for
+        if not up_to_factor:
+            if _apart(here, there):
+                return False, None
+            continue
+        if there == 0:
+            continue                       # nothing to take a ratio against
+        try:
+            ratios.append(sp.simplify(here / there))
+        except Exception:
+            continue
+
+    if not up_to_factor:
+        return None, None
+
+    if not ratios:
+        return None, None
+    factor = ratios[0]
+    if any(_apart(other, factor) for other in ratios[1:]):
+        return False, None                 # not one constant, so not a multiple
+    if factor == 0:
+        return False, None                 # vanishes where the answer does not
+    if _vanishes(student - factor * reference):
+        return True, factor
+    return None, None
+
+
+def _strip_label(text: str, wanted) -> str:
+    """Drop a leading ``mu =`` from an answer that is an expression.
+
+    Somebody writing down an integrating factor writes ``mu = e^{3t}``, and
+    somebody writing down a characteristic equation writes ``r^2 + 3r + 2 =
+    0``. Both have an equals sign in them and they mean opposite things by it:
+    the first is a label on an expression, the second is half of what was
+    asked for.
+
+    The rule that separates them: a left-hand side that is a bare name the
+    expected answer never mentions is a label, and anything else is
+    mathematics. So ``mu`` goes (the answer is in `t`), ``r^2 + 3r + 2`` stays,
+    and ``r`` would stay too, because an answer written in `r` uses it.
+    """
+    text = text.strip()
+    if text.count("=") != 1:
+        return text
+    left, right = (part.strip() for part in text.split("="))
+    named = {str(symbol) for symbol in wanted.free_symbols}
+    if re.fullmatch(r"[A-Za-z]\w*(\s*\(\s*\w+\s*\))?", left) and left not in named:
+        return right
+    return f"({left}) - ({right})"
+
+
+def check_expression(reference: str, text: str, *,
+                     up_to_constant: bool = False) -> EquivalenceCheck:
+    """Mark an expression written for one move of a method.
+
+    The integrating factor, the characteristic polynomial, the Wronskian, the
+    transform of a forcing term: each is a step a course asks for by itself,
+    and none of them is a solution, so `check_answer` has nothing to substitute
+    it into. What there is instead is the expression the step should produce,
+    and this compares the two.
+
+    `up_to_constant` is not a leniency. An integrating factor is determined
+    only up to a constant multiple and a characteristic equation only up to a
+    scaling, so where it is set, accepting ``2e^{3t}`` is the mathematics
+    rather than a kindness -- and where it is not set, a constant multiple is a
+    different answer and is marked as one.
+
+    The text goes through `_parse_side`, the same hardened parser as every
+    other route from a typed string into sympy, and every symbol the expected
+    answer uses is bound to the same object, so an answer written in `r` or `s`
+    is compared against the same `r` or `s` rather than a fresh one.
+    """
+    if not text or not text.strip():
+        return EquivalenceCheck(message="type an expression to check")
+
+    scope: dict = {"t": _T}
+    try:
+        wanted = _parse_side(reference, scope)
+    except ParseError as exc:               # a broken question, not an answer
+        return EquivalenceCheck(message=f"this question could not be set up: {exc}")
+    for symbol in wanted.free_symbols:
+        if symbol.is_Symbol:
+            scope.setdefault(symbol.name, symbol)
+
+    try:
+        # Through `_insert_multiplication` for the same reason `parse_equation`
+        # uses it: a student writes ``3r`` and ``2(t+1)``, and a grader that
+        # refused those would be marking the typing rather than the
+        # mathematics. `^` needs no help -- `convert_xor` is already one of the
+        # parser's transformations.
+        candidate = _parse_side(
+            _insert_multiplication(_strip_label(text, wanted)), scope
+        )
+    except ParseError as exc:
+        return EquivalenceCheck(message=str(exc))
+
+    check = EquivalenceCheck(expression=candidate)
+    verdict, factor = _same_expression(candidate, wanted,
+                                       up_to_factor=up_to_constant)
+    check.correct, check.factor = verdict, factor
+    if verdict is True and factor is not None and factor != 1:
+        check.message = f"correct -- {factor} times the usual form, which works"
+    elif verdict is True:
+        check.message = "correct"
+    elif verdict is False:
+        check.difference = _difference(candidate, wanted, factor)
+        check.message = "not the expression this step produces"
+    else:
+        check.message = "could not tell whether that is the same expression"
+    return check
+
+
+def _difference(candidate, wanted, factor):
+    """What is left when the answer is taken from the expected one.
+
+    Shown with a wrong verdict, and it is the half of that verdict worth
+    reading: a forgotten term appears here by itself, and a sign that went the
+    wrong way appears as twice the term it belongs to.
+    """
+    try:
+        # `expand` rather than `simplify`: this is read, and simplify likes to
+        # be clever -- it returns the difference of two exponentials as a
+        # hyperbolic sine, which is true and tells nobody which term went
+        # astray.
+        return sp.expand(candidate - (factor or 1) * wanted)
+    except Exception:
+        return None
+
+
+def check_model(reference: str, text: str) -> EquivalenceCheck:
+    """Mark an equation somebody wrote for a situation, or for a family.
+
+    Two question types land here and they are the same question asked from
+    either end. *A tank holds 100 litres of brine...* asks the student to
+    turn a situation into an equation; *every curve in the family
+    ``y = C e^{3t}`` solves one first-order equation* asks them to turn
+    solutions back into the equation they came from. Neither can be graded by
+    substitution, because in both the equation is the answer rather than the
+    question.
+
+    What makes it gradeable anyway is that an equation has a canonical thing to
+    compare: move everything to one side and two equations are the same exactly
+    when the two sides agree up to a nonzero constant multiple. ``y' = 2 -
+    y/20``, ``y' + y/20 = 2`` and ``20y' + y = 40`` are one equation and all
+    three are accepted; nothing is marked wrong for being arranged differently.
+
+    A constant multiple only. Multiplying through by `t` also leaves an
+    equation with the same solutions where `t` is not zero, and a different one
+    where it is -- so that is not accepted, and the difference is shown instead
+    of a bare refusal.
+    """
+    if not text or not text.strip():
+        return EquivalenceCheck(message="type an equation to check")
+    if "=" not in text:
+        return EquivalenceCheck(
+            message="write the whole equation, with an = in it"
+        )
+
+    try:
+        wanted = parse_equation(spec_for(reference))
+    except Exception as exc:                # a broken question, not an answer
+        return EquivalenceCheck(
+            message=f"this question could not be set up: {exc}"
+        )
+
+    expected = {function.__name__ for function in wanted.functions}
+    unknowns = ", ".join(sorted(expected))
+    # Checked before parsing, because an unexpected prime does not survive it:
+    # `spec_for` reads a scalar equation as one in `y`, so ``x' = 3x`` reaches
+    # the parser with the prime still attached and comes back as a quotation
+    # mark somebody forgot to close, which is a true statement about Python
+    # and no help at all.
+    primed = set(re.findall(r"([A-Za-z]\w*)\s*(?:'+|\^\s*\(\s*\d+\s*\))",
+                            text))
+    if primed and not primed <= expected:
+        return EquivalenceCheck(
+            message=f"write it in terms of {unknowns}, as the question does"
+        )
+
+    try:
+        written = parse_equation(spec_for(text.strip()))
+    except ParseError as exc:
+        return EquivalenceCheck(message=str(exc))
+    except Exception as exc:
+        return EquivalenceCheck(message=f"cannot read that: {exc}")
+
+    order = max(written.order, wanted.order)
+    left = _flatten(written.equation, written.functions, order)
+    right = _flatten(wanted.equation, wanted.functions, order)
+    if right.free_symbols and not (left.free_symbols & right.free_symbols):
+        return EquivalenceCheck(
+            message=f"write it in terms of {unknowns}, as the question does"
+        )
+
+    check = EquivalenceCheck(expression=left)
+    verdict, factor = _same_expression(left, right, up_to_factor=True)
+    check.correct, check.factor = verdict, factor
+    if verdict is True and factor is not None and factor != 1:
+        check.message = (
+            f"correct -- {factor} times the equation as usually written, "
+            "which is the same equation"
+        )
+    elif verdict is True:
+        check.message = "correct: that is the equation"
+    elif verdict is False:
+        multiple = _multiple_of(left, right)
+        if multiple is not None:
+            check.message = (
+                f"that is the right equation multiplied through by {multiple}, "
+                "which is not the same equation -- it says nothing where that "
+                "is zero"
+            )
+        else:
+            check.difference = _difference(left, right, factor)
+            check.message = "that is not the same equation"
+    else:
+        check.message = "could not tell whether that is the same equation"
+    return check
+
+
+def _multiple_of(written, wanted):
+    """The non-constant factor relating two equations, when there is one.
+
+    Dividing ``y' = 3y`` through by `y` gives ``y'/y = 3``, which has the same
+    solutions everywhere except where `y` vanishes -- and ``y = 0`` *is* a
+    member of the family the first equation describes. So it is not the same
+    equation, and saying only "not the same equation" would leave somebody who
+    did the algebra correctly with nothing to go on. Naming the factor says
+    exactly which step went one step too far.
+    """
+    try:
+        ratio = sp.cancel(sp.simplify(written / wanted))
+    except Exception:
+        return None
+    if not ratio.free_symbols:
+        return None
+    # Any two expressions are multiples of each other by their own ratio, so
+    # the factor is only worth naming when it is something somebody could have
+    # multiplied by: a symbol, a power, a product of those. A ratio with a sum
+    # anywhere inside it is the arithmetic of two unrelated equations, and
+    # printing it would dress a plain wrong answer up as a near miss.
+    if ratio.atoms(sp.Add):
+        return None
+    return ratio if _vanishes(written - ratio * wanted) else None
+
+
+def _flatten(equation: sp.Eq, functions: list, order: int):
+    """One side of an equation, with the unknowns turned into plain symbols.
+
+    ``y'' + 3y' + 2y - t`` as a polynomial in three ordinary symbols, so it can
+    be substituted into and compared like any other expression. Highest
+    derivative first, because replacing ``y(t)`` before ``y''(t)`` would leave
+    a derivative of a symbol behind.
+    """
+    flat = equation.lhs - equation.rhs
+    for function in functions:
+        name = function.__name__
+        for degree in range(order, 0, -1):
+            flat = flat.subs(sp.Derivative(function(_T), (_T, degree)),
+                             sp.Symbol(_written(name, degree)))
+        flat = flat.subs(function(_T), sp.Symbol(name))
+    return sp.expand(flat)
+
+
+def _written(name: str, degree: int) -> str:
+    """``y''`` for the second derivative: what the symbol is called on paper.
+
+    The names matter because these symbols are shown. A wrong answer's verdict
+    prints what is left over, and ``-y/10`` says which term went astray while
+    ``-__y_0/10`` says only that something internal leaked out.
+    """
+    if degree <= 3:
+        return name + "'" * degree
+    return f"{name}^({degree})"
 
 
 def _tidy_number(value: float) -> str:
@@ -1284,6 +1912,7 @@ def _check_system(parsed: ParsedEquation, text: str) -> AnswerCheck:
         check.message = "it solves the system, but not with these conditions"
     else:
         check.message = "verified: every equation gives exactly zero"
+    check.diagnosis = diagnose(parsed, check)
     return check
 
 

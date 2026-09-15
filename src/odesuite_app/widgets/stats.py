@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import theme
 from ..theme import Palette
 
 __all__ = ["StatsPanel"]
@@ -41,13 +42,13 @@ class _Row(QWidget):
 
         self.name = QLabel(label)
         self.name.setProperty("role", "muted")
-        self.name.setStyleSheet("font-size: 11.5px;")
+        self.name.setStyleSheet(theme.scaled("font-size: 11.5px;"))
         self.name.setToolTip(tooltip)
         layout.addWidget(self.name, 0, 0, Qt.AlignLeft)
 
         self.value = QLabel("—")
         self.value.setProperty("role", "mono")
-        self.value.setStyleSheet("font-size: 13px; font-weight: 600;")
+        self.value.setStyleSheet(theme.scaled("font-size: 13px; font-weight: 600;"))
         self.value.setToolTip(tooltip)
         layout.addWidget(self.value, 0, 1, Qt.AlignRight)
         layout.setColumnStretch(0, 1)
@@ -55,8 +56,8 @@ class _Row(QWidget):
     def set(self, text: str, colour: str | None = None) -> None:
         self.value.setText(text)
         self.value.setStyleSheet(
-            "font-size: 13px; font-weight: 600;"
-            + (f" color: {colour};" if colour else "")
+            theme.scaled("font-size: 13px; font-weight: 600;"
+                         + (f" color: {colour};" if colour else ""))
         )
 
 
@@ -100,10 +101,10 @@ class StatsPanel(QFrame):
         # the application-wide `QPushButton` rule -- left to it, the control
         # paints as an empty raised box with the chevron lost inside it.
         self.collapse_button.setStyleSheet(
-            f"QPushButton {{ background: transparent; border: none;"
-            f" color: {palette.text_muted}; font-size: 17px;"
-            f" padding: 0; margin: 0; }}"
-            f"QPushButton:hover {{ color: {palette.accent}; }}"
+            theme.scaled(f"QPushButton {{ background: transparent; border: none;"
+                         f" color: {palette.text_muted}; font-size: 17px;"
+                         f" padding: 0; margin: 0; }}"
+                         f"QPushButton:hover {{ color: {palette.accent}; }}")
         )
         self.collapse_button.clicked.connect(lambda: self.set_collapsed(True))
         header_row.addWidget(self.collapse_button)
@@ -119,8 +120,8 @@ class StatsPanel(QFrame):
         self._strip.setCursor(Qt.PointingHandCursor)
         self._strip.setToolTip("Show the work counters")
         self._strip.setStyleSheet(
-            f"background: transparent; border: none; padding: 10px 0;"
-            f" color: {palette.text_muted}; font-size: 11px;"
+            theme.scaled(f"background: transparent; border: none; padding: 10px 0;"
+                         f" color: {palette.text_muted}; font-size: 11px;")
         )
         self._strip.clicked.connect(lambda: self.set_collapsed(False))
         self._strip.setVisible(False)
@@ -184,7 +185,7 @@ class StatsPanel(QFrame):
         layout.addSpacing(10)
         self.status = QLabel("no solve yet")
         self.status.setProperty("role", "muted")
-        self.status.setStyleSheet("font-size: 10.5px;")
+        self.status.setStyleSheet(theme.scaled("font-size: 10.5px;"))
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addStretch(1)
@@ -229,10 +230,10 @@ class StatsPanel(QFrame):
         if result.error:
             self.clear("")
             self.status.setText(result.error)
-            self.status.setStyleSheet(f"font-size: 10.5px; color: {palette.danger};")
+            self.status.setStyleSheet(theme.scaled(f"font-size: 10.5px; color: {palette.danger};"))
             return
 
-        self.status.setStyleSheet(f"font-size: 10.5px; color: {palette.text_muted};")
+        self.status.setStyleSheet(theme.scaled(f"font-size: 10.5px; color: {palette.text_muted};"))
         solution, stats = result.solution, result.solution.stats
 
         self.rows["nfev"].set(_thousands(stats.nfev))

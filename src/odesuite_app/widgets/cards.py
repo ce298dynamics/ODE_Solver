@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import theme
 from ..catalog import CatalogEntry
 from ..theme import Palette
 from .flow import FlowWidget
@@ -73,7 +74,7 @@ class ProblemCard(_Clickable):
         blurb = QLabel(entry.blurb)
         blurb.setWordWrap(True)
         blurb.setProperty("role", "muted")
-        blurb.setStyleSheet("font-size: 12px;")
+        blurb.setStyleSheet(theme.scaled("font-size: 12px;"))
         blurb.setFixedHeight(52)
         body_layout.addWidget(blurb)
 
@@ -88,9 +89,9 @@ class ProblemCard(_Clickable):
                 else palette.text_muted
             )
             chip.setStyleSheet(
-                f"color: {colour}; font-size: 10px; font-weight: 600;"
-                f"border: 1px solid {palette.border}; border-radius: 8px;"
-                f"padding: 1px 7px;"
+                theme.scaled(f"color: {colour}; font-size: 10px; font-weight: 600;"
+                             f"border: 1px solid {palette.border}; border-radius: 8px;"
+                             f"padding: 1px 7px;")
             )
             tags.addWidget(chip)
         tags.addStretch(1)
@@ -105,10 +106,10 @@ class ProblemCard(_Clickable):
             return
         self.thumb.setPixmap(
             pixmap.scaled(
-                QSize(CARD_WIDTH, THUMB_HEIGHT),
-                Qt.KeepAspectRatioByExpanding,
-                Qt.SmoothTransformation,
-            )
+                             QSize(CARD_WIDTH, THUMB_HEIGHT),
+                             Qt.KeepAspectRatioByExpanding,
+                             Qt.SmoothTransformation,
+                         )
         )
 
 
@@ -164,12 +165,12 @@ class ShowcaseTile(_Clickable):
         layout.setSpacing(3)
 
         heading = QLabel(title)
-        heading.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {accent};")
+        heading.setStyleSheet(theme.scaled(f"font-size: 15px; font-weight: 700; color: {accent};"))
         layout.addWidget(heading)
 
         detail = QLabel(subtitle)
         detail.setWordWrap(True)
         detail.setProperty("role", "muted")
-        detail.setStyleSheet("font-size: 11.5px;")
+        detail.setStyleSheet(theme.scaled("font-size: 11.5px;"))
         detail.setAlignment(Qt.AlignTop)
         layout.addWidget(detail, 1)

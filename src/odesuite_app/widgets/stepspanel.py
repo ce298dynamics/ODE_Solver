@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import theme
 from ..theme import Palette
 from .mathlabel import MathLabel
 
@@ -141,7 +142,7 @@ class StepsPanel(QWidget):
                 "a rewriting: there is nothing here to check"
             )
         label = QLabel(text)
-        label.setStyleSheet(f"color: {colour}; font-size: 15px;")
+        label.setStyleSheet(theme.scaled(f"color: {colour}; font-size: 15px;"))
         label.setToolTip(tip)
         return label
 

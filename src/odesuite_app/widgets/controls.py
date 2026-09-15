@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import catalog
+from .. import catalog, theme
 from ..catalog import CatalogEntry
 
 
@@ -156,7 +156,7 @@ class ValueSlider(QWidget):
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
         self.name = QLabel(label)
-        self.name.setStyleSheet("font-size: 12px;")
+        self.name.setStyleSheet(theme.scaled("font-size: 12px;"))
         header.addWidget(self.name)
         header.addStretch(1)
         self.readout = QLabel(format_value(value))

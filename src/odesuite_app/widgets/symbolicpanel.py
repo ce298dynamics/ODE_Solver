@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import symbolic as _symbolic
+from .. import theme
 from ..symbolic import (
     ParsedEquation,
     SymbolicSolution,
@@ -247,7 +248,7 @@ class SymbolicPanel(QWidget):
         )
         label.setWordWrap(True)
         label.setStyleSheet(
-            f"font-size: 10.5px; color: {self.palette_obj.warning};"
+            theme.scaled(f"font-size: 10.5px; color: {self.palette_obj.warning};")
         )
         self._body.addWidget(label)
 
@@ -295,7 +296,7 @@ class SymbolicPanel(QWidget):
             for column, title in enumerate(("root", "multiplicity", "contributes")):
                 head = QLabel(title)
                 head.setProperty("role", "muted")
-                head.setStyleSheet("background: transparent; font-size: 10.5px;")
+                head.setStyleSheet(theme.scaled("background: transparent; font-size: 10.5px;"))
                 grid.addWidget(head, 0, column)
 
             for row, (root, multiplicity, paired) in enumerate(
@@ -355,8 +356,8 @@ class SymbolicPanel(QWidget):
 
         badge = QLabel("✓" if solution.verified else "•")
         badge.setStyleSheet(
-            f"background: transparent; color: {colour}; font-size: 15px; "
-            f"font-weight: 700;"
+            theme.scaled(f"background: transparent; color: {colour}; font-size: 15px; "
+                         f"font-weight: 700;")
         )
         layout.addWidget(badge)
 
@@ -386,7 +387,7 @@ class SymbolicPanel(QWidget):
         return frame, layout
 
     def _style_muted(self, label: QLabel) -> None:
-        label.setStyleSheet("background: transparent; font-size: 11.5px;")
+        label.setStyleSheet(theme.scaled("background: transparent; font-size: 11.5px;"))
 
     def _clear_body(self) -> None:
         self._status.setVisible(True)

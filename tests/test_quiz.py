@@ -246,6 +246,82 @@ def test_working_through_reaches_a_report(screen, qapp):
     assert "Finished in" in shown
 
 
+def test_the_report_says_how_far_each_miss_got(screen, qapp):
+    """A cross says a question was missed. It cannot say how, and how is what
+    somebody would go back for -- so the report carries the same sentence the
+    verdict gave at the time, which for a typed answer is the residual read
+    back through `symbolic.diagnose`."""
+    from PySide6.QtWidgets import QLabel
+
+    from odesuite_app.lessons.model import Solve
+
+    lesson, template, _drawn = build(buildable()[0], 1, seed=7)[0]
+    # A question with a known miss, so the sentence under it is known too.
+    # Everything else about the screen is the ordinary path.
+    screen._questions = [(lesson, template, Solve(
+        key="made-up", prompt="Solve it.", equation="y'' - y = 6*t",
+    ))]
+    screen._verdicts = {}
+    screen._notes = {}
+    screen._index = 0
+    screen._show_question()
+    qapp.processEvents()
+
+    screen.answer.setText("C1*exp(t) + C2*exp(-t)")
+    screen._check(screen._questions[0][0], screen._questions[0][2])
+    qapp.processEvents()
+    assert "complementary function" in screen.verdict.text(), (
+        "the verdict itself should say what the residual says"
+    )
+
+    screen._advance()
+    qapp.processEvents()
+    shown = " ".join(label.text() for label in screen._page.findChildren(QLabel))
+    assert "Question 1" in shown
+    assert "complementary function" in shown, (
+        "the report kept how far the answer got"
+    )
+
+
+def test_a_skipped_question_says_it_was_skipped(screen, qapp):
+    """Distinguished from a wrong answer, because they are different things
+    and only one of them is evidence about the mathematics."""
+    from PySide6.QtWidgets import QLabel
+
+    screen.length.setValue(4)
+    screen._start()
+    qapp.processEvents()
+    for _ in range(4):
+        screen._advance()
+        qapp.processEvents()
+
+    shown = " ".join(label.text() for label in screen._page.findChildren(QLabel))
+    assert "Skipped" in shown
+
+
+def _started(screen, qapp):
+    screen.length.setValue(6)
+    screen._start()
+    qapp.processEvents()
+    return screen
+
+
+def test_the_note_is_pinned_by_the_first_answer(screen, qapp):
+    """As the verdict is. A second attempt that got further would otherwise
+    have the report describe an answer that was never scored."""
+    lesson, _template, question = _typed(_started(screen, qapp), qapp)
+    screen.answer.setText("0")
+    screen._check(lesson, question)
+    qapp.processEvents()
+    if screen._verdicts.get(screen._index) is not False:
+        pytest.skip("this draw accepts 0, so there is no miss to pin")
+
+    first = screen._notes[screen._index]
+    screen.answer.setText("1")
+    screen._check(lesson, question)
+    assert screen._notes[screen._index] == first
+
+
 def test_the_report_lists_the_lessons_behind_the_misses(screen, qapp):
     """A missed question is most useful as a pointer to its lesson, so the
     report offers the lesson rather than the question."""

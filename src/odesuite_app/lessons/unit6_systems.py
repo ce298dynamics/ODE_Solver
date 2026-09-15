@@ -19,8 +19,11 @@ enumeration cannot tell in advance which draws those are.
 from __future__ import annotations
 
 from .model import (
+    Case,
     Choice,
+    ClassifyTemplate,
     Example,
+    ExpressionTemplate,
     Lesson,
     Note,
     NumericTemplate,
@@ -636,6 +639,39 @@ DISTINCT = Lesson(
                              (1, 3, 3, 1), (4, 1, 2, 3), (2, 2, 1, 3),
                              (0, 1, 6, 1), (5, 2, 2, 2))),
             ),
+        ),
+        ExpressionTemplate(
+            key="det-a-minus-lambda",
+            title="One step only: the characteristic polynomial of a matrix",
+            prompt="Write det(A − rI) for   A = [[{a}, {b}], [{c}, {d}]].   "
+                   "Leave it as a polynomial in r; do not solve it.",
+            answer="{answer}",
+            because="Subtracting r down the diagonal and taking the "
+                    "determinant gives r² − (trace)·r + (determinant). Both "
+                    "coefficients can be read straight off the matrix, which "
+                    "is the quickest check that the polynomial is right: the "
+                    "trace is the sum of the diagonal and the determinant is "
+                    "the usual cross-product.",
+            hints=(
+                "Subtract r from each diagonal entry and leave the other two "
+                "alone.",
+                "Then take the determinant of the 2×2 matrix that leaves: "
+                "the product of the diagonal minus the product of the "
+                "off-diagonal.",
+                "Multiply the brackets out. The r coefficient should come to "
+                "minus the sum of the diagonal entries.",
+            ),
+            slots=(("a,b,c,d,answer,tier", (
+                (1, 2, 3, 2, "r**2 - 3*r - 4", "easier"),
+                (2, 1, 1, 2, "r**2 - 4*r + 3", "easier"),
+                (3, 0, 0, -1, "r**2 - 2*r - 3", "easier"),
+                (1, -2, 2, 1, "r**2 - 2*r + 5", "typical"),
+                (-3, 1, 1, -3, "r**2 + 6*r + 8", "typical"),
+                (0, 1, -4, 0, "r**2 + 4", "typical"),
+                (4, 1, -1, 2, "r**2 - 6*r + 9", "harder"),
+                (-1, 2, -2, -1, "r**2 + 2*r + 5", "harder"),
+            )),),
+            level=lambda slots: slots["tier"],
         ),
     ),
 )
@@ -1550,6 +1586,114 @@ PORTRAITS = Lesson(
             # equation.
             slots=(("a,b", ((1, 2), (-2, 1), (3, -1), (2, 3))),
                    ("c,d", ((3, 2), (1, -2), (1, 1), (-1, 2)))),
+        ),
+        ClassifyTemplate(
+            key="which-portrait",
+            title="Which picture does it make?",
+            prompt="Decide from the matrix, without drawing anything.",
+            table="portraits",
+            options=("saddle", "stable node", "unstable node",
+                     "stable spiral", "unstable spiral", "centre"),
+            cases=(
+                Case(
+                    equation="x' = x + 2*y; y' = 2*x + y",
+                    technique="saddle",
+                    why="The determinant is 1 − 4 = −3, negative — and a "
+                        "negative determinant means eigenvalues of opposite "
+                        "sign, which is a saddle whatever else is true.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="x' = x + 4*y; y' = 2*x - y",
+                    technique="saddle",
+                    why="Determinant −1 − 8 = −9. The trace is zero here, "
+                        "which would suggest a centre if the determinant "
+                        "were positive — it is not, so the sign of the "
+                        "determinant decides first.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="x' = -3*x + y; y' = x - 3*y",
+                    technique="stable node",
+                    why="Trace −6 and determinant 9 − 1 = 8, with "
+                        "discriminant 36 − 32 = 4 positive: two real "
+                        "negative eigenvalues, so everything comes in "
+                        "without turning.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="x' = -2*x + 3*y; y' = -y",
+                    technique="stable node",
+                    why="Triangular, so the eigenvalues are on the diagonal: "
+                        "−2 and −1. Both real and negative.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="x' = -4*x + y; y' = -2*y",
+                    technique="stable node",
+                    why="Triangular again, eigenvalues −4 and −2. The "
+                        "trajectories come in tangent to the slower "
+                        "direction, which is the −2 one.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="x' = 2*x + y; y' = x + 2*y",
+                    technique="unstable node",
+                    why="Trace 4 and determinant 3, discriminant 16 − 12 = 4: "
+                        "eigenvalues 3 and 1, both real and positive.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="x' = 2*x + 3*y; y' = 4*y",
+                    technique="unstable node",
+                    why="Triangular with 2 and 4 on the diagonal. Nothing "
+                        "comes back.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="x' = -x - 2*y; y' = 2*x - y",
+                    technique="stable spiral",
+                    why="Trace −2, determinant 1 + 4 = 5, and the "
+                        "discriminant 4 − 20 is negative — so the "
+                        "eigenvalues are −1 ± 2i and the trajectories turn "
+                        "as they come in.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="x' = -x + 2*y; y' = -2*x - y",
+                    technique="stable spiral",
+                    why="The same eigenvalues as the case above, with the "
+                        "off-diagonal signs swapped: that reverses which way "
+                        "the spiral turns and changes nothing about whether "
+                        "it comes in.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="x' = x - 2*y; y' = 2*x + y",
+                    technique="unstable spiral",
+                    why="Trace +2 with a negative discriminant: eigenvalues "
+                        "1 ± 2i. Turning, and growing as it turns.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="x' = y; y' = -4*x",
+                    technique="centre",
+                    why="Trace zero and determinant 4: the eigenvalues are "
+                        "±2i with no real part, so nothing grows or shrinks "
+                        "and the trajectories close.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="x' = 2*y; y' = -2*x",
+                    technique="centre",
+                    why="Trace zero, determinant 4 again. This is the "
+                        "classification the Phase Portrait screen qualifies "
+                        "rather than asserts, because a centre is exactly "
+                        "the case where the linearisation of a nonlinear "
+                        "system decides nothing.",
+                    tier="typical",
+                ),
+            ),
         ),
     ),
 )

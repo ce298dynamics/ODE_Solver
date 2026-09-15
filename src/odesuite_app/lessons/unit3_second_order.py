@@ -12,9 +12,14 @@ case belong here too, and arrive with the narrator each needs.
 from __future__ import annotations
 
 from .model import (
+    Case,
     Choice,
+    ClassifyTemplate,
     Example,
+    ExpressionTemplate,
+    FaultTemplate,
     Lesson,
+    ModelTemplate,
     Note,
     Passage,
     Solve,
@@ -309,6 +314,66 @@ ROOTS = Lesson(
                          (6, 9), (4, 13), (0, 4), (7, 12), (2, 10), (8, 16))),
                 ("p,v", ((1, 0), (0, 1), (1, 1), (2, 0))),
             ),
+            # By the discriminant, which is the only thing that changes what
+            # has to be done. Distinct real roots are the case the method is
+            # introduced on; a repeated root is the one that needs the extra
+            # factor of t, and it is where this goes wrong.
+            level=lambda slots: (
+                "easier" if slots["b"] ** 2 - 4 * slots["c"] > 0
+                else "harder" if slots["b"] ** 2 == 4 * slots["c"]
+                else "typical"
+            ),
+        ),
+        ExpressionTemplate(
+            key="the-characteristic-equation",
+            title="One step only: the characteristic equation",
+            prompt="Write the characteristic equation for   {equation}.   Do "
+                   "not solve it.",
+            answer="{answer}",
+            up_to_constant=True,
+            because="Substituting y = e^(rt) turns every derivative into a "
+                    "power of r: y'' becomes r², y' becomes r, and y itself "
+                    "contributes nothing but its coefficient. Dividing "
+                    "through by e^(rt), which is never zero, leaves the "
+                    "polynomial — and any nonzero multiple of it has the "
+                    "same roots, so any multiple is accepted.",
+            hints=(
+                "Try y = e^(rt) and see what each term becomes. Every "
+                "derivative brings down another factor of r.",
+                "Every term now has e^(rt) in it, and e^(rt) is never zero, "
+                "so it can be divided out.",
+                "What is left is a polynomial in r with the same "
+                "coefficients the equation has.",
+            ),
+            slots=(("equation,answer,tier", (
+                ("y'' + 5*y' + 6*y = 0", "r**2 + 5*r + 6", "easier"),
+                ("y'' - 3*y' + 2*y = 0", "r**2 - 3*r + 2", "easier"),
+                ("y'' + 4*y' + 4*y = 0", "r**2 + 4*r + 4", "easier"),
+                ("y'' + 2*y' + 5*y = 0", "r**2 + 2*r + 5", "typical"),
+                ("y'' - 6*y' + 13*y = 0", "r**2 - 6*r + 13", "typical"),
+                ("y'' + 9*y = 0", "r**2 + 9", "typical"),
+                ("2*y'' + 5*y' + 3*y = 0", "2*r**2 + 5*r + 3", "harder"),
+                ("3*y'' - y' - 2*y = 0", "3*r**2 - r - 2", "harder"),
+                ("y''' - y' = 0", "r**3 - r", "harder"),
+            )),),
+            level=lambda slots: slots["tier"],
+        ),
+        FaultTemplate(
+            key="a-root-used-twice",
+            title="Spot the mistake: a repeated root",
+            prompt="Somebody solved the characteristic equation, found one "
+                   "root, and wrote the general solution like this. What "
+                   "went wrong?",
+            equation="y'' - {two_r}*y' + {r_squared}*y = 0",
+            conditions="y(0) = 1, y'(0) = 0",
+            wrong="C1*exp({r}*t) + C2*exp({r}*t)",
+            fault="repeated-root",
+            others=("real-roots-for-complex", "sign-in-exponent",
+                    "forcing-not-reduced"),
+            slots=(("r,two_r,r_squared", (
+                (2, 4, 4), (3, 6, 9), (4, 8, 16),
+                (5, 10, 25), (6, 12, 36), (7, 14, 49),
+            )),),
         ),
     ),
 )
@@ -632,6 +697,20 @@ UNDETERMINED = Lesson(
                 ("b,c", ((3, 2), (4, 4), (2, 5), (5, 6), (2, 1))),
                 ("d", (1, 2, 3)),
             ),
+        ),
+        FaultTemplate(
+            key="stopped-at-the-complementary",
+            title="Spot the mistake: a forced equation",
+            prompt="Somebody solved the characteristic equation, wrote down "
+                   "the two solutions it gives, and handed that in. What "
+                   "went wrong?",
+            equation="y'' + {w2}*y = {d}",
+            wrong="C1*cos({w}*t) + C2*sin({w}*t)",
+            fault="missing-particular",
+            others=("missing-complementary", "no-constant",
+                    "sign-in-exponent"),
+            slots=(("w,w2", ((2, 4), (3, 9), (4, 16), (5, 25))),
+                   ("d", (6, 8, 12))),
         ),
     ),
 )
@@ -1211,6 +1290,71 @@ SUPERPOSITION = Lesson(
                 ("p,v", ((2, 0), (0, 1), (1, 1), (1, 0))),
             ),
         ),
+        ModelTemplate(
+            key="family-to-second-order",
+            title="Read the equation off the general solution",
+            prompt="This is the general solution of one second-order "
+                   "equation with constant coefficients:   y = {family}.   "
+                   "Write the equation.",
+            equation="{answer}",
+            because="{why}",
+            hints=(
+                "The exponents in the solution are the roots of the "
+                "characteristic equation. Read them off first.",
+                "With roots r₁ and r₂ the characteristic equation is "
+                "(r − r₁)(r − r₂) = 0. Multiply that out.",
+                "Then read the equation back off the polynomial: r² is y'', "
+                "r is y', and the constant term multiplies y.",
+            ),
+            slots=(("family,answer,why,tier", (
+                ("C₁e^(2t) + C₂e^(-5t)", "y'' + 3*y' - 10*y = 0",
+                 "The roots are 2 and −5, so the characteristic equation is "
+                 "(r − 2)(r + 5) = r² + 3r − 10 — and the coefficients of "
+                 "that polynomial are the coefficients of the equation.",
+                 "easier"),
+                ("C₁e^t + C₂e^(4t)", "y'' - 5*y' + 4*y = 0",
+                 "Roots 1 and 4: (r − 1)(r − 4) = r² − 5r + 4. The sum of "
+                 "the roots comes back with its sign reversed, which is "
+                 "worth remembering as a check.",
+                 "easier"),
+                ("C₁e^(-t) + C₂e^(-3t)", "y'' + 4*y' + 3*y = 0",
+                 "Roots −1 and −3: (r + 1)(r + 3) = r² + 4r + 3. Both roots "
+                 "negative makes every coefficient positive, which is what "
+                 "damping looks like in the equation.",
+                 "easier"),
+                ("(C₁ + C₂t)e^(3t)", "y'' - 6*y' + 9*y = 0",
+                 "The factor of t is the sign of a repeated root: r = 3 "
+                 "twice, so the polynomial is (r − 3)² = r² − 6r + 9.",
+                 "typical"),
+                ("(C₁ + C₂t)e^(-2t)", "y'' + 4*y' + 4*y = 0",
+                 "A repeated root at −2, so (r + 2)² = r² + 4r + 4. The "
+                 "discriminant of that polynomial is exactly zero, which is "
+                 "what put the t there.",
+                 "typical"),
+                ("C₁cos(2t) + C₂sin(2t)", "y'' + 4*y = 0",
+                 "A sine and cosine of the same frequency and no exponential "
+                 "means roots ±2i: (r − 2i)(r + 2i) = r² + 4. No y' term, "
+                 "because the roots have no real part to contribute one.",
+                 "typical"),
+                ("e^(-t)(C₁cos(2t) + C₂sin(2t))", "y'' + 2*y' + 5*y = 0",
+                 "The exponential gives the real part and the frequency the "
+                 "imaginary part: roots −1 ± 2i. Then r² + 2r + 5, since the "
+                 "constant term is the modulus squared.",
+                 "harder"),
+                ("e^(2t)(C₁cos(t) + C₂sin(t))", "y'' - 4*y' + 5*y = 0",
+                 "Roots 2 ± i. The growing exponential shows up as a "
+                 "negative coefficient of y', which is an equation with "
+                 "negative damping — energy being put in rather than taken "
+                 "out.",
+                 "harder"),
+                ("C₁ + C₂e^(-4t)", "y'' + 4*y' = 0",
+                 "A bare constant is e^(0t), so the roots are 0 and −4 and "
+                 "the polynomial is r(r + 4) = r² + 4r. The missing constant "
+                 "term is the zero root.",
+                 "harder"),
+            )),),
+            level=lambda slots: slots["tier"],
+        ),
     ),
 )
 
@@ -1496,6 +1640,164 @@ VARIATION = Lesson(
             slots=(
                 ("g", ("sec(t)", "tan(t)", "csc(t)", "cot(t)",
                        "sec(t)*tan(t)", "1/cos(t)**2")),
+            ),
+        ),
+        ExpressionTemplate(
+            key="the-wronskian",
+            title="One step only: the Wronskian",
+            prompt="Write the Wronskian W of   y₁ = {y1}   and   y₂ = {y2}.",
+            answer="{answer}",
+            because="W = y₁·y₂′ − y₂·y₁′, the determinant of the two "
+                    "solutions written above their derivatives. Variation of "
+                    "parameters divides by it, which is why it matters that "
+                    "it is never zero where the solutions are independent.",
+            hints=(
+                "W is a 2×2 determinant: the solutions on the top row, their "
+                "derivatives on the bottom.",
+                "So it is y₁ times the derivative of y₂, minus y₂ times the "
+                "derivative of y₁. Differentiate each one first.",
+                "Expect the two terms to collapse into something simpler "
+                "than either of them — for a constant-coefficient pair it "
+                "usually comes out as a single exponential or a constant.",
+            ),
+            slots=(("y1,y2,answer,tier", (
+                ("exp(2*t)", "exp(5*t)", "3*exp(7*t)", "easier"),
+                ("exp(-t)", "exp(3*t)", "4*exp(2*t)", "easier"),
+                ("cos(2*t)", "sin(2*t)", "2", "typical"),
+                ("cos(3*t)", "sin(3*t)", "3", "typical"),
+                ("exp(3*t)", "t*exp(3*t)", "exp(6*t)", "typical"),
+                ("t", "t**2", "t**2", "typical"),
+                ("exp(-t)*cos(t)", "exp(-t)*sin(t)", "exp(-2*t)", "harder"),
+                ("t", "t*log(t)", "t", "harder"),
+                ("exp(-2*t)", "1", "2*exp(-2*t)", "harder"),
+            )),),
+            level=lambda slots: slots["tier"],
+        ),
+        ClassifyTemplate(
+            key="which-second-order-method",
+            title="Which method would you reach for first?",
+            prompt="Read it, decide, and say what decided it. Do not solve "
+                   "it.",
+            options=("nth_linear_constant_coeff_homogeneous",
+                     "nth_linear_constant_coeff_undetermined_coefficients",
+                     "nth_linear_constant_coeff_variation_of_parameters",
+                     "nth_linear_euler_eq_homogeneous"),
+            cases=(
+                Case(
+                    equation="y'' + 3*y' + 2*y = 0",
+                    technique="nth_linear_constant_coeff_homogeneous",
+                    why="Constant coefficients and nothing on the right, so "
+                        "there is nothing to find a particular solution for. "
+                        "The characteristic roots are the whole answer.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y'' + 2*y' + 5*y = 0",
+                    technique="nth_linear_constant_coeff_homogeneous",
+                    why="Still homogeneous. The discriminant is negative, so "
+                        "the roots are complex — which changes the form of "
+                        "the answer but not the method that finds it.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y''' - y' = 0",
+                    technique="nth_linear_constant_coeff_homogeneous",
+                    why="Third order changes nothing: constant coefficients, "
+                        "no forcing, so try e^(rt) and solve the cubic. Here "
+                        "it factors as r(r − 1)(r + 1).",
+                    tier="harder",
+                ),
+                Case(
+                    equation="y'' + 4*y = sin(3*t)",
+                    technique=(
+                        "nth_linear_constant_coeff_undetermined_coefficients"
+                    ),
+                    why="The forcing is a sine, whose derivatives stay "
+                        "inside {sin, cos}, so a trial A·cos(3t) + B·sin(3t) "
+                        "closes. Variation of parameters would also work and "
+                        "costs two integrals for nothing.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y'' - 5*y' + 6*y = t**2",
+                    technique=(
+                        "nth_linear_constant_coeff_undetermined_coefficients"
+                    ),
+                    why="A polynomial forcing term: differentiate it and you "
+                        "stay inside polynomials of the same degree or "
+                        "lower, so a quadratic trial has enough room.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y'' - y = exp(t)",
+                    technique=(
+                        "nth_linear_constant_coeff_undetermined_coefficients"
+                    ),
+                    why="Still undetermined coefficients, but the trial "
+                        "needs care: e^t already solves the homogeneous "
+                        "equation, so the guess has to be multiplied by t "
+                        "before it can work.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="y'' + y = sec(t)",
+                    technique=(
+                        "nth_linear_constant_coeff_variation_of_parameters"
+                    ),
+                    why="Differentiating sec t gives sec t·tan t, then more "
+                        "of the same and worse: the family never closes, so "
+                        "there is no finite trial form to undetermine the "
+                        "coefficients of.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y'' + y = tan(t)",
+                    technique=(
+                        "nth_linear_constant_coeff_variation_of_parameters"
+                    ),
+                    why="Same reason as sec t: the derivatives of tan t "
+                        "generate an unbounded family. The equation is "
+                        "otherwise ordinary, which is what makes the forcing "
+                        "term the deciding thing.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y'' + y = 1/(1 + exp(t))",
+                    technique=(
+                        "nth_linear_constant_coeff_variation_of_parameters"
+                    ),
+                    why="A quotient. Nothing about it repeats under "
+                        "differentiation, so the only route is to build the "
+                        "particular solution out of the homogeneous pair.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="t**2*y'' + 3*t*y' + y = 0",
+                    technique="nth_linear_euler_eq_homogeneous",
+                    why="The coefficients are not constant, but each "
+                        "derivative carries exactly the power of t that "
+                        "matches its order — t² with y'', t with y'. That is "
+                        "the Cauchy-Euler pattern, and y = t^r turns it into "
+                        "a polynomial.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="t**2*y'' - 2*y = 0",
+                    technique="nth_linear_euler_eq_homogeneous",
+                    why="The missing y' term makes no difference: what "
+                        "matters is that the term that *is* there carries t² "
+                        "against y''. Still t^r.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="t**2*y'' - 3*t*y' + 4*y = 0",
+                    technique="nth_linear_euler_eq_homogeneous",
+                    why="Cauchy-Euler again, and this one has a repeated "
+                        "index — the polynomial in r comes out as (r − 2)², "
+                        "so the second solution carries a logarithm rather "
+                        "than another power.",
+                    tier="harder",
+                ),
             ),
         ),
     ),

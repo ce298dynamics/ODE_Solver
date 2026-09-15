@@ -10,10 +10,15 @@ and the four techniques a first course solves them with.
 from __future__ import annotations
 
 from .model import (
+    Case,
     Choice,
     ChoiceTemplate,
+    ClassifyTemplate,
     Example,
+    ExpressionTemplate,
+    FaultTemplate,
     Lesson,
+    ModelTemplate,
     Note,
     NumericTemplate,
     Passage,
@@ -299,6 +304,9 @@ SEPARABLE = Lesson(
                 "multiplying the exponential.",
             ),
             slots=(("a", (1, 2, 3)), ("k", (0, 1, 2)), ("c", (1, 2))),
+            # The power of t is what decides the work: k = 0 is a bare
+            # exponential, k = 2 an integral somebody has to stop and do.
+            level=lambda slots: ("easier", "typical", "harder")[slots["k"]],
         ),
         Template(
             key="cooling",
@@ -316,6 +324,19 @@ SEPARABLE = Lesson(
                 "y(0) = {c} fixes the coefficient in front of it.",
             ),
             slots=(("a", (1, 2, 3)), ("b", (5, 10, 20)), ("c", (0, 30, 50))),
+        ),
+        FaultTemplate(
+            key="lost-the-constant",
+            title="Spot the mistake: a decay with a condition",
+            prompt="Somebody separated this, integrated both sides and "
+                   "handed in the answer below. What went wrong?",
+            equation="y' = -{a}*y",
+            conditions="y(0) = {c}",
+            wrong="exp(-{a}*t)",
+            fault="no-constant",
+            others=("sign-in-exponent", "missing-particular",
+                    "undivided-factor"),
+            slots=(("a", (1, 2, 3, 4)), ("c", (2, 3, 5, 7))),
         ),
     ),
 )
@@ -636,6 +657,82 @@ LINEAR = Lesson(
             # answer shape, and not what this drill is practising.
             reject=lambda s: s["a"] == s["c"],
         ),
+        ModelTemplate(
+            key="mixing-tank",
+            title="Set up the equation: a stirred tank",
+            prompt="A tank holds {V} litres of water and is kept stirred. "
+                   "Dye solution carrying {c} grams a litre runs in at {r} "
+                   "litres a minute, and the mixture runs out at the same "
+                   "rate. Write the equation for y, the grams of dye in the "
+                   "tank after t minutes.",
+            equation="y' = {c}*{r} - {r}*y/{V}",
+            because="Rate in minus rate out, in grams a minute. In: {r} "
+                    "litres a minute at {c} grams a litre — a constant, and "
+                    "nothing to do with y. Out: the volume stays at {V} "
+                    "litres because the two rates are equal, so the mixture "
+                    "leaving is at y/{V} grams a litre and carries away {r} "
+                    "times that.",
+            hints=(
+                "Write it as rate in − rate out, in grams per minute. "
+                "Nothing else changes the amount of dye.",
+                "The inflow is a concentration times a flow rate, and "
+                "neither depends on how much dye is already in the tank.",
+                "For the outflow, the concentration is the amount divided by "
+                "the volume — and the volume never changes, because as much "
+                "runs out as runs in.",
+            ),
+            slots=(("V", (100, 200, 500)), ("r", (4, 5, 10)),
+                   ("c", (2, 3, 5))),
+        ),
+        ExpressionTemplate(
+            key="the-integrating-factor",
+            title="One step only: the integrating factor",
+            prompt="Write the integrating factor μ(t) for   {shown} = {q}.   "
+                   "Do not solve the equation.",
+            answer="{mu}",
+            up_to_constant=True,
+            because="μ = e^(∫p dt) with p = {p}. The constant of integration "
+                    "in that exponent only multiplies μ by a constant, and a "
+                    "constant multiple of an integrating factor is another "
+                    "one — so it is left out.",
+            hints=(
+                "μ is e to the integral of the coefficient of y. The forcing "
+                "term on the right plays no part in choosing it.",
+                "Integrate p with respect to t and put the result in the "
+                "exponent. Nothing else goes in there.",
+                "Write it as exp(...). If the integral came out as a "
+                "logarithm, remember that e^(k·ln t) is t^k — the "
+                "exponential and the logarithm undo each other and leave a "
+                "power.",
+            ),
+            slots=(("p,shown,mu,tier", (
+                ("3", "y' + 3y", "exp(3*t)", "easier"),
+                ("-2", "y' − 2y", "exp(-2*t)", "easier"),
+                ("5", "y' + 5y", "exp(5*t)", "easier"),
+                ("t", "y' + t·y", "exp(t**2/2)", "typical"),
+                ("2*t", "y' + 2t·y", "exp(t**2)", "typical"),
+                ("-t", "y' − t·y", "exp(-t**2/2)", "typical"),
+                ("2/t", "y' + 2y/t", "t**2", "harder"),
+                ("-3/t", "y' − 3y/t", "t**(-3)", "harder"),
+                ("cos(t)", "y' + y·cos(t)", "exp(sin(t))", "harder"),
+            )), ("q", ("t", "1", "e^t"))),
+            level=lambda slots: slots["tier"],
+        ),
+        FaultTemplate(
+            key="never-divided-back",
+            title="Spot the mistake: an integrating factor left in",
+            prompt="Somebody multiplied through by μ, integrated, and "
+                   "handed this in. What went wrong?",
+            equation="y' + {a}*y = {b}",
+            wrong="{ratio}*exp({a}*t) + C1",
+            fault="undivided-factor",
+            others=("sign-in-exponent", "no-constant", "missing-particular"),
+            slots=(("a,b,ratio", (
+                (2, 10, 5), (2, 12, 6), (3, 12, 4), (3, 30, 10),
+                (4, 20, 5), (4, 12, 3), (5, 30, 6), (5, 20, 4),
+                (2, 30, 15), (3, 60, 20),
+            )),),
+        ),
     ),
 )
 
@@ -923,6 +1020,66 @@ BASICS = Lesson(
             ),
             latex=r"y' = {a}\,y",
             slots=(("a", (2, 3, 4, 5, 6, 7, 8)),),
+        ),
+        ModelTemplate(
+            key="family-to-equation",
+            title="Read the equation off the family",
+            prompt="Every curve in the family   y = {family}   solves one "
+                   "first-order equation, and the equation has no C in it. "
+                   "Write it.",
+            equation="{answer}",
+            because="{why}",
+            hints=(
+                "Differentiate the family once. That gives y' in terms of t "
+                "and the constant C.",
+                "Now get rid of C. The family itself tells you what C is in "
+                "terms of t and y — rearrange it and substitute.",
+                "What is left relates y', y and t, with no C anywhere. That "
+                "is the equation the family came from.",
+            ),
+            slots=(("family,answer,why,tier", (
+                ("C·e^(2t)", "y' = 2*y",
+                 "Differentiating gives y' = 2·C·e^(2t). But C·e^(2t) is y "
+                 "itself, so y' = 2y — and the constant has gone.",
+                 "easier"),
+                ("C·e^(-3t)", "y' = -3*y",
+                 "y' = −3·C·e^(-3t), and C·e^(-3t) is y, so y' = −3y. The "
+                 "rate is negative, which is what decay means.",
+                 "easier"),
+                ("t² + C", "y' = 2*t",
+                 "Here C comes off on its own: y' = 2t, with no y in it at "
+                 "all. Not every family leads to an equation that mentions "
+                 "y.",
+                 "easier"),
+                ("C·t²", "t*y' = 2*y",
+                 "y' = 2·C·t, and C is y/t², so y' = 2y/t. Multiply up by t "
+                 "and nothing is left in the denominator.",
+                 "typical"),
+                ("C·t³", "t*y' = 3*y",
+                 "y' = 3·C·t², and C is y/t³, so y' = 3y/t. The power of t "
+                 "in the family becomes the coefficient.",
+                 "typical"),
+                ("C/t", "t*y' = -y",
+                 "y' = −C/t², and C is t·y, so y' = −y/t. The same shape as "
+                 "the powers above, with the exponent negative.",
+                 "typical"),
+                ("C·e^(t²)", "y' = 2*t*y",
+                 "The chain rule gives y' = 2t·C·e^(t²), and the exponential "
+                 "with its constant is y — so the coefficient of y is what "
+                 "the exponent differentiated to.",
+                 "harder"),
+                ("4 + C·e^(-t)", "y' = 4 - y",
+                 "y' = −C·e^(-t). The family says C·e^(-t) is y − 4, so "
+                 "y' = −(y − 4) = 4 − y. The constant 4 is where the "
+                 "solutions settle, and it survives into the equation.",
+                 "harder"),
+                ("C·e^t - t - 1", "y' = y + t",
+                 "y' = C·e^t − 1, and the family says C·e^t is y + t + 1. "
+                 "Substituting gives y' = y + t: the polynomial part is what "
+                 "the forcing term left behind.",
+                 "harder"),
+            )),),
+            level=lambda slots: slots["tier"],
         ),
     ),
 )
@@ -1853,6 +2010,131 @@ SUBSTITUTIONS = Lesson(
                 "taking the branch the condition sits on.",
             ),
             slots=(("a", (1, 2, 3)), ("b", (1, 2))),
+        ),
+        ClassifyTemplate(
+            key="which-first-order-method",
+            title="Which method would you reach for first?",
+            prompt="Read it, decide, and say what decided it. Do not solve "
+                   "it.",
+            options=("separable", "1st_linear", "1st_exact",
+                     "1st_homogeneous_coeff_best", "Bernoulli"),
+            cases=(
+                Case(
+                    equation="y' = y**2*cos(t)",
+                    technique="separable",
+                    why="A function of t times a function of y, which is the "
+                        "whole test. It is not linear — y appears squared — "
+                        "so no integrating factor will touch it.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y' = t*(1 + y**2)",
+                    technique="separable",
+                    why="Already factored for you: t in one bracket, "
+                        "everything in y in the other. Divide by 1 + y² and "
+                        "both sides integrate.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y' = cos(t)/y",
+                    technique="separable",
+                    why="A quotient, but the numerator is all t and the "
+                        "denominator all y. Multiply up by y·dt and it is "
+                        "separated.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y' + 2*y = t",
+                    technique="1st_linear",
+                    why="Linear in y and already in standard form, with "
+                        "p = 2. The t on the right is what stops it "
+                        "separating: there is no way to factor it into a "
+                        "t-part times a y-part.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="t*y' + y = t**3",
+                    technique="1st_linear",
+                    why="Divide by t: y' + y/t = t², linear with p = 1/t. "
+                        "The left side was already (t·y)' — the integrating "
+                        "factor arriving before it was asked for.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y' + y/t = exp(t)",
+                    technique="1st_linear",
+                    why="Linear with p = 1/t, so μ = t. The forcing term e^t "
+                        "never enters the choice of μ, however awkward it "
+                        "looks.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y' = (t + y)/t",
+                    technique="1st_linear",
+                    why="It looks homogeneous, and it is — but expand it "
+                        "first: y' = 1 + y/t is linear, with p = −1/t. The "
+                        "integrating factor is the shorter route, and it is "
+                        "the one to reach for.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="y' = (t**2 + y**2)/(t*y)",
+                    technique="1st_homogeneous_coeff_best",
+                    why="Divide top and bottom by t²: the right-hand side "
+                        "becomes (1 + (y/t)²)/(y/t), which depends on "
+                        "nothing but the ratio. So v = y/t.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y' = (2*t*y + y**2)/(2*t**2)",
+                    technique="1st_homogeneous_coeff_best",
+                    why="Every term is degree two over degree two, so "
+                        "dividing through by t² leaves a function of y/t "
+                        "alone — which is what homogeneous means.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y' = (y - t)/(y + t)",
+                    technique="1st_homogeneous_coeff_best",
+                    why="Divide top and bottom by t and the right-hand side "
+                        "is (y/t − 1)/(y/t + 1). Nothing separates, and y "
+                        "appears in a denominator so it is not linear "
+                        "either.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="y' + y = t*y**2",
+                    technique="Bernoulli",
+                    why="Linear apart from the y² on the right. That is the "
+                        "Bernoulli shape with n = 2, and v = 1/y turns it "
+                        "into a linear equation.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y' + 3*y/t = y**2",
+                    technique="Bernoulli",
+                    why="p is 3/t rather than a constant, which changes "
+                        "nothing: the shape is still linear except for one "
+                        "power of y on the right.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="y' = -(2*t + y)/(t + 3*y**2)",
+                    technique="1st_exact",
+                    why="Write it as (2t + y) + (t + 3y²)·y' = 0. Then "
+                        "∂M/∂y = 1 and ∂N/∂t = 1, so the left-hand side is "
+                        "already the derivative of some F(t, y).",
+                    tier="typical",
+                ),
+                Case(
+                    equation="(2*t + y**2)*y' = -(2*y + 1)",
+                    technique="1st_exact",
+                    why="M = 2y + 1 and N = 2t + y², and both cross "
+                        "derivatives are 2. Nothing separates, and the y² "
+                        "stops it being linear.",
+                    tier="harder",
+                ),
+            ),
         ),
     ),
 )

@@ -22,6 +22,22 @@ can say nothing about, so those have a stored answer -- and each carries a
 reason for *every* option, because the reason a wrong option was tempting is
 usually the thing that was actually misunderstood.
 
+**Four later kinds ask the questions those two cannot.** Everything above hands
+the student an equation and asks what to do with it, which is not what an
+examination does. So a lesson may also drill *which method would you reach for
+first* over a pool of equations, *write the equation* for a situation or for a
+family of curves, *write one move of the method* -- the integrating factor, the
+characteristic polynomial, the Wronskian -- and *what went wrong* with an
+answer somebody else arrived at. The first and last produce ordinary `Choice`
+questions; the middle two are graded by `symbolic.check_model` and
+`check_expression`, which ask whether two pieces of mathematics are the same
+rather than whether two strings are.
+
+None of them is trusted. Each has a routine in the application that decides its
+answers -- `classify_ode` for a method, `analysis.classify` for a phase
+portrait, `check_answer` for whether a wrong answer is really wrong -- and
+`tests/test_drill_kinds.py` puts every draw of every one of them through it.
+
 The worked examples of each lesson are equations the narrator can already
 handle, so the working shown is generated and checked rather than transcribed.
 An example that drifted out of step with the tool that explains it would be
@@ -45,9 +61,17 @@ from . import (
 )
 from .model import (
     NOTE_KINDS,
+    TIERS,
+    Case,
     Choice,
+    ClassifyTemplate,
     Example,
+    Expression,
+    ExpressionTemplate,
+    FaultTemplate,
     Lesson,
+    Model,
+    ModelTemplate,
     Note,
     Numeric,
     Passage,
@@ -58,12 +82,20 @@ from .model import (
 
 __all__ = [
     "NOTE_KINDS",
+    "TIERS",
     "Passage",
     "Note",
     "Example",
     "Choice",
     "Solve",
     "Numeric",
+    "Model",
+    "Expression",
+    "Case",
+    "ModelTemplate",
+    "ExpressionTemplate",
+    "ClassifyTemplate",
+    "FaultTemplate",
     "Lesson",
     "Unit",
     "UNITS",
@@ -72,6 +104,7 @@ __all__ = [
     "unit_by_key",
     "unit_of",
     "questions_of",
+    "formulas",
     "grade_choice",
 ]
 
@@ -174,3 +207,28 @@ def unit_of(lesson: Lesson | str) -> Unit | None:
 
 def questions_of(lesson: Lesson) -> tuple[Choice | Solve, ...]:
     return lesson.questions
+
+
+def formulas(units: tuple[Unit, ...] | None = None
+             ) -> tuple[tuple[Unit, Lesson, Note], ...]:
+    """Every `Note` of kind "formula", in course order, with its provenance.
+
+    The crib sheet a first course allows into the examination is a page of
+    formulas, and this course already contains one: sixty-five notes were
+    written as `kind="formula"` because a formula is a different kind of thing
+    from an idea or a pitfall and is boxed differently on the lesson page. That
+    classification was made for the reader's sake one card at a time, and this
+    collects on it -- the sheet is *found* in the course rather than authored
+    beside it, so it cannot fall out of step with what the lessons teach.
+
+    A note is returned with its lesson and unit rather than alone, because a
+    formula with no indication of what it belongs to is exactly the sheet
+    nobody can use under time.
+    """
+    found = []
+    for unit in (UNITS if units is None else units):
+        for lesson in unit.lessons:
+            for note in lesson.notes:
+                if note.kind == "formula":
+                    found.append((unit, lesson, note))
+    return tuple(found)

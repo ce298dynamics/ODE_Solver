@@ -7,23 +7,38 @@ and joining sixty points with straight lines would look like a polygon. Sampling
 the interpolant instead gives a smooth curve at any zoom level, and the step
 points can then be drawn *on top* — so the picture shows both the true
 trajectory and how sparsely the solver needed to sample it.
+
+Beside the picture, in words and in numbers. A plot is the one representation
+of a solution this application cannot hand to somebody who is not looking at
+it, and until now that is exactly what it did: no alternative text, no table,
+nothing. So the panel carries three views of the same solve -- the curve, a
+paragraph describing what the curve does (`describe.summarise`, which measures
+rather than asserts), and the output points as a table that can be arrowed
+through and copied. The paragraph is also the plot's accessible description,
+which is what a screen reader reads in place of the image.
 """
 
 from __future__ import annotations
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
+from PySide6.QtGui import QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QTableView,
+    QTabWidget,
     QVBoxLayout,
+    QWidget,
 )
 
+from .. import describe, theme
 from ..theme import Palette
 from .flow import FlowWidget
 
@@ -59,13 +74,96 @@ class _ComponentChip(QPushButton):
         self.setText(f"{'●' if on else '○'}  {self.label}")
         colour = self.colour if on else self.muted
         self.setStyleSheet(
-            f"QPushButton {{"
-            f" background: transparent; border: 1px solid"
-            f" {'transparent' if not on else colour + '55'};"
-            f" border-radius: 10px; padding: 2px 9px;"
-            f" font-size: 11.5px; color: {colour}; }}"
-            f"QPushButton:hover {{ border-color: {colour}; }}"
+            theme.scaled(f"QPushButton {{"
+                         f" background: transparent; border: 1px solid"
+                         f" {'transparent' if not on else colour + '55'};"
+                         f" border-radius: 10px; padding: 2px 9px;"
+                         f" font-size: 11.5px; color: {colour}; }}"
+                         f"QPushButton:hover {{ border-color: {colour}; }}")
         )
+
+
+class _SolutionModel(QAbstractTableModel):
+    """``(t, y₁ … yₙ)`` at the output times, as a table.
+
+    A model rather than a filled `QTableWidget`: Robertson to t = 1e11 has
+    tens of thousands of output points, and building a widget item for each of
+    them costs more than the solve did. A model is asked only for the rows
+    that are on screen.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._t = np.empty(0)
+        self._y = np.empty((0, 0))
+        self._labels: tuple[str, ...] = ()
+
+    def set_solution(self, t, y, labels=()) -> None:
+        self.beginResetModel()
+        self._t = np.asarray(t, dtype=float)
+        self._y = np.atleast_2d(np.asarray(y, dtype=float))
+        self._labels = tuple(labels)
+        self.endResetModel()
+
+    def rowCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else int(self._t.size)
+
+    def columnCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else int(self._y.shape[0]) + 1
+
+    def column_name(self, column: int) -> str:
+        if column == 0:
+            return "t"
+        index = column - 1
+        return (self._labels[index] if index < len(self._labels)
+                else f"y[{index}]")
+
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid() or role not in (Qt.DisplayRole, Qt.AccessibleTextRole):
+            return None
+        row, column = index.row(), index.column()
+        value = (self._t[row] if column == 0 else self._y[column - 1, row])
+        text = f"{float(value):.6g}"
+        if role == Qt.AccessibleTextRole:
+            return f"{self.column_name(column)} {text}"
+        return text
+
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if role != Qt.DisplayRole:
+            return None
+        if orientation == Qt.Horizontal:
+            return self.column_name(section)
+        return str(section + 1)
+
+class _SolutionTable(QTableView):
+    """The table view, with the one thing a table owes its reader: copying.
+
+    Qt gives a view selection and navigation for free and copying not at all,
+    so `Ctrl+C` is wired here. Tab-separated, which is what a spreadsheet
+    expects when text is pasted into it.
+    """
+
+    def keyPressEvent(self, event) -> None:
+        if event.matches(QKeySequence.Copy):
+            self.copy_selection()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def copy_selection(self) -> str:
+        """Put the selected cells on the clipboard, and return what was put."""
+        chosen = self.selectedIndexes()
+        if not chosen:
+            return ""
+        rows = sorted({index.row() for index in chosen})
+        columns = sorted({index.column() for index in chosen})
+        table = {(index.row(), index.column()): index.data() for index in chosen}
+        text = "\n".join(
+            "\t".join(str(table.get((row, column), "")) for column in columns)
+            for row in rows
+        )
+        QGuiApplication.clipboard().setText(text)
+        return text
 
 
 class PlotPanel(QFrame):
@@ -145,7 +243,22 @@ class PlotPanel(QFrame):
         self.plot = pg.PlotWidget()
         self.plot.setBackground(palette.plot_background)
         self.plot.showGrid(x=True, y=True, alpha=0.18)
-        layout.addWidget(self.plot, 1)
+
+        # Tabs rather than a second panel: the three are the same solution
+        # said three ways, only one is wanted at a time, and a tab bar is the
+        # one arrangement of them that a keyboard already knows how to move
+        # between.
+        self.views = QTabWidget()
+        self.views.addTab(self.plot, "Plot")
+        self.views.addTab(self._build_description(), "In words")
+        self.views.addTab(self._build_table(), "Data")
+        self.views.setTabToolTip(
+            1, "What the curve does, in a sentence per component"
+        )
+        self.views.setTabToolTip(
+            2, "Every output point. Arrow through it; Ctrl+C copies."
+        )
+        layout.addWidget(self.views, 1)
 
         self.legend = self.plot.addLegend(offset=(-10, 10), labelTextSize="9pt")
         self._curves: list = []
@@ -217,6 +330,12 @@ class PlotPanel(QFrame):
     def clear(self, message: str = "") -> None:
         self._reset()
         self.title.setText(message or "—")
+        words = message or "Nothing has been solved yet."
+        self.summary_label.setText(words)
+        self.plot.setAccessibleName("plot")
+        self.plot.setAccessibleDescription(words)
+        self.table_model.set_solution(np.empty(0), np.empty((0, 0)))
+        self.table_note.setText("")
 
     def update_from(self, result, view: str = "Auto") -> None:
         # Apply the catalogue's log-time preference once per problem, then
@@ -268,6 +387,95 @@ class PlotPanel(QFrame):
             "spacetime", "phase", "orbit", "nbody"
         ) else 0
         self._sync_components(result, components)
+        self._describe(result, kind)
+
+    # -- the other two views ---------------------------------------------
+
+    def _build_description(self) -> QWidget:
+        """The paragraph, on its own tab and selectable.
+
+        Selectable because it is text somebody may want to quote into their
+        own notes, and scrolling because a twenty-eight-component problem
+        produces a paragraph longer than the panel.
+        """
+        holder = QWidget()
+        inner = QVBoxLayout(holder)
+        inner.setContentsMargins(10, 10, 10, 10)
+
+        self.summary_label = QLabel("Nothing has been solved yet.")
+        self.summary_label.setWordWrap(True)
+        self.summary_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.summary_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.summary_label.setAccessibleName("what the plot shows")
+        inner.addWidget(self.summary_label, 1)
+        return holder
+
+    def _build_table(self) -> QWidget:
+        holder = QWidget()
+        inner = QVBoxLayout(holder)
+        inner.setContentsMargins(0, 0, 0, 0)
+        inner.setSpacing(4)
+
+        self.table_model = _SolutionModel(self)
+        self.table = _SolutionTable()
+        self.table.setModel(self.table_model)
+        self.table.setAlternatingRowColors(True)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectItems)
+        self.table.setAccessibleName("solution values")
+        self.table.setAccessibleDescription(
+            "The output times and the state at each of them."
+        )
+        self.table.verticalHeader().setDefaultSectionSize(20)
+        inner.addWidget(self.table, 1)
+
+        self.table_note = QLabel("")
+        self.table_note.setProperty("role", "muted")
+        self.table_note.setWordWrap(True)
+        self.table_note.setStyleSheet(theme.scaled("font-size: 10.5px;"))
+        inner.addWidget(self.table_note)
+        return holder
+
+    def summary(self) -> str:
+        """The paragraph currently describing the plot. For tests, and alt text."""
+        return self.summary_label.text()
+
+    def _describe(self, result, kind: str) -> None:
+        """Say what was just drawn, in words and in a table.
+
+        Called from `_redraw` rather than from each of the three drawing
+        methods, so a form added later cannot forget to do it -- which is the
+        way an accessible description rots.
+        """
+        entry, solution = result.entry, result.solution
+        labels = tuple(entry.labels) if entry is not None else ()
+        title = entry.title if entry is not None else ""
+
+        if kind == "spacetime":
+            # The rows of `y` are points in space, not components of a state,
+            # so describing them one by one would be describing the grid.
+            field = np.real(solution.y)
+            words = (
+                f"{title}: a spacetime plot of {field.shape[0]} points in "
+                f"space against {solution.t.size} in time, u between "
+                f"{float(np.min(field)):.3g} and {float(np.max(field)):.3g}."
+            )
+        else:
+            words = describe.summarise(solution, labels, title=title)
+
+        self.summary_label.setText(words)
+        # The plot is an image, and an image with no alternative text is
+        # nothing at all to a screen reader.
+        self.plot.setAccessibleName(f"plot of {title}" if title else "plot")
+        self.plot.setAccessibleDescription(words)
+
+        times, values = describe.table_rows(solution)
+        self.table_model.set_solution(times, values, labels)
+        self.table.resizeColumnsToContents()
+        shown, total = times.size, solution.t.size
+        self.table_note.setText(
+            f"{total} output points." if shown == total else
+            f"{shown} of {total} output points, evenly spaced through them."
+        )
 
     # -- component visibility ---------------------------------------------
 

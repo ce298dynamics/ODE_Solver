@@ -251,3 +251,121 @@ def test_a_parameter_in_the_equation_is_shared_with_the_answer():
     )
     result = check_answer(parsed, "C1*cos(sqrt(c)*t)")
     assert result.correct is True, result.message
+
+
+# ---------------------------------------------------------------------------
+# Reading the residual
+# ---------------------------------------------------------------------------
+#
+# The verdict says whether an answer is right. These say how far it got, and
+# every one of them is a claim the ladder has to *prove* by substituting
+# something -- never a guess at what a wrong answer probably means.
+
+
+def test_the_complementary_function_is_named_as_one():
+    """The commonest miss in the whole course: the homogeneous equation solved
+    and the forcing term never touched. Substituting it leaves precisely what
+    substituting nothing leaves, which is what the ladder tests for."""
+    result = check_answer(_parsed("y'' - y = 6*t"),
+                          "C1*exp(t) + C2*exp(-t)")
+
+    assert result.correct is False
+    assert "complementary function" in result.diagnosis
+    assert "particular solution" in result.diagnosis
+
+
+def test_a_lost_coefficient_is_named_as_one():
+    """`cos(2t)` has the shape of the particular solution and not its
+    coefficient, and -4/3 of it is exact."""
+    result = check_answer(_parsed("y'' + y = 4*cos(2*t)"), "cos(2*t)")
+
+    assert result.correct is False
+    assert "coefficient" in result.diagnosis
+    assert "-4/3" in result.diagnosis
+
+
+def test_a_sign_is_named_as_a_sign():
+    result = check_answer(_parsed("y' - y = exp(2*t)"), "-exp(2*t)")
+
+    assert result.correct is False
+    assert result.diagnosis.startswith("A sign")
+
+
+def test_a_missing_constant_is_named_as_one():
+    """And in preference to the coefficient rung, which is also true here and
+    less useful: an answer carrying an arbitrary constant absorbs a scaling."""
+    result = check_answer(_parsed("y' + y = 5"), "C1*exp(-t) + 1")
+
+    assert result.correct is False
+    assert "one constant away" in result.diagnosis
+    assert "adding 4" in result.diagnosis
+
+
+def test_an_answer_with_no_t_in_it_is_told_so():
+    result = check_answer(_parsed("y' = y"), "5")
+
+    assert result.correct is False
+    assert "does not contain t" in result.diagnosis
+
+
+def test_the_right_family_and_the_wrong_member_of_it():
+    """The most encouraging verdict there is, and the one most worth spelling
+    out: the method is right and what is left is arithmetic."""
+    result = check_answer(_parsed("y' = 2*t", "y(0) = 3"), "t**2")
+
+    assert result.correct is True
+    assert result.matches_conditions is False
+    assert "The method is right" in result.diagnosis
+    assert "y = 0" in result.diagnosis, "it says what the answer gives there"
+    assert "3" in result.diagnosis, "and what was asked for"
+
+
+def test_a_correct_answer_is_not_diagnosed():
+    """There is nothing to diagnose, and a sentence under a tick would read as
+    a complaint about an answer that was right."""
+    result = check_answer(_parsed("y' = 2*y"), "C1*exp(2*t)")
+
+    assert result.correct is True
+    assert result.diagnosis == ""
+
+
+def test_an_unrecognised_miss_says_nothing_rather_than_guessing():
+    """Every rung is a test that fires or does not. `exp(t)` for `y' = 2y` is
+    simply wrong, in no way the ladder can name, and inventing a sentence for
+    it would be worse than the residual it falls back to."""
+    result = check_answer(_parsed("y' = 2*y"), "exp(t)")
+
+    assert result.correct is False
+    assert result.diagnosis == ""
+
+
+def test_a_system_says_which_equation_it_got():
+    """"Half right" is a literal statement about a system, and the near-miss
+    worth catching: fixing one component in isolation breaks the other."""
+    parsed = parse_equation(
+        EquationSpec(equations=["x' = x", "y' = x + y"], variables=["x", "y"])
+    )
+    result = check_answer(parsed, "x = exp(t)\ny = exp(t)")
+
+    assert result.correct is False
+    assert "equation 1" in result.diagnosis
+    assert "equation 2" in result.diagnosis
+
+
+def test_a_system_written_the_wrong_way_round_is_told_so():
+    parsed = parse_equation(
+        EquationSpec(equations=["x' = 2*x", "y' = 3*y"], variables=["x", "y"])
+    )
+    result = check_answer(parsed, "x = exp(3*t)\ny = exp(2*t)")
+
+    assert result.correct is False
+    assert "wrong way round" in result.diagnosis
+
+
+def test_nothing_the_ladder_does_can_raise():
+    """It is asked on every wrong answer, so a rung that threw would turn a
+    cross into a traceback. `diagnose` swallows, and this is the promise."""
+    from odesuite_app.symbolic import AnswerCheck, diagnose
+
+    broken = AnswerCheck(expression=None, residual=None, correct=False)
+    assert diagnose(_parsed("y' = y"), broken) == ""

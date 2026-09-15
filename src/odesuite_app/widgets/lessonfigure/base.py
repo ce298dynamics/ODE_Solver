@@ -111,7 +111,7 @@ class LessonFigure(QFrame):
         layout.addLayout(self._grid)
 
         self.build_sliders()
-        self.draw()
+        self.redraw()
 
     # -- scaffolding -----------------------------------------------------
 
@@ -121,7 +121,7 @@ class LessonFigure(QFrame):
         # `preview` rather than `committed`: these figures redraw in a few
         # milliseconds, and a figure that lags behind the thumb stops feeling
         # like a demonstration of anything.
-        slider.preview.connect(lambda _: self.draw())
+        slider.preview.connect(lambda _: self.redraw())
         self.sliders[name] = slider
         row, column = divmod(len(self.sliders) - 1, 2)
         self._grid.addWidget(slider, row, column)
@@ -139,3 +139,30 @@ class LessonFigure(QFrame):
     def draw(self) -> None:
         """Subclass hook: redraw from the current slider values."""
         raise NotImplementedError
+
+    def redraw(self) -> None:
+        """`draw`, and then say in words what it drew.
+
+        Every figure here already writes its own readout -- the number that
+        changed is usually the point -- so the text alternative a plot owes a
+        reader who is not looking at it has been sitting beside the picture
+        all along, unattached to it. This is the attachment, done once for
+        every figure rather than asked of each of them, because an accessible
+        description that each subclass has to remember is one that the next
+        subclass forgets.
+        """
+        self.draw()
+        self.publish_text()
+
+    def publish_text(self) -> None:
+        """Hang the caption and the readout on the plots as alt text."""
+        words = " ".join(part for part in (self.caption, self.readout.text())
+                         if part)
+        for index, pane in enumerate(self.panes):
+            pane.setAccessibleName(
+                self.title if len(self.panes) == 1
+                else f"{self.title}, plot {index + 1} of {len(self.panes)}"
+            )
+            pane.setAccessibleDescription(words)
+        self.setAccessibleName(self.title)
+        self.setAccessibleDescription(words)

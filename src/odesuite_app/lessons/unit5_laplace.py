@@ -27,6 +27,7 @@ from .model import (
     Choice,
     ChoiceTemplate,
     Example,
+    ExpressionTemplate,
     Lesson,
     Note,
     NumericTemplate,
@@ -667,6 +668,41 @@ TRANSFORM = Lesson(
                 "each piece backwards off the table.",
             ),
             slots=(("a", (1, 2, 3, 4)), ("b", (1, 2, 5)), ("c", (0, 1, 2))),
+        ),
+        ExpressionTemplate(
+            key="the-transform",
+            title="One step only: the transform of a forcing term",
+            prompt="Write F(s) = ℒ{{f}} for   f(t) = {f}.   Give it in terms "
+                   "of s.",
+            answer="{answer}",
+            because="Straight from the table, which is how this step is "
+                    "meant to be done: the definition is an integral, and "
+                    "the point of the table is never to compute it twice. "
+                    "Each entry is worth recognising in both directions, "
+                    "because the inverse transform at the end of the method "
+                    "reads the same table backwards.",
+            hints=(
+                "This is a table lookup rather than an integral. Find the "
+                "shape of f in the table first.",
+                "An exponential shifts s; a power of t raises the power of s "
+                "in the denominator; a sine or cosine puts a sum of squares "
+                "there.",
+                "If f is an exponential times something, transform the "
+                "something and then replace s by s minus the rate in the "
+                "exponential — that is the shifting rule.",
+            ),
+            slots=(("f,answer,tier", (
+                ("exp(3*t)", "1/(s - 3)", "easier"),
+                ("exp(-2*t)", "1/(s + 2)", "easier"),
+                ("t", "1/s**2", "easier"),
+                ("t**2", "2/s**3", "typical"),
+                ("sin(2*t)", "2/(s**2 + 4)", "typical"),
+                ("cos(3*t)", "s/(s**2 + 9)", "typical"),
+                ("t*exp(2*t)", "1/(s - 2)**2", "harder"),
+                ("exp(-t)*sin(3*t)", "3/((s + 1)**2 + 9)", "harder"),
+                ("t**3", "6/s**4", "harder"),
+            )),),
+            level=lambda slots: slots["tier"],
         ),
     ),
 )

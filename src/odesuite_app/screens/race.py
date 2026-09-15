@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import catalog
+from .. import catalog, theme
 from ..solver import SolveRequest
 from ..state import SessionState, methods_for
 from ..theme import Palette
@@ -61,7 +61,7 @@ class _Lane(QWidget):
 
         self.name = QLabel(method)
         self.name.setStyleSheet(
-            f"color: {colour}; font-weight: 700; font-size: 12px;"
+            theme.scaled(f"color: {colour}; font-weight: 700; font-size: 12px;")
         )
         self.name.setFixedWidth(84)
         layout.addWidget(self.name, 0, 0)
@@ -79,7 +79,7 @@ class _Lane(QWidget):
 
         self.counters = QLabel("—")
         self.counters.setProperty("role", "mono")
-        self.counters.setStyleSheet("font-size: 11px;")
+        self.counters.setStyleSheet(theme.scaled("font-size: 11px;"))
         self.counters.setFixedWidth(268)
         self.counters.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         layout.addWidget(self.counters, 0, 2)
@@ -162,7 +162,7 @@ class RaceScreen(QWidget):
 
         self.status = QLabel("choose competitors and press run")
         self.status.setProperty("role", "muted")
-        self.status.setStyleSheet("font-size: 10.5px;")
+        self.status.setStyleSheet(theme.scaled("font-size: 10.5px;"))
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addStretch(1)
@@ -204,7 +204,7 @@ class RaceScreen(QWidget):
         header.addStretch(1)
         self.leaderboard = QLabel("")
         self.leaderboard.setProperty("role", "mono")
-        self.leaderboard.setStyleSheet("font-size: 11px;")
+        self.leaderboard.setStyleSheet(theme.scaled("font-size: 11px;"))
         header.addWidget(self.leaderboard)
         layout.addLayout(header)
 

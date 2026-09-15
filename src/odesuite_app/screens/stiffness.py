@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
 
 from odesuite.stability import stability_grid
 
-from .. import catalog
+from .. import catalog, theme
 from ..analysis import jacobian_at
 from ..state import SessionState, methods_for
 from ..theme import Palette
@@ -206,7 +206,7 @@ class StiffnessScreen(QWidget):
         )
         explanation.setWordWrap(True)
         explanation.setProperty("role", "muted")
-        explanation.setStyleSheet("font-size: 11px;")
+        explanation.setStyleSheet(theme.scaled("font-size: 11px;"))
         layout.addWidget(explanation)
 
         add_heading(layout, "Problem", space_above=4)
@@ -224,7 +224,7 @@ class StiffnessScreen(QWidget):
 
         self.verdict = QLabel("")
         self.verdict.setWordWrap(True)
-        self.verdict.setStyleSheet("font-size: 11px;")
+        self.verdict.setStyleSheet(theme.scaled("font-size: 11px;"))
         layout.addWidget(self.verdict)
 
         add_heading(layout, "Tolerance", space_above=4)
@@ -249,13 +249,13 @@ class StiffnessScreen(QWidget):
 
         self.readout = QLabel("")
         self.readout.setProperty("role", "mono")
-        self.readout.setStyleSheet("font-size: 11px;")
+        self.readout.setStyleSheet(theme.scaled("font-size: 11px;"))
         self.readout.setWordWrap(True)
         layout.addWidget(self.readout)
 
         self.status = QLabel("")
         self.status.setProperty("role", "muted")
-        self.status.setStyleSheet("font-size: 10.5px;")
+        self.status.setStyleSheet(theme.scaled("font-size: 10.5px;"))
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addStretch(1)

@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
 
 from odesuite import make_stepper, solve
 
-from .. import catalog
+from .. import catalog, theme
 from ..state import SessionState, methods_for
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
@@ -233,7 +233,7 @@ class AccuracyScreen(QWidget):
         self.explanation = QLabel("")
         self.explanation.setWordWrap(True)
         self.explanation.setProperty("role", "muted")
-        self.explanation.setStyleSheet("font-size: 11px;")
+        self.explanation.setStyleSheet(theme.scaled("font-size: 11px;"))
         layout.addWidget(self.explanation)
 
         add_heading(layout, "Problem", space_above=4)
@@ -259,7 +259,7 @@ class AccuracyScreen(QWidget):
 
         self.status = QLabel("")
         self.status.setProperty("role", "muted")
-        self.status.setStyleSheet("font-size: 10.5px;")
+        self.status.setStyleSheet(theme.scaled("font-size: 10.5px;"))
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addStretch(1)
@@ -298,7 +298,7 @@ class AccuracyScreen(QWidget):
 
         self.summary = QLabel("—")
         self.summary.setProperty("role", "mono")
-        self.summary.setStyleSheet("font-size: 11px;")
+        self.summary.setStyleSheet(theme.scaled("font-size: 11px;"))
         self.summary.setTextFormat(Qt.RichText)
         self.summary.setWordWrap(True)
         self.summary.setAlignment(Qt.AlignTop)

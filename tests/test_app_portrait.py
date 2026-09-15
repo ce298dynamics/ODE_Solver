@@ -249,3 +249,117 @@ def test_stale_analysis_results_are_discarded(screen, qapp):
     stale = object()
     screen._on_analysis(stale, 98)
     assert screen._data is not stale
+
+
+# ---------------------------------------------------------------------------
+# The bifurcation tab
+# ---------------------------------------------------------------------------
+
+
+def _draw_diagram(screen, qapp, parameter: str) -> None:
+    index = screen.sweep_param.findData(parameter)
+    assert index >= 0, f"{parameter} is not offered as a sweep"
+    screen.sweep_param.setCurrentIndex(index)
+    screen._draw_diagram()
+    _settle(qapp)
+
+
+def test_the_bifurcation_tab_exists_beside_the_portrait(screen):
+    assert [screen.views.tabText(i) for i in range(screen.views.count())] == [
+        "Portrait", "Bifurcation",
+    ]
+
+
+def test_duration_is_not_offered_as_a_sweep(screen, qapp):
+    """A diagram over `t_end` is a set of flat lines: a true picture of nothing."""
+    _select(screen, "brusselator", qapp)
+    offered = {screen.sweep_param.itemData(i) for i in range(screen.sweep_param.count())}
+    assert "a" in offered and "b" in offered
+    assert "t_end" not in offered
+
+
+def test_the_brusselator_sweep_finds_its_hopf(screen, qapp):
+    _select(screen, "brusselator", qapp)
+    _draw_diagram(screen, qapp, "b")
+
+    diagram = screen._diagram
+    assert diagram is not None
+    hopfs = [f for f in diagram.bifurcations if f.kind == "Hopf"]
+    assert len(hopfs) == 1
+    assert hopfs[0].parameter == pytest.approx(2.0, rel=0.01)
+
+
+def test_the_diagram_note_names_the_bifurcation_it_found(screen, qapp):
+    _select(screen, "brusselator", qapp)
+    _draw_diagram(screen, qapp, "b")
+
+    note = screen.sweep_note.text()
+    assert "Hopf" in note
+    assert "turn back" in note, "the method's limitation is stated on screen"
+
+
+def test_stable_and_unstable_stretches_are_drawn_differently(screen, qapp):
+    """Dash pattern, not only colour -- the same rule the separatrices follow."""
+    from PySide6.QtCore import Qt
+
+    _select(screen, "brusselator", qapp)
+    _draw_diagram(screen, qapp, "b")
+
+    styles = {
+        item.opts["pen"].style()
+        for item in screen.sweep_plot.listDataItems()
+        if item.opts.get("pen") is not None
+    }
+    assert Qt.DashLine in styles
+    assert Qt.SolidLine in styles
+
+
+def test_the_duffing_sweep_draws_three_branches(screen, qapp):
+    _select(screen, "duffing", qapp)
+    _draw_diagram(screen, qapp, "alpha")
+
+    assert len(screen._diagram.branches) == 3
+    assert [f.kind for f in screen._diagram.bifurcations] == ["pitchfork"]
+
+
+def test_switching_system_drops_the_previous_diagram(screen, qapp):
+    _select(screen, "brusselator", qapp)
+    _draw_diagram(screen, qapp, "b")
+    assert screen._diagram is not None
+
+    _select(screen, "duffing", qapp)
+    assert screen._diagram is None
+    assert not screen.sweep_plot.listDataItems()
+
+
+def test_a_stale_sweep_result_is_discarded(screen, qapp):
+    _select(screen, "brusselator", qapp)
+    screen._diagram_token = 7
+    screen._on_diagram(object(), 3)
+    assert screen._diagram is None
+
+
+def test_a_failed_sweep_is_reported_rather_than_raised(screen, qapp):
+    _select(screen, "brusselator", qapp)
+    screen._on_diagram(ValueError("no"), screen._diagram_token)
+
+    assert screen._diagram is None
+    assert "sweep failed" in screen.sweep_note.text()
+    assert screen.sweep_button.isEnabled()
+
+
+def test_a_system_with_nothing_to_sweep_says_so(screen, qapp):
+    """Not a silent empty tab: the reason is on screen."""
+    entry = next(
+        (catalog.get(key) for key in catalog.keys()
+         if catalog.get(key).autonomous_2d
+         and not [s for s in catalog.get(key).params
+                  if s.name not in screen._NOT_WORTH_SWEEPING]),
+        None,
+    )
+    if entry is None:
+        pytest.skip("every planar system here has a parameter worth sweeping")
+
+    _select(screen, entry.key, qapp)
+    assert not screen.sweep_button.isEnabled()
+    assert "no parameter" in screen.sweep_note.text()

@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import analysis, catalog
+from .. import analysis, catalog, theme
 from ..custom import ParseError
 from ..equationmodel import build_entry
 from ..state import SessionState, methods_for
@@ -182,7 +182,7 @@ class LabScreen(QWidget):
         self.blurb = QLabel("")
         self.blurb.setWordWrap(True)
         self.blurb.setProperty("role", "muted")
-        self.blurb.setStyleSheet("font-size: 11px;")
+        self.blurb.setStyleSheet(theme.scaled("font-size: 11px;"))
         catalogue_layout.addWidget(self.blurb)
 
         #: Shown only when the solve cannot be trusted to be the whole answer:
@@ -191,7 +191,7 @@ class LabScreen(QWidget):
         #: almost always, so that its appearing means something.
         self.caution = QLabel("")
         self.caution.setWordWrap(True)
-        self.caution.setStyleSheet("font-size: 10.5px;")
+        self.caution.setStyleSheet(theme.scaled("font-size: 10.5px;"))
         self.caution.hide()
         catalogue_layout.addWidget(self.caution)
         self.source_stack.addWidget(catalogue_page)
@@ -212,7 +212,7 @@ class LabScreen(QWidget):
         self.method_note = QLabel("")
         self.method_note.setWordWrap(True)
         self.method_note.setProperty("role", "muted")
-        self.method_note.setStyleSheet("font-size: 10.5px;")
+        self.method_note.setStyleSheet(theme.scaled("font-size: 10.5px;"))
         layout.addWidget(self.method_note)
 
         add_heading(layout, "Accuracy", space_above=6)
@@ -245,7 +245,7 @@ class LabScreen(QWidget):
 
         self.toast = QLabel("")
         self.toast.setProperty("role", "muted")
-        self.toast.setStyleSheet("font-size: 10.5px;")
+        self.toast.setStyleSheet(theme.scaled("font-size: 10.5px;"))
         self.toast.setWordWrap(True)
         layout.addWidget(self.toast)
         layout.addStretch(1)
@@ -420,7 +420,7 @@ class LabScreen(QWidget):
 
         if notes:
             self.caution.setStyleSheet(
-                f"font-size: 10.5px; color: {self.palette_obj.warning};"
+                theme.scaled(f"font-size: 10.5px; color: {self.palette_obj.warning};")
             )
             self.caution.setText("  ".join(notes))
         self.caution.setVisible(bool(notes))
@@ -433,7 +433,7 @@ class LabScreen(QWidget):
 
     def _flash(self, message: str, error: bool = False) -> None:
         colour = self.palette_obj.danger if error else self.palette_obj.success
-        self.toast.setStyleSheet(f"font-size: 10.5px; color: {colour};")
+        self.toast.setStyleSheet(theme.scaled(f"font-size: 10.5px; color: {colour};"))
         self.toast.setText(message)
 
     def _copy_code(self) -> None:

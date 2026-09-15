@@ -12,9 +12,20 @@ as well as hue so they remain separable in greyscale.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
-__all__ = ["Palette", "DARK", "LIGHT", "PALETTES", "stylesheet", "apply_theme"]
+__all__ = [
+    "Palette",
+    "DARK",
+    "LIGHT",
+    "PALETTES",
+    "BASELINE_POINT_SIZE",
+    "text_scale",
+    "scaled",
+    "stylesheet",
+    "apply_theme",
+]
 
 
 @dataclass(frozen=True)
@@ -95,10 +106,78 @@ LIGHT = Palette(
 PALETTES = {"dark": DARK, "light": LIGHT}
 
 
-def stylesheet(palette: Palette) -> str:
+#: The point size Qt reports for the default application font on a display at
+#: 100% text scale. Every ``font-size`` written anywhere in this application is
+#: a pixel count chosen against *that* font, so this is the number they are all
+#: implicitly relative to -- and dividing by it is what turns the font Qt is
+#: actually handing us into a factor everything else can be multiplied by.
+BASELINE_POINT_SIZE = 9.0
+
+#: How far the scale is allowed to move. The lower bound stops a machine
+#: reporting an unexpectedly small default font from shrinking the whole
+#: application into illegibility; the upper bound is where Windows' own text
+#: scale stops.
+_SCALE_RANGE = (0.85, 3.0)
+
+#: A ``font-size`` in a style sheet or in an inline HTML ``style`` attribute.
+#: Both forms are matched by one pattern because both are what this
+#: application writes, and a reader raising their text scale does not care
+#: which of the two a given caption happened to use.
+_FONT_SIZE = re.compile(r"(font-size\s*:\s*)([0-9]*\.?[0-9]+)\s*px")
+
+
+def text_scale(app=None) -> float:
+    """How much larger the operating system wants text than we assume.
+
+    Windows' "Make text bigger" -- and the equivalent on the other two
+    platforms -- raises the *point size* of the default application font
+    without touching the device pixel ratio. Qt therefore reports it here and
+    nowhere else, and a style sheet written in pixels ignores it completely,
+    which is precisely the bug this exists to fix.
+
+    Returns 1.0 with no application running, so anything that renders
+    headlessly -- the tests, the thumbnail generator -- gets the sizes it was
+    written against.
+    """
+    if app is None:
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+    if app is None:
+        return 1.0
+    size = float(app.font().pointSizeF())
+    if size <= 0:
+        return 1.0
+    low, high = _SCALE_RANGE
+    return min(high, max(low, size / BASELINE_POINT_SIZE))
+
+
+def scaled(css: str, scale: float | None = None) -> str:
+    """`css` with every pixel font size multiplied by the text scale.
+
+    Applied to the whole application style sheet and to each of the inline
+    ones, because a reader who has asked for larger text wants *all* of it
+    larger: body and caption growing at different rates would be worse than
+    neither growing at all.
+
+    Only ``font-size`` is touched. Padding, borders and widths are device
+    pixels and are already handled by Qt's own high-DPI scaling; multiplying
+    them here as well would double-count it.
+    """
+    if scale is None:
+        scale = text_scale()
+    if abs(scale - 1.0) < 0.005:
+        return css
+    return _FONT_SIZE.sub(
+        lambda found: f"{found.group(1)}{float(found.group(2)) * scale:.1f}px",
+        css,
+    )
+
+
+def stylesheet(palette: Palette, scale: float | None = None) -> str:
     """Qt style sheet for the whole application."""
     p = palette
-    return f"""
+    return scaled(f"""
     QWidget {{
         background: {p.background};
         color: {p.text};
@@ -251,14 +330,14 @@ def stylesheet(palette: Palette) -> str:
         background: {p.surface_alt}; color: {p.text};
         border: 1px solid {p.border}; padding: 5px;
     }}
-    """
+    """, scale)
 
 
 def apply_theme(app, palette: Palette) -> None:
     """Apply `palette` to the running application and to pyqtgraph."""
     import pyqtgraph as pg
 
-    app.setStyleSheet(stylesheet(palette))
+    app.setStyleSheet(stylesheet(palette, text_scale(app)))
     pg.setConfigOption("background", palette.plot_background)
     pg.setConfigOption("foreground", palette.text_muted)
     pg.setConfigOptions(antialias=True)

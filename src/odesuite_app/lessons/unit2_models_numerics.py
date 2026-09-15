@@ -15,6 +15,7 @@ from .model import (
     Choice,
     Example,
     Lesson,
+    ModelTemplate,
     Note,
     NumericTemplate,
     Passage,
@@ -307,6 +308,33 @@ POPULATION = Lesson(
                 "fixes the constant inside it.",
             ),
             slots=(("K", (10, 20, 50)), ("p", (1, 2, 5))),
+        ),
+        ModelTemplate(
+            key="harvested-logistic",
+            title="Set up the equation: a harvested population",
+            prompt="A fish stock grows logistically. Left alone, its "
+                   "per-capita growth rate is {r} a year while the stock is "
+                   "small, and it falls to zero at a carrying capacity of "
+                   "{K} tonnes. Boats take {h} tonnes a year whatever the "
+                   "stock is. Write the equation for y, the stock in tonnes.",
+            equation="y' = {r}*y*(1 - y/{K}) - {h}",
+            because="Growth minus harvest. The growth is a per-capita rate "
+                    "times the stock, and the per-capita rate falls linearly "
+                    "from {r} at no stock to zero at {K} tonnes — which is "
+                    "the bracket. The harvest is a flat tonnage: it does not "
+                    "scale with the stock, so it is subtracted whole rather "
+                    "than becoming another factor of y.",
+            hints=(
+                "Write the growth first, as though nobody were fishing, and "
+                "subtract the harvest at the end.",
+                "Logistic growth is the per-capita rate times y, and the "
+                "per-capita rate is what falls to zero at the carrying "
+                "capacity — not the growth itself.",
+                "The boats take the same tonnage whether the stock is large "
+                "or small, so that term has no y in it at all.",
+            ),
+            slots=(("r", (2, 3, 5)), ("K", (100, 200, 400)),
+                   ("h", (10, 20, 40))),
         ),
     ),
 )
@@ -897,6 +925,32 @@ MOTION = Lesson(
                 "coefficient.",
             ),
             slots=(("k", (0.2, 0.25, 0.4, 0.5, 0.7)), ("m", (1, 2, 4))),
+        ),
+        ModelTemplate(
+            key="falling-with-drag",
+            title="Set up the equation: falling against the air",
+            prompt="A parcel of mass {m} kg falls from rest. Gravity pulls "
+                   "it down with an acceleration of 9.8 m/s², and the air "
+                   "resists with {k} newtons for every metre per second of "
+                   "speed, against the motion. Write the equation for y, the "
+                   "downward velocity in metres per second.",
+            equation="{m}*y' = {m}*9.8 - {k}*y",
+            because="Newton's second law with down counted positive: mass "
+                    "times acceleration is the weight {m}·9.8 newtons minus "
+                    "the drag, which is {k} newtons per metre per second "
+                    "times the speed. Dividing through by the mass gives the "
+                    "same equation, and the grader accepts either.",
+            hints=(
+                "Start from mass times acceleration equals the total force, "
+                "and remember that y is a velocity, so its derivative is the "
+                "acceleration.",
+                "Two forces only: the weight, which does not change, and the "
+                "drag, which grows with the speed and pulls the other way.",
+                "Count down as positive and the weight is positive while the "
+                "drag is negative. Getting that sign the other way round "
+                "makes the parcel speed up forever.",
+            ),
+            slots=(("m", (2, 5, 10)), ("k", (2, 4, 5, 8))),
         ),
     ),
 )

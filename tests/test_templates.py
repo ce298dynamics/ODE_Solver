@@ -273,12 +273,17 @@ def _shown(question) -> list[str]:
     per option, a `Numeric` has a single reason and its units. Anything
     displayed is checked; nothing else is.
     """
-    fields = ["prompt", "equation", "conditions", "latex", "because", "units"]
-    out = [getattr(question, name, "") or "" for name in fields]
+    fields = ["prompt", "equation", "conditions", "latex", "because", "units",
+              "answer", "shown"]
+    out = [getattr(question, name, "") for name in fields]
     out += list(getattr(question, "hints", ()))
     out += list(getattr(question, "options", ()))
     out += list(getattr(question, "becauses", ()))
-    return [text for text in out if text]
+    # Strings only. `Expression.answer` is one -- it stays symbolic, so it is
+    # shown and has to read properly -- while `Numeric.answer` is a float that
+    # nobody ever sees, and handing that to a regular expression would fail as
+    # a type error rather than as a verdict about the question.
+    return [text for text in out if isinstance(text, str) and text]
 
 
 @pytest.mark.parametrize("lesson,template", TEMPLATES, ids=IDS)
@@ -308,6 +313,12 @@ def test_tidy_leaves_the_mathematics_alone():
     )
     # A two-digit coefficient is not a one followed by something.
     assert generate.tidy("y' + 12*y = 10*t") == "y' + 12*y = 10*t"
+    # Neither is a constant of integration. This one reached a drill: the
+    # rule above used to strip the "1*" out of "C1*cos(3*t)" and leave
+    # "Ccos(3*t)", which is not an expression at all.
+    assert generate.tidy("C1*cos(3*t) + C2*sin(3*t)") == (
+        "C1*cos(3*t) + C2*sin(3*t)"
+    )
     # A zero coefficient takes its whole term with it, wherever it sits.
     assert generate.tidy("y'' + 0*y' + 9*y = 0") == "y'' + 9*y = 0"
     assert generate.tidy("y''' - 0*y'' - y' - 0*y = 0") == "y''' - y' = 0"

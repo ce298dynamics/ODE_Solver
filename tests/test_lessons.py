@@ -991,6 +991,89 @@ def test_a_wrong_answer_shows_what_is_left_over(screen, qapp, store):
     assert store.load()[lesson.key][question.key].state == store.State.ATTEMPTED
 
 
+def test_a_wrong_answer_is_diagnosed_rather_than_dumped(screen, qapp, store):
+    """Where the residual says something, the card says it instead. Printing
+    `(1 - 2*t)*exp(t)` asks the person who has just got the question wrong to
+    do the one piece of analysis they have shown they cannot do."""
+    from PySide6.QtWidgets import QLineEdit
+
+    lesson = _open(screen, qapp, "separable")
+    question = next(q for q in lesson.questions if isinstance(q, Solve))
+    assert question.conditions, "this test needs a question with a condition"
+
+    box = screen._page.findChildren(QLineEdit)[0]
+    # Solves the equation; wrong member of the family. The most encouraging
+    # miss there is, and the one a bare cross hides completely.
+    box.setText("2*exp(t**2)")
+    screen._check_solve(lesson, question, box, screen._verdicts[question.key])
+
+    shown = screen._verdicts[question.key].text()
+    assert "✗" in shown
+    assert "The method is right" in shown
+    assert "left over" not in shown, "the dump gave way to the sentence"
+
+
+def test_the_option_picked_is_remembered_not_just_the_verdict(screen, qapp,
+                                                              store):
+    """A state says a question was missed. The options say how: each one is
+    written as a misconception, which is unreadable from a tick."""
+    from PySide6.QtWidgets import QButtonGroup
+
+    lesson = _open(screen, qapp, "separable")
+    question = next(q for q in lesson.questions if isinstance(q, Choice))
+    wrong = next(index for index in range(len(question.options))
+                 if index != question.answer)
+
+    group = screen._page.findChildren(QButtonGroup)[0]
+    group.button(wrong).setChecked(True)
+    screen._check_choice(lesson, question, group, screen._verdicts[question.key])
+
+    saved = store.load()[lesson.key][question.key]
+    assert saved.picks == (wrong,)
+    assert saved.state == store.State.ATTEMPTED
+
+
+def test_a_typed_answer_records_no_option(screen, qapp, store):
+    from PySide6.QtWidgets import QLineEdit
+
+    lesson = _open(screen, qapp, "separable")
+    question = next(q for q in lesson.questions if isinstance(q, Solve))
+    box = screen._page.findChildren(QLineEdit)[0]
+    box.setText("exp(t**2)")
+    screen._check_solve(lesson, question, box, screen._verdicts[question.key])
+
+    assert store.load()[lesson.key][question.key].picks == ()
+
+
+def test_the_course_map_names_a_repeated_wrong_option(qapp, store):
+    """The point of storing the pick. "Worth another look" says a lesson is
+    weak; this says what is believed instead, which is what the per-option
+    reasons were written for."""
+    from odesuite_app.lessons import UNITS
+    from odesuite_app.screens.learn_course import CourseScreen
+    from odesuite_app.state import SessionState
+    from odesuite_app.theme import PALETTES
+
+    lesson = next(lesson for unit in UNITS for lesson in unit.lessons
+                  if any(isinstance(q, Choice) for q in lesson.questions))
+    question = next(q for q in lesson.questions if isinstance(q, Choice))
+    wrong = next(index for index in range(len(question.options))
+                 if index != question.answer)
+    for _ in range(3):
+        store.record(lesson.key, question.key, store.State.ATTEMPTED,
+                     picked=wrong)
+
+    made = CourseScreen(SessionState(), PALETTES["dark"])
+    qapp.processEvents()
+    try:
+        shown = made.review_label.text()
+        assert "A habit, not a slip" in shown
+        assert lesson.title in shown
+        assert question.options[wrong][:20] in shown
+    finally:
+        made.deleteLater()
+
+
 def test_a_choice_explains_the_option_that_was_picked(screen, qapp, store):
     """Not the reason the right answer is right -- the reason *this* answer is
     wrong. Explaining someone else's answer back at them teaches nothing."""

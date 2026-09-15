@@ -31,6 +31,29 @@ would be worse than none.
 design: a generated question *is* an ordinary practice question, so the grading,
 the hint ladder, "Show me" and the recording of progress are all reused rather
 than rebuilt for it.
+
+Four later shapes answer the same complaint about all of the above: every one
+of them hands the student an equation and asks what to do with it, which is
+not what an examination does.
+
+**`Model` asks for the equation itself** -- from a situation described in
+words, or from the family of curves that solves it. Nothing can be substituted
+into a word problem, so it is graded by `symbolic.check_model`, which asks
+whether two equations are the same rather than whether two strings are.
+
+**`Expression` asks for one move of the method** -- the integrating factor, the
+characteristic polynomial, the Wronskian. Also not a solution, also graded by
+equivalence, and the only question type here that asks what a student can
+*produce* rather than what they can recognise or finish.
+
+**`ClassifyTemplate` asks which method applies**, over a pool of equations, and
+**`FaultTemplate` asks what is wrong with an answer somebody arrived at**. Both
+produce ordinary `Choice`s, so both are graded, shuffled and recorded by
+machinery that already existed.
+
+And every slot-based template can say which of `TIERS` each of its draws
+belongs to, so a drill can be made easier or harder without becoming a
+different drill.
 """
 
 from __future__ import annotations
@@ -40,15 +63,23 @@ from dataclasses import dataclass, field
 
 __all__ = [
     "NOTE_KINDS",
+    "TIERS",
     "Passage",
     "Note",
     "Example",
     "Choice",
     "Solve",
     "Numeric",
+    "Model",
+    "Expression",
+    "Case",
     "Template",
     "ChoiceTemplate",
     "NumericTemplate",
+    "ModelTemplate",
+    "ExpressionTemplate",
+    "ClassifyTemplate",
+    "FaultTemplate",
     "Lesson",
     "Unit",
     "grade_choice",
@@ -58,6 +89,19 @@ __all__ = [
 #: result to keep; `pitfall` is the mistake this topic actually produces, boxed
 #: so it reads differently from an idea; `aside` is context that can be skipped.
 NOTE_KINDS = ("idea", "formula", "pitfall", "aside")
+
+#: How hard a draw is, in order. A template says which of these each of its
+#: draws belongs to by carrying a `level`; one that says nothing has every
+#: draw in `typical`, which is what every drill was before tiers existed.
+#:
+#: Three rather than five, and named rather than numbered, because the author
+#: of a template has to be able to say honestly which bucket a draw is in. The
+#: distinction that survives contact with a real family of equations is
+#: coarse: the ones where the method runs straight through, the ones where it
+#: is the usual amount of work, and the ones with the complication the topic
+#: is really about -- a repeated root, a resonant forcing term, a
+#: variable coefficient.
+TIERS = ("easier", "typical", "harder")
 
 
 @dataclass(frozen=True)
@@ -125,6 +169,28 @@ class Choice:
     becauses: tuple[str, ...]
     #: The equation the question is about, if it is about one.
     latex: str = ""
+    #: The equation the question is about, as it would be *typed*, set in the
+    #: monospace the editor uses.
+    #:
+    #: `latex` and this are not alternatives to each other. A question written
+    #: by hand can be typeset, because somebody wrote the LaTeX for it. A
+    #: question built out of a template cannot: the equation is assembled from
+    #: the draw, and authoring a second LaTeX form of it would be authoring
+    #: the same equation twice and waiting for the two to disagree. So a
+    #: generated question shows the string it is actually solving.
+    shown: str = ""
+    #: Where each option came from in the `ChoiceTemplate` that produced this
+    #: question: ``origins[position]`` is that option's index *as the template
+    #: writes them*, before the per-draw shuffle. Empty for a question written
+    #: out by hand, whose positions are already the canonical ones.
+    #:
+    #: It exists so that a *pick* can be recorded and compared across draws.
+    #: The shuffle is what stops a generated question drilling position rather
+    #: than content, and it is also what makes "you keep choosing the option
+    #: with no arbitrary constant" unsayable from a bare index: position 2 is
+    #: a different option every time. This maps the position back to the
+    #: option the author wrote, which is stable, and `progress` stores that.
+    origins: tuple[int, ...] = ()
 
     kind: str = field(default="choice", init=False)
 
@@ -132,6 +198,12 @@ class Choice:
     def because(self) -> str:
         """The reason the right answer is right."""
         return self.becauses[self.answer]
+
+    def canonical(self, position: int) -> int:
+        """The author's index for the option shown at `position`."""
+        if 0 <= position < len(self.origins):
+            return self.origins[position]
+        return position
 
 
 @dataclass(frozen=True)
@@ -198,6 +270,117 @@ class Numeric:
 
 
 @dataclass(frozen=True)
+class Model:
+    """Write the equation. Graded by equivalence, not by substitution.
+
+    The one thing every other question type here has in common is that the
+    equation is given and something else is asked for. These are the questions
+    where the equation *is* the answer, and they come from both ends of the
+    course:
+
+    * *A tank holds 100 litres of brine and 5 litres a minute flow in at
+      0.4 kg/l...* -- the modelling question a first course opens with, and
+      the half of an applied problem a technique drill never touches.
+    * *Every curve in the family ``y = C e^{3t}`` solves one first-order
+      equation. Write it.* -- the same question asked backwards, which is
+      how a course checks that somebody knows what a differential equation
+      says rather than only how to unwind one.
+
+    Both store the equation, because there is nothing to substitute a
+    situation into. What keeps that from being an answer key is
+    `symbolic.check_model`: two equations are the same when their sides agree
+    up to a nonzero constant multiple, so ``y' = 2 - y/20``, ``y' + y/20 = 2``
+    and ``20y' + y = 40`` are one answer and none of them is marked wrong for
+    being arranged differently.
+    """
+
+    key: str
+    prompt: str
+    #: The equation expected, as it would be typed into the editor.
+    equation: str
+    #: Why that is the equation, term by term, shown once the attempt is
+    #: marked. A model with no account of where each term came from is a
+    #: formula to memorise.
+    because: str = ""
+    #: The situation's data, typeset above the box, where it is worth seeing
+    #: as mathematics rather than as prose.
+    latex: str = ""
+    hints: tuple[str, ...] = ()
+
+    kind: str = field(default="model", init=False)
+
+    @property
+    def hint(self) -> str:
+        return self.hints[0] if self.hints else ""
+
+
+@dataclass(frozen=True)
+class Expression:
+    """Write one move of the method: the object it produces, not the answer.
+
+    The integrating factor, the characteristic polynomial, the Wronskian, the
+    transform of the forcing term. A course asks for each of these on its own,
+    and none of them is a solution -- so `check_answer` has nothing to
+    substitute them into, and a drill that only ever asks for the final answer
+    never finds out which move somebody cannot make.
+
+    This is the closest thing here to *do the next step*, and what makes it
+    gradeable is `symbolic.check_expression`, which compares two expressions
+    rather than two strings.
+
+    `up_to_constant` is mathematics rather than leniency. An integrating
+    factor is determined only up to a constant multiple, and so is a
+    characteristic equation; where that is true this says so, and where it is
+    not -- a Wronskian, a transform -- it stays off and a multiple is a
+    different answer.
+    """
+
+    key: str
+    prompt: str
+    #: The expression expected, as it would be typed. Left as text rather than
+    #: evaluated, because it is symbolic: ``exp(3*t)``, ``r**2 + 3*r + 2``.
+    answer: str
+    #: Whether any nonzero constant multiple of it is also right.
+    up_to_constant: bool = False
+    #: Why that is what the step produces, shown once the attempt is marked.
+    because: str = ""
+    #: The equation the step is being taken on.
+    latex: str = ""
+    hints: tuple[str, ...] = ()
+
+    kind: str = field(default="expression", init=False)
+
+    @property
+    def hint(self) -> str:
+        return self.hints[0] if self.hints else ""
+
+
+@dataclass(frozen=True)
+class Case:
+    """One equation in a *which method* drill, and what gives it away."""
+
+    #: As it would be typed.
+    equation: str
+    #: What it is: a key into the vocabulary its template names. For methods
+    #: that is the sympy spelling `steps.TECHNIQUES` uses, for portraits the
+    #: string `analysis.classify` returns.
+    #:
+    #: The tests put every case through the routine that owns its vocabulary
+    #: and require it to agree, so a case cannot quietly claim the wrong
+    #: answer -- and cannot keep claiming the right one after the application
+    #: changes its mind.
+    technique: str
+    #: What in the equation decides it. This is the whole content of the
+    #: question: "the y-terms come apart from the t-terms" is the reading that
+    #: has to become automatic, and naming the method without it is a label.
+    why: str
+    #: Typeset above the options, where the equation is worth seeing set.
+    latex: str = ""
+    #: One of `TIERS`.
+    tier: str = "typical"
+
+
+@dataclass(frozen=True)
 class Template:
     """A practice question with its numbers left open.
 
@@ -228,6 +411,9 @@ class Template:
     #: Draws to throw away, as a predicate over the drawn values. Keeps a
     #: template from producing the degenerate case it was not written for.
     reject: Callable[[Mapping[str, object]], bool] | None = None
+    #: Which tier a draw belongs to, as a predicate over the drawn values, or
+    #: None where the family has no honest spread. One of `TIERS`.
+    level: Callable[[Mapping[str, object]], str] | None = None
     #: The technique the generated question must be narrated by. Asserted in
     #: the tests, so a template that quietly starts producing something else is
     #: a failure rather than a surprise.
@@ -271,6 +457,10 @@ class ChoiceTemplate:
     slots: tuple[tuple[str, tuple], ...] = ()
     reject: Callable[[Mapping[str, object]], bool] | None = None
 
+    #: Which tier a draw belongs to, as a predicate over the drawn
+    #: values, or None where the family has no honest spread.
+    level: Callable[[Mapping[str, object]], str] | None = None
+
     kind: str = field(default="choice-template", init=False)
 
 
@@ -312,7 +502,153 @@ class NumericTemplate:
     slots: tuple[tuple[str, tuple], ...] = ()
     reject: Callable[[Mapping[str, object]], bool] | None = None
 
+    #: Which tier a draw belongs to, as a predicate over the drawn
+    #: values, or None where the family has no honest spread.
+    level: Callable[[Mapping[str, object]], str] | None = None
+
     kind: str = field(default="numeric-template", init=False)
+
+
+@dataclass(frozen=True)
+class ModelTemplate:
+    """A `Model` question with its numbers left open.
+
+    What `Template` is to `Solve`. The situation keeps its shape and its
+    quantities change, which is the right thing to vary here: a modelling
+    question is hard because of the translation, and the translation is the
+    same whether the tank holds 100 litres or 250.
+    """
+
+    key: str
+    title: str
+    #: All four are format strings over the slot names.
+    prompt: str
+    equation: str
+    because: str = ""
+    latex: str = ""
+    hints: tuple[str, ...] = ()
+    slots: tuple[tuple[str, tuple], ...] = ()
+    reject: Callable[[Mapping[str, object]], bool] | None = None
+    level: Callable[[Mapping[str, object]], str] | None = None
+
+    kind: str = field(default="model-template", init=False)
+
+
+@dataclass(frozen=True)
+class ExpressionTemplate:
+    """An `Expression` question with its numbers left open."""
+
+    key: str
+    title: str
+    #: A format string over the slot names.
+    prompt: str
+    #: The expected expression, as a format string over the slots. An
+    #: expression rather than a stored value, for the reason
+    #: `NumericTemplate.answer` is one: it can be checked against the rest of
+    #: the application draw by draw, and `tests/test_templates.py` does --
+    #: every integrating factor is differentiated back, every characteristic
+    #: polynomial is compared with the roots the narrator finds.
+    answer: str
+    up_to_constant: bool = False
+    because: str = ""
+    latex: str = ""
+    hints: tuple[str, ...] = ()
+    slots: tuple[tuple[str, tuple], ...] = ()
+    reject: Callable[[Mapping[str, object]], bool] | None = None
+    level: Callable[[Mapping[str, object]], str] | None = None
+
+    kind: str = field(default="expression-template", init=False)
+
+
+@dataclass(frozen=True)
+class ClassifyTemplate:
+    """*Which method would you use?* -- over a pool of equations.
+
+    The question a course examines and a lesson cannot ask. Every drill in
+    this application until now sat inside a lesson that had just named its
+    technique, so the answer to "which method" was always "the one on this
+    page". Choosing between them is a separate skill, it is most of what an
+    exam actually tests, and nothing here practised it.
+
+    A pool of `Case`s rather than slots to substitute: what varies is the
+    equation, and the equations have to be real ones. The options are the
+    method names and they are shuffled per draw, so the drill cannot be
+    answered by position.
+
+    The key is not stored twice. Each case names its technique, and the tests
+    put the equation through `classify_ode` and `steps.preferred_hint` -- the
+    same route the narrator takes -- and require the answer to be what the
+    application would actually do with it. A case whose method changed under a
+    sympy upgrade becomes a failing test rather than a question that marks the
+    right answer wrong.
+    """
+
+    key: str
+    title: str
+    prompt: str
+    cases: tuple[Case, ...]
+    #: The menu offered, as keys into the table below, in teaching order.
+    #: Every case's label must be in it; the labels nobody's case uses are the
+    #: distractors.
+    options: tuple[str, ...]
+    #: Which vocabulary the labels come from: a key of
+    #: `vocabulary.VOCABULARIES`.
+    #:
+    #: Three of them, because *which method solves this* is one instance of a
+    #: question the course asks in several places, and all of them share the
+    #: shape: here is an object, name what it is, and be able to say why it is
+    #: not the other three. The portrait of a linear system and the damping
+    #: regime of a spring are the same question about different nouns — and
+    #: each vocabulary has a routine in this application that decides the
+    #: answer, which is what keeps the drill honest.
+    table: str = "methods"
+
+    kind: str = field(default="classify-template", init=False)
+
+
+@dataclass(frozen=True)
+class FaultTemplate:
+    """*What went wrong here?* -- an answer with one named mistake in it.
+
+    Spotting a fault is a different skill from not making one, and it is the
+    one that transfers to checking your own work. The question shows an
+    equation and an answer somebody arrived at, and asks what is wrong with
+    it.
+
+    **The wrong answer is generated, and it is really wrong.** `wrong` is an
+    expression over the slots, like `NumericTemplate.answer`, so
+    `tests/test_templates.py` can put every draw through `check_answer` and
+    require the verdict the fault claims: an answer with a sign error does not
+    satisfy the equation, and an answer that dropped the constant of
+    integration satisfies the equation but not the initial condition. A
+    "wrong" answer that turned out to be right would be the worst question in
+    the application, and it cannot get here.
+
+    Corrupting the *narrator's working* was the other way to build this, and
+    it is not what happens: a derivation's steps are LaTeX, and editing that
+    text can neither be verified nor be trusted to leave the mathematics wrong
+    rather than merely ugly. What is checkable is the answer, so that is what
+    carries the fault.
+    """
+
+    key: str
+    title: str
+    #: Format strings over the slots.
+    prompt: str
+    equation: str
+    #: The answer somebody arrived at, as a format string over the slots, in
+    #: the form it would be typed.
+    wrong: str
+    #: The fault in it: a key into `methods.FAULTS`.
+    fault: str
+    #: The other diagnoses offered, same keys. Shuffled in with the true one.
+    others: tuple[str, ...]
+    conditions: str = ""
+    slots: tuple[tuple[str, tuple], ...] = ()
+    reject: Callable[[Mapping[str, object]], bool] | None = None
+    level: Callable[[Mapping[str, object]], str] | None = None
+
+    kind: str = field(default="fault-template", init=False)
 
 
 @dataclass(frozen=True)
@@ -348,7 +684,10 @@ class Lesson:
     #: without rather than be given a verdict that meant nothing. What was
     #: missing was a question graded another way, which is what
     #: `ChoiceTemplate` and `NumericTemplate` are.
-    templates: tuple[Template | ChoiceTemplate | NumericTemplate, ...] = ()
+    templates: tuple[
+        Template | ChoiceTemplate | NumericTemplate | ModelTemplate
+        | ExpressionTemplate | ClassifyTemplate | FaultTemplate, ...
+    ] = ()
     #: Lesson keys worth having met first. Advisory: nothing is locked.
     prerequisites: tuple[str, ...] = ()
     #: A figure to put at the top of Learn, named by key rather than built

@@ -19,6 +19,7 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
+from .. import theme
 from ..theme import Palette
 
 __all__ = ["StepTimeline"]
@@ -45,13 +46,13 @@ class StepTimeline(QFrame):
 
         self.caption = QLabel("")
         self.caption.setProperty("role", "muted")
-        self.caption.setStyleSheet("font-size: 11px;")
+        self.caption.setStyleSheet(theme.scaled("font-size: 11px;"))
         header.addSpacing(10)
         header.addWidget(self.caption)
         header.addStretch(1)
 
         self.legend = QLabel("")
-        self.legend.setStyleSheet("font-size: 10.5px;")
+        self.legend.setStyleSheet(theme.scaled("font-size: 10.5px;"))
         header.addWidget(self.legend)
         layout.addLayout(header)
 

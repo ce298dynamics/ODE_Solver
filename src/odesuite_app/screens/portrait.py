@@ -24,11 +24,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from .. import analysis, catalog
+from .. import analysis, catalog, continuation, theme
 from ..state import SessionState
 from ..theme import Palette
 from ..widgets.controls import ParameterPanel, add_heading, control_panel
@@ -49,7 +50,8 @@ _MARKERS = {
 
 
 class _Signals(QObject):
-    done = Signal(object, object)      # PortraitData, token
+    done = Signal(object, object)          # PortraitData, token
+    diagram = Signal(object, object)       # continuation.Diagram, token
 
 
 class _AnalysisJob(QRunnable):
@@ -71,6 +73,35 @@ class _AnalysisJob(QRunnable):
             pass                        # the screen went away mid-computation
 
 
+class _ContinuationJob(QRunnable):
+    """A parameter sweep, off the interface thread.
+
+    A sweep is a Newton solve at each of 161 parameter values plus a bisection
+    at every crossing -- a few hundred milliseconds for a planar system, which
+    is the same order as the portrait itself and belongs in the same pool for
+    the same reason.
+
+    Unlike the portrait, this one is not recomputed as a slider moves: the
+    diagram *is* the slider's whole range, so moving the slider does not change
+    it. It is drawn on request, and the request is a button.
+    """
+
+    def __init__(self, entry, parameter, token, signals) -> None:
+        super().__init__()
+        self.entry, self.parameter = entry, parameter
+        self.token, self.signals = token, signals
+
+    def run(self) -> None:
+        try:
+            diagram = continuation.sweep(self.entry, self.parameter)
+        except Exception as exc:                # noqa: BLE001 - reported, not raised
+            diagram = exc
+        try:
+            self.signals.diagram.emit(diagram, self.token)
+        except RuntimeError:
+            pass                        # the screen went away mid-computation
+
+
 class PortraitScreen(QWidget):
     def __init__(self, state: SessionState, palette: Palette, parent=None) -> None:
         super().__init__(parent)
@@ -80,8 +111,11 @@ class PortraitScreen(QWidget):
         self._data: analysis.PortraitData | None = None
         self._trajectories: list = []
         self._launched = 0
+        self._diagram: continuation.Diagram | None = None
+        self._diagram_token = 0
         self._signals = _Signals()
         self._signals.done.connect(self._on_analysis)
+        self._signals.diagram.connect(self._on_diagram)
         self.destroyed.connect(lambda *_: setattr(self, "_token", -1))
 
         layout = QHBoxLayout(self)
@@ -117,7 +151,7 @@ class PortraitScreen(QWidget):
         self.blurb = QLabel("")
         self.blurb.setWordWrap(True)
         self.blurb.setProperty("role", "muted")
-        self.blurb.setStyleSheet("font-size: 11px;")
+        self.blurb.setStyleSheet(theme.scaled("font-size: 11px;"))
         layout.addWidget(self.blurb)
 
         add_heading(layout, "Parameters", space_above=6)
@@ -152,7 +186,7 @@ class PortraitScreen(QWidget):
         hint = QLabel("Click the plot to launch a trajectory through that point.")
         hint.setWordWrap(True)
         hint.setProperty("role", "muted")
-        hint.setStyleSheet("font-size: 11px;")
+        hint.setStyleSheet(theme.scaled("font-size: 11px;"))
         layout.addWidget(hint)
 
         clear = QPushButton("Clear trajectories")
@@ -165,7 +199,7 @@ class PortraitScreen(QWidget):
 
         self.status = QLabel("")
         self.status.setProperty("role", "muted")
-        self.status.setStyleSheet("font-size: 10.5px;")
+        self.status.setStyleSheet(theme.scaled("font-size: 10.5px;"))
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addStretch(1)
@@ -184,7 +218,7 @@ class PortraitScreen(QWidget):
         header.addWidget(self.title)
         header.addStretch(1)
         self.legend_label = QLabel("")
-        self.legend_label.setStyleSheet("font-size: 10.5px;")
+        self.legend_label.setStyleSheet(theme.scaled("font-size: 10.5px;"))
         header.addWidget(self.legend_label)
         layout.addLayout(header)
 
@@ -193,8 +227,52 @@ class PortraitScreen(QWidget):
         self.plot.showGrid(x=True, y=True, alpha=0.15)
         self.plot.setMenuEnabled(False)
         self.plot.scene().sigMouseClicked.connect(self._on_click)
-        layout.addWidget(self.plot, 1)
+
+        # Two tabs rather than two screens. The portrait and the diagram are
+        # the same system asked two questions -- "what does it do here" and
+        # "what does it do as I turn this" -- and the second is only ever asked
+        # by someone already looking at the first. Splitting them across the
+        # navigation would put the parameter sliders on one screen and the
+        # picture of what they do on another.
+        self.views = QTabWidget()
+        self.views.addTab(self.plot, "Portrait")
+        self.views.addTab(self._build_bifurcation(), "Bifurcation")
+        layout.addWidget(self.views, 1)
         return frame
+
+    def _build_bifurcation(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(6)
+
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Sweep"))
+        self.sweep_param = QComboBox()
+        self.sweep_param.setMinimumWidth(130)
+        row.addWidget(self.sweep_param)
+        self.sweep_button = QPushButton("Draw diagram")
+        self.sweep_button.clicked.connect(self._draw_diagram)
+        row.addWidget(self.sweep_button)
+        row.addStretch(1)
+        self.sweep_legend = QLabel("solid = stable · dashed = unstable")
+        self.sweep_legend.setProperty("role", "muted")
+        self.sweep_legend.setStyleSheet(theme.scaled("font-size: 10.5px;"))
+        row.addWidget(self.sweep_legend)
+        layout.addLayout(row)
+
+        self.sweep_plot = pg.PlotWidget()
+        self.sweep_plot.setBackground(self.palette_obj.plot_background)
+        self.sweep_plot.showGrid(x=True, y=True, alpha=0.15)
+        self.sweep_plot.setMenuEnabled(False)
+        layout.addWidget(self.sweep_plot, 1)
+
+        self.sweep_note = QLabel("")
+        self.sweep_note.setProperty("role", "muted")
+        self.sweep_note.setStyleSheet(theme.scaled("font-size: 10.5px;"))
+        self.sweep_note.setWordWrap(True)
+        layout.addWidget(self.sweep_note)
+        return page
 
     def _build_report(self) -> QWidget:
         frame = QFrame()
@@ -208,7 +286,7 @@ class PortraitScreen(QWidget):
 
         self.report = QLabel("—")
         self.report.setProperty("role", "mono")
-        self.report.setStyleSheet("font-size: 11px;")
+        self.report.setStyleSheet(theme.scaled("font-size: 11px;"))
         self.report.setTextFormat(Qt.RichText)
         self.report.setWordWrap(True)
         self.report.setAlignment(Qt.AlignTop)
@@ -241,6 +319,7 @@ class PortraitScreen(QWidget):
         self.blurb.setText(entry.blurb)
         self._params = entry.defaults()
         self.parameters.rebuild(entry, self._params)
+        self._refresh_sweep_parameters(entry)
         self._clear_trajectories()
         self._recompute(reset_window=True)
 
@@ -305,6 +384,116 @@ class PortraitScreen(QWidget):
         self._data = data
         self.status.setText("")
         self._render()
+
+    # -- the bifurcation diagram -----------------------------------------
+
+    #: Sliders that are not worth a diagram.
+    #:
+    #: Duration and the initial condition move the *trajectory*, and the
+    #: equilibria do not depend on either -- a diagram over `t_end` is a set of
+    #: flat lines, which is a true picture of nothing. Excluded by name rather
+    #: than by asking whether the answer comes out flat, because a flat diagram
+    #: over a parameter that *could* have moved the equilibria is a real result
+    #: worth seeing.
+    _NOT_WORTH_SWEEPING = frozenset({"t_end", "initial", "duration"})
+
+    def _refresh_sweep_parameters(self, entry) -> None:
+        self.sweep_param.blockSignals(True)
+        self.sweep_param.clear()
+        for spec in entry.params:
+            if spec.name in self._NOT_WORTH_SWEEPING:
+                continue
+            self.sweep_param.addItem(spec.label, spec.name)
+        self.sweep_param.blockSignals(False)
+
+        usable = self.sweep_param.count() > 0
+        self.sweep_button.setEnabled(usable)
+        self._diagram = None
+        self.sweep_plot.clear()
+        self.sweep_note.setText(
+            "" if usable else
+            f"{entry.title} has no parameter whose value moves the equilibria."
+        )
+
+    def _draw_diagram(self) -> None:
+        name = self.sweep_param.currentData()
+        if not name:
+            return
+        self._diagram_token += 1
+        self.sweep_button.setEnabled(False)
+        self.sweep_note.setText("sweeping…")
+        QThreadPool.globalInstance().start(
+            _ContinuationJob(self.entry, name, self._diagram_token, self._signals)
+        )
+
+    def _on_diagram(self, diagram, token: int) -> None:
+        if token != self._diagram_token:
+            return                      # a newer sweep has been asked for
+        self.sweep_button.setEnabled(True)
+        if isinstance(diagram, Exception):
+            self._diagram = None
+            self.sweep_plot.clear()
+            self.sweep_note.setText(f"the sweep failed: {diagram}")
+            return
+        self._diagram = diagram
+        self._render_diagram()
+
+    def _render_diagram(self) -> None:
+        diagram, palette = self._diagram, self.palette_obj
+        if diagram is None:
+            return
+
+        self.sweep_plot.clear()
+        entry = self.entry
+        axis = entry.phase_axes[0] if entry.phase_axes else 0
+        label = entry.labels[axis] if axis < len(entry.labels) else "state"
+        self.sweep_plot.setLabel("bottom", diagram.parameter)
+        self.sweep_plot.setLabel("left", label)
+
+        solid = pg.mkPen(palette.accent, width=2)
+        dashed = pg.mkPen(palette.text_muted, width=2, style=Qt.DashLine)
+
+        for branch in diagram.branches:
+            parameters, coordinate = branch.parameters, branch.coordinate(axis)
+            for stability, low, high in branch.segments():
+                pen = solid if stability == analysis.STABLE else dashed
+                self.sweep_plot.plot(parameters[low:high], coordinate[low:high],
+                                     pen=pen)
+
+        for found in diagram.bifurcations:
+            value = float(found.position[axis]) if axis < len(found.position) else 0.0
+            self.sweep_plot.plot(
+                [found.parameter], [value], pen=None, symbol="o", symbolSize=9,
+                symbolBrush=palette.warning, symbolPen=palette.warning,
+            )
+            text = pg.TextItem(found.kind, color=palette.warning, anchor=(0.5, 1.4))
+            text.setPos(found.parameter, value)
+            self.sweep_plot.addItem(text)
+
+        self.sweep_note.setText(self._diagram_note(diagram))
+
+    def _diagram_note(self, diagram) -> str:
+        parts = []
+        if diagram.bifurcations:
+            for found in diagram.bifurcations:
+                parts.append(
+                    f"<b>{found.kind}</b> at {diagram.parameter} = "
+                    f"{found.parameter:.4g} — {found.detail}"
+                )
+        else:
+            parts.append(
+                f"No bifurcation over this range of {diagram.parameter}: the "
+                "equilibria move, but none appears, vanishes or changes "
+                "stability."
+            )
+        if diagram.clipped:
+            parts.append(
+                "A branch left the search window rather than ceasing to "
+                "exist — where it stops is a fact about the box, not the "
+                "system."
+            )
+        parts.append(diagram.method_note)
+        return "<br>".join(parts)
 
     # -- rendering -------------------------------------------------------
 
@@ -396,6 +585,44 @@ class PortraitScreen(QWidget):
             f"&nbsp;<span style='color:{palette.success}'>—</span> stable manifold"
         )
         self._write_report()
+        self._describe_plot()
+
+    def _describe_plot(self) -> None:
+        """The portrait in words, as the plot's alternative text.
+
+        Everything in it is already computed -- `analysis` names each
+        equilibrium and classifies it -- so this is a rewriting of the report
+        beside the picture into a sentence, not a second analysis that could
+        disagree with the first.
+        """
+        data, entry = self._data, self.entry
+        if data is None or entry is None:
+            self.plot.setAccessibleName("phase portrait")
+            self.plot.setAccessibleDescription("Nothing has been analysed yet.")
+            return
+
+        names = entry.labels if entry.labels else ("x", "y")
+        where = (f"{names[0]} from {data.xlim[0]:.3g} to {data.xlim[1]:.3g} and "
+                 f"{names[1] if len(names) > 1 else 'y'} from "
+                 f"{data.ylim[0]:.3g} to {data.ylim[1]:.3g}")
+        if not data.fixed_points:
+            found = "No equilibria lie in this window."
+        else:
+            found = " ".join(
+                f"A {point.kind} at ({point.position[0]:+.4f}, "
+                f"{point.position[1]:+.4f}), "
+                + ("classified from the linearisation only, since an "
+                   "eigenvalue lies on the imaginary axis."
+                   if not point.hyperbolic else f"{point.stability}.")
+                for point in data.fixed_points
+            )
+            found = (f"{len(data.fixed_points)} equilibri"
+                     f"{'um' if len(data.fixed_points) == 1 else 'a'}. {found}")
+        self.plot.setAccessibleName(f"phase portrait of {entry.title}")
+        self.plot.setAccessibleDescription(
+            f"{entry.title}: the vector field over {where}, with nullclines "
+            f"and the trajectories through any points clicked. {found}"
+        )
 
     def _write_report(self) -> None:
         data, palette = self._data, self.palette_obj

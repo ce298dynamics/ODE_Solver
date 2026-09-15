@@ -205,6 +205,143 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Four kinds of question the drills could not ask.** Every drill in the
+  Hub handed you an equation and asked what to do with it. That is one of the
+  things a course examines and not the main one, so there are now twenty more
+  drills across fifteen lessons, of four new kinds:
+
+  * **Which method would you reach for first?** — over a pool of real
+    equations, in units 1 and 3, with a reason attached to every option. The
+    same shape asks which phase portrait a matrix makes and which damping
+    regime a spring is in, because those are the same question about
+    different nouns.
+  * **Write the equation** — a stirred tank, a harvested fish stock, a parcel
+    falling against the air, a mass on a spring, an RLC circuit. And the same
+    question backwards: here is a family of curves, write the equation it
+    solves. Modelling was a third of the applied content and none of the
+    practice.
+  * **Write one move of the method** — the integrating factor, the
+    characteristic equation, the Wronskian, a transform, `det(A − rI)`. The
+    only drill that asks what somebody can *produce* rather than what they can
+    finish or recognise.
+  * **What went wrong here?** — an equation, an answer somebody arrived at,
+    and four diagnoses. The wrong answer is generated from the draw, and the
+    test suite puts every one of them through `check_answer` and requires the
+    verdict its named fault claims: a sign error does not satisfy the
+    equation, a dropped constant does and fails only the initial condition.
+    The worst question this application could ship is a *spot the mistake*
+    whose mistake is not one, and that is what stands in front of it.
+
+  **Two graders for what substitution cannot reach.** `symbolic.check_model`
+  decides whether two *equations* are the same — up to a nonzero constant
+  multiple, so `y' = 2 - y/20`, `y' + y/20 = 2` and `20y' + y = 40` are one
+  answer — and names a multiple that is *not* constant rather than refusing
+  it, because dividing `y' = 3y` by `y` is correct algebra one step too far
+  and loses the solution `y = 0`. `symbolic.check_expression` does the same
+  for a single expression, exactly or up to a constant where the mathematics
+  only determines one: an integrating factor is not more right for being
+  written without a factor of 5 in front.
+
+  Both keep the discipline `check_answer` already had, and both verdicts are
+  proofs. *Right* is proved symbolically, by a difference that simplifies to
+  zero. *Wrong* is proved by evaluation: two expressions that agree everywhere
+  agree at every point, so one point where they differ settles it — and where
+  a constant multiple is allowed, two points whose ratios differ settle it
+  just as firmly. Anything else is "cannot tell", never "wrong".
+
+  **Nothing stored in the new questions is taken on trust.** A `Solve` needs
+  no answer key because substituting *is* the grading; these four all store
+  something, and `tests/test_drill_kinds.py` buys that property back by
+  checking every draw against the routine in this application that owns the
+  question — `classify_ode` and `steps.preferred_hint` for a method,
+  `analysis.classify` for a portrait, the discriminant for a damping regime,
+  and for each expression drill a property of the thing asked for: every
+  integrating factor is differentiated back, every characteristic polynomial
+  compared with the roots the equation actually has, every transform with
+  sympy's own. So a question cannot quietly disagree with the tool that would
+  answer it, and cannot go on claiming an answer the application has stopped
+  giving.
+
+- **Drills can be made easier or harder without becoming a different drill.**
+  A template may now say which of `easier`, `typical` and `harder` each of its
+  draws belongs to, and the card offers the choice where — and only where —
+  the family really has a spread. Eight drills have one: the characteristic
+  roots split by discriminant, with the repeated root filed as the hard case
+  rather than the tidy one; the integrating factor by whether `p` is a
+  constant, a power of `t`, or something that integrates to a logarithm.
+  A drill that offered three difficulties over draws that were all the same
+  would teach a student to distrust the label, so most templates still offer
+  nothing.
+
+
+- **A wrong answer is diagnosed, not dumped.** The Practice and Drill cards
+  used to print what was left over after substitution, raw: `(1 - 2*t)*exp(t)`.
+  That asks the person who has just got the question wrong to do the one piece
+  of analysis they have shown they cannot do — and the residual almost always
+  names the mistake outright. `symbolic.diagnose` is a ladder of tests over it,
+  each of which either fires or does not:
+
+  * the residual equals what substituting `y = 0` leaves → the left-hand side
+    vanished, so this is the complementary function and no particular solution.
+    The commonest miss in the course, and invisible in a cross;
+  * some multiple of the answer is exact → the shape is right and a coefficient
+    was dropped, or at `k = -1`, a sign, and nothing else;
+  * some constant added to the answer is exact → a constant of integration went
+    missing;
+  * the answer contains no `t` at all;
+  * the residual is zero and the conditions fail → the method is right and the
+    constants are not. It names the condition that fails and what the answer
+    gives there instead, because "solve for C1" is advice and "at t = 0 yours
+    gives y = 2, where the condition asks for 1" is a place to start.
+
+  For a system the same ladder says which equation came out zero and which did
+  not — "half right" is a literal statement about a pair — and recognises the
+  two components written the wrong way round, which is right mathematics and a
+  transcription slip.
+
+  **No rung guesses.** Each one ends in `simplify(...) == 0` or in a root sympy
+  actually found, and where none fires the residual is still shown: it is worth
+  less than a sentence and a great deal more than silence. `diagnose` cannot
+  raise, because it is asked on every wrong answer and a rung that threw would
+  turn a cross into a traceback. It costs 0.01–0.10 s against the 0.1–0.5 s the
+  check itself already takes.
+
+- **The quiz report says how far each wrong answer got.** A column of crosses
+  records that four questions were missed and throws away every distinction
+  between them at the moment those distinctions are most useful. Each miss now
+  carries the verdict it was given: the diagnosis above for a typed answer, the
+  reason for the option picked for a multiple-choice one — the distractors are
+  written as one misconception apiece — the value missed for a number, and
+  *skipped* for a question left alone, which is not evidence about the
+  mathematics and should not be filed with the ones that are. The note is
+  pinned by the first answer, exactly as the verdict is, so the report cannot
+  describe an attempt that was never scored.
+
+- **Which option was picked is remembered, not just that one was.** Progress
+  files gain a version 4 field, `picks`: the options chosen for a
+  multiple-choice question, most recent last, capped at the last twelve. The
+  Course Map's Review panel reads them back — *"A habit, not a slip: in
+  Undamped or damped you have chosen “An oscillation inside a decaying
+  envelope” 3 times out of 4"*, with that option's own reason after it. It is
+  the third question about a record, after how much is done and how long ago,
+  and the only one of the three that can be answered with a sentence rather
+  than a bar.
+
+  **A shown position is not an option.** Generated questions shuffle their
+  options per draw, deliberately, so that a drill teaches content rather than
+  position — which also means a tally of positions would count a different
+  option every time. `Choice.origins` keeps the shuffle that produced the
+  question and `Choice.canonical` inverts it, so what is stored is the option
+  *the author wrote*, stable across every draw; `generate.option_written` turns
+  it back into the words somebody clicked. Questions whose right answer moves
+  from draw to draw — the classification drills — are skipped rather than
+  guessed at.
+
+  Older files load untouched and gain the field when next written; a `picks`
+  list somebody has edited by hand loses the entries that are not option
+  indices and keeps the record, because losing a tick that was earned over a
+  field that only decides the wording of a hint would be the worse bug.
+
 - **The largest Lyapunov exponent, with an error bar that means something.**
   Lorenz shipped tagged `chaotic` with no way to quantify the chaos — and
   without an exponent there is no predictability horizon to show either.

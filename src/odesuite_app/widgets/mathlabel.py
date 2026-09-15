@@ -13,6 +13,12 @@ might appear to:
   the token idiom used everywhere else in this application (`solver.py`,
   `screens/home.py`), so a label that is retyped or destroyed mid-render
   discards the stale result rather than painting it.
+* **It grows with the reader's text.** An equation here is a *bitmap*, so it
+  cannot inherit a font size the way the prose around it does, and the point
+  size a caller asks for is a size chosen against the operating system's
+  default text. Every render therefore multiplies it by `theme.text_scale`,
+  and an application font change re-renders rather than leaving the maths --
+  which is the content -- the only thing on the page that did not grow.
 
 `MathBlock` stacks rows. It exists because mathtext cannot render a LaTeX
 ``cases`` or ``matrix`` environment at all, so anything with more than one line
@@ -22,11 +28,11 @@ composed by Qt rather than by LaTeX.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
+from PySide6.QtCore import QEvent, QObject, QRunnable, Qt, QThreadPool, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenu, QVBoxLayout, QWidget
 
-from .. import mathrender
+from .. import mathrender, theme
 from ..mathrender import Row
 from ..theme import Palette
 
@@ -101,6 +107,17 @@ class MathLabel(QWidget):
         if expr is not None:
             self.set_expression(expr)
 
+    def changeEvent(self, event) -> None:
+        """Re-typeset when the operating system's text scale changes.
+
+        Qt delivers that as an application font change. Without this the
+        prose grows and the equations keep whatever size they were first
+        rendered at, which is the stale bitmap A11Y-04 describes.
+        """
+        super().changeEvent(event)
+        if event.type() == QEvent.ApplicationFontChange and self._latex:
+            self._refresh()
+
     # -- content ---------------------------------------------------------
 
     def set_expression(self, expr) -> None:
@@ -138,6 +155,15 @@ class MathLabel(QWidget):
             return float(handle.devicePixelRatio())
         return float(QGuiApplication.primaryScreen().devicePixelRatio())
 
+    def rendered_point_size(self) -> float:
+        """The size this label actually typesets at.
+
+        Distinct from `point_size`, which is what the caller asked for: the
+        two differ by the reader's text scale, and the tests compare this
+        against the body text's line height.
+        """
+        return self.point_size * theme.text_scale()
+
     def _refresh(self) -> None:
         self._token += 1
         self._show_text()                       # stands in until the image lands
@@ -146,8 +172,9 @@ class MathLabel(QWidget):
             return
 
         ratio = self._ratio()
+        size = self.rendered_point_size()
         image = mathrender.pixmap(
-            self._latex, self.colour, self.point_size, ratio, cached_only=True
+            self._latex, self.colour, size, ratio, cached_only=True
         )
         if image is not None:
             self._show_pixmap(image)            # cache hit: no flicker, no job
@@ -155,7 +182,7 @@ class MathLabel(QWidget):
 
         QThreadPool.globalInstance().start(
             _RenderJob(self._token, self._latex, self.colour,
-                       self.point_size, ratio, self._signals)
+                       size, ratio, self._signals)
         )
 
     def _on_rendered(self, token: int, data: bytes) -> None:
@@ -193,9 +220,9 @@ class MathLabel(QWidget):
         self._label.setText(self._plain)
         self._label.setToolTip("")
         self._label.setStyleSheet(
-            f"background: transparent;"
-            f' font-family: "Cascadia Mono", "Consolas", monospace;'
-            f" font-size: {self.point_size - 3:.0f}px; color: {self.colour};"
+            theme.scaled(f"background: transparent;"
+                         f' font-family: "Cascadia Mono", "Consolas", monospace;'
+                         f" font-size: {self.point_size - 3:.0f}px; color: {self.colour};")
         )
 
     # -- context menu ----------------------------------------------------
@@ -259,8 +286,8 @@ class MathBlock(QWidget):
                 lead = QLabel(self.lead)
                 lead.setProperty("role", "mono")
                 lead.setStyleSheet(
-                    f"background: transparent; font-size: 13px;"
-                    f" color: {self.palette_obj.text};"
+                    theme.scaled(f"background: transparent; font-size: 13px;"
+                                 f" color: {self.palette_obj.text};")
                 )
                 lead.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 lead.setFixedWidth(lead.sizeHint().width() + 6)
@@ -278,7 +305,7 @@ class MathBlock(QWidget):
             if row.condition:
                 note = QLabel(row.condition)
                 note.setProperty("role", "muted")
-                note.setStyleSheet("background: transparent; font-size: 11.5px;")
+                note.setStyleSheet(theme.scaled("background: transparent; font-size: 11.5px;"))
                 note.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 layout.addWidget(note)
 

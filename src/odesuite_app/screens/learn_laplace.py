@@ -181,6 +181,17 @@ class LaplaceScreen(QWidget):
 
     # -- behaviour -------------------------------------------------------
 
+    def load_equation(self, equation: str, conditions: str = "") -> None:
+        """Type an equation in from elsewhere and work it out.
+
+        The lesson that sends one here has just shown it being solved, so the
+        screen it opens should be looking at that equation rather than at
+        whatever was last in the box. Nothing is bypassed on the way: the text
+        goes into the same fields somebody would type it into, and the same
+        submit path reads them.
+        """
+        self.editor.set_equation(equation, conditions)
+
     def _on_submitted(self, spec) -> None:
         from ..symbolic import parse_equation
 

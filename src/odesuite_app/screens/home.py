@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import catalog, thumbnails
+from .. import catalog, theme, thumbnails
 from ..theme import Palette
 from ..widgets.cards import ChipBar, ProblemCard, ShowcaseTile
 from ..widgets.controls import add_heading
@@ -123,9 +123,11 @@ class HomeScreen(QWidget):
                  "Y(s), and invert it back.", palette.danger, "laplace"),
                 ("Methods by Hand", "Euler and RK4 as they are taught: the "
                  "arithmetic, beside the exact answer.", palette.accent, "byhand"),
-                ("Unit Quiz", "A mixed set from one unit, in no particular "
-                 "order — which is the part an exam actually tests.",
+                ("Quiz & Exams", "A mixed set from one unit, or a whole "
+                 "cumulative paper against the clock.",
                  palette.warning, "quiz"),
+                ("Print & Revise", "A worksheet to write on, its solution "
+                 "key, and the formula sheet.", palette.accent, "print"),
                 ("Worked Problems", "Mixing tanks, circuits and cooling — "
                  "where the equation comes from.", palette.success, "worked"),
             ]),
@@ -161,7 +163,7 @@ class HomeScreen(QWidget):
 
         self.status = QLabel("rendering previews…")
         self.status.setProperty("role", "muted")
-        self.status.setStyleSheet("font-size: 11px;")
+        self.status.setStyleSheet(theme.scaled("font-size: 11px;"))
         layout.addWidget(self.status)
 
         self.grid_host = FlowWidget(spacing=14)

@@ -28,10 +28,24 @@ from PySide6.QtWidgets import (
 
 from .. import lessons as content
 from .. import progress
+from ..lessons import generate
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
 
 __all__ = ["CourseScreen"]
+
+#: How much of an option's reason the review panel shows. The panel is a
+#: column, not a card: a paragraph in it pushes everything else off the
+#: bottom, and the lesson it points at has the whole reason anyway.
+REASON_SHOWN = 150
+
+
+def _shorten(text: str) -> str:
+    """`text`, cut at a word boundary if it is longer than the panel wants."""
+    text = " ".join(text.split())
+    if len(text) <= REASON_SHOWN:
+        return text
+    return text[:REASON_SHOWN].rsplit(" ", 1)[0] + "…"
 
 
 class CourseScreen(QWidget):
@@ -306,14 +320,45 @@ class CourseScreen(QWidget):
 
         # Ranked by score, `weakest` can never surface a lesson finished in
         # July and untouched since -- it scores perfectly. That is exactly what
-        # a course wants brought back, so it is asked for separately.
+        # a course wants brought back, so it is asked for separately, and it is
+        # ranked by how far past each question's *own* Leitner interval it is
+        # rather than by raw age.
         old_now = progress.stale(content.UNITS, self._answered)
         if old_now:
             names = ", ".join(
                 f"{lesson.title} ({days} days ago)"
                 for lesson, _unit, days in old_now
             )
-            lines.append(f"Not seen in a while: {names}")
+            lines.append(f"Due for review: {names}")
+
+        # What the schedule is holding, in its own three words. The counts move
+        # in a way neither of the lines above can: a question drops back to
+        # "learning" the moment it is missed, however long its tick has stood.
+        held = progress.boxes(content.UNITS, self._answered)
+        if any(held.values()):
+            lines.append(
+                "In the boxes: "
+                + " · ".join(f"{held[name]} {name}"
+                             for name, _ in progress.LEITNER)
+                + f" — seen again after {progress.LEITNER[0][1]}, "
+                  f"{progress.LEITNER[1][1]} and {progress.LEITNER[2][1]} days."
+            )
+
+        # Neither of those can say *what* somebody has wrong, only how much and
+        # how long ago. The options are written as one misconception apiece, so
+        # the same wrong one chosen three times is a belief rather than a slip,
+        # and naming it is the whole reason the per-option reasons exist.
+        for habit in progress.misconceptions(content.UNITS, self._answered,
+                                             limit=1):
+            option, because = generate.option_written(habit.question,
+                                                      habit.option)
+            if not option:
+                continue
+            lines.append(
+                f"A habit, not a slip: in {habit.lesson.title} you have chosen "
+                f"“{option}” {habit.times} times out of {habit.picks}. "
+                + _shorten(because)
+            )
 
         self.review_label.setText(
             "\n".join(lines) if lines else

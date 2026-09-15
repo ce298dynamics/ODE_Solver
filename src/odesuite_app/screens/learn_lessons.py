@@ -23,6 +23,10 @@ Hints come one rung at a time rather than all at once: a nudge, then the first
 move, then the next, and "Show me" — the real narrator — at the end of the
 ladder. A hint that gives the answer away on the first press is not a hint.
 
+**A drill is driven from the keyboard alone.** Enter marks what is in the box;
+Enter again draws the next question and leaves the caret where the answer goes.
+Nothing else here is done forty times in a row, and nothing else here needs it.
+
 Progress is recorded on disk (see `progress`), so the ticks survive closing the
 application. Everything expensive — a worked example, a model answer — happens
 on the thread pool and only when asked for, so switching lesson or segment
@@ -48,7 +52,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import lessons as content
-from .. import progress, richtext
+from .. import progress, richtext, theme
 from ..lessons import generate
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
@@ -56,11 +60,29 @@ from ..widgets.lessonfigure import build_figure
 from ..widgets.mathlabel import MathLabel
 from ..widgets.stepspanel import StepsPanel
 
-__all__ = ["LessonsScreen", "SEGMENTS"]
+__all__ = ["CARRIES_EQUATION", "TOOL_NAMES", "LessonsScreen", "SEGMENTS"]
 
 #: The parts of a lesson, in the order they are meant to be met. `Drill` is
 #: offered only where the lesson has templates -- see `_build_drill`.
 SEGMENTS = ("Learn", "Examples", "Practice", "Drill")
+
+#: What a `Lesson.tool` is called on screen. A copy of four of the labels in
+#: `app.SECTIONS` rather than an import of them: this screen is constructed by
+#: that module, and reaching back into it for four strings would make the two
+#: mutually dependent for no gain. `tests/test_lessons.py` checks the copies
+#: against the originals, which is the part that actually matters.
+TOOL_NAMES = {
+    "steps": "Solve Step by Step",
+    "laplace": "Laplace Transforms",
+    "byhand": "Methods by Hand",
+    "worked": "Worked Problems",
+}
+
+#: Which of those can be opened *on* an equation. The other two are driven by
+#: the catalogue -- they offer a list of problems rather than a box to type in
+#: -- so there is nothing for a lesson's example to be loaded into, and
+#: promising otherwise is the bug this set exists to avoid repeating.
+CARRIES_EQUATION = frozenset({"steps", "laplace"})
 
 
 class _Signals(QObject):
@@ -112,11 +134,40 @@ def _work_out(equation: str, conditions: str, narrator: str):
     return solve_symbolically(parsed, steps=True).derivation
 
 
+class _DrillCard(QFrame):
+    """A drill's card, which answers to Enter however it is focused.
+
+    A `QLineEdit` consumes Return and reports it as `returnPressed`, so a
+    drill with a box to type in needs nothing from here. A multiple-choice
+    drill has no box: the focus is on a radio button, which ignores Return and
+    lets it travel up to this frame.
+
+    A `QShortcut` scoped to the card was the first attempt and is the wrong
+    tool. Shortcuts are matched against the *window*, so they do nothing until
+    the window is active -- which makes the behaviour untestable and, worse,
+    makes it depend on something the reader cannot see.
+    """
+
+    #: Enter was pressed somewhere in this card and nothing else wanted it.
+    returned = Signal()
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            self.returned.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+
 class LessonsScreen(QWidget):
     """One lesson at a time: what it is, worked examples, and practice."""
 
-    #: Asks the window to open the tool a lesson belongs to.
-    open_tool = Signal(str)
+    #: Asks the window to open the tool a lesson belongs to, carrying the
+    #: lesson's own example: ``(screen key, equation, conditions)``. The
+    #: equation travels with the request rather than being fetched at the
+    #: other end, because the window knows which screen to show and only this
+    #: screen knows which lesson is open.
+    open_tool = Signal(str, str, str)
 
     def __init__(self, state, palette: Palette, parent=None) -> None:
         super().__init__(parent)
@@ -128,8 +179,20 @@ class LessonsScreen(QWidget):
         #: Template key -> which draw is on screen. In memory rather than on
         #: disk: the streak is the thing worth keeping, not the question.
         self._drill_seed: dict[str, int] = {}
+        #: Which difficulty each drill is drawing from, where it
+        #: offers a choice. Kept for the session rather than stored:
+        #: it is a way of working through one sitting, not a record
+        #: of what somebody can do.
+        self._drill_tier: dict[str, str] = {}
         #: Question key -> the label that shows its verdict.
         self._verdicts: dict[str, QLabel] = {}
+        #: Template key -> the box its answer is typed into, for the drill's
+        #: keyboard loop. Rebuilt with the page, because the widgets are.
+        self._drill_inputs: dict[str, QLineEdit] = {}
+        #: Which drill asked for the next draw, so the caret can go back to it
+        #: once the page has been rebuilt. Cleared as soon as it is honoured:
+        #: it describes one rebuild, not a preference.
+        self._focus_drill: str = ""
         #: Token -> the panel and button waiting on it. Keyed rather than held
         #: singly, so a superseded request can still re-enable its own button
         #: instead of leaving it disabled for good.
@@ -182,9 +245,6 @@ class LessonsScreen(QWidget):
         layout.addWidget(self.listing)
 
         self.tool_button = QPushButton("Open the tool for this topic")
-        self.tool_button.setToolTip(
-            "Open the screen this lesson teaches, with an example loaded"
-        )
         self.tool_button.setProperty("role", "primary")
         self.tool_button.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.tool_button)
@@ -216,7 +276,7 @@ class LessonsScreen(QWidget):
         self.transfer_note = QLabel("")
         self.transfer_note.setProperty("role", "muted")
         self.transfer_note.setWordWrap(True)
-        self.transfer_note.setStyleSheet("font-size: 11px;")
+        self.transfer_note.setStyleSheet(theme.scaled("font-size: 11px;"))
         layout.addWidget(self.transfer_note)
 
         self.reset_button = QPushButton("Reset progress")
@@ -229,7 +289,7 @@ class LessonsScreen(QWidget):
         where = QLabel(f"Answers are remembered in\n{progress.path()}")
         where.setProperty("role", "muted")
         where.setWordWrap(True)
-        where.setStyleSheet("font-size: 10px;")
+        where.setStyleSheet(theme.scaled("font-size: 10px;"))
         layout.addWidget(where)
 
         self.listing.currentItemChanged.connect(lambda *_: self._show())
@@ -288,7 +348,7 @@ class LessonsScreen(QWidget):
     def _say_transfer(self, message: str, *, bad: bool = False) -> None:
         colour = (self.palette_obj.danger if bad
                   else self.palette_obj.text_muted)
-        self.transfer_note.setStyleSheet(f"font-size: 11px; color: {colour};")
+        self.transfer_note.setStyleSheet(theme.scaled(f"font-size: 11px; color: {colour};"))
         self.transfer_note.setText(message)
 
     def _build_body(self) -> QWidget:
@@ -418,11 +478,13 @@ class LessonsScreen(QWidget):
         lesson = self.current_lesson()
         self._clear()
         self._verdicts = {}
+        self._drill_inputs = {}
         self._abandon()
 
         if lesson is None:
             # A unit heading is selected rather than a lesson. Say so instead
             # of leaving the reading column blank.
+            self._describe_tool(None)
             self.title_label.setText("")
             self.summary_label.setText("Choose a lesson from the unit on the "
                                        "left.")
@@ -443,6 +505,7 @@ class LessonsScreen(QWidget):
             self._segment = "Practice"
             self.segment_buttons["Practice"].setChecked(True)
 
+        self._describe_tool(lesson)
         self.title_label.setText(lesson.title)
         self.summary_label.setText(lesson.summary)
         unit = content.unit_of(lesson)
@@ -462,6 +525,23 @@ class LessonsScreen(QWidget):
             self._build_practice(lesson)
         self._layout.addStretch(1)
         self._scroll.verticalScrollBar().setValue(0)
+        self._restore_drill_focus()
+
+    def _restore_drill_focus(self) -> None:
+        """Put the caret back in the drill that asked for a new question.
+
+        Advancing rebuilds the whole segment, which destroys the box that was
+        being typed in. Without this the keyboard loop would run exactly one
+        question before handing the mouse back, which is the thing it exists
+        to stop.
+        """
+        wanted, self._focus_drill = self._focus_drill, ""
+        box = self._drill_inputs.get(wanted)
+        if box is not None:
+            box.setFocus(Qt.OtherFocusReason)
+            # The card is somewhere down a scrolling column, and a caret
+            # nobody can see is not where the caret should be.
+            self._scroll.ensureWidgetVisible(box, 0, 60)
 
     def _build_learn(self, lesson) -> None:
         if lesson.objectives:
@@ -565,9 +645,19 @@ class LessonsScreen(QWidget):
                         "equation, so any correct form passes",
             "choice-template": "pick the right option",
             "numeric-template": "a number you type is marked to a tolerance",
+            "model-template": "an equation you write is compared with the "
+                              "one the situation gives, however you arrange "
+                              "it",
+            "expression-template": "one step of the method, marked by what "
+                                   "it is rather than how it is spelled",
+            "classify-template": "name the method, and say what decided it",
+            "fault-template": "find what is wrong with an answer somebody "
+                              "else arrived at",
         }
         parts = [described[kind] for kind in
-                 ("template", "choice-template", "numeric-template")
+                 ("template", "choice-template", "numeric-template",
+                  "model-template", "expression-template",
+                  "classify-template", "fault-template")
                  if kind in kinds]
         how = "; ".join(parts) if parts else "answers are marked"
         blurb = QLabel(
@@ -583,8 +673,16 @@ class LessonsScreen(QWidget):
 
     # -- cards -----------------------------------------------------------
 
-    def _panel(self, accent: str = "") -> tuple[QFrame, QVBoxLayout]:
-        frame = QFrame()
+    def _panel(self, accent: str = "",
+               card: type[QFrame] = QFrame) -> tuple[QFrame, QVBoxLayout]:
+        """A themed card and its layout. `card` picks the class it is built as.
+
+        Only the drill cards want anything but a plain `QFrame` -- they take
+        `_DrillCard`, which answers to Enter -- and they want everything else
+        about a card unchanged, which is why this is a parameter rather than a
+        second copy of the function.
+        """
+        frame = card()
         frame.setProperty("role", "panel")
         if accent:
             # Scoped by object name, and it has to be. A stylesheet set on a
@@ -638,10 +736,11 @@ class LessonsScreen(QWidget):
         if label:
             tag = QLabel(label.upper())
             tag.setProperty("role", "muted")
-            tag.setStyleSheet(
-                f"color: {palette.warning if note.kind == 'pitfall' else palette.text_muted};"
-                "font-size: 10px; letter-spacing: 1px;"
-            )
+            accent = (palette.warning if note.kind == "pitfall"
+                      else palette.text_muted)
+            tag.setStyleSheet(theme.scaled(
+                f"color: {accent}; font-size: 10px; letter-spacing: 1px;"
+            ))
             layout.addWidget(tag)
 
         heading = QLabel(note.heading)
@@ -725,13 +824,99 @@ class LessonsScreen(QWidget):
         return (f"{dots}   {streak} in a row, {left} more"
                 if left > 0 else f"{dots}   mastered")
 
+    def _keyboard_loop(self, frame, template, answer, graded, advance):
+        """Enter checks; Enter again draws the next one.
+
+        A drill is the one part of this screen somebody does forty times in a
+        row, and it was the one part that still needed the mouse:
+        `returnPressed` marked an answer, and *New question* was a button. So
+        the same key does both, in the order they are wanted -- there is no
+        point advancing before the verdict has been read, and no point
+        re-marking an answer that has already been marked.
+
+        `graded` says whether it actually marked anything, which is what keeps
+        an empty box or an unpicked option from being spent as a turn: the key
+        stays on this question until there is a verdict to move past.
+
+        The key is taken once, by the card. A `QLineEdit` emits
+        `returnPressed` *and* lets the event travel on, so wiring both would
+        check and advance on a single press -- which is exactly what the first
+        version of this did. Listening at the card also means Enter works
+        wherever the focus happens to be inside it: the answer box, a radio
+        button, or the Hint button beside them.
+        """
+        marked = {"done": False}
+
+        def step() -> None:
+            if marked["done"]:
+                advance()
+            else:
+                marked["done"] = bool(graded())
+
+        if answer is not None:
+            # Where the caret goes when the next draw is built. Recorded per
+            # template rather than globally: a Drill segment shows every
+            # template the lesson has, and the one that advanced is the one
+            # that should still have the focus afterwards.
+            self._drill_inputs[template.key] = answer
+        frame.returned.connect(step)
+        return step
+
+    def _tier_row(self, template, offered: tuple[str, ...]) -> QHBoxLayout:
+        """The easier/typical/harder control, for a drill that has a spread.
+
+        Shown only where the template really has one. A control offering
+        three difficulties over a family that has one would teach a student to
+        distrust the label, which is worse than not offering the choice.
+
+        Switching keeps the seed rather than resetting it, so coming back to a
+        tier does not re-ask the question it opened with.
+        """
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        label = QLabel("Difficulty")
+        label.setProperty("role", "muted")
+        row.addWidget(label)
+
+        current = self._tier_of(template, offered)
+        for tier in offered:
+            button = QPushButton(tier.capitalize())
+            button.setCheckable(True)
+            button.setChecked(tier == current)
+            button.setCursor(Qt.PointingHandCursor)
+            button.setToolTip(
+                f"Draw only the {tier} questions of this drill"
+            )
+            button.clicked.connect(
+                lambda _checked=False, key=template.key, choice=tier:
+                self._choose_tier(key, choice)
+            )
+            row.addWidget(button)
+        row.addStretch(1)
+        return row
+
+    def _tier_of(self, template, offered: tuple[str, ...]) -> str:
+        """Which tier this drill is currently drawing from."""
+        chosen = self._drill_tier.get(template.key)
+        if chosen in offered:
+            return chosen
+        return "typical" if "typical" in offered else offered[0]
+
+    def _choose_tier(self, key: str, tier: str) -> None:
+        self._drill_tier[key] = tier
+        self._focus_drill = key
+        self._show()
+
     def _drill_card(self, lesson, template) -> QWidget:
         palette = self.palette_obj
         seed = self._drill_seed.setdefault(template.key, 0)
-        question = generate.draw(template, seed)
+        offered = generate.tiers(template)
+        tier = self._tier_of(template, offered) if len(offered) > 1 else ""
+        question = generate.draw(template, seed, tier)
         streak, mastered = self._streak_of(lesson, template)
 
-        frame, layout = self._panel(palette.success if mastered else "")
+        frame, layout = self._panel(palette.success if mastered else "",
+                                    card=_DrillCard)
 
         head = QHBoxLayout()
         heading = QLabel(template.title)
@@ -749,20 +934,33 @@ class LessonsScreen(QWidget):
 
         prompt = QLabel(
             f"{question.prompt}   ·   one of "
-            f"{generate.combinations(template)} versions"
+            f"{generate.combinations(template, tier)} versions"
         )
         prompt.setProperty("role", "muted")
         prompt.setWordWrap(True)
         layout.addWidget(prompt)
 
+        if len(offered) > 1:
+            layout.addLayout(self._tier_row(template, offered))
+
         # The other two kinds take their own paths. Neither has a narrator, so
         # neither offers "Show me": a button that cannot do anything is worse
         # than an absent one. A `Choice` has no hints either; a `Numeric` may.
         if question.kind == "choice":
-            self._build_choice_drill(lesson, template, question, run, layout)
+            self._build_choice_drill(lesson, template, question, run, layout,
+                                     frame)
             return frame
         if question.kind == "numeric":
-            self._build_numeric_drill(lesson, template, question, run, layout)
+            self._build_numeric_drill(lesson, template, question, run, layout,
+                                      frame)
+            return frame
+        if question.kind == "model":
+            self._build_model_drill(lesson, template, question, run, layout,
+                                    frame)
+            return frame
+        if question.kind == "expression":
+            self._build_expression_drill(lesson, template, question, run,
+                                         layout, frame)
             return frame
 
         shown = question.equation + (
@@ -801,7 +999,10 @@ class LessonsScreen(QWidget):
         row.addWidget(show)
 
         again = QPushButton("New question")
-        again.setToolTip("Draw another of the same kind, with new numbers")
+        again.setToolTip(
+            "Draw another of the same kind, with new numbers. Enter does "
+            "this too, once the answer has been marked."
+        )
         again.setCursor(Qt.PointingHandCursor)
         row.addWidget(again)
         layout.addLayout(row)
@@ -825,22 +1026,24 @@ class LessonsScreen(QWidget):
 
         self._wire_hints(question, hints, hint_button)
 
-        def graded() -> None:
-            self._check_solve(lesson, question, answer, verdict,
-                              bucket=progress.drill_key(lesson.key),
-                              key=template.key)
+        def graded() -> bool:
+            marked = self._check_solve(lesson, question, answer, verdict,
+                                       bucket=progress.drill_key(lesson.key),
+                                       key=template.key)
             now, done = self._streak_of(lesson, template)
             run.setText(self._streak_text(now, done))
             run.setStyleSheet(
                 f"color: {palette.success if done else palette.text_muted};"
             )
+            return marked
 
         def next_question() -> None:
             self._drill_seed[template.key] = seed + 1
+            self._focus_drill = template.key
             self._show()
 
         check.clicked.connect(graded)
-        answer.returnPressed.connect(graded)
+        self._keyboard_loop(frame, template, answer, graded, next_question)
         show.clicked.connect(
             lambda: self._work(question.equation, question.conditions,
                                template.narrator, working, show)
@@ -849,7 +1052,7 @@ class LessonsScreen(QWidget):
         return frame
 
     def _build_choice_drill(self, lesson, template, question, run: QLabel,
-                            layout) -> None:
+                            layout, frame) -> None:
         """The radio-button half of a drill, for a generated `Choice`.
 
         Everything a `Solve` drill offers that a `Choice` cannot honour is left
@@ -861,6 +1064,18 @@ class LessonsScreen(QWidget):
         if question.latex:
             layout.addWidget(MathLabel(self.palette_obj, question.latex,
                                        point_size=15))
+        if question.shown:
+            # A generated question cannot be typeset: the equation comes out
+            # of the draw, and authoring a LaTeX form of it as well would be
+            # writing the same equation twice and waiting for the two to
+            # disagree. So it is shown in the font the editor uses, which is
+            # also the form it would be typed in.
+            written = QLabel(question.shown)
+            written.setStyleSheet(
+                "font-family: Cascadia Mono, Consolas, monospace;"
+            )
+            written.setWordWrap(True)
+            layout.addWidget(written)
 
         # Parented to the card, as `_build_choice` explains: a group owned by
         # the screen would outlive its own buttons and accumulate a dead set
@@ -887,33 +1102,39 @@ class LessonsScreen(QWidget):
         row.addWidget(check)
 
         again = QPushButton("New question")
-        again.setToolTip("Draw another of the same kind, with new numbers")
+        again.setToolTip(
+            "Draw another of the same kind, with new numbers. Enter does "
+            "this too, once the answer has been marked."
+        )
         again.setCursor(Qt.PointingHandCursor)
         row.addWidget(again)
         row.addStretch(1)
         layout.addLayout(row)
 
-        def graded() -> None:
-            self._check_choice(lesson, question, group, verdict,
-                               bucket=progress.drill_key(lesson.key),
-                               key=template.key)
+        def graded() -> bool:
+            marked = self._check_choice(lesson, question, group, verdict,
+                                        bucket=progress.drill_key(lesson.key),
+                                        key=template.key)
             now, done = self._streak_of(lesson, template)
             run.setText(self._streak_text(now, done))
             run.setStyleSheet(
                 f"color: {palette.success if done else palette.text_muted};"
             )
+            return marked
 
         def next_question() -> None:
             self._drill_seed[template.key] = (
                 self._drill_seed.get(template.key, 0) + 1
             )
+            self._focus_drill = template.key
             self._show()
 
         check.clicked.connect(graded)
+        self._keyboard_loop(frame, template, None, graded, next_question)
         again.clicked.connect(next_question)
 
     def _build_numeric_drill(self, lesson, template, question, run: QLabel,
-                             layout) -> None:
+                             layout, frame) -> None:
         """The typed-number half of a drill, for a generated `Numeric`.
 
         Closer to the `Solve` drill than to the `Choice` one -- there is a box
@@ -958,7 +1179,10 @@ class LessonsScreen(QWidget):
         row.addWidget(hint_button)
 
         again = QPushButton("New question")
-        again.setToolTip("Draw another of the same kind, with new numbers")
+        again.setToolTip(
+            "Draw another of the same kind, with new numbers. Enter does "
+            "this too, once the answer has been marked."
+        )
         again.setCursor(Qt.PointingHandCursor)
         row.addWidget(again)
         layout.addLayout(row)
@@ -977,24 +1201,195 @@ class LessonsScreen(QWidget):
 
         self._wire_hints(question, hints, hint_button)
 
-        def graded() -> None:
-            self._check_numeric(lesson, question, answer, verdict,
-                                bucket=progress.drill_key(lesson.key),
-                                key=template.key)
+        def graded() -> bool:
+            marked = self._check_numeric(lesson, question, answer, verdict,
+                                         bucket=progress.drill_key(lesson.key),
+                                         key=template.key)
             now, done = self._streak_of(lesson, template)
             run.setText(self._streak_text(now, done))
             run.setStyleSheet(
                 f"color: {palette.success if done else palette.text_muted};"
             )
+            return marked
 
         def next_question() -> None:
             self._drill_seed[template.key] = (
                 self._drill_seed.get(template.key, 0) + 1
             )
+            self._focus_drill = template.key
             self._show()
 
         check.clicked.connect(graded)
-        answer.returnPressed.connect(graded)
+        self._keyboard_loop(frame, template, answer, graded, next_question)
+        again.clicked.connect(next_question)
+
+    def _build_model_drill(self, lesson, template, question, run: QLabel,
+                           layout, frame) -> None:
+        """The half of a drill that asks for an equation rather than a number.
+
+        A `Model` question gives a situation, or a family of curves, and asks
+        what equation it is. So the box wants an equation in it, and the
+        placeholder says so -- somebody who types only a right-hand side is
+        told to write the whole thing rather than marked wrong for it.
+
+        No "Show me", for the same reason the numeric drill has none: the
+        narrator works equations, and this question has not got to one yet.
+        The account of where each term comes from arrives with the verdict
+        instead.
+        """
+        palette = self.palette_obj
+        if question.latex:
+            layout.addWidget(MathLabel(self.palette_obj, question.latex,
+                                       point_size=15))
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        answer = QLineEdit()
+        answer.setPlaceholderText("y' = ...")
+        answer.setClearButtonEnabled(True)
+        row.addWidget(answer, 1)
+
+        check = QPushButton("Check")
+        check.setToolTip("Mark the equation you have written")
+        check.setProperty("role", "primary")
+        check.setCursor(Qt.PointingHandCursor)
+        row.addWidget(check)
+
+        hint_button = QPushButton("Hint")
+        hint_button.setToolTip(
+            "Reveal the next hint. They come one at a time, and never the "
+            "equation."
+        )
+        hint_button.setCursor(Qt.PointingHandCursor)
+        hint_button.setEnabled(bool(question.hints))
+        row.addWidget(hint_button)
+
+        again = QPushButton("New question")
+        again.setToolTip(
+            "Draw another of the same kind, with new numbers. Enter does "
+            "this too, once the answer has been marked."
+        )
+        again.setCursor(Qt.PointingHandCursor)
+        row.addWidget(again)
+        layout.addLayout(row)
+
+        verdict = QLabel("")
+        verdict.setWordWrap(True)
+        verdict.setTextFormat(Qt.RichText)
+        layout.addWidget(verdict)
+        self._verdicts[template.key] = verdict
+
+        hints = QLabel("")
+        hints.setProperty("role", "muted")
+        hints.setWordWrap(True)
+        hints.setVisible(False)
+        layout.addWidget(hints)
+
+        self._wire_hints(question, hints, hint_button)
+
+        def graded() -> bool:
+            marked = self._check_model(lesson, question, answer, verdict,
+                                       bucket=progress.drill_key(lesson.key),
+                                       key=template.key)
+            now, done = self._streak_of(lesson, template)
+            run.setText(self._streak_text(now, done))
+            run.setStyleSheet(
+                f"color: {palette.success if done else palette.text_muted};"
+            )
+            return marked
+
+        def next_question() -> None:
+            self._drill_seed[template.key] = (
+                self._drill_seed.get(template.key, 0) + 1
+            )
+            self._focus_drill = template.key
+            self._show()
+
+        check.clicked.connect(graded)
+        self._keyboard_loop(frame, template, answer, graded, next_question)
+        again.clicked.connect(next_question)
+
+    def _build_expression_drill(self, lesson, template, question, run: QLabel,
+                                layout, frame) -> None:
+        """The half of a drill that asks for one move of a method.
+
+        The integrating factor, the characteristic polynomial, the Wronskian.
+        The box wants an expression, so the placeholder shows the notation the
+        rest of the application reads -- ``exp`` rather than a written-out e,
+        because that is what the editor accepts everywhere else and a drill is
+        a bad place to teach a second dialect.
+        """
+        palette = self.palette_obj
+        if question.latex:
+            layout.addWidget(MathLabel(self.palette_obj, question.latex,
+                                       point_size=15))
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        answer = QLineEdit()
+        answer.setPlaceholderText("an expression, like exp(3*t)")
+        answer.setClearButtonEnabled(True)
+        row.addWidget(answer, 1)
+
+        check = QPushButton("Check")
+        check.setToolTip("Mark the expression you have written")
+        check.setProperty("role", "primary")
+        check.setCursor(Qt.PointingHandCursor)
+        row.addWidget(check)
+
+        hint_button = QPushButton("Hint")
+        hint_button.setToolTip(
+            "Reveal the next hint. They come one at a time, and never the "
+            "answer."
+        )
+        hint_button.setCursor(Qt.PointingHandCursor)
+        hint_button.setEnabled(bool(question.hints))
+        row.addWidget(hint_button)
+
+        again = QPushButton("New question")
+        again.setToolTip(
+            "Draw another of the same kind, with new numbers. Enter does "
+            "this too, once the answer has been marked."
+        )
+        again.setCursor(Qt.PointingHandCursor)
+        row.addWidget(again)
+        layout.addLayout(row)
+
+        verdict = QLabel("")
+        verdict.setWordWrap(True)
+        verdict.setTextFormat(Qt.RichText)
+        layout.addWidget(verdict)
+        self._verdicts[template.key] = verdict
+
+        hints = QLabel("")
+        hints.setProperty("role", "muted")
+        hints.setWordWrap(True)
+        hints.setVisible(False)
+        layout.addWidget(hints)
+
+        self._wire_hints(question, hints, hint_button)
+
+        def graded() -> bool:
+            marked = self._check_expression(
+                lesson, question, answer, verdict,
+                bucket=progress.drill_key(lesson.key), key=template.key,
+            )
+            now, done = self._streak_of(lesson, template)
+            run.setText(self._streak_text(now, done))
+            run.setStyleSheet(
+                f"color: {palette.success if done else palette.text_muted};"
+            )
+            return marked
+
+        def next_question() -> None:
+            self._drill_seed[template.key] = (
+                self._drill_seed.get(template.key, 0) + 1
+            )
+            self._focus_drill = template.key
+            self._show()
+
+        check.clicked.connect(graded)
+        self._keyboard_loop(frame, template, answer, graded, next_question)
         again.clicked.connect(next_question)
 
     def _question_card(self, lesson, number: int, question) -> QWidget:
@@ -1158,25 +1553,38 @@ class LessonsScreen(QWidget):
             verdict.setStyleSheet(f"color: {self.palette_obj.text_muted};")
             verdict.setText("attempted" + tally)
 
-    def _record(self, bucket: str, key: str, state: str) -> None:
+    def _record(self, bucket: str, key: str, state: str,
+                picked: int | None = None) -> None:
         """Note one answer.
 
         `bucket` is the lesson's own key for its practice questions, and
         `progress.drill_key(lesson)` for its drills -- a separate bucket, so
         that an unbounded number of generated answers cannot disturb the
         "3 of 5" the practice questions mean.
+
+        `picked` is the *author's* index for the option chosen, where one was.
+        Kept because a state cannot say which wrong answer somebody gave, and
+        the wrong answer is the interesting half: the options are written as
+        one misconception apiece, and the same one chosen four times is a
+        different fact from four questions missed.
         """
-        self._answered = progress.record(bucket, key, state)
+        self._answered = progress.record(bucket, key, state, picked=picked)
         self._refresh_labels()
 
     def _check_choice(self, lesson, question, group, verdict: QLabel, *,
-                      bucket: str = "", key: str = "") -> None:
+                      bucket: str = "", key: str = "") -> bool:
+        """Mark one multiple-choice answer. True if there was one to mark.
+
+        The verdict is the point; the return value exists for the keyboard
+        loop, which has to know whether this press was the check or whether
+        the check never happened -- see `_keyboard_loop`.
+        """
         picked = group.checkedId()
         palette = self.palette_obj
         if picked < 0:
             verdict.setStyleSheet(f"color: {palette.text_muted};")
             verdict.setText("pick an option first")
-            return
+            return False
 
         right = content.grade_choice(question, picked)
         verdict.setStyleSheet(
@@ -1192,12 +1600,20 @@ class LessonsScreen(QWidget):
         # the lesson's question bucket. The two numbers mean different things
         # and the Course Map shows both: questions are out of a fixed
         # denominator, drills are a streak that can go back down.
+        #
+        # The pick is recorded through `Choice.canonical`, which undoes the
+        # per-draw shuffle. A drill records under the template's key, so its
+        # picks accumulate across draws -- and a bare position would be a
+        # different option in each of them, which is precisely the tally the
+        # shuffle exists to prevent anyone drilling.
         self._record(bucket or lesson.key, key or question.key,
-                     progress.State.CORRECT if right else progress.State.ATTEMPTED)
+                     progress.State.CORRECT if right else progress.State.ATTEMPTED,
+                     picked=question.canonical(picked))
+        return True
 
     def _check_solve(self, lesson, question, answer: QLineEdit,
                      verdict: QLabel, *, bucket: str = "",
-                     key: str = "") -> None:
+                     key: str = "") -> bool:
         from ..laplace import EXTRA_FUNCTIONS
         from ..symbolic import check_answer, parse_equation, spec_for
 
@@ -1214,7 +1630,7 @@ class LessonsScreen(QWidget):
         except Exception as exc:                  # a broken question, not a
             verdict.setStyleSheet(f"color: {palette.danger};")   # broken answer
             verdict.setText(f"this question could not be set up: {exc}")
-            return
+            return False
 
         result = check_answer(parsed, answer.text())
         if result.correct is True and result.matches_conditions is not False:
@@ -1227,18 +1643,28 @@ class LessonsScreen(QWidget):
             colour, text = palette.text_muted, result.message
             state = progress.State.ATTEMPTED
 
+        # The residual is evidence, not a verdict, and `symbolic.diagnose`
+        # turns it into a sentence wherever it recognises one -- "you have the
+        # complementary function and no particular solution" rather than
+        # "-6*t". Where it recognises nothing the expression is still shown:
+        # it is worth less than the sentence and a great deal more than
+        # silence, and the person who can read it should not lose it.
         detail = ""
-        if result.correct is False and result.residual is not None:
+        if result.diagnosis:
+            detail = (f'<br><span style="color:{palette.text_muted};'
+                      f'font-size:12px;">{result.diagnosis}</span>')
+        elif result.correct is False and result.residual is not None:
             detail = (f'<br><span style="color:{palette.text_muted};'
                       f'font-size:12px;">what is left over: '
                       f"{result.residual}</span>")
         verdict.setStyleSheet("")
         verdict.setText(f'<span style="color:{colour};">{text}</span>{detail}')
         self._record(bucket or lesson.key, key or question.key, state)
+        return True
 
     def _check_numeric(self, lesson, question, answer: QLineEdit,
                        verdict: QLabel, *, bucket: str = "",
-                       key: str = "") -> None:
+                       key: str = "") -> bool:
         """Mark a typed number, and say why the answer is the answer.
 
         Three verdicts rather than two, as everywhere else here: right, wrong,
@@ -1267,6 +1693,81 @@ class LessonsScreen(QWidget):
         verdict.setStyleSheet("")
         verdict.setText(f'<span style="color:{colour};">{text}</span>{detail}')
         self._record(bucket or lesson.key, key or question.key, state)
+        # "could not read that" is not a mark. The keyboard loop stays on this
+        # question rather than counting a typo as a turn taken.
+        return right is not None
+
+    def _check_model(self, lesson, question, answer: QLineEdit,
+                     verdict: QLabel, *, bucket: str = "",
+                     key: str = "") -> bool:
+        """Mark an equation somebody wrote, and say where a wrong one differs.
+
+        The three verdicts again, and the third does more work here than
+        anywhere else: "write the whole equation, with an = in it" and "write
+        it in terms of y" are both things to fix rather than things to be
+        marked wrong for, and neither says anything about whether the model
+        was understood.
+
+        A wrong answer shows what is left over when the two equations are
+        subtracted, which is usually the whole diagnosis -- a forgotten
+        inflow term appears by itself, and a sign that went the wrong way
+        appears as twice the term it belongs to.
+        """
+        from ..symbolic import check_model
+
+        palette = self.palette_obj
+        result = check_model(question.equation, answer.text())
+        if result.correct is True:
+            colour, text = palette.success, "✓ " + result.message
+            state = progress.State.CORRECT
+        elif result.correct is False:
+            colour, text = palette.danger, "✗ " + result.message
+            state = progress.State.ATTEMPTED
+        else:
+            colour, text = palette.text_muted, result.message
+            state = progress.State.ATTEMPTED
+
+        detail = ""
+        if result.correct is False and result.difference is not None:
+            detail = self._aside(f"what differs: {result.difference}")
+        elif result.correct is True and question.because:
+            detail = self._aside(question.because)
+        verdict.setStyleSheet("")
+        verdict.setText(f'<span style="color:{colour};">{text}</span>{detail}')
+        self._record(bucket or lesson.key, key or question.key, state)
+        return result.correct is not None
+
+    def _check_expression(self, lesson, question, answer: QLineEdit,
+                          verdict: QLabel, *, bucket: str = "",
+                          key: str = "") -> bool:
+        """Mark one move of a method."""
+        from ..symbolic import check_expression
+
+        palette = self.palette_obj
+        result = check_expression(question.answer, answer.text(),
+                                  up_to_constant=question.up_to_constant)
+        if result.correct is True:
+            colour, text = palette.success, "✓ " + result.message
+            state = progress.State.CORRECT
+        elif result.correct is False:
+            colour, text = palette.danger, "✗ " + result.message
+            state = progress.State.ATTEMPTED
+        else:
+            colour, text = palette.text_muted, result.message
+            state = progress.State.ATTEMPTED
+
+        detail = ""
+        if result.correct is not None and question.because:
+            detail = self._aside(question.because)
+        verdict.setStyleSheet("")
+        verdict.setText(f'<span style="color:{colour};">{text}</span>{detail}')
+        self._record(bucket or lesson.key, key or question.key, state)
+        return result.correct is not None
+
+    def _aside(self, text: str) -> str:
+        """A second line under a verdict, in the muted colour."""
+        return (f'<br><span style="color:{self.palette_obj.text_muted};'
+                f'font-size:12px;">{text}</span>')
 
     # -- the worked solution ---------------------------------------------
 
@@ -1313,7 +1814,32 @@ class LessonsScreen(QWidget):
     def _open_tool(self) -> None:
         lesson = self.current_lesson()
         if lesson is not None:
-            self.open_tool.emit(lesson.tool)
+            self.open_tool.emit(lesson.tool, lesson.example,
+                                lesson.example_conditions)
+
+    def _describe_tool(self, lesson) -> None:
+        """Say which screen the button opens, and on what.
+
+        The button used to promise "with an example loaded" and deliver an
+        empty one. Now that it delivers, it can say which equation it is
+        taking -- and where the tool cannot accept a typed equation, it says
+        the plainer thing instead of the old claim.
+        """
+        if lesson is None:
+            self.tool_button.setText("Open the tool for this topic")
+            self.tool_button.setToolTip("")
+            self.tool_button.setEnabled(False)
+            return
+        self.tool_button.setEnabled(True)
+        name = TOOL_NAMES.get(lesson.tool, "the tool for this topic")
+        self.tool_button.setText(f"Open in {name}")
+        equation = lesson.example
+        if equation and lesson.tool in CARRIES_EQUATION:
+            shown = equation + (f",  {lesson.example_conditions}"
+                                if lesson.example_conditions else "")
+            self.tool_button.setToolTip(f"Opens {name} on  {shown}")
+        else:
+            self.tool_button.setToolTip(f"Opens {name}")
 
     def _reset(self) -> None:
         progress.reset()

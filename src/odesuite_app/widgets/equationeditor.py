@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import theme
 from ..custom import ALLOWED_FUNCTIONS, ParseError
 from ..symbolic import EquationSpec
 from ..theme import Palette
@@ -150,7 +151,7 @@ class EquationEditor(QWidget):
         )
         note.setWordWrap(True)
         note.setProperty("role", "muted")
-        note.setStyleSheet("font-size: 11px;")
+        note.setStyleSheet(theme.scaled("font-size: 11px;"))
         layout.addWidget(note)
 
         self.equation_fields: list[QLineEdit] = []
@@ -176,7 +177,7 @@ class EquationEditor(QWidget):
         )
         hint.setWordWrap(True)
         hint.setProperty("role", "muted")
-        hint.setStyleSheet("font-size: 10.5px;")
+        hint.setStyleSheet(theme.scaled("font-size: 10.5px;"))
         layout.addWidget(hint)
 
         # Kept in its own container so it can vanish entirely. Most equations
@@ -194,7 +195,7 @@ class EquationEditor(QWidget):
         for column, title in enumerate(("name", "value", "min", "max")):
             head = QLabel(title)
             head.setProperty("role", "muted")
-            head.setStyleSheet("font-size: 10.5px;")
+            head.setStyleSheet(theme.scaled("font-size: 10.5px;"))
             grid.addWidget(head, 0, column)
 
         self.parameter_rows: list[tuple[QLabel, QLineEdit, QLineEdit, QLineEdit]] = []
@@ -239,7 +240,7 @@ class EquationEditor(QWidget):
 
         self.message = QLabel("")
         self.message.setWordWrap(True)
-        self.message.setStyleSheet("font-size: 11px;")
+        self.message.setStyleSheet(theme.scaled("font-size: 11px;"))
         layout.addWidget(self.message)
 
         self._refresh_parameter_names()
@@ -381,13 +382,41 @@ class EquationEditor(QWidget):
             self.example_picker.setCurrentIndex(index)
             self.load_example(name)
 
+    def set_equation(self, equation: str, conditions: str = "", *,
+                     submit: bool = True) -> None:
+        """Type an equation in from somewhere else, and solve it.
+
+        `equation` is one equation, or a system written as several separated
+        by semicolons -- the form the lessons store, because a comma was
+        already taken by the initial conditions. Whatever a lesson hands over
+        therefore arrives here without being reshaped on the way.
+
+        The example picker is left alone deliberately. What lands in the
+        fields is no longer the example it names, and moving it to some
+        nearest match would be claiming an equivalence nobody checked.
+        """
+        lines = [part.strip() for part in str(equation).split(";")]
+        lines = [line for line in lines if line]
+        for index, field in enumerate(self.equation_fields):
+            field.blockSignals(True)
+            field.setText(lines[index] if index < len(lines) else "")
+            field.blockSignals(False)
+        self.ics.setText((conditions or "").strip())
+
+        # After the text, because the parameter rows are derived from it. A
+        # lesson's equation is written in numbers rather than symbols, so this
+        # will usually clear the table rather than fill it.
+        self._refresh_parameter_names()
+        if submit:
+            self.submit()
+
     def show_message(self, text: str, kind: str = "info") -> None:
         colour = {
             "error": self.palette_obj.danger,
             "warn": self.palette_obj.warning,
             "ok": self.palette_obj.success,
         }.get(kind, self.palette_obj.text_muted)
-        self.message.setStyleSheet(f"font-size: 11px; color: {colour};")
+        self.message.setStyleSheet(theme.scaled(f"font-size: 11px; color: {colour};"))
         self.message.setText(text)
 
 

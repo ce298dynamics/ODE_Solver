@@ -73,7 +73,7 @@ class SlopeFieldFigure(LessonFigure):
         # still visible underneath; past that the oldest goes.
         self._points.append((t, y))
         del self._points[:-6]
-        self.draw()
+        self.redraw()
 
     def _curve_through(self, t0: float, y0: float):
         """The solution through ``(t0, y0)``, integrated both ways.
@@ -369,4 +369,154 @@ class ExactFigure(LessonFigure):
             f"F(t, y) = {level:.1f}, in {pieces} "
             f"{'piece' if pieces == 1 else 'separate pieces'}. That is the "
             "answer, and there is no rearrangement of it into y = something."
+        )
+
+
+# ---------------------------------------------------------------------------
+# What a solution is: a family, and the condition that picks one of it
+# ---------------------------------------------------------------------------
+
+
+class FamilyFigure(LessonFigure):
+    """``y' = a·t^n``, integrated, with the constant of integration on a slider.
+
+    The first lesson's hardest sentence is that an equation of order one has a
+    *family* of solutions and that one initial condition picks a member of it.
+    Stated, it sounds like bookkeeping. Here the family is on the screen at
+    once, every member the same shape lifted by a different amount, and moving
+    the condition slides the marked curve through them without ever changing
+    its shape -- which is the whole content of "+ C".
+
+    Order is a slider too, and it is the same claim again: raising `n` by one
+    adds nothing to the picture, but the *number of conditions* the answer
+    needs is the order of the equation, not the power on the right.
+    """
+
+    title = "One equation, a family of answers"
+    caption = ("y′ = a·tⁿ integrates to a family of curves, one per constant "
+               "of integration — all the same shape, stacked. An initial "
+               "condition does not solve anything; it picks a member. Move "
+               "y(0) and watch the marked curve step through the family.")
+
+    _TLIM = (0.0, 2.2)
+
+    def build_sliders(self) -> None:
+        self.add_slider("a", "a", 0.5, 4.0, 3.0)
+        self.add_slider("n", "n  (power of t)", 0.0, 3.0, 2.0,
+                        hint="The power on the right-hand side. It changes "
+                             "the shape of every member and not the number "
+                             "of them.")
+        self.add_slider("y0", "y(0)  (the condition)", -4.0, 6.0, 5.0,
+                        hint="One condition, one member of the family. There "
+                             "is nothing else for it to decide.")
+
+    def draw(self) -> None:
+        self.plot.clear()
+        self.plot.setLabel("bottom", "t")
+        self.plot.setLabel("left", "y")
+
+        a, n, y0 = self.value("a"), self.value("n"), self.value("y0")
+        t = np.linspace(*self._TLIM, 700)
+        # The antiderivative of a·t^n. Written out rather than integrated
+        # numerically: the point of the lesson is that this one can be done by
+        # inspection, and a figure that reached for a solver to draw it would
+        # be saying the opposite.
+        shape = a * t ** (n + 1) / (n + 1)
+
+        for level in np.arange(-4.0, 6.5, 1.0):
+            self.plot.plot(t, shape + level,
+                           pen=pg.mkPen(self.palette_obj.border, width=1))
+        self.plot.plot(t, shape + y0,
+                       pen=pg.mkPen(self.colour(0), width=3))
+        self.plot.plot([0.0], [y0], pen=None, symbol="o", symbolSize=11,
+                       symbolBrush=self.colour(0))
+        self.plot.addLine(y=0, pen=pg.mkPen(self.palette_obj.border, width=1))
+        self.plot.setYRange(-5.0, 12.0, padding=0.02)
+        self._describe(a, n, y0, float(shape[-1] + y0))
+
+    def _describe(self, a, n, y0, ending) -> None:
+        power = n + 1
+        self.readout.setText(
+            f"y′ = {a:.2f}·t^{n:.2f}  →  y = {a / power:.3f}·t^{power:.2f} + C, "
+            f"and y(0) = {y0:.2f} makes C = {y0:.2f}. Every curve here solves "
+            f"the equation; only this one meets the condition, and it reaches "
+            f"{ending:.2f} at t = {self._TLIM[1]:.1f}."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Substitution: the change of variable that straightens the family out
+# ---------------------------------------------------------------------------
+
+
+class SubstitutionFigure(LessonFigure):
+    """``y' = (t² + y²)/(t·y)`` before and after ``v = y/t``.
+
+    A substitution is asked to be believed twice: that it is legitimate, and
+    that it helps. The derivation argues the first. This is the second, and it
+    is the pane on the right that makes it -- in the original variables the
+    solutions are a family of curves with no obvious rule; in v² against ln t
+    they are *parallel straight lines*, every one of slope 2, which is what
+    "the substituted equation is separable" looks like when it is drawn.
+
+    The equation is the standard homogeneous one. With v = y/t it becomes
+    t·v′ = 1/v, so v² = 2·ln t + K and y = t·√(2·ln t + K): the same family,
+    read twice.
+    """
+
+    title = "The same family, before and after the substitution"
+    caption = ("Left: solutions of y′ = (t² + y²)/(t·y) in the variables it "
+               "was written in. Right: the same solutions as v² = (y/t)² "
+               "against ln t, where every one of them is a straight line of "
+               "slope 2. That is the substituted equation being separable, "
+               "drawn.")
+    plots = 2
+
+    _TLIM = (0.2, 5.0)
+
+    def build_sliders(self) -> None:
+        self.add_slider("K", "K  (the constant)", 0.5, 12.0, 4.0,
+                        hint="v² = 2·ln t + K. One constant, one member of "
+                             "the family, in either pane.")
+
+    def _members(self):
+        """``(t, y, v²)`` for a spread of constants, the chosen one first."""
+        t = np.linspace(*self._TLIM, 900)
+        chosen = self.value("K")
+        for level in [chosen] + [k for k in np.arange(1.0, 12.1, 1.5)]:
+            inside = 2.0 * np.log(t) + level
+            keep = inside > 0
+            yield level, t[keep], t[keep] * np.sqrt(inside[keep]), inside[keep]
+
+    def draw(self) -> None:
+        left, right = self.panes[0], self.panes[1]
+        for pane in (left, right):
+            pane.clear()
+        left.setLabel("bottom", "t")
+        left.setLabel("left", "y")
+        right.setLabel("bottom", "ln t")
+        right.setLabel("left", "v²  where  v = y/t")
+
+        faint = pg.mkPen(self.palette_obj.border, width=1)
+        for index, (_, t, y, square) in enumerate(self._members()):
+            pen = pg.mkPen(self.colour(0), width=3) if index == 0 else faint
+            left.plot(t, y, pen=pen)
+            right.plot(np.log(t), square, pen=pen)
+        left.setYRange(0.0, 12.0, padding=0.02)
+        right.setYRange(0.0, 14.0, padding=0.02)
+        self._describe()
+
+    def _describe(self) -> None:
+        # The slope is measured off the drawn line rather than asserted to be
+        # 2, because the claim being made is about the picture.
+        t = np.linspace(*self._TLIM, 900)
+        square = 2.0 * np.log(t) + self.value("K")
+        keep = square > 0
+        logs, square = np.log(t[keep]), square[keep]
+        slope = float(np.polyfit(logs, square, 1)[0]) if logs.size > 2 else 0.0
+        self.readout.setText(
+            f"K = {self.value('K'):.2f}: y = t·√(2·ln t + K), which is "
+            f"v² = 2·ln t + K. The line on the right has slope {slope:.3f} — "
+            "the 2 in the separated equation, and the same 2 for every member "
+            "of the family."
         )

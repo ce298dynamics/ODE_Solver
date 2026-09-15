@@ -37,6 +37,15 @@ Version 1 stored the bare state string. Such a file still loads -- an existing
 the new shape the next time anything is recorded. Refusing to read it, or
 quietly dropping it, would take away work already done, which is the one thing
 this module exists to avoid.
+
+Version 4 adds `picks` to a multiple-choice record: which option was chosen,
+most recent last, and only where the index means something from one answer to
+the next. A state says a question was missed; the options say *how*, because
+each distractor is written as one misconception. Four misses of four questions
+and four misses of the same option are entirely different facts about somebody,
+and until this was stored the file could not tell them apart. It appears only
+on records that have one, so a file full of typed answers is no larger than it
+was.
 """
 
 from __future__ import annotations
@@ -45,6 +54,7 @@ import json
 import os
 import sys
 import tempfile
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date as _date
 from pathlib import Path
@@ -52,6 +62,8 @@ from pathlib import Path
 __all__ = [
     "VERSION",
     "STALE_AFTER_DAYS",
+    "LEITNER",
+    "LEITNER_ACCURACY",
     "MASTERED_STREAK",
     "State",
     "Answer",
@@ -67,6 +79,9 @@ __all__ = [
     "unit_progress",
     "weakest",
     "stale",
+    "boxes",
+    "misconceptions",
+    "Misconception",
     "UnitProgress",
     "export_to",
     "import_from",
@@ -76,17 +91,53 @@ __all__ = [
 #:
 #: Version 3 adds `seen`, the day an answer was last recorded. Everything
 #: before it read as "never seen", which is what a file written by an older
-#: build honestly is -- so nothing is lost and nothing is invented.
-VERSION = 3
+#: build honestly is -- so nothing is lost and nothing is invented. Version 4
+#: adds `picks`, on the records that have one.
+VERSION = 4
 
-#: How long before something answered correctly is worth seeing again.
+#: How many picks are kept for one question. A window rather than the lot: the
+#: point is what somebody is doing *now*, and a drill answered fifty times
+#: would otherwise let a misconception they have long since fixed outvote the
+#: one they still have. Twelve is four rounds of a three-option question.
+PICKS_KEPT = 12
+
+#: The Leitner boxes: a name, and how long a question sits in it before it is
+#: worth seeing again.
 #:
-#: Twenty-one days rather than a tuned interval: this application records one
-#: verdict per question and has no model of how hard each was, so a real
-#: spacing schedule would be fitting a curve to data it does not have. What it
-#: can honestly say is "you have not looked at this in three weeks", and that
-#: is what the number means.
-STALE_AFTER_DAYS = 21
+#: This replaced a flat twenty-one days, and the reason the flat rule stood as
+#: long as it did is worth keeping, because it is still half true. A real
+#: spacing schedule -- SuperMemo, Anki, the fitted forgetting curve -- wants a
+#: difficulty and a recall grade per card, and this application records neither:
+#: there is one verdict per question and no way to say how hard it felt. Fitting
+#: a curve to that would be inventing data, and the old docstring said so.
+#:
+#: What it *does* record is `right`, `tries` and `streak`, and those are exactly
+#: the counters the original Leitner system runs on -- a physical box of cards
+#: with three compartments, promoted on a right answer and demoted on a wrong
+#: one. No curve is fitted and no difficulty is estimated. A question you have
+#: just got right for the first time comes back tomorrow, one you have got right
+#: twice comes back in a week, and one you have mastered comes back in three
+#: weeks, which is where the old number went.
+#:
+#: Three boxes rather than five or seven, for the same reason `TIERS` has three:
+#: the distinctions this data can honestly support are coarse.
+LEITNER: tuple[tuple[str, int], ...] = (
+    ("learning", 1),
+    ("familiar", 7),
+    ("known", 21),
+)
+
+#: The longest interval, and so the point at which anything at all is stale.
+#: Kept under its old name because it is still the honest headline -- nothing
+#: waits longer than three weeks -- and because it is the number the tests and
+#: the interface already talk about.
+STALE_AFTER_DAYS = LEITNER[-1][1]
+
+#: The share of attempts that must have been right for a question to reach the
+#: last box. Three in a row on something you have missed more often than not is
+#: a recovery rather than mastery, and a three-week gap after it would be the
+#: schedule believing the streak over the record.
+LEITNER_ACCURACY = 0.5
 
 #: Correct answers in a row before a drill counts as mastered. Three is Khan
 #: Academy's rule and a defensible one: one is luck, two is a coincidence, and
@@ -118,6 +169,12 @@ class Answer:
     #: written before version 3. A date rather than a timestamp: nothing here
     #: needs the hour, and a date is legible in a file a user may open.
     seen: str = ""
+    #: The options chosen, most recent last, as the *author's* indices --
+    #: `Choice.canonical` undoes the per-draw shuffle before anything gets
+    #: here, because a shown position is a different option every draw and a
+    #: tally of positions would mean nothing at all. Empty for a typed answer,
+    #: which has no options, and for any record written before version 4.
+    picks: tuple[int, ...] = ()
 
     @property
     def days_since_seen(self) -> int | None:
@@ -131,15 +188,67 @@ class Answer:
         return max((_date.today() - then).days, 0)
 
     @property
+    def accuracy(self) -> float:
+        """Right answers as a share of attempts. No attempts reads as zero."""
+        return self.right / self.tries if self.tries else 0.0
+
+    @property
+    def box(self) -> int:
+        """Which Leitner box this question is in: an index into `LEITNER`.
+
+        The streak decides it, which is the original system exactly -- a right
+        answer moves the card on and a wrong one sends it back to the front.
+        The one addition is `LEITNER_ACCURACY`: a question answered right less
+        than half the times it has been tried cannot reach the last box, so a
+        long-running struggle that has just come good waits a week rather than
+        three. Both numbers were already stored; neither is estimated.
+        """
+        if self.streak >= MASTERED_STREAK and self.accuracy >= LEITNER_ACCURACY:
+            return len(LEITNER) - 1
+        if self.streak >= 1:
+            return 1
+        return 0
+
+    @property
+    def bucket(self) -> str:
+        """The box's name: "learning", "familiar" or "known"."""
+        return LEITNER[self.box][0]
+
+    @property
+    def interval(self) -> int:
+        """Days this question waits before it is worth seeing again."""
+        return LEITNER[self.box][1]
+
+    @property
+    def days_until_due(self) -> int | None:
+        """Days left before this is due, negative if it is overdue.
+
+        None where the record predates version 3 and has no date: that is
+        honestly unknown, and treating it as due would invent the fact.
+        """
+        days = self.days_since_seen
+        return None if days is None else self.interval - days
+
+    @property
+    def overdue(self) -> int:
+        """How far past its own interval this is, in days. Never negative."""
+        due = self.days_until_due
+        return max(-due, 0) if due is not None else 0
+
+    @property
     def is_stale(self) -> bool:
-        """Answered correctly, but long enough ago to be worth revisiting.
+        """Answered correctly, but past its own interval.
 
         Only ever true of something already right: a question got wrong is not
         stale, it is simply unfinished, and `weakest` already surfaces those.
+        The interval is the one `box` gives it, so a question in the first box
+        is stale the day after it was answered and one in the last is not for
+        three weeks -- which is the whole difference between a schedule and a
+        deadline.
         """
         days = self.days_since_seen
         return bool(self.correct and days is not None
-                    and days >= STALE_AFTER_DAYS)
+                    and days >= self.interval)
 
     @property
     def correct(self) -> bool:
@@ -210,8 +319,26 @@ def _answer(value: object) -> Answer | None:
         return Answer(state=state, right=_count(value.get("right")),
                       tries=_count(value.get("tries")),
                       streak=_count(value.get("streak")),
-                      seen=seen if isinstance(seen, str) else "")
+                      seen=seen if isinstance(seen, str) else "",
+                      picks=_picks(value.get("picks")))
     return None
+
+
+def _picks(value: object) -> tuple[int, ...]:
+    """A run of option indices, or none at all.
+
+    Validated element by element like everything else here, and for the same
+    reason: the file is plain JSON in a directory the user owns. A list with
+    one string in it loses that entry, not the record it belongs to -- losing
+    the record would take away a tick somebody earned, over a field that only
+    decides the wording of a hint.
+    """
+    if not isinstance(value, list):
+        return ()
+    kept = [item for item in value
+            if not isinstance(item, bool) and isinstance(item, int)
+            and item >= 0]
+    return tuple(kept[-PICKS_KEPT:])
 
 
 def load() -> dict[str, dict[str, Answer]]:
@@ -254,13 +381,18 @@ def _read(where: Path) -> dict[str, dict[str, Answer]]:
     return clean
 
 
-def record(lesson: str, question: str,
-           state: str) -> dict[str, dict[str, Answer]]:
+def record(lesson: str, question: str, state: str, *,
+           picked: int | None = None) -> dict[str, dict[str, Answer]]:
     """Note an answer and save. Returns the whole updated mapping.
 
     A question already answered correctly stays correct: getting it right and
     then mistyping it should not take the tick away. The attempt is still
     counted, because it happened.
+
+    `picked` is the author's index for the option chosen, for a multiple-choice
+    answer, and None for every other kind. It is appended rather than replaced
+    -- one pick says what somebody thought once and a run of them says what
+    they think -- and only the last `PICKS_KEPT` are kept.
     """
     if state not in _STATES:
         raise ValueError(f"unknown state {state!r}")
@@ -273,9 +405,13 @@ def record(lesson: str, question: str,
     tries = (before.tries if before else 0) + 1
     kept = State.CORRECT if (before and before.correct) else state
     streak = ((before.streak if before else 0) + 1) if was_right else 0
+    picks = before.picks if before else ()
+    if isinstance(picked, int) and not isinstance(picked, bool) and picked >= 0:
+        picks = (picks + (picked,))[-PICKS_KEPT:]
     answers[question] = Answer(state=kept, right=right, tries=tries,
                                streak=streak,
-                               seen=_date.today().isoformat())
+                               seen=_date.today().isoformat(),
+                               picks=picks)
     _save(everything)
     return everything
 
@@ -408,9 +544,15 @@ def _payload(everything: dict[str, dict[str, Answer]]) -> dict:
         "version": VERSION,
         "answers": {
             lesson: {
+                # `picks` only where there are some. Most records are typed
+                # answers with no options to pick from, and an empty list
+                # beside every one of them would be a third of the file
+                # carrying no information.
                 question: {"state": answer.state, "right": answer.right,
                            "tries": answer.tries, "streak": answer.streak,
-                           "seen": answer.seen}
+                           "seen": answer.seen,
+                           **({"picks": list(answer.picks)}
+                              if answer.picks else {})}
                 for question, answer in answers.items()
             }
             for lesson, answers in everything.items()
@@ -424,13 +566,14 @@ def stale(units, everything: dict[str, dict[str, Answer]] | None = None,
 
     The counterpart to `weakest`, which ranks by *score*. A lesson finished in
     July and untouched since scores perfectly and is exactly what a course
-    wants to bring back, so ranking by score alone can never surface it. Here
-    the ordering is by how long it has been, oldest first.
+    wants to bring back, so ranking by score alone can never surface it.
 
-    Deliberately not a spacing schedule. This application records one verdict
-    per question and nothing about how hard each felt, so fitting an interval
-    curve to it would be inventing data. "You have not looked at this in three
-    weeks" is a claim the file actually supports.
+    **Ranked by how far past its own interval, not by raw age.** Now that each
+    question carries a Leitner interval (see `LEITNER`), two questions last
+    seen the same day are not equally overdue: one answered right once is a
+    fortnight past due at day fifteen and one mastered is not due at all. The
+    age is still what gets *reported*, because "you have not looked at this in
+    N days" is the sentence a reader can check; the ordering is by the debt.
     """
     everything = load() if everything is None else everything
     scored = []
@@ -439,13 +582,119 @@ def stale(units, everything: dict[str, dict[str, Answer]] | None = None,
             answers = everything.get(lesson.key, {})
             if not answers:
                 continue
-            ages = [answer.days_since_seen for answer in answers.values()
-                    if answer.is_stale]
-            if not ages:
+            due = [answer for answer in answers.values() if answer.is_stale]
+            if not due:
                 continue
-            scored.append((max(ages), lesson, unit))
-    scored.sort(key=lambda item: (-item[0], item[1].key))
-    return [(lesson, unit, age) for age, lesson, unit in scored[:limit]]
+            worst = max(due, key=lambda answer: answer.overdue)
+            scored.append((worst.overdue, worst.days_since_seen or 0,
+                           lesson, unit))
+    scored.sort(key=lambda item: (-item[0], -item[1], item[2].key))
+    return [(lesson, unit, age) for _, age, lesson, unit in scored[:limit]]
+
+
+def boxes(units, everything: dict[str, dict[str, Answer]] | None = None
+          ) -> dict[str, int]:
+    """How many recorded questions sit in each Leitner box, by name.
+
+    The one number that says what a spacing schedule is actually doing. A
+    course map can already report how much is answered and how long ago; this
+    reports how much is *held* -- and the three counts move in a way the other
+    two cannot, since a question drops back to "learning" the moment it is
+    missed however long its tick has stood.
+
+    Only questions the course still contains are counted. A record left behind
+    by a lesson that has since changed its keys is not a fact about anybody's
+    memory.
+    """
+    everything = load() if everything is None else everything
+    tally = {name: 0 for name, _ in LEITNER}
+    for unit in units:
+        for lesson in unit.lessons:
+            for bucket, items in ((lesson.key, lesson.questions),
+                                  (drill_key(lesson.key), lesson.templates)):
+                answers = everything.get(bucket, {})
+                for item in items:
+                    answer = answers.get(getattr(item, "key", ""))
+                    if answer is not None:
+                        tally[answer.bucket] += 1
+    return tally
+
+
+#: The question kinds whose options are numbered by their author, so that an
+#: index means the same thing every time it is recorded. Named here as strings
+#: rather than imported: this module stores progress and holds no opinion about
+#: what a lesson is, which is why `weakest` and the rest take `units` as an
+#: argument instead of reaching for the curriculum.
+_CHOICE_KINDS = frozenset({"choice", "choice-template"})
+
+
+@dataclass(frozen=True)
+class Misconception:
+    """One wrong option, chosen repeatedly, and where it was chosen."""
+
+    lesson: object
+    unit: object
+    #: The `Choice` or `ChoiceTemplate` it belongs to. Kept rather than its
+    #: text: turning an index back into the words somebody clicked needs the
+    #: per-draw formatting, which lives in `lessons.generate` and has no
+    #: business being imported here.
+    question: object
+    #: The author's index for the option picked.
+    option: int
+    #: How many of the recorded picks were that option.
+    times: int
+    #: How many picks are recorded for this question at all.
+    picks: int
+
+
+def misconceptions(units, everything: dict[str, dict[str, Answer]] | None = None,
+                   limit: int = 3, least: int = 2) -> list[Misconception]:
+    """Wrong options somebody keeps choosing, most repeated first.
+
+    The third question about a record, after "how much is done" and "how long
+    ago". Both of those are about *whether* somebody has the material; this is
+    about what they believe instead, which is the only one of the three that
+    can be answered with a sentence rather than a bar.
+
+    Only where an index means something. A question's `answer` has to be an
+    integer -- a `Choice` or a `ChoiceTemplate`, where the author's ordering is
+    fixed and `Choice.canonical` maps a shown position back onto it. A
+    classification drill whose right answer moves from draw to draw has no such
+    index, so it is skipped rather than guessed at, and the right option is
+    never counted: choosing it repeatedly is not a misconception, it is the
+    point.
+    """
+    everything = load() if everything is None else everything
+    found: list[Misconception] = []
+    for unit in units:
+        for lesson in unit.lessons:
+            for bucket, items in ((lesson.key, lesson.questions),
+                                  (drill_key(lesson.key), lesson.templates)):
+                answers = everything.get(bucket, {})
+                if not answers:
+                    continue
+                for item in items:
+                    if getattr(item, "kind", "") not in _CHOICE_KINDS:
+                        continue
+                    right = getattr(item, "answer", None)
+                    if isinstance(right, bool) or not isinstance(right, int):
+                        continue
+                    answer = answers.get(getattr(item, "key", ""))
+                    if answer is None or not answer.picks:
+                        continue
+                    wrong = Counter(pick for pick in answer.picks
+                                    if pick != right)
+                    if not wrong:
+                        continue
+                    option, times = wrong.most_common(1)[0]
+                    if times < least:
+                        continue
+                    found.append(Misconception(
+                        lesson=lesson, unit=unit, question=item,
+                        option=option, times=times, picks=len(answer.picks),
+                    ))
+    found.sort(key=lambda item: (-item.times, item.lesson.key))
+    return found[:limit]
 
 
 def export_to(destination) -> Path:

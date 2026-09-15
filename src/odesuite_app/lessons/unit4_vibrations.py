@@ -14,9 +14,12 @@ steady state -- and two figures to move.
 from __future__ import annotations
 
 from .model import (
+    Case,
     Choice,
+    ClassifyTemplate,
     Example,
     Lesson,
+    ModelTemplate,
     Note,
     Passage,
     Solve,
@@ -337,6 +340,125 @@ FREE = Lesson(
                 ("c,k", ((2, 5), (2, 10), (4, 4), (6, 9), (5, 6), (6, 5),
                          (0, 4), (0, 9), (4, 8))),
                 ("p", (1, 2, 3)),
+            ),
+        ),
+        ModelTemplate(
+            key="mass-on-a-spring",
+            title="Set up the equation: a mass on a spring",
+            prompt="A mass of {m} kg hangs on a spring that pulls back with "
+                   "{k} newtons for every metre of stretch, inside a dashpot "
+                   "that resists with {c} newtons for every metre per second "
+                   "of speed. Write the equation for y, the displacement "
+                   "from the equilibrium position in metres.",
+            equation="{m}*y'' + {c}*y' + {k}*y = 0",
+            because="Newton's second law with both forces written in terms "
+                    "of y: the spring pulls back in proportion to the "
+                    "displacement, the dashpot resists in proportion to the "
+                    "velocity, and both are subtracted because both oppose "
+                    "the motion. Measuring from the equilibrium position is "
+                    "what removes gravity from the equation — the spring is "
+                    "already carrying the weight there.",
+            hints=(
+                "Mass times acceleration equals the sum of the forces, and "
+                "the acceleration is y''.",
+                "The spring force is proportional to how far you are from "
+                "equilibrium; the dashpot force is proportional to how fast "
+                "you are moving. Neither is constant.",
+                "Both oppose the motion, so both appear with the opposite "
+                "sign to the acceleration — which is what puts them on the "
+                "same side as y'' when it is all collected together.",
+            ),
+            slots=(("m", (1, 2, 4)), ("c", (3, 6, 8)), ("k", (5, 10, 20))),
+        ),
+        ClassifyTemplate(
+            key="which-damping-regime",
+            title="Which regime is it?",
+            prompt="Decide from the coefficients alone, without solving it.",
+            table="damping",
+            options=("undamped", "underdamped", "critically damped",
+                     "overdamped"),
+            cases=(
+                Case(
+                    equation="y'' + 5*y' + 4*y = 0",
+                    technique="overdamped",
+                    why="c² − 4mk is 25 − 16 = 9, positive, so the roots are "
+                        "two distinct real negatives: it crawls back to "
+                        "equilibrium without ever crossing it.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y'' + 6*y' + 8*y = 0",
+                    technique="overdamped",
+                    why="36 − 32 = 4, positive. Heavy damping against a weak "
+                        "spring, and the motion is the sum of two decaying "
+                        "exponentials.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="2*y'' + 6*y' + 4*y = 0",
+                    technique="overdamped",
+                    why="With a mass of 2 the test is 36 − 4·2·4 = 4. The "
+                        "mass matters: leaving it out of the discriminant is "
+                        "the usual way this question goes wrong.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y'' + 4*y' + 4*y = 0",
+                    technique="critically damped",
+                    why="16 − 16 = 0 exactly. One repeated root, the fastest "
+                        "return that does not overshoot — and any less "
+                        "damping would make it oscillate.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="4*y'' + 4*y' + y = 0",
+                    technique="critically damped",
+                    why="16 − 4·4·1 = 0. The same knife edge with every "
+                        "constant different, which is what makes it worth "
+                        "computing rather than recognising.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="3*y'' + 6*y' + 3*y = 0",
+                    technique="critically damped",
+                    why="36 − 4·3·3 = 0. Dividing through by 3 first makes "
+                        "it y'' + 2y' + y, whose discriminant is zero too — "
+                        "the regime cannot depend on how the equation was "
+                        "scaled.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="y'' + 2*y' + 5*y = 0",
+                    technique="underdamped",
+                    why="4 − 20 = −16, negative: the roots are complex, so "
+                        "the motion oscillates inside a decaying envelope "
+                        "and crosses equilibrium infinitely often.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y'' + y' + y = 0",
+                    technique="underdamped",
+                    why="1 − 4 = −3. Light damping against a comparable "
+                        "spring, which is the ordinary case for anything "
+                        "that rings.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y'' + 9*y = 0",
+                    technique="undamped",
+                    why="There is no y' term at all, so nothing removes "
+                        "energy: the roots are a pure imaginary pair and the "
+                        "oscillation never decays.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="2*y'' + 8*y = 0",
+                    technique="undamped",
+                    why="Again no damping term. The mass and the stiffness "
+                        "set the frequency — here 2 — and nothing at all "
+                        "sets a decay rate.",
+                    tier="typical",
+                ),
             ),
         ),
     ),
@@ -966,6 +1088,32 @@ CIRCUITS = Lesson(
                          (1, 17), (5, 4))),
                 ("q0", (1, 2)),
             ),
+        ),
+        ModelTemplate(
+            key="the-series-circuit",
+            title="Set up the equation: a series RLC circuit",
+            prompt="A series circuit has an inductance of {L} henries, a "
+                   "resistance of {R} ohms and a capacitance of {C} farads, "
+                   "driven by a steady {E} volts. Write the equation for y, "
+                   "the charge on the capacitor in coulombs.",
+            equation="{L}*y'' + {R}*y' + y/{C} = {E}",
+            because="Kirchhoff's voltage law: the three drops add up to the "
+                    "supply. The inductor drops L·y'' because the current is "
+                    "y' and the drop goes with its rate of change; the "
+                    "resistor drops R·y' by Ohm's law; the capacitor drops "
+                    "y/C. Written out, it is the mass-spring equation with "
+                    "different names on the constants.",
+            hints=(
+                "Add up the voltage drops around the loop and set them equal "
+                "to the supply.",
+                "The current is the rate of change of charge, so anything "
+                "proportional to current is proportional to y'.",
+                "The inductor's drop is proportional to the rate of change "
+                "of the current, which makes it the second derivative of the "
+                "charge.",
+            ),
+            slots=(("L", (1, 2)), ("R", (3, 6, 10)), ("C", (2, 4, 5)),
+                   ("E", (12, 24))),
         ),
     ),
 )
