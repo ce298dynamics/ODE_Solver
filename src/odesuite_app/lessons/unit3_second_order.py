@@ -1347,10 +1347,19 @@ SUPERPOSITION = Lesson(
                  "negative damping — energy being put in rather than taken "
                  "out.",
                  "harder"),
+                # "a constant is the exponential of a zero exponent" rather
+                # than "a constant is e^(0t)". The second is the sentence
+                # anyone would write and it trips
+                # `test_no_draw_reads_as_machine_made`, whose rule against a
+                # 0 or 1 sitting in front of a symbol is what catches a slot
+                # that interpolated one -- `e^(1t)`, `0*y'`. The guard cannot
+                # tell this 0 from that one and should not be loosened to try:
+                # a real `e^(1t)` is exactly what it is for.
                 ("C₁ + C₂e^(-4t)", "y'' + 4*y' = 0",
-                 "A bare constant is e^(0t), so the roots are 0 and −4 and "
-                 "the polynomial is r(r + 4) = r² + 4r. The missing constant "
-                 "term is the zero root.",
+                 "A bare constant is the exponential of a zero exponent, so "
+                 "the roots are 0 and −4 and the polynomial is "
+                 "r(r + 4) = r² + 4r. The missing constant term is the zero "
+                 "root.",
                  "harder"),
             )),),
             level=lambda slots: slots["tier"],

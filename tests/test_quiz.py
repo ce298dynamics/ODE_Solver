@@ -118,17 +118,36 @@ def test_every_question_is_one_the_hub_already_grades():
     """The whole design. If these were a new kind of question they would need a
     new grader, and a second grader is a second opinion about what is correct.
 
-    All three kinds come straight from the lessons: a `Solve` graded by
-    substituting it into its own equation, a `Choice` by `grade_choice`, and a
-    `Numeric` by `grade_numeric` to a tolerance. Each is the type the Drill
-    segment already shows, which is why the quiz has no grader of its own.
+    Every kind comes straight from the lessons: a `Solve` graded by
+    substituting it into its own equation, a `Choice` by `grade_choice`, a
+    `Numeric` by `grade_numeric` to a tolerance, a `Model` by
+    `symbolic.check_model` and an `Expression` by `check_expression`. Each is
+    the type the Drill segment already shows, which is why the quiz has no
+    grader of its own.
+
+    `Model` and `Expression` were left out of this list when they were added.
+    The four later template kinds produce them, the lessons carry those
+    templates, and the quiz draws from the lessons -- so a `Model` had been
+    reaching a paper for some time with nothing asserting that the screen knew
+    what to do with it. `learn_quiz._check_typed` does (it branches on
+    `question.kind`), which is why this was a stale test rather than a
+    shipped defect; naming the kinds here is what keeps the next one from
+    slipping through the same gap.
     """
-    from odesuite_app.lessons.model import Choice, Numeric, Solve
+    from odesuite_app.lessons.model import (
+        Choice,
+        Expression,
+        Model,
+        Numeric,
+        Solve,
+    )
 
     seen = set()
     for unit in buildable():
         for _lesson, _template, question in build(unit, 4, seed=3):
-            assert isinstance(question, (Solve, Choice, Numeric))
+            assert isinstance(
+                question, (Solve, Choice, Numeric, Model, Expression)
+            )
             seen.add(question.kind)
             if isinstance(question, Solve):
                 assert question.equation
@@ -136,11 +155,17 @@ def test_every_question_is_one_the_hub_already_grades():
             elif isinstance(question, Choice):
                 assert question.options
                 assert len(question.becauses) == len(question.options)
+            elif isinstance(question, Model):
+                assert question.equation, "a Model keeps the equation expected"
+                assert question.because, "an equation needs a reason"
+            elif isinstance(question, Expression):
+                assert question.answer, "an Expression keeps what it expects"
+                assert question.because, "an expression needs a reason"
             else:
                 assert question.tolerance > 0
                 assert question.because, "a number needs a reason"
-    assert seen == {"solve", "choice", "numeric"}, (
-        f"the quiz never draws one of the three kinds: {sorted(seen)}"
+    assert {"solve", "choice", "numeric"} <= seen, (
+        f"the quiz never draws one of the three original kinds: {sorted(seen)}"
     )
 
 

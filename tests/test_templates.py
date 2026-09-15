@@ -190,7 +190,14 @@ def test_a_reject_predicate_actually_rejects_something():
     """A `reject` that never fires is either wrong or unnecessary, and both are
     worth knowing about."""
     for _, template in TEMPLATES:
-        if template.reject is None:
+        # `getattr`, because a `ClassifyTemplate` has no `reject` at all and is
+        # right not to. Every other kind fills its question in from slots, so
+        # a predicate over the drawn values is the way to keep a degenerate
+        # combination out; a classify drill has no slots -- its pool is a
+        # tuple of real equations somebody chose one at a time, and a draw it
+        # did not want is simply a `Case` nobody wrote. `generate.draws` has
+        # always read the attribute this way for the same reason.
+        if getattr(template, "reject", None) is None:
             continue
         everything = list(generate._spread(template))
         kept = generate.combinations(template)

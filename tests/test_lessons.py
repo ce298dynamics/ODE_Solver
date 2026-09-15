@@ -20,6 +20,7 @@ from __future__ import annotations
 import contextlib
 import json
 import re
+from pathlib import PureWindowsPath
 
 import pytest
 
@@ -760,9 +761,20 @@ def test_the_directory_is_the_platform_convention(monkeypatch):
     # which is the function under test here.
     from odesuite_app import progress as real
 
+    # The Windows leg is asserted through `PureWindowsPath` rather than through
+    # the `Path` the function returns. `sys.platform` can be monkeypatched;
+    # `pathlib.Path` cannot -- it picks its flavour from the *real* platform at
+    # import time -- so on Linux the returned object is a `PosixPath` for which
+    # a backslash is an ordinary character and `as_posix()` leaves
+    # "C:\Users\someone\AppData\Local/odesuite" unchanged. The assertion could
+    # therefore only ever pass on Windows, and had been failing on every Linux
+    # machine since the test was written. Reading the string back as a Windows
+    # path is what makes the check mean the same thing on both.
     monkeypatch.setattr(real.sys, "platform", "win32")
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\someone\AppData\Local")
-    assert real.directory().as_posix().endswith("AppData/Local/odesuite")
+    assert PureWindowsPath(str(real.directory())).as_posix().endswith(
+        "AppData/Local/odesuite"
+    )
 
     monkeypatch.setattr(real.sys, "platform", "linux")
     monkeypatch.setenv("XDG_CONFIG_HOME", "/home/someone/.config")
@@ -1213,12 +1225,28 @@ def test_switching_around_does_not_accumulate_widgets(screen, qapp):
 
 
 def test_the_tool_button_asks_for_the_matching_screen(screen, qapp):
+    # `open_tool` carries three arguments now -- the screen key, the lesson's
+    # example equation and its conditions -- because the button stopped landing
+    # people on an empty tool. `list.append` takes one, and Qt reports the
+    # mismatch by printing "TypeError: list.append() takes exactly one
+    # argument (3 given)" to stderr and *swallowing* it: the slot never runs,
+    # `seen` stays empty, and the failure looks like the signal was never
+    # emitted at all. Take the first argument explicitly and drop the rest.
     seen = []
-    screen.open_tool.connect(seen.append)
+    screen.open_tool.connect(lambda tool, *_carried: seen.append(tool))
+    carried = []
+    screen.open_tool.connect(
+        lambda _tool, equation, conditions: carried.append((equation, conditions))
+    )
     for lesson in LESSONS:
         _open(screen, qapp, lesson.key, "Learn")
         screen._open_tool()
     assert seen == [lesson.tool for lesson in LESSONS]
+    # And the equation really is carried, which is the whole point of the
+    # extra arguments: asserting only the screen key would have gone on
+    # passing if they were dropped again.
+    assert carried == [(lesson.example, lesson.example_conditions)
+                       for lesson in LESSONS]
 
 
 @pytest.mark.slow
@@ -1415,11 +1443,25 @@ def test_drill_is_withheld_from_a_lesson_that_has_none(screen, qapp):
         assert screen.segment_buttons["Practice"].isChecked()
 
 
+def _tier_shown(screen, template) -> str:
+    """The tier the drill card is currently drawing from, as the card decides.
+
+    Asked of the screen rather than reconstructed here. A drill with a spread
+    of difficulties draws from one tier at a time and counts only that tier's
+    versions, so a test that drew or counted over the whole pool would be
+    asking a different question from the one on the page -- which is exactly
+    how the two tests below came to fail once tiers arrived.
+    """
+    offered = generate.tiers(template)
+    return screen._tier_of(template, offered) if len(offered) > 1 else ""
+
+
 def test_the_drill_page_offers_every_template(screen, qapp):
     lesson = _drill(screen, qapp, "separable")
     assert set(screen._verdicts) == {t.key for t in lesson.templates}
     for template in lesson.templates:
-        assert str(generate.combinations(template)) in _page_text(screen), (
+        count = generate.combinations(template, _tier_shown(screen, template))
+        assert str(count) in _page_text(screen), (
             "the drill does not say how many versions there are"
         )
 
@@ -1427,11 +1469,12 @@ def test_the_drill_page_offers_every_template(screen, qapp):
 def test_a_new_question_is_a_different_question(screen, qapp):
     lesson = _drill(screen, qapp, "separable")
     template = lesson.templates[0]
+    tier = _tier_shown(screen, template)
 
-    first = generate.draw(template, screen._drill_seed[template.key])
+    first = generate.draw(template, screen._drill_seed[template.key], tier)
     _press(screen, "New question")
     qapp.processEvents()
-    second = generate.draw(template, screen._drill_seed[template.key])
+    second = generate.draw(template, screen._drill_seed[template.key], tier)
 
     assert (first.equation, first.conditions) != (second.equation,
                                                   second.conditions)
