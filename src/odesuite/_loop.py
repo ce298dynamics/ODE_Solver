@@ -26,6 +26,11 @@ __all__ = [
     "Recorder",
     "EventTracker",
     "underflow_message",
+    "fixed_step_message",
+    "insufficient_progress_message",
+    "projected_steps",
+    "PROGRESS_CHECK_AFTER",
+    "PROGRESS_CHECK_EVERY",
 ]
 
 #: Below this multiple of the local floating-point spacing, advancing t is a no-op.
@@ -185,6 +190,79 @@ class StepPlanner:
         return h, h_abs, None, last_step
 
 
+#: Steps before the progress projection is trusted at all, and how often it is
+#: re-checked after that.
+#:
+#: 5000 is not a round number chosen for comfort -- it is above every adaptive
+#: solve in the benchmark suite that *succeeds*. Radau finishes Robertson over
+#: eleven decades of time in 239 steps, Van der Pol at mu=1000 in 1142, OREGO in
+#: 947. A stiff solver's step size grows enormously once the transient is past
+#: (3.8e6 over that Robertson run), so a projection made early would be wildly
+#: pessimistic about exactly the solves that work. Waiting until 5000 steps
+#: means the projection is only ever consulted for solves that are not
+#: progressing at all.
+PROGRESS_CHECK_AFTER = 5000
+PROGRESS_CHECK_EVERY = 1000
+
+
+def projected_steps(t: float, tf: float, h_abs: float, taken: int) -> float:
+    """Steps needed to finish, at the step size currently being taken.
+
+    `h_abs` is the controller's latest choice, which is the most *optimistic*
+    honest estimate: it is the largest step the solver has managed to justify so
+    far, so a projection built on it cannot be accused of assuming the worst.
+    """
+    remaining = abs(tf - t)
+    if h_abs <= 0:
+        return float("inf")
+    return taken + remaining / h_abs
+
+
+def insufficient_progress_message(
+    name: str, t: float, t0: float, tf: float, taken: int, projected: float,
+    max_steps: int, explicit: bool,
+) -> str:
+    """Why a solve was stopped for making no headway.
+
+    This says only what was counted. It reports the fraction of the interval
+    covered and what finishing would cost at the current rate -- both
+    arithmetic -- and stops short of asserting that the problem *is* stiff,
+    which is a property of the equation and not something a step counter can
+    establish. For an explicit method it names the usual cause, hedged, because
+    that is the actionable part.
+    """
+    covered = abs(t - t0) / abs(tf - t0) if tf != t0 else 1.0
+    advice = (
+        " An explicit method's step size is limited by stability rather than "
+        "accuracy on a stiff problem, which is the usual reason for this; an "
+        "implicit method (radau, rodas4) has no such limit."
+        if explicit
+        else ""
+    )
+    return (
+        f"{name} covered {covered:.3%} of the interval in {taken} steps and, at "
+        f"the step size it is now taking, would need about {projected:.3g} to "
+        f"finish — past the max_steps={max_steps} limit. Stopped early rather "
+        f"than grinding to that limit and then reporting the step count.{advice}"
+    )
+
+
+def fixed_step_message(name: str, t: float, what: str) -> str:
+    """Why a constant-step method stopped, and what the caller can do about it.
+
+    A method that chooses its own step responds to trouble by taking a smaller
+    one. A fixed-step method has no such move -- the step is the caller's
+    choice, not the solver's -- so the first failure is the last one, and the
+    only useful message is the one that says so and hands the decision back.
+    """
+    return (
+        f"{what} at t={t:.6g}. {name} runs at a fixed step size and cannot "
+        f"reduce it: pass a smaller first_step or a larger n_steps, or use an "
+        f"adaptive method (dopri5, tsit5) or an A-stable one (radau, rodas4) "
+        f"if the problem is stiff"
+    )
+
+
 def underflow_message(t: float, h_abs: float, nonfinite_at: float | None) -> str:
     """Why the step size could not be cut any further.
 
@@ -298,9 +376,60 @@ class EventTracker:
         self.t_events: list[list[float]] = [[] for _ in events]
         self.y_events: list[list[np.ndarray]] = [[] for _ in events]
         self._g = np.array([ev(t0, y0, args) for ev in events]) if events else None
+        #: Indices of events known to have had crossings missed. See
+        #: `_probe_for_missed_crossings`.
+        self.incomplete: set[int] = set()
 
     def __bool__(self) -> bool:
         return bool(self.events)
+
+    def _probe_for_missed_crossings(self, interp, t, t_new, g_new) -> None:
+        """Notice when endpoint bracketing has silently lost crossings.
+
+        Comparing only the two ends of a step misses any *even* number of
+        crossings inside it, and misses them without a trace: `g` has the same
+        sign at both ends, so nothing looks wrong. It is not an exotic case
+        either, because the step size is chosen to resolve `y` and not `g` --
+        an event that oscillates faster than the solution is entirely ordinary.
+        Measured on a smooth decay with ``g = sin(20t)``: 63 roots exist and
+        endpoint comparison finds 7, with nothing to say the other 56 are gone.
+
+        `Event.subdivisions` is the cure and has always been available. What was
+        missing is any way to find out that you needed it. One evaluation of `g`
+        at the middle of the step is enough to *know*: if the midpoint sign
+        opposes both endpoints, at least two crossings happened and at most one
+        was reported.
+
+        This detects rather than estimates -- a flag raised here is certain, not
+        suspected. It is also not exhaustive: four crossings arranged to agree
+        at both ends and the middle would still slip through. It answers "were
+        any missed", never "were none missed", and `Solution` says so.
+        """
+        if self._g is None:
+            return              # no events; nothing to probe
+        candidates = [
+            index
+            for index, event in enumerate(self.events)
+            # Already scanning, or already known incomplete: either way the
+            # answer will not change, so do not pay for the probe.
+            if event.subdivisions == 0 and index not in self.incomplete
+        ]
+        if not candidates:
+            return
+
+        midpoint = t + 0.5 * (t_new - t)
+        y_mid = interp(midpoint)
+        for index in candidates:
+            event = self.events[index]
+            before, after = float(self._g[index]), float(g_new[index])
+            middle = event(midpoint, y_mid, self.args)
+            if (before > 0 and after > 0 and middle < 0) or (
+                before < 0 and after < 0 and middle > 0
+            ):
+                self.incomplete.add(index)
+
+    def incomplete_names(self) -> str:
+        return ", ".join(self.events[i].name for i in sorted(self.incomplete))
 
     def process(self, interp, t: float, t_new: float, y_new: np.ndarray):
         """Record any crossings in ``[t, t_new]``.
@@ -309,6 +438,7 @@ class EventTracker:
         truncated to a terminal event if one fired.
         """
         g_new = np.array([ev(t_new, y_new, self.args) for ev in self.events])
+        self._probe_for_missed_crossings(interp, t, t_new, g_new)
         bracketed = find_active_events(self._g, g_new, self.events)
 
         if self.scanning:

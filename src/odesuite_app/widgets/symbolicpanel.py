@@ -216,8 +216,40 @@ class SymbolicPanel(QWidget):
                 "Particular solution — with your initial conditions",
                 solution.particular, lead="y(t) =",
             )
+            self._render_interval(solution)
         if solution.solved:
             self._render_verification(solution)
+
+    def _render_interval(self, solution: SymbolicSolution) -> None:
+        """Where the particular solution is actually defined.
+
+        Only for the particular solution, and only when it is bounded: the
+        general solution carries an arbitrary constant, so where it breaks down
+        depends on which constant, and the interval is a property of the
+        solution through a *point*. Where nothing can be settled, or the answer
+        is the whole line, nothing is shown -- an interval printed on every
+        answer would stop being read.
+        """
+        from ..symbolic import format_interval, interval_of_validity
+
+        t0 = solution.initial_point
+        if t0 is None:
+            return          # without the point the interval is not defined
+        expression = solution.particular
+        if isinstance(expression, list):
+            return          # a system: each component has its own, not one line
+        text = format_interval(interval_of_validity(expression, t0))
+        if not text:
+            return
+        label = QLabel(
+            f"valid on {text} — the solution runs into a singularity at the "
+            f"edge of this interval, and means nothing beyond it"
+        )
+        label.setWordWrap(True)
+        label.setStyleSheet(
+            f"font-size: 10.5px; color: {self.palette_obj.warning};"
+        )
+        self._body.addWidget(label)
 
     def _render_classification(self, solution: SymbolicSolution) -> None:
         words = []

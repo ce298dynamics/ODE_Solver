@@ -416,10 +416,24 @@ class PortraitScreen(QWidget):
                 else f"{v.real:+.3f}"
                 for v in point.eigenvalues
             )
+            # A name for a non-hyperbolic point is a claim about the
+            # linearisation, not about the flow: with an eigenvalue on the
+            # imaginary axis, Hartman-Grobman does not apply and the
+            # higher-order terms decide. "centre" is the case that bites --
+            # Lotka-Volterra really is one, and x' = -y + x(x²+y²) has the same
+            # eigenvalues and spirals outward. Printing the word alone, in
+            # bold, tells the reader the wrong thing half the time.
+            caveat = (
+                ""
+                if point.hyperbolic
+                else "&nbsp;&nbsp;<i>(from the linearisation only — an "
+                     "eigenvalue lies on the imaginary axis, so the "
+                     "higher-order terms decide)</i>"
+            )
             rows.append(
                 f"({point.position[0]:+.4f},&nbsp;{point.position[1]:+.4f})&nbsp;&nbsp;"
                 f"<span style='color:{colour}'><b>{point.kind}</b></span>"
-                f"&nbsp;&nbsp;λ&nbsp;=&nbsp;{values}"
+                f"&nbsp;&nbsp;λ&nbsp;=&nbsp;{values}{caveat}"
             )
         self.report.setText("<br>".join(rows))
 

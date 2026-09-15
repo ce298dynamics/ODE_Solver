@@ -56,14 +56,39 @@ jobs:
       - run: ruff check .
       - run: mypy
 
+      # Nothing here would otherwise notice an advisory against a dependency.
+      # `--strict` fails on a package whose version cannot be resolved, which is
+      # what makes silence meaningful rather than merely quiet.
+      - name: dependency advisories
+        run: |
+          pip install pip-audit
+          pip-audit --strict --desc .
+
   tests:
     name: full suite (${{ matrix.os }}, ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
+    # Cover what the package *claims*. `pyproject.toml` advertises Python
+    # 3.10-3.13 and "Operating System :: OS Independent"; this job used to test
+    # 3.10 and 3.12 on Linux and Windows, which left macOS and two Python
+    # versions as promises with nothing behind them.
+    #
+    # Not the full 3 x 4 cross product -- twelve legs to buy very little. The
+    # rule is: every advertised OS runs on at least one version, and every
+    # advertised version runs on at least one OS. Eight legs, and the classifier
+    # list is backed.
+    #
+    # If a leg here proves unsupportable, the honest fix is to narrow the
+    # classifiers rather than to delete the leg.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python: ["3.10", "3.12"]
+        include:
+          - os: ubuntu-latest
+            python: "3.11"
+          - os: ubuntu-latest
+            python: "3.13"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -92,10 +117,40 @@ jobs:
       # oversubscribed machine breaks. The deadline is now raised for the test
       # session (see tests/conftest.py), and the suite has been run parallel
       # three times over without a failure.
+      # Coverage is measured on one leg rather than all eight: the figure does
+      # not depend on the platform, and gathering it eight times over would slow
+      # every run to buy the same number.
+      #
+      # Two thresholds, because one average hides the thing worth protecting.
+      # The library is the product and sits at 96%; the interface is harder to
+      # exercise and sits at 90%, and a single combined gate would let the
+      # library slide while the total stayed green.
       - name: pytest
+        if: matrix.os != 'ubuntu-latest' || matrix.python != '3.12'
         env:
           QT_QPA_PLATFORM: offscreen
         run: pytest tests/ -q -n auto
+
+      - name: pytest with coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          pytest tests/ -q -n auto \
+            --cov=odesuite --cov=odesuite_app \
+            --cov-report=term-missing:skip-covered \
+            --cov-report=html:htmlcov \
+            --cov-fail-under=88
+          coverage report --include='*/odesuite/*' --omit='*/odesuite_app/*' \
+            --fail-under=95
+
+      - name: upload the coverage report
+        if: always() && matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: htmlcov
+          if-no-files-found: ignore
 
       - name: selftest across every method family
         env:

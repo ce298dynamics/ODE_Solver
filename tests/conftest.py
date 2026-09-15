@@ -8,6 +8,7 @@ focus by flashing windows onto the developer's screen.
 from __future__ import annotations
 
 import os
+import sys
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 # Qt no longer bundles fonts; under the offscreen platform it needs pointing at
@@ -35,6 +36,16 @@ def _generous_dsolve_timeout():
     `test_unsolvable_equations_time_out_rather_than_hang` passes its own
     explicit timeout and so is unaffected: it must still prove the deadline
     bites.
+
+    Raised again under coverage. `dsolve` runs in a subprocess, and measuring it
+    makes that subprocess several times slower; combined with `-n auto` it
+    misses even the 90 s budget, and a test that had nothing to do with
+    coverage fails on the coverage leg only. That was reproduced deliberately --
+    `-n auto` with `--cov` fails
+    `test_a_technique_sympy_never_named_is_not_handed_back_to_dsolve`, which
+    passes three times out of three in isolation under the same coverage. The
+    deadline is a property of the interface, not of the mathematics, so
+    stretching it for a slower harness costs nothing real.
     """
     try:
         from odesuite_app import symbolic
@@ -42,8 +53,9 @@ def _generous_dsolve_timeout():
         yield
         return
 
+    measuring = "coverage" in sys.modules or "COV_CORE_SOURCE" in os.environ
     original = symbolic.DSOLVE_TIMEOUT
-    symbolic.DSOLVE_TIMEOUT = 90.0
+    symbolic.DSOLVE_TIMEOUT = 300.0 if measuring else 90.0
     try:
         yield
     finally:

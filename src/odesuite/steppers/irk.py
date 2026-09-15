@@ -49,7 +49,73 @@ from ..linalg import (
 from ..newton import JacobianPolicy, NewtonSettings, simplified_newton
 from .base import Stepper, StepResult
 
-__all__ = ["RadauTableau", "RADAU_IIA_5", "RadauIIA"]
+__all__ = ["RadauTableau", "RADAU_IIA_5", "RadauIIA", "newton_tol_factor",
+           "newton_iteration_budget"]
+
+
+#: The fraction of the integration tolerance the stage solve is held to at
+#: `REFERENCE_RTOL`. Below that tolerance it is tightened; see
+#: `newton_tol_factor`.
+NEWTON_TOL_FACTOR = 0.03
+#: Iterations allowed at `NEWTON_TOL_FACTOR`; raised in step with any tightening
+#: of it by `newton_iteration_budget`.
+NEWTON_MAX_ITER = 8
+#: The tolerance `NEWTON_TOL_FACTOR` was chosen for -- `solve`'s own default.
+REFERENCE_RTOL = 1e-6
+
+
+def newton_tol_factor(rtol: float, order: int) -> float:
+    """How tightly to solve the stage equations, given the accuracy requested.
+
+    A fixed fraction of the tolerance is the obvious choice and it is wrong at
+    the tight end, because the two things it balances scale differently.
+
+    Per step, the nonlinear solve contributes an error of about `tol_factor`
+    in tolerance units. Those contributions accumulate over the whole
+    integration, and the number of steps a method of this order needs to reach
+    a tolerance grows like ``rtol ** (-1/order)``. So the *total* Newton error
+    behaves like ``tol_factor * rtol ** (-1/order)`` in units of the tolerance:
+    hold `tol_factor` fixed and it grows without limit as the tolerance
+    tightens, until it, rather than the truncation error, is what the caller
+    actually gets.
+
+    That is what was measured. At a fixed 0.03 the achieved error stopped
+    tracking the request below ``rtol = 1e-9`` and came out 15x, 30x, 54x and
+    103x too large at 1e-10 through 1e-13 -- while the solve reported success,
+    which is the worse half of the fault. Scaling the factor as
+    ``rtol ** (1/order)`` cancels the step-count growth and holds the ratio flat
+    across the whole range.
+
+    Capped at `NEWTON_TOL_FACTOR` so that loose tolerances, where the truncation
+    error dominates anyway and the extra iterations would be waste, keep the
+    behaviour they had.
+    """
+    scaled = NEWTON_TOL_FACTOR * (rtol / REFERENCE_RTOL) ** (1.0 / order)
+    return float(min(NEWTON_TOL_FACTOR, scaled))
+
+
+def newton_iteration_budget(tol_factor: float) -> int:
+    """How many iterations to allow for a target of `tol_factor`.
+
+    A companion to `newton_tol_factor`, and not optional: tightening the target
+    without lengthening the iteration is how a converging solve gets reported as
+    a failure. Measured on the logistic equation at ``rtol = 1e-13``, the
+    iteration was converging at a rate of 0.013 -- roughly two decimal digits
+    per pass, which is excellent -- and still ran out of its eight iterations
+    before reaching a target twenty-five times tighter than the one that budget
+    was chosen for. The step was then reported as not having converged.
+
+    Simplified Newton converges linearly, so reaching a target `k` times tighter
+    costs ``log(k) / log(1/rate)`` further iterations. `JacobianPolicy` already
+    treats a rate above 0.3 as grounds for a fresh Jacobian, so an iteration
+    that is going to succeed at all gains at least half a decade a pass; two
+    extra iterations per decade of tightening is that bound with room to spare.
+
+    Capped, because an iteration that needs more than sixteen passes is not
+    converging slowly, it is not converging.
+    """
+    decades = np.log10(NEWTON_TOL_FACTOR / tol_factor) if tol_factor > 0 else 0.0
+    return int(min(16, NEWTON_MAX_ITER + np.ceil(2.0 * max(decades, 0.0))))
 
 
 @dataclass(frozen=True)
@@ -149,8 +215,12 @@ class RadauIIA(Stepper):
         # rejection and a refactorisation that cost far more than the extra
         # iteration. Only genuine divergence, theta >= 1, is worth quitting on.
         self.newton = newton or NewtonSettings(
-            max_iter=8, tol_factor=0.03, max_rate=1.0
+            max_iter=NEWTON_MAX_ITER, tol_factor=NEWTON_TOL_FACTOR, max_rate=1.0
         )
+        #: Whether `set_tolerances` may scale `newton.tol_factor` to match the
+        #: accuracy being asked for. A caller who supplied their own settings
+        #: chose that number and keeps it.
+        self._scale_newton_tolerance = newton is None
 
         self.A_inv = np.linalg.inv(tableau.A)
         self.eigenvalues, self.T, self.TI = _spectral_data(tableau.A)
@@ -173,6 +243,9 @@ class RadauIIA(Stepper):
     def set_tolerances(self, rtol, atol) -> None:
         self.rtol = rtol
         self.atol = np.asarray(atol)
+        if self._scale_newton_tolerance:
+            self.newton.tol_factor = newton_tol_factor(rtol, self.order)
+            self.newton.max_iter = newton_iteration_budget(self.newton.tol_factor)
 
     def _evaluator(self, problem) -> JacobianEvaluator:
         if self._jac_eval is None or self._jac_eval.problem is not problem:

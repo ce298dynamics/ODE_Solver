@@ -30,6 +30,9 @@ __all__ = [
     "jacobian_at",
     "classify",
     "find_fixed_points",
+    "largest_lyapunov",
+    "LyapunovEstimate",
+    "predictability_horizon",
     "phase_line",
     "nullclines",
     "separatrices",
@@ -58,6 +61,26 @@ class FixedPoint:
     def is_saddle(self) -> bool:
         return self.kind == "saddle"
 
+    @property
+    def hyperbolic(self) -> bool:
+        """Whether the linearisation actually decides the nonlinear behaviour.
+
+        It does when no eigenvalue sits on the imaginary axis -- that is the
+        Hartman-Grobman hypothesis, and where it holds the flow near the point
+        looks like the linear flow. Where it fails, `kind` is a statement about
+        the *linearisation* and nothing more, because arbitrarily small
+        higher-order terms decide the rest.
+
+        The case that matters is a centre, and it is not a corner case:
+        ``x' = -y + x(x^2+y^2)``, ``y' = x + y(x^2+y^2)`` has eigenvalues
+        exactly ``+-i`` and a flow that spirals *outward*. Lotka-Volterra has
+        the same eigenvalue signature and is a genuine centre. Nothing in the
+        eigenvalues separates them, so anything that reports `kind` to a reader
+        has to say which of the two situations it is in.
+        """
+        scale = max(float(np.max(np.abs(self.eigenvalues))), 1e-12)
+        return bool(np.all(np.abs(self.eigenvalues.real) > 1e-8 * scale))
+
     def __repr__(self) -> str:
         x, y = self.position
         return f"FixedPoint(({x:.4g}, {y:.4g}), {self.kind})"
@@ -82,8 +105,34 @@ class PortraitData:
 # ---------------------------------------------------------------------------
 
 
-def vector_field(problem: ODEProblem, xlim, ylim, resolution: int = 33):
-    """Sample the RHS on a grid. Returns ``(X, Y, U, V, speed)``."""
+#: Grid density for the arrow field, and for the nullclines drawn over it.
+#:
+#: Two numbers rather than one, because they are read differently. The arrows
+#: are counted -- 33 across is dense enough to show the flow and sparse enough
+#: that individual arrows stay legible, and the cost is quadratic in this. The
+#: nullclines are contours of the same sampling, where the eye follows a curve
+#: rather than counting marks, so they need a much finer grid before the
+#: polyline stops looking like a staircase; 140 is where that happens and the
+#: extra cost is one pass of `_contour_paths`.
+#:
+#: Constants rather than parameters. Both were arguments with defaults that no
+#: caller ever overrode, which reads as a density control the interface offers
+#: and does not. `slope_field` keeps its parameter, because the lesson figures
+#: genuinely do vary it (19 and 17, against the default 21, to keep a small
+#: figure from crowding).
+VECTOR_FIELD_RESOLUTION = 33
+NULLCLINE_RESOLUTION = 140
+#: Streamline seeding density, passed to matplotlib's placement algorithm.
+STREAMLINE_RESOLUTION = 33
+
+
+def vector_field(problem: ODEProblem, xlim, ylim, resolution: int | None = None):
+    """Sample the RHS on a grid. Returns ``(X, Y, U, V, speed)``.
+
+    `resolution` exists for `nullclines`, which needs the same sampling at a
+    much finer grid; it is not a knob the interface turns.
+    """
+    resolution = VECTOR_FIELD_RESOLUTION if resolution is None else resolution
     x = np.linspace(xlim[0], xlim[1], resolution)
     y = np.linspace(ylim[0], ylim[1], resolution)
     X, Y = np.meshgrid(x, y)
@@ -148,7 +197,7 @@ def slope_field(problem: ODEProblem, tlim, ylim, resolution: int = 21,
     return np.asarray(segments, dtype=float), np.asarray(slopes, dtype=float)
 
 
-def streamlines(problem: ODEProblem, xlim, ylim, resolution: int = 33,
+def streamlines(problem: ODEProblem, xlim, ylim,
                 density: float = 1.1) -> list[np.ndarray]:
     """Evenly spaced streamlines of the vector field, as ``(n, 2)`` polylines.
 
@@ -162,7 +211,7 @@ def streamlines(problem: ODEProblem, xlim, ylim, resolution: int = 33,
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    X, Y, U, V, _ = vector_field(problem, xlim, ylim, resolution)
+    X, Y, U, V, _ = vector_field(problem, xlim, ylim, STREAMLINE_RESOLUTION)
     figure = plt.figure()
     axes = figure.add_subplot()
     try:
@@ -221,6 +270,262 @@ def jacobian_at(problem: ODEProblem, point: np.ndarray) -> np.ndarray:
     return forward_diff_jacobian(
         problem.f, 0.0, point, problem.f(0.0, point), threshold=1e-6
     )
+
+
+#: Offsets the uniqueness probe differences over, coarsest first.
+_UNIQUENESS_OFFSETS = (1e-2, 1e-4, 1e-6, 1e-8)
+
+
+def uniqueness_warning(problem: ODEProblem) -> str | None:
+    """Whether the existence-and-uniqueness hypothesis fails at the start.
+
+    The theorem the course teaches (lesson `slopefields`) is that a continuous
+    `f` gets you a solution and a continuous ``df/dy`` gets you *one*. Where the
+    second condition fails, several solutions can pass through the same point --
+    and a numerical method will return one of them, with nothing to say the
+    others exist.
+
+    That is not a hypothetical shortcoming. This application teaches
+    ``y' = y^(1/3), y(0) = 0`` as the standard case where uniqueness fails, and
+    its own solver answers ``y = 0`` with `success` set and no remark, while
+    ``y = (2t/3)^(3/2)`` solves it just as well. The lesson and the tool
+    disagreed, and the tool was the one keeping quiet.
+
+    **How it decides.** ``df/dy`` is differenced at the initial point over
+    offsets four decades apart. A derivative that exists is roughly the same at
+    all of them; one that does not grows without bound as the offset shrinks.
+    Measured:
+
+    ==========================  ========  ========  =======
+    problem                     h = 1e-2  h = 1e-8  ratio
+    ==========================  ========  ========  =======
+    ``y' = y^(1/3), y(0)=0``        21.5   2.15e+05    1e+04
+    ``y' = sqrt|y|, y(0)=0``          10      1e+04    1e+03
+    ``y' = -2y``                       2          2        1
+    ``y' = -1000y``                1e+03      1e+03        1
+    Robertson                      3e+05        0.3    1e-06
+    Van der Pol, mu = 1000         3e+03      3e+03        1
+    ==========================  ========  ========  =======
+
+    The margin is four orders of magnitude, and the two stiff problems are the
+    reason the test is growth rather than size: their derivatives are enormous
+    and perfectly well defined. Robertson's quotient *falls*, because its second
+    derivative is large -- which is also why the test asks for monotone growth
+    rather than a single ratio.
+
+    Returns a sentence to show the user, or None. It says the hypothesis is not
+    satisfied, never that there are two solutions: the first is what was
+    measured, the second would be a claim about the equation.
+    """
+    y0 = np.asarray(problem.y0, dtype=float)
+    t0 = float(problem.t0)
+    try:
+        f0 = np.asarray(problem.f(t0, y0), dtype=float)
+    except Exception:
+        return None
+
+    quotients = []
+    for offset in _UNIQUENESS_OFFSETS:
+        worst = 0.0
+        for j in range(y0.size):
+            step = offset * max(abs(float(y0[j])), 1.0)
+            probe = y0.copy()
+            probe[j] += step
+            try:
+                nearby = np.asarray(problem.f(t0, probe), dtype=float)
+            except Exception:
+                return None
+            if not np.all(np.isfinite(nearby)):
+                return None
+            worst = max(worst, float(np.max(np.abs(nearby - f0)) / step))
+        if not np.isfinite(worst):
+            return None
+        quotients.append(worst)
+
+    # Growth, not size. A doubling across each hundredfold refinement, and a
+    # hundredfold overall, separates an unbounded derivative from a merely
+    # large one by four orders of magnitude on everything measured above.
+    growing = all(
+        later >= 2.0 * earlier
+        for earlier, later in zip(quotients, quotients[1:])
+    )
+    if not (growing and quotients[-1] >= 100.0 * quotients[0] and quotients[-1] > 1.0):
+        return None
+
+    return (
+        "∂f/∂y appears to be unbounded at the initial condition, so the "
+        "uniqueness half of the existence-and-uniqueness theorem does not "
+        "apply here. More than one solution may pass through this point, and a "
+        "numerical method will return only one of them."
+    )
+
+
+#: Renormalisation interval for the Benettin walk, and the size of the
+#: perturbation it keeps the two trajectories apart by.
+#:
+#: `tau` has to be short enough that the separation stays in the linear regime
+#: -- on Lorenz the states are O(10) apart and 0.5 keeps the perturbation around
+#: 1e-8, six orders below that -- and long enough that the renormalisations do
+#: not dominate the cost. `d0` is well above round-off on an O(10) state and far
+#: below any curvature of the flow.
+LYAPUNOV_TAU = 0.5
+LYAPUNOV_D0 = 1e-8
+#: Time discarded before measuring, so the walk starts on the attractor rather
+#: than on the way to it.
+LYAPUNOV_TRANSIENT = 20.0
+#: Independent runs whose scatter becomes the error bar. Five is the smallest
+#: number that gives a usable standard error; the cost is linear in it.
+LYAPUNOV_REPLICATES = 5
+
+
+@dataclass
+class LyapunovEstimate:
+    """The largest Lyapunov exponent, with an error bar that means something."""
+
+    value: float
+    #: Standard error of the mean over `replicates` independent runs.
+    error: float
+    replicates: int
+    #: "chaotic", "attracting", or "indistinguishable from zero".
+    verdict: str
+
+    @property
+    def significant(self) -> bool:
+        """Whether the sign of the exponent is resolved at all."""
+        return abs(self.value) > 2.0 * self.error
+
+    def __str__(self) -> str:
+        return f"{self.value:+.4f} ± {self.error:.4f}  ({self.verdict})"
+
+
+def largest_lyapunov(
+    problem: ODEProblem,
+    *,
+    t_end: float = 300.0,
+    replicates: int = LYAPUNOV_REPLICATES,
+    spread: float = 0.5,
+    rtol: float = 1e-8,
+    atol: float = 1e-11,
+    should_stop=None,
+) -> LyapunovEstimate:
+    """Estimate the largest Lyapunov exponent by Benettin renormalisation.
+
+    Two trajectories a hair apart are integrated together; every `LYAPUNOV_TAU`
+    the separation is measured, its log accumulated, and the perturbed state
+    pulled back to `LYAPUNOV_D0` along the same direction. The mean log growth
+    rate over the second half of the run is the exponent.
+
+    **The error bar is the whole difficulty, and the obvious one is wrong.**
+    Treating the per-interval log growths as independent samples gives a
+    standard error 8.5 times too large -- measured, over 12 replicates on
+    Lorenz: the estimates scatter with a standard deviation of 0.0281 while the
+    naive iid formula reports 0.2404. Batch means over ten blocks is better and
+    still 3.4 times too large, at 0.0960. The growths are strongly
+    anti-correlated, so treating them as independent overstates the spread, and
+    a 26% "relative standard error" would have made the routine refuse to report
+    a perfectly good answer.
+
+    So the error bar is the scatter across `replicates` **independent** runs,
+    which measures the thing being reported rather than modelling it. Each
+    replicate starts from a different point on the attractor *and* a different
+    perturbation direction. Both matter: replicates that share a start point and
+    differ only in direction agree with each other while being wrong together,
+    and on a 15-time-unit Lorenz run that produced an error bar of exactly
+    0.0000 -- the precise false negative an error bar exists to prevent.
+
+    Measured with this design (five replicates):
+
+    ==============================  ==========  ========  ==========================
+    system                          estimate    error     verdict
+    ==============================  ==========  ========  ==========================
+    Lorenz, T = 300                   +0.8936    0.0078   chaotic  (lit. 0.9056)
+    damped pendulum, T = 300          -0.1501    0.0002   attracting
+    Lotka-Volterra, T = 400           +0.0035    0.0064   indistinguishable from zero
+    harmonic oscillator, T = 400      -0.0000    0.0000   indistinguishable from zero
+    ==============================  ==========  ========  ==========================
+
+    The last two are why the verdict exists. A conservative system's largest
+    exponent *is* zero, and a routine that reports "+0.0035, chaotic" of
+    Lotka-Volterra would be confidently wrong about the most famous
+    non-chaotic system in the catalogue.
+
+    `should_stop` is polled once per interval and abandons the estimate when it
+    returns True, because a 300-time-unit Lorenz run takes about 26 seconds and
+    must not pin a thread the user has moved on from.
+    """
+    base = np.asarray(problem.y0, dtype=float)
+    n = base.size
+    rng = np.random.default_rng(0)
+    f_user, args = problem.f_user, problem.args
+
+    def pair(t, z):
+        first = np.asarray(f_user(t, z[:n], *args), dtype=float).reshape(-1)
+        second = np.asarray(f_user(t, z[n:], *args), dtype=float).reshape(-1)
+        return np.concatenate([first, second])
+
+    estimates = []
+    for _ in range(max(2, replicates)):
+        start = base + rng.normal(scale=spread, size=n)
+        direction = rng.normal(size=n)
+        direction /= np.linalg.norm(direction)
+
+        settled = solve(
+            ODEProblem(f=f_user, t_span=(problem.t0, problem.t0 + LYAPUNOV_TRANSIENT),
+                       y0=start, args=args),
+            "dopri5", rtol=rtol, atol=atol,
+        )
+        y = settled.y[:, -1].copy()
+        t = float(settled.t[-1])
+        perturbed = y + LYAPUNOV_D0 * direction
+
+        growths = []
+        for _ in range(max(4, int(round(t_end / LYAPUNOV_TAU)))):
+            if should_stop is not None and should_stop():
+                return LyapunovEstimate(float("nan"), float("nan"), 0, "cancelled")
+            step = solve(
+                ODEProblem(f=pair, t_span=(t, t + LYAPUNOV_TAU),
+                           y0=np.concatenate([y, perturbed])),
+                "dopri5", rtol=rtol, atol=atol,
+            )
+            both = step.y[:, -1]
+            y, perturbed = both[:n].copy(), both[n:].copy()
+            t = float(step.t[-1])
+            separation = perturbed - y
+            distance = float(np.linalg.norm(separation))
+            if distance <= 0.0:
+                break
+            growths.append(np.log(distance / LYAPUNOV_D0))
+            perturbed = y + (LYAPUNOV_D0 / distance) * separation
+
+        if len(growths) < 4:
+            return LyapunovEstimate(float("nan"), float("nan"), 0, "not converged")
+        second_half = np.asarray(growths[len(growths) // 2:]) / LYAPUNOV_TAU
+        estimates.append(float(second_half.mean()))
+
+    values = np.asarray(estimates)
+    value = float(values.mean())
+    error = float(values.std(ddof=1) / np.sqrt(values.size))
+    if abs(value) <= 2.0 * error:
+        verdict = "indistinguishable from zero"
+    else:
+        verdict = "chaotic" if value > 0 else "attracting"
+    return LyapunovEstimate(value, error, values.size, verdict)
+
+
+def predictability_horizon(exponent: LyapunovEstimate, rtol: float) -> float | None:
+    """How long a single trajectory carries information, at this tolerance.
+
+    An error of size `rtol` grows like ``exp(lambda t)``, so it reaches O(1) at
+    ``t = ln(1/rtol) / lambda``. Past that the trajectory is a sample from the
+    attractor rather than a prediction of where the system is.
+
+    None unless the exponent is resolved and positive: a horizon computed from
+    an exponent indistinguishable from zero would be an enormous number
+    presented as a fact, and for an attracting system there is no horizon at all.
+    """
+    if not exponent.significant or exponent.value <= 0 or not np.isfinite(exponent.value):
+        return None
+    return float(np.log(1.0 / max(rtol, 1e-16)) / exponent.value)
 
 
 def classify(eigenvalues: np.ndarray) -> tuple[str, str]:
@@ -537,14 +842,14 @@ def _contour_paths(X, Y, Z) -> list[np.ndarray]:
     return paths
 
 
-def nullclines(problem: ODEProblem, xlim, ylim, resolution: int = 140):
+def nullclines(problem: ODEProblem, xlim, ylim):
     """Curves where each component of the derivative vanishes.
 
     Their intersections are exactly the equilibria, which makes them a useful
     visual cross-check on `find_fixed_points`: every marker should sit on a
     crossing.
     """
-    X, Y, U, V, _ = vector_field(problem, xlim, ylim, resolution)
+    X, Y, U, V, _ = vector_field(problem, xlim, ylim, NULLCLINE_RESOLUTION)
     return _contour_paths(X, Y, U), _contour_paths(X, Y, V)
 
 

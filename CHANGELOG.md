@@ -6,7 +6,443 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- **A typed equation could run arbitrary code.** Parsing already emptied
+  `__builtins__` so that no *name* resolved to anything dangerous, and that part
+  was right. It was not enough: a name whitelist says nothing about where an
+  expression may go *from* a name that resolves legitimately. `sin` is
+  whitelisted, and
+
+      sin.__class__.__init__.__globals__["__builtins__"]
+
+  is the real builtins, `__import__` included — reached without naming a single
+  forbidden thing. Both places a user can type an expression were affected: the
+  "build your own system" editor and the equation editor. In the latter the
+  payload ran and its return value became the equation's right-hand side, so
+  the only outward sign was an answer that looked odd.
+
+  `custom.reject_unsafe_syntax` closes it by checking the text **as typed,
+  before sympy compiles it** — after `parse_expr` returns, a payload has already
+  run. It refuses the construct rather than the name: no attribute access, no
+  subscripting, no lambdas or comprehensions, and calls only to a bare name.
+
+  Refusing constructs rather than names is the whole design. A name is already
+  harmless once `__builtins__` is empty — sympy's own `auto_symbol` turns an
+  unknown one into a `Symbol` rather than resolving it — so the only way out is
+  an attribute, and that is what is now gone. Going the other way would have
+  meant every caller knowing about `y(t)`, `Heaviside`, `DiracDelta`, the
+  derivative placeholders and every parameter a lesson happens to use, and a
+  name wrongly left out is a lesson that stops working. A guard that rejected
+  `sec(t)` would have been a worse bug than the one it fixed, which is why
+  `tests/test_security.py` asserts in both directions: known escapes are
+  refused and proved not to have run, using a canary file, *and* every equation
+  the course itself contains still parses.
+
+  `SECURITY.md` now records the reporting route and what is in scope.
+
+### Fixed
+
+- **Radau missed the tolerance it was asked for, and reported success.** Below
+  `rtol = 1e-9` the achieved error stopped tracking the request: 15x too large
+  at 1e-10, 30x at 1e-11, 54x at 1e-12, 103x at 1e-13, while DOPRI5 held 1.8x
+  across the same range.
+
+  Not the step controller — the step count was rising 1.78x per decade, more
+  than the 1.58x a fifth-order method needs — and not the differenced Jacobian,
+  since supplying an analytic one changed the answer in no significant figure.
+  It was the Newton termination. The stage equations were solved to a fixed 3%
+  of the integration tolerance, and a fixed fraction is the wrong shape: the
+  per-step nonlinear error accumulates over a step count that itself grows like
+  `rtol ** (-1/order)`, so holding the fraction constant lets the Newton error
+  overtake the truncation error exactly when the caller has asked for accuracy.
+
+  `newton_tol_factor` now scales it as `rtol ** (1/order)`, which cancels that
+  growth, capped so loose tolerances keep the behaviour they had. Measured: the
+  ratio at 1e-12 goes from 54.5x to 0.77x. Work at the default `rtol = 1e-6` is
+  unchanged — 584 evaluations before and after — and the stiff set (Robertson,
+  HIRES, OREGO, Van der Pol at mu=1000) is identical to the evaluation. Only
+  the tight end pays, about 9% more evaluations for 50-70x the accuracy.
+
+  The iteration budget moves with the target, which is not optional: tightening
+  one without the other turns a converging solve into a reported failure. On the
+  logistic equation at `rtol = 1e-13` the iteration was converging at a rate of
+  0.013 — two decimal digits a pass — and still ran out of its eight iterations
+  before reaching a target twenty-five times tighter. The step came back as not
+  converged, and Radau's local-error test stopped measuring anything and skipped
+  instead. `newton_iteration_budget` allows two further iterations per decade of
+  tightening, which is what a linearly converging iteration needs.
+
+  A caller who passes their own `NewtonSettings` chose those numbers and keeps
+  them.
+
+- **RODAS4 lost three orders of accuracy on any non-autonomous problem.** It
+  held order 4 on `y' = y cos t` down to 2.8e-11 and then converged at order
+  *one*, flattening out near 4e-13 — while on an autonomous problem the same
+  method ran clean to 1.9e-14.
+
+  The `df/dt` term enters a Rosenbrock stage as `h * d_i * f_t`, so an error `e`
+  in that derivative contributes `O(h * e)` to the step: first order, whatever
+  the order of the method around it. Differenced forward, `e ~ sqrt(eps)`, and
+  three orders of accuracy were going to one difference quotient. On an
+  autonomous problem the derivative is identically zero, the difference is
+  exact, and nothing was visible — which is why this survived a suite that
+  measures convergence order.
+
+  Two changes. `ODEProblem` now accepts `dfdt`, so a caller who knows the
+  derivative can supply it and skip the approximation entirely. Where it is not
+  given, the difference is now central rather than forward, `O(eps**(2/3))`
+  rather than `O(sqrt(eps))`. Order 4 now holds to round-off, 1.3e-14, a 60x
+  improvement at fine steps. The central difference costs one extra right-hand
+  side evaluation per step: on the stiff set that is 14% more evaluations and,
+  step counts being identical, nothing else.
+
+- **The Taylor method killed the interpreter.** `solve(problem, "taylor20")` on
+  `y' = y * cos(t)` exited with no traceback and no Python exception — not a
+  failure a caller could catch or report, and about the most ordinary
+  non-autonomous right-hand side there is.
+
+  `Jet` sets `__array_priority__` so that `array * jet` reaches it rather than
+  being broadcast, which is right for an array of numbers. For an array of
+  *jets* it was wrong twice over: the non-jet branch called `float()` on the
+  array, which re-entered jet arithmetic, and `__array_ufunc__`'s handlers are
+  written with Python operators, so `multiply(array, jet)` evaluated
+  `array * jet` — the same ufunc again. Either recursion exhausts the C stack.
+
+  Both paths now walk the array elementwise, which is what the expression meant
+  in the first place, so these right-hand sides do not merely stop crashing:
+  they work. `y' = y cos t` integrates to 5.8e-15 at order 20. Declining with
+  `NotImplemented` was tried and is not enough — defining `__array_ufunc__` at
+  all removes numpy's own object loop, so refusing yields a `TypeError` rather
+  than the elementwise answer. Combining a jet with something that is neither a
+  jet nor a number now says so, instead of failing inside numpy.
+
+  The interface was never exposed: Taylor is offered only for catalogue entries
+  that set `supports_taylor`, and all eighteen of them were checked.
+
+- **A fixed-step method that overflowed spun until `max_steps`, then blamed the
+  step count.** Euler on a harmonic oscillator is unconditionally unstable, so
+  it overflows; the driver answered by halving the step, which does nothing for
+  a method whose step is derived from the interval rather than from `h_abs`.
+  The identical failing step was retried 909393 times over 13.7 seconds, and
+  the solve then reported `exceeded max_steps` for an overflow it had already
+  recorded.
+
+  A fixed-step method cannot reduce its step — that is the caller's choice, not
+  the solver's — so the first failure is now the last one, and the message says
+  what happened, that the method runs at a constant step, and what to do about
+  it. Adaptive methods are untouched: shrinking is the right answer for a method
+  that can shrink.
+
+- **A quiz test depended on when it was run.** The paper is seeded from the
+  clock, which is right for a quiz — sitting it twice should not give the same
+  questions — and wrong for a test. One test typed `"0"` and asserted it was
+  marked wrong, on the strength of a comment reading "almost certainly wrong";
+  once numeric drills existed, some questions have 0 as their answer, and the
+  test failed on the runs that drew one. Reproducible under `pytest -n auto`,
+  passing in isolation, which is the signature that makes such a flake expensive
+  to chase.
+
+  `QuizScreen.seed_override` is the seam — nothing in the application sets it,
+  and a test that needs a particular paper can. The test now *finds* a question
+  it can miss rather than assuming one, so it no longer depends on the content
+  either.
+
+- **A right-hand side that raised at `t0` escaped as a bare exception.**
+  `ODEProblem` already checked that `f(t0, y0)` is finite, and the comment on
+  that check says it exists so a singular starting point does not surface as "a
+  bare ZeroDivisionError ... naming nothing the caller had written". It caught a
+  right-hand side that *returned* `inf` and not one that raised on the way, so
+  `y' = 1/t` started from `t = 0` produced exactly the message the check was
+  written to prevent. It is now wrapped with the same wording.
+
+### Removed
+
+- **`radaudense` is no longer a method name.** It is the unsplit `3n × 3n`
+  Radau solve — the oracle the fast path is validated against, about five times
+  the linear algebra for an identical answer — and having it in the registry
+  meant `make_stepper` offered a test oracle as a suggestion when you mistyped
+  `radau`. Construct it directly with `RadauIIA(linear_solve="dense")`, which is
+  the real interface and what `tests/test_radau.py` now uses.
+
+- **`taylor` is no longer a method name.** It silently meant `taylor20`, and the
+  order is the whole point of that family — a name that hides it is the one
+  thing it cannot afford. `taylor8`, `taylor20` and `taylor30` are unchanged.
+  `rk45` survives as an alias because it names a method people already know by
+  that name; `taylor` named nothing.
+
+- **Three unused density parameters.** `vector_field`, `streamlines` and
+  `nullclines` each took a `resolution` argument with a different default that
+  no caller ever overrode, which reads as a control the interface offers and
+  does not. They are now named constants with a comment on what each trades
+  against what. `slope_field` keeps its parameter: the lesson figures genuinely
+  do vary it, to 19 and 17 against the default 21, so a small figure does not
+  crowd. Checked by walking the call graph with `ast`, after a line-oriented
+  grep missed the multi-line call sites and nearly took the wrong one away.
+
+### Changed
+
+- **A non-hyperbolic equilibrium is no longer labelled with a definite answer.**
+  The Phase Portrait printed `kind` verbatim, in bold. For
+  `x' = -y + x(x²+y²)`, `y' = x + y(x²+y²)` that reads "centre" — which is what
+  the linearisation says and the opposite of what the flow does, since it
+  spirals outward. Lotka–Volterra has the same eigenvalue signature and *is* a
+  centre; nothing in the eigenvalues separates the two.
+
+  `FixedPoint.hyperbolic` is the test — no eigenvalue on the imaginary axis, the
+  Hartman–Grobman hypothesis — and where it fails the label now says so.
+  `analysis.classify` was always scrupulous about this in its docstring; the
+  honesty simply stopped at the screen.
+
+- **`sympy` and `PySide6` now carry upper bounds** (`<2` and `<7`). Both are
+  couplings that an API check would not catch: `odesuite_app.steps` dispatches on
+  sympy's `classify_ode` hint strings, which are internal identifiers with no
+  stability promise, so a major release could change which technique a student
+  is shown a derivation for without anything failing. `numpy` and `scipy` are
+  deliberately left open — the library uses their stable surface, numpy 2 was
+  adopted without incident, and pinning them would make `odesuite` awkward to
+  install alongside anything else.
+
 ### Added
+
+- **The largest Lyapunov exponent, with an error bar that means something.**
+  Lorenz shipped tagged `chaotic` with no way to quantify the chaos — and
+  without an exponent there is no predictability horizon to show either.
+  `analysis.largest_lyapunov` walks two trajectories a hair apart, renormalising
+  every half time unit, and reports the mean log growth rate. On Lorenz:
+  **+0.9001 ± 0.0117**, against the literature's 0.9056.
+
+  **The obvious error bar is wrong, and measurably so.** Treating the
+  per-interval log growths as independent samples gives a standard error *8.5×
+  too large*: over 12 replicates the estimates scatter with a standard deviation
+  of 0.0281 while the naive iid formula reports 0.2404. Batch means over ten
+  blocks is better and still 3.4× too large at 0.0960. The growths are strongly
+  anti-correlated, so treating them as independent overstates the spread — and a
+  26% "relative standard error" would have made the routine refuse to report a
+  perfectly good answer. The bar is therefore the scatter across independent
+  replicates, which measures the thing being reported rather than modelling it.
+
+  Each replicate starts from a different point on the attractor *and* a
+  different perturbation direction. Both matter: replicates sharing a start
+  point agree with each other while being wrong together, and on a 15-time-unit
+  Lorenz run that produced an error bar of exactly **0.0000** — the precise
+  false negative an error bar exists to prevent.
+
+  A verdict comes with it, and the reason is Lotka–Volterra. A conservative
+  system's largest exponent *is* zero; measured, it comes out at +0.0039 ±
+  0.0046, and a routine reporting "+0.0039, chaotic" would be confidently wrong
+  about the most famous non-chaotic system in the catalogue. So the exponent is
+  called `chaotic`, `attracting` or `indistinguishable from zero` according to
+  whether its own error bar resolves the sign, and `predictability_horizon`
+  returns None rather than an enormous number whenever it does not.
+
+- **FitzHugh–Nagumo and SIR are in the catalogue.** FitzHugh–Nagumo is the
+  standard excitable-medium model and the cleanest small slow–fast system here;
+  it was absent entirely. SIR existed only as a preset inside the
+  custom-equation editor, so it never appeared in the gallery and a learner
+  could not find it.
+
+  The oscillating window for FitzHugh–Nagumo is *derived*, not looked up:
+  `hopf_window` solves `trace J = 0`, giving `I ∈ (0.331281, 1.418719)`. That is
+  where the amplitude measurably turns on and off — 1.5e-2 at I = 0.30 against
+  3.75 at I = 0.33, and 3.75 at I = 1.42 against 3.4e-5 at I = 1.50 — so the
+  model and its own theory cannot drift apart. SIR conserves S+I+R to 1.5e-12
+  and carries it as a `Benchmark.invariant`.
+
+- **Sessions: the application reopens where you left it, and a configured
+  starting point can be handed to someone else.** "Van der Pol at μ=800, radau,
+  rtol=1e-9, on the Stiffness Explorer" could not be written down — closing lost
+  it, and an instructor could describe a setup in prose and nothing more. It is
+  now saved on close and restored on launch, and `odesuite-gui --session FILE`
+  opens a named one. An explicit `--problem` or `--screen` still wins.
+
+  A session stores the *request*, not the result: problem, method, tolerances,
+  parameter values, screen. Not the solution, which is recomputed in a fraction
+  of a second and would otherwise be a large file that goes stale the moment
+  anything changes.
+
+  **A typed equation is stored as its source text and re-parsed on the way back
+  in**, which is the security question this feature raises. Every expression the
+  parser has ever seen was typed by the person sitting there; a session file can
+  arrive from anywhere, and is therefore a *less* trustworthy source than a
+  keyboard, not a more trustworthy one. Loading goes through
+  `symbolic.parse_equation` — the same door, and so the same
+  `reject_unsafe_syntax` check — and a test feeds a hostile session file the
+  sandbox-escape payload and asserts nothing ran.
+
+  A bad file is never fatal: missing, truncated, not JSON, not an object, or
+  written by a future format all read as "no session". One unusable *field*
+  costs that field and not the restore, and a parameter from outside its
+  slider's range is clamped rather than restoring a state the interface cannot
+  represent.
+
+- **`docs/limits.md` — where each method stops working.** The per-module
+  documentation on *how* each method works was thorough; nothing said when each
+  one fails, which for a teaching product is the more useful half and the harder
+  half to discover by reading source. One section per family: the failure mode,
+  a reproduction, the measured number, and what to use instead. Plus the limits
+  that belong to the *problem* rather than to any solver — finite-time blow-up,
+  a right-hand side returning NaN, uniqueness that does not hold, a
+  discontinuous right-hand side, event crossings between steps, chaos, and the
+  interval a symbolic answer is valid on.
+
+  Where a limit has since been removed it is recorded as removed rather than
+  deleted: Radau's tolerance shortfall, RODAS4's first-order floor and the
+  Taylor method's interpreter crash are all on the page as things that *used* to
+  be traps, because that is how they stay fixed.
+
+  Two tests keep it honest rather than merely present. One fails if a method in
+  `METHODS` gains no entry; the other provokes each error message the page
+  quotes and checks the real text still contains it — a page that tells a reader
+  to search for wording that no longer exists is worse than one that says
+  nothing. The method picker gained a per-family tooltip saying the same thing
+  in one line, since that is where the question is actually asked.
+
+- **A solve that cannot finish now says so in under a second instead of half a
+  minute.** An explicit method on a stiff problem is limited by stability rather
+  than accuracy, so it takes minute steps forever: DOPRI5 on Robertson spent
+  499 996 steps and 33 seconds reaching `max_steps`, and then reported the step
+  count — the symptom, not the reason. `solve` now projects from the step size
+  it is actually managing, and stops when that projection cannot cover the
+  remaining interval within the budget. Robertson and Van der Pol at μ=1000 now
+  fail in **0.23–0.33 s**, a seventy- to hundredfold improvement, with a message
+  naming the fraction of the interval covered, what finishing would cost, and —
+  for an explicit method — that an implicit one has no such limit.
+
+  The Method Race test that stages this fell from 15 s to 0.54 s, and the file
+  it lives in from 36 s to 5 s.
+
+  **What this is not is a stiffness detector, and the restriction to explicit
+  methods is the whole design.** The projection assumes the step size will not
+  improve, which is exactly false for a stiff solver: it spends its transient
+  taking tiny steps and then grows them by orders of magnitude. Measured on
+  Robertson at `rtol = 1e-12`, RODAS4 has covered **0.0000%** of the interval
+  after 5000 steps — indistinguishable from DOPRI5, which never finishes — and
+  then finishes in 10 017 steps with its step size 1.7e8 times larger. Coverage
+  cannot separate those two. Neither can step-size growth: RODAS4 on Van der Pol
+  at the same tolerance has *flat* growth and still finishes, in 203 377 steps.
+
+  Applying the projection to every adaptive method, as first written, aborted
+  **eleven** solves across the benchmark suite that would all have succeeded.
+  Restricted to methods whose step size is already as large as it is going to
+  get, it aborts none — checked across every adaptive-solvable benchmark at
+  `rtol` from 1e-3 to 1e-12. `progress_check=False` turns it off, for timing the
+  grind or demonstrating it.
+
+- **A symbolic answer now says where it is valid.** Solving `y' = y²`,
+  `y(0) = 1` showed `y = 1/(1-t)` with nothing to say it means anything only for
+  `t < 1` — while the *numerical* side of the same application stops at `t = 1`
+  and reports that the solution may be blowing up there, and the `slopefields`
+  lesson teaches that the existence theorem is local. Three parts of one
+  product, one of them silent.
+
+  `symbolic.interval_of_validity` finds the largest interval around the initial
+  point on which the solution is defined, and — as much to the point — declines
+  when it cannot. `tan(t)` has poles at every odd multiple of π/2 and no
+  denominator to show for them; anything that looked only at the denominator
+  would report "valid everywhere", which is worse than saying nothing. Only
+  expressions built from functions with no real singularities, rational
+  operations and integer powers are answered; the rest decline.
+
+  `sympy.singularities` is the general answer and is not usable here: it did not
+  return within ten minutes on `1/(1-t)`, against a twelve-second budget for the
+  whole symbolic route. The denominator-based version answers in under 2 ms.
+
+  The interval attaches to the *particular* solution only, and needs the point
+  the conditions were given at — `1/(1-t)` is valid on `(-∞, 1)` from `t = 0`
+  and on `(1, ∞)` from `t = 2`, so `SymbolicSolution.initial_point` carries it
+  and nothing is shown when it is unknown.
+
+- **The Solver Lab says when the answer on screen is not the whole answer.**
+  Two things the solver knew and the plot could not show, both now surfaced as a
+  caution beside the problem — and only when they apply, so that the label
+  appearing means something.
+
+  **Uniqueness.** `analysis.uniqueness_warning` differences `∂f/∂y` at the
+  initial point over offsets four decades apart. A derivative that exists is
+  about the same at all of them; one that does not grows without bound. The
+  discriminator is *growth*, not size, because the two stiff problems in the
+  catalogue have enormous and perfectly well-defined derivatives — Van der Pol
+  at μ=1000 sits at 3e3 across the whole sweep, and Robertson's quotient
+  actually falls. Measured margin between `y' = y^(1/3)` at the origin and
+  every ordinary problem: four orders of magnitude.
+
+  This closes a disagreement inside the application. The `slopefields` lesson
+  teaches `y' = y^(1/3), y(0) = 0` as *the* case where uniqueness fails and
+  names both solutions; solving it returned `y = 0` in eight steps with
+  `success` set and no remark. The lesson and the tool now agree, and a test
+  asserts they keep agreeing. The warning says the hypothesis is not satisfied,
+  never that there are two solutions — the first is what was measured, the
+  second would be a claim about the equation.
+
+  **Missed events.** Endpoint bracketing loses any even number of crossings
+  inside a step, silently: `g` has the same sign at both ends, so nothing looks
+  wrong. On a smooth decay with `g = sin(20t)`, 63 roots exist and the default
+  finds 7. `Event.subdivisions` has always been the cure; what was missing was
+  any way to learn you needed it. One evaluation of `g` at the middle of each
+  step is enough to *know* — a midpoint sign opposing both endpoints means at
+  least two crossings happened and at most one was reported — and
+  `Solution.incomplete_events` names the events it happened to.
+
+  That detects rather than estimates: a flag raised is certain. It is not
+  exhaustive, and `Solution.events_complete` documents the asymmetry — False is
+  certain, True means only that nothing was caught going missing.
+
+- **`Solution.diagnosis` says why a solve ended, in a form code can branch on.**
+  Every diagnostic the solver produced was previously a prose string, so a
+  caller — including this application's own screens — could not tell "blew up in
+  finite time" from "hit `max_steps`" from "the right-hand side returned NaN"
+  without matching on English. `Diagnosis` carries a `kind`, the time it
+  happened, and a detail; `message` is unchanged and remains what to show a
+  person.
+
+  The kinds are deliberately no finer than the loop can actually tell. There is
+  no `blow_up` and no `nan_right_hand_side`, because `y' = y²` and
+  `y' = 1/(t-1)` are indistinguishable from inside the loop — both leave the
+  state finite and the step collapsing — and a kind that named one of them would
+  be a confident guess, which is the failure this type exists to remove. They
+  share `step_underflow`, and the detail offers both readings. A state that
+  actually goes non-finite is separate, because that the loop *can* see.
+
+- **`ODEProblem` accepts `dfdt`**, the derivative of the right-hand side with
+  respect to time at fixed `y`, as a callable or a constant vector. Only the
+  Rosenbrock methods consume it and only on a non-autonomous problem, but there
+  it is the difference between fourth order and first: see the RODAS4 entry
+  under Fixed. Optional and keyword-only in effect, so nothing that built an
+  `ODEProblem` before needs changing.
+
+- **Coverage is measured and gated in CI.** The project had never had a coverage
+  number; it is 96% for the library and 90% for the interface, 91% together.
+  Two thresholds rather than one, because a single average would let the library
+  — which is the product — slide while the total stayed green. Measured on one
+  matrix leg, since the figure does not depend on the platform.
+
+- **`pip-audit` runs in CI.** Nothing would otherwise have noticed an advisory
+  against a dependency.
+
+- **CI now tests every platform the package advertises.** `pyproject.toml`
+  claims Python 3.10–3.13 and "Operating System :: OS Independent"; CI tested
+  3.10 and 3.12 on Linux and Windows, leaving macOS and two Python versions as
+  promises with nothing behind them. Eight legs now cover every advertised OS on
+  at least one version and every advertised version on at least one OS — not the
+  full 3×4 cross product, which buys little for twelve legs. A test compares the
+  matrix against the classifiers, so adding one without the other fails.
+
+- **The subprocess boundary and the threading layer are properly covered.**
+  `dsolve_worker` went from 58% to 85% and `solver.py` from 79% to 95% — the two
+  least-covered non-trivial modules, and the two where a bug is hardest to
+  reproduce and most likely to hang the interface. What was covered in both was
+  the happy path. Now covered: a malformed request answered rather than crashed,
+  partials published before the final reply, `dsolve` failing without taking the
+  classification down with it, a general solution surviving initial conditions
+  that cannot be applied, an exception on a pool thread reaching a signal
+  instead of vanishing, and a superseded solve stopping at its next step
+  boundary rather than running to completion for an answer nobody will read.
+
+  The coverage leg also gained a longer `dsolve` deadline. Measuring makes that
+  subprocess several times slower, and combined with `-n auto` it missed even
+  the 90 s test-session budget — a test with nothing to do with coverage failing
+  on the coverage leg only. Reproduced deliberately before fixing.
 
 - **Every lesson has a drill.** Ten had none, and the reason was grading
   rather than effort: a typed answer is marked by substituting it into its own

@@ -267,6 +267,32 @@ class MethodPicker(QComboBox):
 
     method_chosen = Signal(str)
 
+    #: One line per family, on hover. Grouping shows that the families differ;
+    #: this says how, which is the question a reader actually has at the moment
+    #: of choosing. `docs/limits.md` is the long form.
+    FAMILY_HINTS = {
+        "Explicit Runge–Kutta": (
+            "General purpose. Step size limited by stability on a stiff "
+            "problem, where these give up rather than finish."
+        ),
+        "Stiff": (
+            "Implicit, A-stable, and the only family here that copes with a "
+            "mass matrix or a DAE. Each step costs a linear solve."
+        ),
+        "Taylor series": (
+            "Very high order on a smooth problem. Needs a right-hand side "
+            "expressible in jet arithmetic — no abs, comparisons or branching."
+        ),
+        "Symplectic": (
+            "Energy error stays bounded over a long integration instead of "
+            "accumulating. Constant step, and a separable second-order system."
+        ),
+        "Exponential": (
+            "For u' = L u + N(u) with the stiffness in L, which it handles "
+            "exactly. Constant step."
+        ),
+    }
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._model = QStandardItemModel(self)
@@ -282,10 +308,13 @@ class MethodPicker(QComboBox):
             header = QStandardItem(f"  {group}")
             header.setFlags(Qt.NoItemFlags)          # a label, not a choice
             header.setData("", Qt.UserRole)
+            hint = self.FAMILY_HINTS.get(group, "")
+            header.setToolTip(hint)
             self._model.appendRow(header)
             for name in methods:
                 item = QStandardItem(f"      {name}")
                 item.setData(name, Qt.UserRole)
+                item.setToolTip(hint)
                 self._model.appendRow(item)
                 if name == current:
                     target = self._model.rowCount() - 1

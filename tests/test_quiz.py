@@ -286,17 +286,38 @@ def _typed(screen, qapp):
 
 
 def test_a_second_press_of_check_cannot_turn_a_miss_into_a_hit(screen, qapp):
-    """Otherwise the report records persistence rather than what was known."""
+    """Otherwise the report records persistence rather than what was known.
+
+    Two things this test used to get wrong, both of which made it fail on the
+    runs where the quiz happened to draw the wrong question:
+
+    * the paper was seeded from the wall clock, so which questions appeared
+      depended on *when* the test ran -- `seed_override` pins it;
+    * it typed "0" and asserted the answer was marked wrong, on the strength of
+      a comment reading "almost certainly wrong". Since numeric drills arrived,
+      some questions have 0 as their answer. The miss is now found rather than
+      assumed.
+    """
+    screen.seed_override = 20_260_907
     screen.length.setValue(6)
     screen._start()
     qapp.processEvents()
 
-    lesson, _template, question = _typed(screen, qapp)
-    index = screen._index
-    screen.answer.setText("0")                  # almost certainly wrong
-    screen._check(lesson, question)
-    qapp.processEvents()
-    assert screen._verdicts.get(index) is False
+    # Walk the paper until "0" actually misses. Which question that is depends
+    # on the unit, and the invariant under test does not care which.
+    for _ in range(6):
+        lesson, _template, question = _typed(screen, qapp)
+        index = screen._index
+        screen.answer.setText("0")
+        screen._check(lesson, question)
+        qapp.processEvents()
+        if screen._verdicts.get(index) is False:
+            break
+        if screen._index == index:      # graded but did not advance
+            screen._advance()
+            qapp.processEvents()
+    else:
+        pytest.skip("this paper has no question that '0' gets wrong")
 
     # The screen has not advanced, so the same question can be answered again.
     if screen._index == index:

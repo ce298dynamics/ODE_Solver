@@ -31,18 +31,31 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
     "Typing :: Typed",
 ]
+# Upper bounds on the two that this project is *behaviourally* coupled to, not
+# merely API-coupled. `odesuite_app.steps` dispatches on sympy's `classify_ode`
+# hint strings -- internal identifiers with no stability promise -- so a sympy
+# major release could change which technique a student is shown a derivation
+# for, and no test of an API signature would notice. PySide6 is capped for the
+# ordinary reason that Qt majors break widgets.
+#
+# numpy and scipy are left open deliberately: the library uses their stable
+# surface, numpy 2 was adopted without incident, and pinning them would make
+# `odesuite` awkward to install alongside anything else.
 dependencies = ["numpy>=1.24", "scipy>=1.10"]
 
 [project.optional-dependencies]
 plots = ["matplotlib>=3.7"]
-app = ["PySide6>=6.6", "pyqtgraph>=0.13", "matplotlib>=3.7", "sympy>=1.12"]
+app = ["PySide6>=6.6,<7", "pyqtgraph>=0.13", "matplotlib>=3.7", "sympy>=1.12,<2"]
 dev = [
     "pytest>=7.0",
     "pytest-xdist>=3.0",
+    "pytest-cov>=4.0",
+    # For the test that checks the CI matrix backs the package classifiers.
+    "pyyaml>=6.0",
     "matplotlib>=3.7",
-    "PySide6>=6.6",
+    "PySide6>=6.6,<7",
     "pyqtgraph>=0.13",
-    "sympy>=1.12",
+    "sympy>=1.12,<2",
     "ruff>=0.6",
     "mypy>=1.11",
     "build>=1.2",

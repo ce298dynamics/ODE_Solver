@@ -38,6 +38,15 @@ class ODEProblem:
     jac_sparsity
         Optional sparsity pattern of the Jacobian. Enables coloured
         finite-difference approximation (Phase 2) when `jac` is not given.
+    dfdt
+        Optional analytic ``df/dt`` at fixed `y`, either a callable
+        ``dfdt(t, y, *args)`` or a constant vector shaped like `y0`. Only the
+        Rosenbrock methods use it, and only on a non-autonomous problem -- but
+        there it decides how accurate they can be. Differenced, its ``O(sqrt(eps))``
+        error enters the step as an ``O(h*sqrt(eps))`` term, which is *first
+        order*: RODAS4 held order 4 down to 3e-11 on ``y' = y cos t`` and then
+        crawled, while on an autonomous problem, where this derivative is
+        exactly zero, it ran clean to round-off. Supplying it removes that floor.
     mass
         Optional mass matrix ``M``. May be singular, which makes the problem a
         DAE. ``None`` means the identity.
@@ -54,6 +63,7 @@ class ODEProblem:
         jac_sparsity: Any = None,
         mass: Any = None,
         args: tuple = (),
+        dfdt: Any = None,
     ) -> None:
         if not callable(f):
             raise TypeError("f must be callable")
@@ -84,10 +94,24 @@ class ODEProblem:
         self.mass = self._validate_mass(mass)
         self.jac_sparsity = jac_sparsity
         self._jac_user = jac
+        self._dfdt_user = dfdt
 
         # Validate f once, up front: a shape mismatch here is far cheaper to
         # diagnose than the same mismatch surfacing 400 steps into a solve.
-        f0 = np.asarray(self.f(t0, y0), dtype=y0.dtype)
+        try:
+            f0 = np.asarray(self.f(t0, y0), dtype=y0.dtype)
+        except Exception as exc:
+            # The non-finite check below was written to stop a singular starting
+            # point surfacing as a bare exception that named nothing the caller
+            # had written -- but it only catches a right-hand side that *returns*
+            # inf. One that raises on the way, as ``1/t`` at t=0 does, went
+            # straight past it and produced exactly the message that check
+            # exists to prevent. Same failure, same remedy, one line earlier.
+            raise ValueError(
+                f"the right-hand side raised {type(exc).__name__} at "
+                f"t0={t0:g}: {exc}. The problem may be singular there — try "
+                f"starting from a different t0."
+            ) from exc
         if f0.shape != y0.shape:
             raise ValueError(
                 f"f returned shape {f0.shape}, expected {y0.shape} to match y0"
@@ -147,6 +171,25 @@ class ODEProblem:
                 f"jac returned shape {J.shape}, expected {(self.n, self.n)}"
             )
         return J
+
+    @property
+    def has_dfdt(self) -> bool:
+        return self._dfdt_user is not None
+
+    def dfdt(self, t: float, y: np.ndarray) -> np.ndarray:
+        """Evaluate ``df/dt`` at fixed `y`. Raises if none was supplied."""
+        if self._dfdt_user is None:
+            raise RuntimeError("no analytic df/dt was supplied")
+        if callable(self._dfdt_user):
+            value = self._dfdt_user(t, y, *self.args)
+        else:
+            value = self._dfdt_user
+        value = np.asarray(value).reshape(-1)
+        if value.shape != self.y0.shape:
+            raise ValueError(
+                f"dfdt returned shape {value.shape}, expected {self.y0.shape}"
+            )
+        return value
 
     # -- mass matrix -----------------------------------------------------
 

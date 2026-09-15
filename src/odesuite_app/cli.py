@@ -52,6 +52,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="regenerate the home-screen previews and exit",
     )
     parser.add_argument(
+        "--session", default=None, metavar="FILE",
+        help="open a saved session: the problem, method, tolerances, parameter "
+             "values and screen it was written with. An explicit --problem or "
+             "--screen still wins. Unreadable files are reported and skipped.",
+    )
+    parser.add_argument(
         "--list-problems", action="store_true", help="print the catalogue and exit"
     )
     parser.add_argument(
@@ -205,15 +211,34 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     app, window = build_application(args.theme)
+
+    # A named session is applied first, so an explicit --problem or --screen on
+    # the same command line still overrides it: the more specific instruction
+    # wins, which is the rule the next two branches already follow.
+    if args.session:
+        from . import session as session_file
+
+        stored = session_file.load(args.session)
+        if stored is None:
+            print(
+                f"could not read a session from {args.session}; starting fresh",
+                file=sys.stderr,
+            )
+        else:
+            restored_screen = session_file.apply(window.state, stored)
+            window.go(restored_screen or "lab")
+
     if args.problem:
         window.state.set_problem(args.problem)
         window.go("lab")
     if args.screen:
         window.go(args.screen)
-    elif not args.problem:
-        # Reopen where it was last closed. An explicit --screen or --problem
-        # wins, because someone who named a screen means it.
-        remembered = window.remembered_screen()
+    elif not args.problem and not args.session:
+        # Reopen where it was last closed, and with what was open. An explicit
+        # --screen, --problem or --session wins, because someone who named one
+        # means it.
+        restored = window.restore_session()
+        remembered = restored or window.remembered_screen()
         if remembered:
             window.go(remembered)
     window.show()

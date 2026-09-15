@@ -6,18 +6,41 @@ exact Jacobian, and lambdifies both. Every method in the library then works on
 it -- including the implicit ones, which without a Jacobian would be reduced to
 finite differences.
 
-Parsing is deliberately restricted, and the restriction is not the obvious one.
-`sympy.sympify` **evaluates** its input with the ordinary Python builtins in
-scope: its ``locals`` argument adds names, it does not remove any, so
-``sympify('__import__("os").system(...)')` runs the command. Expressions here
+Parsing is deliberately restricted, and it takes two restrictions rather than
+one, because they close different doors.
+
+**Names.** `sympy.sympify` **evaluates** its input with the ordinary Python
+builtins in scope: its ``locals`` argument adds names, it does not remove any,
+so ``sympify('__import__("os").system(...)')` runs the command. Expressions here
 go through `parse_expr` with an explicit ``global_dict`` whose ``__builtins__``
 is emptied -- and emptied deliberately, because an absent ``__builtins__`` key
 makes Python reinstate the real one. Only the declared variables, the declared
 parameters and a whitelist of elementary functions remain reachable.
+
+**Syntax.** That is necessary and it is not sufficient, which is the part this
+module originally got wrong. A whitelist controls which names *resolve*; it says
+nothing about where an expression may go *from* one. ``sin`` is on the
+whitelist, and
+
+    sin.__class__.__init__.__globals__["__builtins__"]
+
+is the real builtins, ``__import__`` included -- arbitrary code execution from a
+typed equation, reached without naming a single forbidden thing.
+`reject_unsafe_syntax` closes it by refusing the *construct* rather than the
+name: no attribute access, no subscripting, nothing but arithmetic over names
+and calls to them. That is checked against the text as typed, before sympy
+tokenises it, because by the time `parse_expr` returns the expression has
+already run.
+
+The two halves compose, and the order matters: with attributes gone, a name can
+only ever reach a sympy object, and with ``__builtins__`` gone, an unknown name
+is turned into a plain `Symbol` by sympy's own `auto_symbol` rather than
+resolved. Neither check alone is enough.
 """
 
 from __future__ import annotations
 
+import ast
 import re
 from dataclasses import dataclass, field
 
@@ -31,7 +54,8 @@ from sympy.parsing.sympy_parser import (
 
 from odesuite import ODEProblem
 
-__all__ = ["CustomSpec", "ParseError", "ALLOWED_FUNCTIONS", "build", "EXAMPLES"]
+__all__ = ["CustomSpec", "ParseError", "ALLOWED_FUNCTIONS", "build", "EXAMPLES",
+           "reject_unsafe_syntax"]
 
 
 class ParseError(ValueError):
@@ -63,6 +87,13 @@ _TRANSFORMATIONS = standard_transformations + (convert_xor,)
 #: empty mapping rather than omitted: leaving it out causes Python to insert
 #: the real builtins, which is exactly the hole this is meant to close. The
 #: numeric constructors are required by the standard transformations.
+#:
+#: **This is not sufficient on its own.** Emptying ``__builtins__`` stops a name
+#: resolving to anything dangerous; it does nothing about walking out through an
+#: attribute of something harmless, and ``sin.__class__.__init__.__globals__``
+#: reaches the real builtins in one step. Any new call to `parse_expr` must put
+#: `reject_unsafe_syntax` in front of it. There are two such calls today --
+#: `_parse` below and `symbolic._parse_side` -- and both do.
 _SAFE_GLOBALS: dict[str, object] = {
     "__builtins__": {},
     "Symbol": sp.Symbol,
@@ -71,6 +102,86 @@ _SAFE_GLOBALS: dict[str, object] = {
     "Rational": sp.Rational,
     **ALLOWED_FUNCTIONS,
 }
+
+
+#: The only syntax an expression may be built from. Everything absent is
+#: refused, so this list -- not a list of banned constructs -- is what has to be
+#: right. `BitXor` is here because `^` is exponentiation to a user and
+#: `convert_xor` rewrites it later; at this point it is still Python's operator.
+_ALLOWED_SYNTAX = (
+    ast.Expression, ast.Constant, ast.Name, ast.Load, ast.Call, ast.Tuple,
+    ast.BinOp, ast.UnaryOp,
+    ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,
+    ast.USub, ast.UAdd, ast.BitXor,
+)
+
+
+def reject_unsafe_syntax(text: str) -> None:
+    """Refuse anything that is not arithmetic over names. Raises `ParseError`.
+
+    Checked against the text **as typed**, before `parse_expr` tokenises it,
+    because `parse_expr` compiles and evaluates: after it returns, a payload has
+    already run. Sympy's transformations only ever narrow what is there --
+    wrapping bare names in `Symbol`, numbers in `Integer`, rewriting ``^`` as
+    ``**`` -- so nothing dangerous can appear between this check and the
+    evaluation it guards.
+
+    **Why this refuses constructs and not names.** A name is already harmless:
+    ``__builtins__`` is empty in `_SAFE_GLOBALS`, so an unknown name is turned
+    into a plain `Symbol` by sympy's `auto_symbol` rather than resolved, and a
+    known one is a sympy object. Reaching anything else *from* a sympy object
+    takes an attribute, and attributes are what this refuses. Going the other
+    way -- whitelisting names -- would mean every caller knowing about ``y(t)``,
+    ``Heaviside``, ``DiracDelta``, the ``ODEDZ…Z…`` derivative placeholders and
+    every parameter a lesson happens to use, and a name wrongly left out is a
+    lesson that stops working. A wrong answer is worse than a strict one, so the
+    check is on the shape of the expression, where the list is short and
+    closed.
+
+    Undeclared *names* are still rejected, later and by their own rules: `_parse`
+    below checks the free symbols against what was declared, and
+    `symbolic._reject_leftovers` does the equivalent for an equation.
+    """
+    try:
+        # Stripped, because `ast.parse` reads a leading space as an indent and
+        # refuses it, while every caller here splits on '=' and hands over the
+        # side with its spaces still attached. Whitespace cannot change what
+        # the expression means, so removing it costs nothing.
+        tree = ast.parse(text.strip(), mode="eval")
+    except SyntaxError as exc:
+        # Deliberately fatal rather than deferred to sympy. Sympy's tokeniser
+        # accepts a little that Python does not (``x!``), and letting such text
+        # past unchecked would be a hole in exactly the place this function
+        # exists to close. Nothing the application parses uses that syntax.
+        raise ParseError(f"cannot parse {text!r}: {exc.msg}") from exc
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            raise ParseError(
+                "attribute access is not part of a mathematical expression; "
+                "remove the '.' (a decimal point is fine)"
+            )
+        if isinstance(node, ast.Subscript):
+            raise ParseError("indexing with [] is not part of an expression")
+        if not isinstance(node, _ALLOWED_SYNTAX):
+            raise ParseError(
+                f"{type(node).__name__} is not part of a mathematical "
+                f"expression"
+            )
+        if isinstance(node, ast.Name) and "__" in node.id:
+            # Unreachable as an escape once attributes are gone -- such a name
+            # resolves to nothing and becomes a Symbol -- but a clear refusal
+            # beats a symbol called `__import__` appearing in someone's answer.
+            raise ParseError(f"{node.id!r} is not a name an expression may use")
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            raise ParseError("quoted text is not part of a mathematical expression")
+        if isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name):
+                raise ParseError("only a named function may be called")
+            if node.keywords:
+                raise ParseError("keyword arguments are not part of an expression")
+            if any(isinstance(argument, ast.Starred) for argument in node.args):
+                raise ParseError("* arguments are not part of an expression")
 
 
 @dataclass
@@ -143,6 +254,7 @@ def _parse(text: str, symbols: dict[str, sp.Symbol]) -> sp.Expr:
     """Parse one expression against the whitelist."""
     if not text or not text.strip():
         raise ParseError("empty expression")
+    reject_unsafe_syntax(text)
     local = {**symbols, **ALLOWED_FUNCTIONS}
     try:
         expression = parse_expr(

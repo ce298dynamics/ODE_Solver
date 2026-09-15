@@ -40,6 +40,11 @@ from .base import Stepper, StepResult
 __all__ = ["Jet", "TaylorMethod"]
 
 
+def _is_object_array(value) -> bool:
+    """An ndarray holding Python objects -- in practice, an array of `Jet`."""
+    return isinstance(value, np.ndarray) and value.dtype == object
+
+
 class Jet:
     """A truncated Taylor series with `order + 1` coefficients.
 
@@ -77,7 +82,43 @@ class Jet:
         return self.c.size - 1
 
     def _lift(self, other) -> Jet:
-        return other if isinstance(other, Jet) else Jet.constant(float(other), self.order)
+        if isinstance(other, Jet):
+            return other
+        try:
+            return Jet.constant(float(other), self.order)
+        except (TypeError, ValueError) as exc:
+            # Reached when `other` is neither a jet nor a number. Saying so is
+            # the point: the alternative was `float()` on an array, whose
+            # message names numpy and not the arithmetic the caller is in.
+            raise TypeError(
+                f"cannot combine a Jet with {type(other).__name__}; a "
+                f"right-hand side under jet arithmetic must be built from "
+                f"jets and plain numbers"
+            ) from exc
+
+    def _elementwise(self, other: np.ndarray, operation) -> np.ndarray:
+        """Apply `operation` across an object array, one element at a time.
+
+        Needed because of `__array_priority__` above. That attribute tells numpy
+        to hand ``array * jet`` to this class rather than broadcasting it, which
+        is what we want for an array of *numbers* -- the jet scales each of
+        them. For an array of *jets* it is exactly wrong: the answer is
+        elementwise, and numpy would have produced it unaided.
+
+        Deferring with `NotImplemented` does not help, because Python does not
+        return to `ndarray.__mul__` after the reflected call declines; it raises
+        instead. So the elementwise walk is done here.
+
+        Until this existed the object-array case recursed -- ``float(other)``
+        re-entered jet arithmetic -- and exhausted the interpreter's C stack.
+        Not an exception a caller could catch: the process died with no
+        traceback, and ``y' = y * cos(t)``, written the obvious way, was enough
+        to do it.
+        """
+        out = np.empty(other.shape, dtype=object)
+        for index, item in np.ndenumerate(other):
+            out[index] = operation(item)
+        return out
 
     def __call__(self, s: float) -> float:
         """Evaluate the series at offset `s` by Horner's rule."""
@@ -89,14 +130,20 @@ class Jet:
     # -- arithmetic ------------------------------------------------------
 
     def __add__(self, other):
+        if _is_object_array(other):
+            return self._elementwise(other, lambda item: self + item)
         return Jet(self.c + self._lift(other).c)
 
     __radd__ = __add__
 
     def __sub__(self, other):
+        if _is_object_array(other):
+            return self._elementwise(other, lambda item: self - item)
         return Jet(self.c - self._lift(other).c)
 
     def __rsub__(self, other):
+        if _is_object_array(other):
+            return self._elementwise(other, lambda item: item - self)
         return Jet(self._lift(other).c - self.c)
 
     def __neg__(self):
@@ -106,8 +153,10 @@ class Jet:
         return Jet(self.c.copy())
 
     def __mul__(self, other):
+        if _is_object_array(other):
+            return self._elementwise(other, lambda item: self * item)
         if not isinstance(other, Jet):
-            return Jet(self.c * float(other))
+            return Jet(self.c * float(self._lift(other).c[0]))
         # Cauchy product, truncated: c_k = sum_j a_j b_{k-j}
         a, b = self.c, other.c
         out = np.zeros_like(a)
@@ -118,8 +167,10 @@ class Jet:
     __rmul__ = __mul__
 
     def __truediv__(self, other):
+        if _is_object_array(other):
+            return self._elementwise(other, lambda item: self / item)
         if not isinstance(other, Jet):
-            return Jet(self.c / float(other))
+            return Jet(self.c / float(self._lift(other).c[0]))
         a, b = self.c, other.c
         if b[0] == 0.0:
             raise ZeroDivisionError("jet division by a series with zero constant term")
@@ -131,6 +182,8 @@ class Jet:
         return Jet(out)
 
     def __rtruediv__(self, other):
+        if _is_object_array(other):
+            return self._elementwise(other, lambda item: item / self)
         return self._lift(other) / self
 
     def __pow__(self, exponent):
@@ -229,16 +282,54 @@ class Jet:
         Without this a right-hand side written with numpy calls would have to be
         rewritten to use jet-specific functions; with it, most existing code
         runs under jet arithmetic as-is.
+
+        An ndarray among the inputs is walked here rather than passed to the
+        handler. The handlers below are written in terms of Python operators, so
+        ``multiply(array, jet)`` would evaluate ``array * jet`` -- which is
+        another call to this same ufunc, and the recursion has no bottom. That
+        is what used to exhaust the interpreter's C stack on the entirely
+        ordinary ``y' = y * cos(t)``.
+
+        Declining with `NotImplemented` is not enough either: defining
+        `__array_ufunc__` at all takes numpy's own object loop out of the
+        picture, so refusing produces a `TypeError` rather than the elementwise
+        answer. The walk therefore happens here.
         """
         if method != "__call__" or kwargs:
             return NotImplemented
         handler = self._UFUNCS.get(ufunc.__name__)
         if handler is None:
             return NotImplemented
+        if any(isinstance(operand, np.ndarray) for operand in inputs):
+            return self._ufunc_elementwise(handler, inputs)
         try:
             return handler(*inputs)
         except (TypeError, AttributeError):
             return NotImplemented
+
+    @staticmethod
+    def _ufunc_elementwise(handler, inputs):
+        """Apply `handler` across same-shaped array operands, one index at a time.
+
+        Each element is a jet or a plain number, so the handler's operators
+        dispatch on `Jet` directly and no ufunc is re-entered.
+        """
+        arrays = [operand for operand in inputs if isinstance(operand, np.ndarray)]
+        shape = arrays[0].shape
+        if any(array.shape != shape for array in arrays):
+            # Broadcasting between different shapes is not something a
+            # right-hand side does, and guessing at it here would be worse than
+            # saying no.
+            return NotImplemented
+        out = np.empty(shape, dtype=object)
+        for index in np.ndindex(shape):
+            out[index] = handler(
+                *(
+                    operand[index] if isinstance(operand, np.ndarray) else operand
+                    for operand in inputs
+                )
+            )
+        return out
 
     def __repr__(self) -> str:
         head = ", ".join(f"{v:.4g}" for v in self.c[: min(4, self.c.size)])

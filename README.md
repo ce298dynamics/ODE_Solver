@@ -934,6 +934,42 @@ fails if `PySide6` appears in `sys.modules` after importing `odesuite`.
 `odesuite-gui` without the `[app]` extra says which extra to install rather than raising a
 PySide6 traceback, and `--list-problems` and `--selftest` work without it.
 
+## Privacy
+
+Worth stating plainly, because the position is a good one and reading the source
+should not be the only way to establish it.
+
+**No network access.** The application makes no requests of any kind — there is
+no `requests`, `urllib`, `socket` or `http` import anywhere in `src/`, and a
+test asserts there never is. No telemetry, no analytics, no crash reporting, no
+update check, no fonts or assets fetched at runtime. It works with the network
+cable out, because it never wanted it.
+
+**Two files on disk**, in the same per-user directory. `progress.json` is
+written only if you answer a question in the Learning Hub; `session.json` holds
+what was on screen when you last closed — the problem, method, tolerances,
+parameter values and screen — so the application reopens where you left it.
+Neither holds anything about you or the machine.
+
+| | |
+|---|---|
+| Windows | `%LOCALAPPDATA%\odesuite\progress.json` |
+| macOS | `~/Library/Application Support/odesuite/progress.json` |
+| Linux | `$XDG_CONFIG_HOME/odesuite/progress.json`, else `~/.config/odesuite/` |
+
+It holds which lesson questions you have attempted and how each went — one JSON
+object of lesson → question → `{state, right, tries}`. No equations you typed,
+no timings, no identifiers, nothing about the machine. It is written atomically
+so a crash cannot corrupt it, an unreadable file is treated as "no progress
+recorded" rather than an error, and there is a button in the interface that
+deletes it. Deleting it by hand does no harm either.
+
+Everything else the application shows is recomputed from the equation in front
+of it, which is why this was the only file for a long time.
+
+See [`SECURITY.md`](SECURITY.md) for the threat model and how to report a
+vulnerability.
+
 ## Documentation
 
 ```
@@ -944,6 +980,15 @@ py -3.10 -m mkdocs serve                # http://127.0.0.1:8000
 An API reference generated from the docstrings, plus this page. The site reuses
 `README.md` as its home rather than keeping a second copy that drifts, and
 `mkdocs build --strict` is part of CI so a dead cross-reference fails the build.
+
+**[When each method fails](docs/limits.md)** is the page worth reading before
+choosing a method. Everything else here documents how the methods work; that one
+documents where each stops working, with the measurement behind every claim — an
+explicit method's step size on a stiff problem, RODAS4's dependence on `df/dt`,
+what Verlet buys and what it costs, which right-hand sides jet arithmetic
+cannot express, and the failures that belong to the problem rather than to any
+solver. It is kept honest by `tests/test_regressions.py`, which fails if a
+method gains no entry or a quoted error message stops being the real one.
 
 ## Examples
 

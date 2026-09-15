@@ -184,6 +184,49 @@ _ENTRIES: list[CatalogEntry] = [
         autonomous_2d=True,
         supports_taylor=True,
     ),
+    CatalogEntry(
+        key="fitzhugh_nagumo",
+        title="FitzHugh–Nagumo",
+        blurb="An excitable membrane, and the cleanest slow–fast system here. "
+              "Below threshold a nudge dies away; above it the state takes a "
+              "long excursion before returning.",
+        tags=("nonstiff", "oscillator", "2d", "biology", "nonlinear"),
+        factory=problems.fitzhugh_nagumo,
+        params=(
+            ParamSpec("I_ext", "applied current", 0.0, 2.0, 0.5,
+                      hint="Oscillates for I between 0.331 and 1.419 — the "
+                           "window where trace J = 0, not a measured guess"),
+            ParamSpec("a", "a", 0.4, 1.0, 0.7),
+            ParamSpec("b", "b", 0.4, 1.2, 0.8),
+            ParamSpec("tau", "τ  (recovery is this much slower)",
+                      2.0, 25.0, 12.5,
+                      hint="The timescale separation that makes it slow–fast"),
+            ParamSpec("t_end", "duration", 40.0, 400.0, 200.0),
+        ),
+        plot_kind="phase",
+        labels=("v", "w"),
+        autonomous_2d=True,
+        supports_taylor=True,
+    ),
+    CatalogEntry(
+        key="sir",
+        title="SIR epidemic",
+        blurb="Susceptible, infected, recovered. S+I+R is conserved exactly, "
+              "and R₀ = β/γ decides the outcome — a threshold in a parameter, "
+              "not a change of degree.",
+        tags=("nonstiff", "3d", "biology", "nonlinear", "classic"),
+        factory=problems.sir,
+        params=(
+            ParamSpec("beta", "β  infection rate", 0.05, 2.0, 0.9,
+                      hint="R₀ = β/γ; below 1 the outbreak never takes off"),
+            ParamSpec("gamma", "γ  recovery rate", 0.05, 1.0, 0.2),
+            ParamSpec("N", "population", 100.0, 100_000.0, 1000.0, log=True),
+            ParamSpec("t_end", "duration", 20.0, 300.0, 80.0),
+        ),
+        plot_kind="time",
+        labels=("S", "I", "R"),
+        supports_taylor=True,
+    ),
     _entry(
         key="pendulum",
         title="Pendulum",

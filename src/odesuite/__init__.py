@@ -30,7 +30,7 @@ from .driver import solve
 from .events import Event
 from .problem import ODEProblem
 from .sensitivity import SensitivitySolution, forward_sensitivities
-from .solution import Solution, Stats
+from .solution import Diagnosis, Solution, Stats
 from .steppers import (
     ETDRK4,
     METHODS,
@@ -57,6 +57,7 @@ __all__ = [
     "Event",
     "Solution",
     "Stats",
+    "Diagnosis",
     "BVProblem",
     "BVPSolution",
     "solve_bvp",

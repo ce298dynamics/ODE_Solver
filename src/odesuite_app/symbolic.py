@@ -37,7 +37,13 @@ import sympy as sp
 
 from odesuite import ODEProblem
 
-from .custom import _SAFE_GLOBALS, _TRANSFORMATIONS, ALLOWED_FUNCTIONS, ParseError
+from .custom import (
+    _SAFE_GLOBALS,
+    _TRANSFORMATIONS,
+    ALLOWED_FUNCTIONS,
+    ParseError,
+    reject_unsafe_syntax,
+)
 
 __all__ = [
     "EquationSpec",
@@ -153,6 +159,11 @@ class SymbolicSolution:
     residual: sp.Expr | None = None
     timed_out: bool = False
     message: str = ""
+    #: The `t` the initial conditions were given at, when they agree on one.
+    #: None when there are none, or they disagree, or the point is symbolic.
+    #: An interval of validity is meaningless without it -- ``1/(1-t)`` is valid
+    #: on ``(-oo, 1)`` from t = 0 and on ``(1, oo)`` from t = 2.
+    initial_point: float | None = None
 
     @property
     def solved(self) -> bool:
@@ -207,6 +218,11 @@ def _rewrite_derivatives(text: str, name: str) -> tuple[str, int]:
 
 def _parse_side(text: str, scope: dict) -> sp.Expr:
     from sympy.parsing.sympy_parser import parse_expr
+
+    # Every route by which a user's text reaches sympy from this module passes
+    # through here -- both sides of an equation, an initial condition, a typed
+    # answer -- so this is the one place the syntax guard has to be.
+    reject_unsafe_syntax(text)
 
     try:
         expression = parse_expr(
@@ -835,8 +851,149 @@ def solve_symbolically(parsed: ParsedEquation, timeout: float | None = None,
         return solution
 
     solution.message = reply.get("message", "")
+    solution.initial_point = _initial_point(parsed)
     _verify(parsed, solution)
     return solution
+
+
+def _initial_point(parsed: ParsedEquation) -> float | None:
+    """The `t` the initial conditions were given at, when they agree on one.
+
+    Needed because an interval of validity is a statement about the solution
+    through a *point*: the same expression ``1/(1-t)`` is valid on ``(-oo, 1)``
+    from ``t = 0`` and on ``(1, oo)`` from ``t = 2``. Assuming zero would be
+    right almost always and confidently wrong the rest of the time, which is
+    the trade this module keeps declining to make.
+    """
+    points = set()
+    for condition in parsed.ics:
+        _order, point = _condition_at(condition)
+        if point is None:
+            return None
+        try:
+            value = float(point)
+        except (TypeError, ValueError):
+            return None
+        points.add(round(value, 12))
+    if len(points) != 1:
+        return None
+    return points.pop()
+
+
+#: Functions with no singularity anywhere on the real line. An expression built
+#: only from these, rational operations and integer powers has poles exactly
+#: where its denominator vanishes -- which is a question about a polynomial, and
+#: therefore quick and certain. Anything else declines.
+_ENTIRE_FUNCTIONS = (sp.exp, sp.sin, sp.cos, sp.sinh, sp.cosh)
+
+
+def _time_symbol(expression: sp.Expr):
+    """The symbol standing for time in `expression`, or None if unclear.
+
+    `_T` carries ``real=True`` and a symbol's assumptions are part of its
+    identity, so the ``t`` in an expression built elsewhere -- by `sympify` on
+    plain text, say -- is a *different* symbol. Treating them as one made
+    `sp.Poly` read `1/(1-t)` as a constant and report no poles at all, which is
+    the wrong answer in the dangerous direction.
+    """
+    free = expression.free_symbols
+    if _T in free:
+        return _T
+    named = [s for s in free if s.name == "t"]
+    if len(named) == 1:
+        return named[0]
+    if len(free) == 1:
+        return next(iter(free))
+    return None
+
+
+def _real_poles(expression: sp.Expr) -> list[float] | None:
+    """Real poles of `expression`, or None when they cannot be settled cheaply.
+
+    Declining is a real answer here, and the reason to prefer it is that the
+    alternative is worse than useless. `tan(t)` has poles at every odd multiple
+    of pi/2 and no denominator to show for it; a routine that looked only at the
+    denominator would report "no poles" and the interface would tell a student
+    the solution is valid on the whole line. A missing interval is a gap. A
+    wrong one is a lie, and this module exists partly to stop telling those.
+
+    `sympy.singularities` is the general answer and is not usable here: it did
+    not return within ten minutes on ``1/(1-t)``, against a twelve-second budget
+    for the whole symbolic route.
+    """
+    expression = sp.together(expression)
+    if not expression.free_symbols:
+        return []                       # a constant has no poles
+    variable = _time_symbol(expression)
+    if variable is None:
+        return None
+
+    for function in expression.atoms(sp.Function):
+        if not isinstance(function, _ENTIRE_FUNCTIONS):
+            return None                 # tan, log, sqrt, Bessel, ...
+    for power in expression.atoms(sp.Pow):
+        if not power.exp.is_Integer:
+            return None                 # a branch point, not a pole
+
+    denominator = sp.denom(expression)
+    # exp never vanishes on the reals, so an exp factor contributes no pole.
+    denominator = denominator.replace(
+        lambda e: isinstance(e, sp.exp), lambda e: sp.Integer(1)
+    )
+    if denominator.has(sp.sin) or denominator.has(sp.cos):
+        return None                     # these do vanish; where is another question
+    if denominator.is_number:
+        return []
+    try:
+        polynomial = sp.Poly(denominator, variable)
+    except sp.PolynomialError:
+        return None
+    if polynomial.degree() < 1:
+        return []
+    try:
+        return sorted(float(r) for r in sp.real_roots(polynomial) if r.is_real)
+    except (TypeError, ValueError):
+        return None
+
+
+def interval_of_validity(expression, t0: float):
+    """The largest interval around `t0` on which `expression` is defined.
+
+    Returned as ``(low, high)`` with None for an unbounded end, or None when it
+    could not be decided.
+
+    Worth having because the application currently disagrees with itself about
+    it. Solving ``y' = y^2, y(0) = 1`` shows ``y = 1/(1 - t)`` with nothing to
+    say it means anything only for ``t < 1``; the *numerical* side of the same
+    application stops at ``t = 1`` and reports that the solution may be blowing
+    up there; and the `slopefields` lesson teaches that the existence theorem is
+    local. Three parts of one product, one of them silent.
+    """
+    if expression is None:
+        return None
+    try:
+        poles = _real_poles(sp.sympify(expression))
+    except Exception:
+        return None
+    if poles is None:
+        return None
+    if any(abs(p - t0) <= 1e-12 for p in poles):
+        return None                     # t0 is itself a pole; say nothing
+    below = [p for p in poles if p < t0]
+    above = [p for p in poles if p > t0]
+    return (max(below) if below else None, min(above) if above else None)
+
+
+def format_interval(bounds) -> str:
+    """``(low, high)`` as a reader would write it. Empty for the whole line."""
+    if bounds is None:
+        return ""
+    low, high = bounds
+    if low is None and high is None:
+        return ""                       # valid everywhere: saying so adds noise
+    left = "-∞" if low is None else f"{low:g}"
+    right = "∞" if high is None else f"{high:g}"
+    return f"({left}, {right})"
 
 
 def _verify(parsed: ParsedEquation, solution: SymbolicSolution) -> None:

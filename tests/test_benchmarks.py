@@ -144,6 +144,13 @@ def test_stiff_benchmarks_really_are_stiff():
 
     Guards the benchmark set itself: a "stiff" problem an explicit method
     handles comfortably would make the stiff-solver comparisons meaningless.
+
+    `progress_check=False` on purpose. This test is about the *problems*, not
+    about the driver's willingness to keep going: `solve` now stops an explicit
+    method once its step size cannot cover the remaining interval, which is a
+    kindness to the caller and would silently weaken the measurement here by
+    capping the very step count being compared. Turning it off is what that
+    parameter is for.
     """
     from odesuite.problems import hires, orego, robertson
 
@@ -151,9 +158,15 @@ def test_stiff_benchmarks_really_are_stiff():
         bench = factory()
         implicit = solve(bench.problem, method="radau", rtol=1e-6, atol=1e-9)
         explicit = solve(
-            bench.problem, method="dopri5", rtol=1e-6, atol=1e-9, max_steps=30_000
+            bench.problem, method="dopri5", rtol=1e-6, atol=1e-9,
+            max_steps=30_000, progress_check=False,
         )
         assert implicit.success, bench.name
+        # The step ratio, and not "the explicit method fails": HIRES gets
+        # through in 10 593 steps against Radau's 142, which is 75x the work
+        # and stiff enough for the comparison to mean something, but well
+        # inside a 30 000-step budget. Asserting outright failure would have
+        # been a stronger claim than these three problems support.
         assert explicit.stats.naccepted > 20 * implicit.stats.naccepted, (
             f"{bench.name} is not stiff enough to be a useful test: dopri5 used "
             f"{explicit.stats.naccepted} steps against radau's "

@@ -313,6 +313,37 @@ class MainWindow(QWidget):
         if key:
             self._settings.setValue("window/screen", key)
 
+        # And the rest of what was on screen: problem, method, tolerances,
+        # parameter values. `QSettings` holds the window; this holds the work.
+        # Never allowed to fail -- `session.save` returns None rather than
+        # raising, for the same reason `progress.py` does: losing a session is
+        # a small harm and refusing to close is a large one.
+        from . import session
+
+        session.save(self.state, key, equation=self.typed_equation())
+
+    def typed_equation(self):
+        """The `EquationSpec` the Solver Lab last parsed, or None.
+
+        Asked of the Lab rather than of `catalog`, which keeps only the built
+        entry -- and the text the user wrote cannot be recovered from that.
+        """
+        lab = self._screens.get("lab")
+        return getattr(getattr(lab, "_parsed", None), "spec", None)
+
+    def restore_session(self) -> str:
+        """Reopen the problem, method and tolerances last used.
+
+        Returns the screen the session names, or "". Separate from
+        `remembered_screen` and returned rather than applied for the same
+        reason: `cli.py` owns the precedence, because only it knows whether an
+        explicit `--problem` or `--screen` was given.
+        """
+        from . import session
+
+        stored = session.load()
+        return session.apply(self.state, stored) if stored else ""
+
     def remembered_screen(self) -> str:
         """The screen this window was last closed on, or "" if unknown.
 

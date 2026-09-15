@@ -106,6 +106,9 @@ class QuizScreen(QWidget):
         self._index = 0
         self._verdicts: dict[int, bool] = {}
         self._started = 0.0
+        #: Fixed seed for the next paper, or None to draw from the clock.
+        #: Exists so a test can ask for a particular paper; unused in the app.
+        self.seed_override: int | None = None
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -235,8 +238,21 @@ class QuizScreen(QWidget):
         unit = self.current_unit()
         if unit is None:
             return
-        self._questions = build(unit, self.length.value(),
-                                seed=int(time.time()) % 100_000)
+        # The clock is the right seed for a quiz -- sitting it twice should not
+        # give the same paper -- and the wrong one for a test, which then
+        # depends on when it runs. `seed_override` is the seam: nothing in the
+        # application sets it, and a test that needs a particular paper can.
+        #
+        # This is not hypothetical. `test_a_second_press_of_check_cannot_turn_a
+        # _miss_into_a_hit` typed "0" and assumed it wrong; once numeric drills
+        # existed, some questions have 0 as their answer, and the test began
+        # failing on the runs that happened to draw one.
+        seed = (
+            self.seed_override
+            if self.seed_override is not None
+            else int(time.time()) % 100_000
+        )
+        self._questions = build(unit, self.length.value(), seed=seed)
         self._verdicts = {}
         self._index = 0
         self._started = time.perf_counter()

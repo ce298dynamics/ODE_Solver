@@ -52,9 +52,14 @@ IMPLICIT_METHODS.update(
     {
         "radau": RadauIIA,
         "radau5": RadauIIA,
-        # The unsplit 3n x 3n solve, kept as the oracle the fast path is
-        # validated against rather than as a method anyone should choose.
-        "radaudense": partial(RadauIIA, linear_solve="dense"),
+        # The unsplit 3n x 3n solve is NOT here. It is the oracle the fast path
+        # is validated against -- about five times the linear algebra for an
+        # identical answer -- and a test oracle offered as one of twenty-one
+        # method names is a trap: `make_stepper` lists every registered name
+        # when it rejects a typo, so a mistyped "radau" was answered with
+        # "radaudense" as a suggestion. Construct it directly instead:
+        #     RadauIIA(linear_solve="dense")
+        # which is the real interface and is what `tests/test_radau.py` uses.
     }
 )
 
@@ -64,7 +69,10 @@ IMPLICIT_METHODS.update(
 SPECIAL_METHODS: dict[str, Callable[[], Stepper]] = {
     **SYMPLECTIC_METHODS,
     "etdrk4": ETDRK4,
-    "taylor": TaylorMethod,
+    # No bare "taylor": it silently meant taylor20, and the order is the whole
+    # point of the method -- a name that hides it is the one thing this family
+    # cannot afford. `rk45` survives as an alias because it names a method
+    # people already know by that name; "taylor" named nothing.
     "taylor8": partial(TaylorMethod, 8),
     "taylor20": partial(TaylorMethod, 20),
     "taylor30": partial(TaylorMethod, 30),

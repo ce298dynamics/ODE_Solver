@@ -1,14 +1,22 @@
 """Session state: the single source of truth the screens read from.
 
-A deliberate view-model layer. Screens never talk to `odesuite` directly and
-never hold their own copy of "which problem, which method, which tolerance" --
-they mutate this object and react to its signals. Two consequences worth the
-indirection:
+A deliberate view-model layer. Screens do not hold their own copy of "which
+problem, which method, which tolerance" -- they mutate this object and react to
+its signals. Two consequences worth the indirection:
 
 * Switching screens preserves context. Choose Van der Pol at mu=800 in the Lab,
   jump to the Stiffness Explorer, and it is already looking at the same system.
 * Nothing here imports a Qt widget, so the whole application state is testable
   headlessly and a different front end could be built over it unchanged.
+
+What this is *not* is the only route to the library. Four screens call `odesuite`
+directly -- `screens/accuracy.py`, `screens/stiffness.py`, `screens/portrait.py`
+and `screens/learn_problems.py` -- and that is deliberate rather than a leak.
+They run method comparisons, stability sweeps and phase-plane analysis, none of
+which is *session* state: routing them through here would mean modelling "the
+seven methods currently being raced" in an object whose whole point is to hold
+the one problem the user is looking at. The rule is about ownership, not about
+imports: what the user chose lives here, and computations over it do not.
 """
 
 from __future__ import annotations

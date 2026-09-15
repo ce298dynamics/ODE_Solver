@@ -75,12 +75,14 @@ markdown_extensions:
 nav:
   - Overview: index.md
   - Examples: examples.md
+  - When each method fails: limits.md
   - API reference:
       - Core: api/core.md
       - Methods: api/methods.md
       - Step control: api/controllers.md
       - Continuous output: api/dense.md
       - Beyond the IVP: api/beyond.md
+  - Security: security.md
   - License: license.md
 
 validation:

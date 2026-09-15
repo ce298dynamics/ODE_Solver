@@ -20,19 +20,24 @@ import numpy as np
 
 from ._loop import (
     MIN_STEP_FACTOR,
+    PROGRESS_CHECK_AFTER,
+    PROGRESS_CHECK_EVERY,
     EventTracker,
     Recorder,
     StepPlanner,
+    fixed_step_message,
+    insufficient_progress_message,
     prepare_controller,
     prepare_t_eval,
     prepare_tolerances,
+    projected_steps,
     underflow_message,
 )
 from .controllers import error_norm
 from .dense import ConstantInterpolant, DenseOutput
 from .events import prepare_events
 from .problem import ODEProblem
-from .solution import Solution, Stats
+from .solution import Diagnosis, Solution, Stats
 from .steppers import make_stepper
 
 __all__ = ["solve"]
@@ -54,6 +59,7 @@ def solve(
     controller: Any = None,
     controller_options: dict | None = None,
     callback: Any = None,
+    progress_check: bool = True,
 ) -> Solution:
     """Integrate an `ODEProblem`.
 
@@ -101,6 +107,19 @@ def solve(
         `y` is the solver's own state array, not a copy. Do not mutate it; copy
         first if it needs to outlive the call. Exceptions propagate rather than
         being swallowed, so a broken callback is not silently ignored.
+    progress_check
+        Stop early when the step size being taken cannot cover the remaining
+        interval within `max_steps`. On by default, because the alternative is
+        to spend the whole budget discovering the same thing: an explicit method
+        on Robertson takes about 500 000 steps and 17 seconds to conclude it
+        cannot finish, and this concludes it in well under one second and says
+        why rather than blaming the step count.
+
+        Pass False to let a solve run to `max_steps` regardless -- to time the
+        grind, or to demonstrate it. The projection is never applied to a
+        fixed-step method, whose total is known from the outset, and never
+        before `_loop.PROGRESS_CHECK_AFTER` steps, which is above every adaptive
+        solve in the benchmark suite that succeeds.
 
     Returns
     -------
@@ -142,23 +161,95 @@ def solve(
     #: step can overshoot into overflow where a shorter one is fine -- but if it
     #: never recovers, the eventual failure is a NaN, not a step-size problem.
     nonfinite_at: float | None = None
+    #: Why the loop stopped, in a form a caller can branch on. Set at every exit.
+    diagnosis: Diagnosis | None = None
 
     # -- main loop -------------------------------------------------------
     while direction * (t - tf) < 0:
         if stats.nsteps >= max_steps:
             status, message = "failed", f"exceeded max_steps={max_steps}"
+            diagnosis = Diagnosis("max_steps", t, f"max_steps={max_steps}")
             break
+
+        # Stop a solve that arithmetic says cannot finish, rather than letting
+        # it grind to `max_steps` and then blame the step count. An explicit
+        # method on a stiff problem takes ~500 000 steps and 17 seconds to
+        # arrive at that conclusion; this reaches it in under a second, and says
+        # something more useful when it does.
+        #
+        # Three restrictions, and the third is the one that matters.
+        #
+        # Not fixed-step: such a run's total is known from the outset.
+        #
+        # Not before `PROGRESS_CHECK_AFTER` steps: a solve deserves a chance.
+        #
+        # **Not implicit.** The projection assumes the step size will not
+        # improve, and for a stiff solver that assumption is simply false: it
+        # spends the transient taking tiny steps and then grows them by orders
+        # of magnitude. Measured on Robertson at rtol=1e-12, RODAS4 has covered
+        # 0.0000% of the interval after 5000 steps -- indistinguishable from
+        # DOPRI5, which never finishes -- and then finishes in 10 017, its step
+        # size having grown by a factor of 1.7e8. Coverage cannot separate those
+        # two, and neither can step-size growth: RODAS4 on Van der Pol at the
+        # same tolerance has *flat* growth and still finishes, in 203 377 steps.
+        #
+        # So this is not a stiffness detector, and does not pretend to be one.
+        # It is a projection, applied only where a projection holds -- to a
+        # method whose step size is already as large as it is going to get.
+        if (
+            progress_check
+            and not planner.fixed
+            and not stepper.implicit
+            and stats.nsteps >= PROGRESS_CHECK_AFTER
+            and stats.nsteps % PROGRESS_CHECK_EVERY == 0
+        ):
+            projected = projected_steps(t, tf, planner.h_abs, stats.nsteps)
+            if projected > max_steps:
+                status = "failed"
+                message = insufficient_progress_message(
+                    stepper.name, t, problem.t0, tf, stats.nsteps, projected,
+                    max_steps, not stepper.implicit,
+                )
+                diagnosis = Diagnosis(
+                    "insufficient_progress", t,
+                    f"about {projected:.3g} steps needed, max_steps={max_steps}",
+                )
+                break
 
         h_floor = MIN_STEP_FACTOR * abs(np.nextafter(t, direction * np.inf) - t)
         if planner.h_abs < h_floor:
             status = "failed"
             message = underflow_message(t, planner.h_abs, nonfinite_at)
+            # Two situations reach this floor and the loop can tell those two
+            # apart -- but no further, and the diagnosis stops where the
+            # knowledge does. Neither kind names a single cause because neither
+            # has one:
+            #
+            #   nonfinite       the state went non-finite and never recovered.
+            #                   A right-hand side returning NaN or inf, or an
+            #                   overflow. Indistinguishable from here.
+            #   step_underflow  the state is still finite and it is h that has
+            #                   collapsed. A singularity on the path or a
+            #                   blow-up in finite time. Also indistinguishable:
+            #                   y' = y^2 and y' = 1/(t-1) both land here.
+            diagnosis = (
+                Diagnosis("nonfinite", nonfinite_at,
+                          "a non-finite right-hand side, or an overflow")
+                if nonfinite_at is not None
+                else Diagnosis("step_underflow", t,
+                               f"required h={planner.h_abs:.3g}; the solution may "
+                               f"be singular or blowing up there")
+            )
             break
         if min_step > 0 and planner.h_abs < min_step:
             status, message = (
                 "failed",
                 f"step size {planner.h_abs:.3g} fell below min_step={min_step:.3g} "
                 f"at t={t:.6g}",
+            )
+            diagnosis = Diagnosis(
+                "min_step", t,
+                f"h={planner.h_abs:.3g} below min_step={min_step:.3g}",
             )
             break
 
@@ -176,6 +267,15 @@ def solve(
             # iteration matrix. Shrink hard and retry rather than giving up.
             stats.nrejected += 1
             recorder.reject(t, abs(h))
+            if planner.fixed:
+                status, message = "failed", fixed_step_message(
+                    stepper.name, t, "the step could not be completed"
+                )
+                diagnosis = Diagnosis(
+                    "fixed_step_failure", t,
+                    f"{stepper.name} cannot reduce a fixed step",
+                )
+                break
             planner.h_abs = h_abs * 0.5
             continue
 
@@ -184,6 +284,23 @@ def solve(
             stats.nrejected += 1
             recorder.reject(t, abs(h))
             nonfinite_at = t
+            # Shrinking is the right answer for a method that chooses its own
+            # step and no answer at all for one that cannot: `StepPlanner.plan`
+            # derives a fixed step from the interval, so assigning `h_abs` here
+            # is overwritten on the next pass and the identical failing step is
+            # retried. That is not a slow failure but an unbounded one -- 909393
+            # rejections and 13.7 seconds before `max_steps` stopped it, and
+            # then blamed the step count for an overflow the loop already knew
+            # about.
+            if planner.fixed:
+                status, message = "failed", fixed_step_message(
+                    stepper.name, t, "the solution became non-finite"
+                )
+                diagnosis = Diagnosis(
+                    "fixed_step_nonfinite", t,
+                    f"{stepper.name} cannot reduce a fixed step",
+                )
+                break
             planner.h_abs = h_abs * 0.5
             continue
 
@@ -231,14 +348,15 @@ def solve(
         if callback is not None and callback(step_end_t, step_end_y, stats) is False:
             status = "cancelled"
             message = f"cancelled by the callback at t={step_end_t:.10g}"
+            diagnosis = Diagnosis("cancelled", step_end_t, "the callback returned False")
             t, y = step_end_t, step_end_y
             break
 
         if terminated:
             status = "terminated"
-            message = (
-                f"terminal event {tracker.exhausted_names()} at t={step_end_t:.10g}"
-            )
+            names = tracker.exhausted_names()
+            message = f"terminal event {names} at t={step_end_t:.10g}"
+            diagnosis = Diagnosis("terminal_event", step_end_t, names)
             t, y = step_end_t, step_end_y
             break
 
@@ -247,6 +365,7 @@ def solve(
 
     else:
         message = f"reached the end of the integration interval at t={tf:g}"
+        diagnosis = Diagnosis("finished", tf)
 
     # -- assemble --------------------------------------------------------
     t_out, y_out, rejected = recorder.arrays()
@@ -274,4 +393,8 @@ def solve(
         y_events=y_events,
         stats=stats,
         method=stepper.name,
+        diagnosis=diagnosis,
+        incomplete_events=tuple(
+            tracker.events[i].name for i in sorted(tracker.incomplete)
+        ),
     )

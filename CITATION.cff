@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+title: "odesuite: a from-scratch ODE solver library and learning studio"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - given-names: Ediz
+    email: ce298.dynamics@gmail.com
+# repository-code: add this once the project has a public home. There is no
+# remote configured, and a guessed URL in a citation file is worse than none.
+abstract: >-
+  A from-scratch ordinary differential equation solver library — adaptive
+  Runge-Kutta pairs, Radau IIA and Rosenbrock stiff solvers, symplectic and
+  exponential integrators, arbitrary-order Taylor series by jet arithmetic,
+  dense output, event location, mass matrices and index-1 DAEs, boundary value
+  problems by multiple shooting, and forward parameter sensitivities — together
+  with a desktop application that teaches a first course in differential
+  equations over it.
+keywords:
+  - ordinary differential equations
+  - numerical analysis
+  - Runge-Kutta
+  - stiff solvers
+  - differential-algebraic equations
+  - mathematics education
+license: MIT
+version: 0.4.0

@@ -3,12 +3,62 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 import numpy as np
 
 from .dense import DenseOutput
 
-__all__ = ["Stats", "Solution"]
+__all__ = ["Stats", "Solution", "Diagnosis", "DiagnosisKind"]
+
+
+#: Why a solve ended, as something a caller can branch on.
+#:
+#: Deliberately *not* finer than the loop can actually tell. There is no
+#: ``"blow_up"`` and no ``"nan_right_hand_side"`` because the driver cannot
+#: distinguish them -- a state that goes non-finite and never recovers looks the
+#: same either way, and `underflow_message` has always said so in prose. A
+#: diagnosis that claimed the difference would be a confident guess, which is
+#: the failure mode this whole type exists to remove.
+DiagnosisKind = Literal[
+    "finished",              # reached the end of the interval
+    "terminal_event",        # an event used up its allowance
+    "cancelled",             # the callback asked to stop
+    "max_steps",             # the safety valve tripped
+    "insufficient_progress",  # could not finish within max_steps at this rate
+    "min_step",              # the caller's own floor was hit
+    "step_underflow",        # h fell below the local floating-point spacing
+    "nonfinite",             # the state went non-finite and did not recover
+    "fixed_step_nonfinite",  # ditto, for a method that cannot shrink h
+    "fixed_step_failure",    # a fixed-step method's step could not be completed
+]
+
+
+@dataclass(frozen=True)
+class Diagnosis:
+    """Why a solve ended, in a form other code can act on.
+
+    `Solution.message` says the same thing in prose, and stays the thing to show
+    a person. This is for the caller that has to *decide* something -- offer a
+    stiff solver, mark a trajectory as ending in a singularity, retry with a
+    smaller step -- and could previously only have done it by matching on
+    English.
+    """
+
+    kind: DiagnosisKind
+    #: Where it happened. The end of the interval for a clean finish.
+    t: float
+    #: Anything specific to the kind, for a message a person will read.
+    detail: str = ""
+
+    @property
+    def failed(self) -> bool:
+        return self.kind not in ("finished", "terminal_event", "cancelled")
+
+    def __str__(self) -> str:
+        return f"{self.kind} at t={self.t:.6g}" + (
+            f": {self.detail}" if self.detail else ""
+        )
 
 
 @dataclass
@@ -81,6 +131,15 @@ class Solution:
     y_events: list[np.ndarray] = field(default_factory=list)
     stats: Stats = field(default_factory=Stats)
     method: str = ""
+    #: Why the solve ended, in a form that can be branched on. `message` is the
+    #: same thing in prose and remains what to show a person.
+    diagnosis: Diagnosis | None = None
+    #: Names of events for which crossings are *known* to have been missed,
+    #: because a mid-step probe found `g` on the far side of zero from both
+    #: endpoints. Endpoint bracketing loses any even number of crossings inside
+    #: a step, silently; this is how you find out it happened. Empty does not
+    #: prove completeness -- see `events_complete`.
+    incomplete_events: tuple[str, ...] = ()
 
     @property
     def success(self) -> bool:
@@ -98,6 +157,20 @@ class Solution:
     def cancelled(self) -> bool:
         """True when a `solve` callback stopped the integration."""
         return self.status == "cancelled"
+
+    @property
+    def events_complete(self) -> bool:
+        """False when crossings are known to have been missed.
+
+        True means "nothing was caught going missing", which is weaker than
+        "nothing went missing" and deliberately so: the probe behind
+        `incomplete_events` sees an even number of crossings inside one step,
+        and four arranged to agree at both ends and the middle would still slip
+        past. The honest reading is that False is certain and True is not.
+
+        Set `Event.subdivisions` to close the gap where it matters.
+        """
+        return not self.incomplete_events
 
     @property
     def n(self) -> int:

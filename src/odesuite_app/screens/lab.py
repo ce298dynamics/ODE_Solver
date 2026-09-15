@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import catalog
+from .. import analysis, catalog
 from ..custom import ParseError
 from ..equationmodel import build_entry
 from ..state import SessionState, methods_for
@@ -184,6 +184,16 @@ class LabScreen(QWidget):
         self.blurb.setProperty("role", "muted")
         self.blurb.setStyleSheet("font-size: 11px;")
         catalogue_layout.addWidget(self.blurb)
+
+        #: Shown only when the solve cannot be trusted to be the whole answer:
+        #: uniqueness not guaranteed at the initial point, or event crossings
+        #: known to have been missed. Hidden the rest of the time, which is
+        #: almost always, so that its appearing means something.
+        self.caution = QLabel("")
+        self.caution.setWordWrap(True)
+        self.caution.setStyleSheet("font-size: 10.5px;")
+        self.caution.hide()
+        catalogue_layout.addWidget(self.caution)
         self.source_stack.addWidget(catalogue_page)
 
         self.editor = EquationEditor(self.palette_obj)
@@ -381,6 +391,39 @@ class LabScreen(QWidget):
         self.stats.update_from(result)
         self.plot.update_from(result, self.plot.view.currentText())
         self.timeline.update_from(result, log_time=self.plot.log_time.isChecked())
+        self._show_cautions(result)
+
+    def _show_cautions(self, result) -> None:
+        """Say when the answer on screen is not the whole answer.
+
+        Two things the solver knows and the plot cannot show. Neither is a
+        failure -- the curve is a genuine solution and the events found are
+        genuine events -- which is exactly why they need saying: nothing else
+        about the screen would suggest anything was missing.
+        """
+        notes: list[str] = []
+
+        problem = getattr(getattr(result, "benchmark", None), "problem", None)
+        if problem is not None:
+            warning = analysis.uniqueness_warning(problem)
+            if warning:
+                notes.append(warning)
+
+        solution = getattr(result, "solution", None)
+        missed = getattr(solution, "incomplete_events", ()) if solution else ()
+        if missed:
+            notes.append(
+                f"Crossings of {', '.join(missed)} were missed between steps. "
+                f"The step size is chosen to resolve the solution, not the "
+                f"event; raise the event's `subdivisions` to catch them."
+            )
+
+        if notes:
+            self.caution.setStyleSheet(
+                f"font-size: 10.5px; color: {self.palette_obj.warning};"
+            )
+            self.caution.setText("  ".join(notes))
+        self.caution.setVisible(bool(notes))
 
     def _replot(self) -> None:
         if self.state.result is not None:

@@ -231,21 +231,37 @@ def test_race_runs_every_selected_method(race, qapp):
 def test_race_shows_an_explicit_method_failing_on_robertson(race, qapp):
     """The Phase 2 acceptance result, as a race.
 
-    DOPRI5 must not merely lose -- it must run out of steps entirely, while the
-    implicit methods finish.
+    DOPRI5 must not merely lose -- it must fail outright, while the implicit
+    methods finish.
+
+    The work ratio this used to assert (DOPRI5 taking more than fifty times
+    Radau's steps) was a proxy for "grinds enormously and still fails", and it
+    described the old behaviour: 499 996 steps and half a minute to reach
+    `max_steps` and then report the step count. `solve` now projects from the
+    step size it is managing and stops when the budget cannot cover the
+    interval, so DOPRI5 gives up after about 5000 steps instead -- about
+    seventeen times Radau's work rather than seventeen hundred. Failing sooner
+    and saying why is the improvement, so the assertion is now on the diagnosis
+    rather than on how long it flailed.
     """
     results = _run_race(race, qapp, "robertson", ["dopri5", "radau", "rodas4"])
 
     assert results["radau"].ok and results["rodas4"].ok
     assert not results["dopri5"].ok
-    assert "max_steps" in results["dopri5"].solution.message
 
-    # And the implicit methods do it in a tiny fraction of the work.
+    failed = results["dopri5"].solution
+    assert failed.diagnosis.kind == "insufficient_progress"
+    assert "max_steps" in failed.message
+    assert "implicit method" in failed.message
+
+    # The implicit methods still do it in a small fraction of the work, and
+    # DOPRI5 is now stopped well short of the budget rather than exhausting it.
     assert results["radau"].solution.stats.naccepted < 2000
     assert (
-        results["dopri5"].solution.stats.naccepted
-        > 50 * results["radau"].solution.stats.naccepted
+        failed.stats.naccepted
+        > 5 * results["radau"].solution.stats.naccepted
     )
+    assert failed.stats.nsteps < 50_000, failed.stats
 
 
 @pytest.mark.slow

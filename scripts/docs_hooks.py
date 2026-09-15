@@ -19,15 +19,37 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 
 #: Written by this hook, so `.gitignore` lists them.
-GENERATED = ("index.md", "license.md", "figures")
+GENERATED = ("index.md", "license.md", "security.md", "figures")
 
 
 def on_pre_build(config, **kwargs) -> None:
     DOCS.mkdir(exist_ok=True)
 
-    # The README links to `LICENSE`, a plain file that means nothing to a static
-    # site. Publish it as a page and repoint the link, so the same sentence is
-    # correct in the repository and in the docs.
+    # Links that have to be right in two places at once. A path is written in
+    # the README as a reader of the *repository* would need it, and the README
+    # becomes the site's home page, where the same path is wrong: `docs/` is
+    # already the root there, and `LICENSE` is not a page at all. Repointing
+    # them here keeps one sentence correct in both, which is the whole reason
+    # this hook exists rather than a second hand-written home page.
+    #
+    # `mkdocs build --strict` fails on a link it cannot resolve, so a new
+    # `docs/…` link in the README that is not listed here breaks the build
+    # rather than shipping dead.
+    LINK_REWRITES = {
+        "](LICENSE)": "](license.md)",
+        "](SECURITY.md)": "](security.md)",
+        "](docs/limits.md)": "](limits.md)",
+    }
+
+    # The security policy is markdown already, so it needs staging rather than
+    # wrapping. Published because "how do I report this" is a question a reader
+    # of the site has as readily as a reader of the repository.
+    policy = ROOT / "SECURITY.md"
+    if policy.is_file():
+        (DOCS / "security.md").write_text(
+            policy.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
     licence = ROOT / "LICENSE"
     if licence.is_file():
         (DOCS / "license.md").write_text(
@@ -36,7 +58,9 @@ def on_pre_build(config, **kwargs) -> None:
         )
 
     readme = ROOT / "README.md"
-    text = readme.read_text(encoding="utf-8").replace("](LICENSE)", "](license.md)")
+    text = readme.read_text(encoding="utf-8")
+    for repository_link, site_link in LINK_REWRITES.items():
+        text = text.replace(repository_link, site_link)
     (DOCS / "index.md").write_text(text, encoding="utf-8")
 
     figures = ROOT / "figures"

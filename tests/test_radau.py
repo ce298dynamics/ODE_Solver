@@ -111,7 +111,11 @@ def test_split_and_dense_solves_agree(factory):
     """
     bench = factory()
     split = solve(bench.problem, method="radau", rtol=1e-10, atol=1e-12)
-    dense = solve(bench.problem, method="radaudense", rtol=1e-10, atol=1e-12)
+    # Constructed directly rather than by name: the unsplit solve is this
+    # test's oracle, not a method anyone should pick, so it is no longer in
+    # the registry. This is the interface it was always a wrapper around.
+    dense = solve(bench.problem, method=RadauIIA(linear_solve="dense"),
+                  rtol=1e-10, atol=1e-12)
 
     assert split.success and dense.success
     assert np.allclose(split.y[:, -1], dense.y[:, -1], rtol=1e-6, atol=1e-8), (
@@ -165,7 +169,8 @@ def test_split_and_dense_solves_agree_on_a_large_system():
     """
     problem = _heat_equation(60)
     split = solve(problem, method="radau", rtol=1e-8, atol=1e-10)
-    dense = solve(problem, method="radaudense", rtol=1e-8, atol=1e-10)
+    dense = solve(problem, method=RadauIIA(linear_solve="dense"),
+                  rtol=1e-8, atol=1e-10)
 
     assert split.success and dense.success
     assert np.allclose(split.y[:, -1], dense.y[:, -1], rtol=1e-6, atol=1e-9)

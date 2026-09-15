@@ -260,13 +260,42 @@ class Rosenbrock(Stepper):
         return self._jac
 
     def _time_derivative(self, problem, t, y, f0, h):
-        """Finite-difference ``df/dt`` at fixed y. One extra RHS evaluation.
+        """``df/dt`` at fixed y, and how accurately it can be had.
 
         Only Rosenbrock methods need this term; it is what keeps them full order
-        on non-autonomous problems instead of dropping to order two.
+        on non-autonomous problems instead of dropping to order two. How well it
+        is known turns out to decide how accurate the method can be *at all*,
+        which is not obvious and was measured the hard way.
+
+        The term enters the stage right-hand side as ``h * d_i * f_t``. An error
+        `e` in `f_t` therefore contributes ``O(h * e)`` to the step -- first
+        order in `h`, whatever the order of the method around it. A forward
+        difference has ``e ~ sqrt(eps) ~ 1.5e-8``, so RODAS4 held its fourth
+        order on ``y' = y cos t`` only down to about 3e-11 and then converged at
+        order *one*, flattening out near 4e-13; on an autonomous problem, where
+        this derivative is identically zero and the difference is exact, the
+        same method ran clean to round-off. Three orders of accuracy were being
+        lost to one difference quotient.
+
+        Two ways out, in order of preference:
+
+        * **Exact**, when the caller supplied `dfdt`. No error, no evaluation,
+          and no floor. `odesuite_app.custom` does this for a typed equation,
+          where sympy has the expression and differentiating it is free.
+        * **Central difference** otherwise, ``(f(t+dt) - f(t-dt)) / 2dt`` with
+          ``dt ~ eps**(1/3)``, whose error is ``O(dt^2) ~ 4e-11`` against the
+          forward difference's 1.5e-8. It costs one extra right-hand side
+          evaluation per step -- two rather than one -- which is the price of
+          the three orders.
         """
-        dt = np.sqrt(EPS) * max(abs(t), 1.0) * np.sign(h)
-        return (problem.f(t + dt, y) - f0) / dt
+        if problem.has_dfdt:
+            return problem.dfdt(t, y), 0
+
+        # eps**(1/3) balances the O(dt^2) truncation of a central difference
+        # against the O(eps/dt) rounding of the subtraction, exactly as
+        # sqrt(eps) does for a forward difference.
+        dt = EPS ** (1.0 / 3.0) * max(abs(t), 1.0) * np.sign(h)
+        return (problem.f(t + dt, y) - problem.f(t - dt, y)) / (2.0 * dt), 2
 
     def step(self, problem, t, y, f, h) -> StepResult:
         tab = self.tab
@@ -277,8 +306,8 @@ class Rosenbrock(Stepper):
         J = jac_eval(t, y, f)
         nfev = jac_eval.nfev - nfev_before
 
-        f_t = self._time_derivative(problem, t, y, f, h)
-        nfev += 1
+        f_t, dfdt_nfev = self._time_derivative(problem, t, y, f, h)
+        nfev += dfdt_nfev
 
         try:
             lu = lu_factorize(

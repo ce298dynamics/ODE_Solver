@@ -30,6 +30,9 @@ __all__ = [
     "lotka_volterra",
     "van_der_pol",
     "brusselator",
+    "fitzhugh_nagumo",
+    "hopf_window",
+    "sir",
     "pendulum",
     "duffing",
     "lorenz",
@@ -260,6 +263,101 @@ def brusselator(a: float = 1.0, b: float = 3.0, t_end: float = 20.0) -> Benchmar
         problem=prob,
         description="Two-species autocatalytic reaction with a limit cycle.",
         tags=("nonlinear", "nonstiff"),
+    )
+
+
+def fitzhugh_nagumo(a: float = 0.7, b: float = 0.8, tau: float = 12.5,
+                    I_ext: float = 0.5, t_end: float = 200.0) -> Benchmark:
+    """Excitable membrane: the two-variable reduction of Hodgkin-Huxley.
+
+    ``v`` is the fast voltage-like variable and ``w`` the slow recovery one, and
+    the timescale separation ``tau = 12.5`` between them is the whole character
+    of the model -- it is the cleanest small example of a slow-fast system, and
+    of *excitability*: below threshold a perturbation decays, above it the state
+    takes a long excursion before returning.
+
+    The oscillating window is derived rather than looked up. The fixed point
+    loses stability where the trace of the Jacobian vanishes, and the trace is
+    ``(1 - v^2) - b/tau``, so the Hopf points sit at ``v^2 = 1 - b/tau`` and the
+    corresponding currents follow from the fixed-point equation
+    ``I = -v + v^3/3 + (v + a)/b``. For the defaults that gives
+    ``I in (0.331281, 1.418719)``, which is where the measured amplitude of `v`
+    actually turns on and off: 1.5e-2 at I = 0.30 against 3.75 at I = 0.33, and
+    3.75 at I = 1.42 against 3.4e-5 at I = 1.50.
+    """
+
+    def f(t, y):
+        v, w = y[0], y[1]
+        return np.array([v - v ** 3 / 3.0 - w + I_ext, (v + a - b * w) / tau])
+
+    def jac(t, y):
+        v = y[0]
+        return np.array([[1.0 - v * v, -1.0], [1.0 / tau, -b / tau]])
+
+    prob = ODEProblem(f=f, t_span=(0.0, t_end), y0=[-1.0, -0.5], jac=jac)
+    return Benchmark(
+        name=f"fitzhugh_nagumo(I={I_ext:g})",
+        problem=prob,
+        description="Excitable membrane; a slow-fast system with a Hopf window.",
+        tags=("nonlinear", "nonstiff", "oscillator"),
+    )
+
+
+def hopf_window(a: float = 0.7, b: float = 0.8, tau: float = 12.5):
+    """The interval of `I_ext` on which `fitzhugh_nagumo` oscillates.
+
+    Derived from ``trace J = 0``, not measured and not transcribed -- see the
+    reasoning in `fitzhugh_nagumo`. Returned so the interface can mark the
+    window on the slider and a test can check the model against its own theory.
+    """
+    v_squared = 1.0 - b / tau
+    if v_squared <= 0.0:
+        # No real v satisfies trace J = 0: the fixed point never loses
+        # stability and there is no oscillating window to mark.
+        return None
+    currents = [
+        -v + v ** 3 / 3.0 + (v + a) / b
+        for v in (-np.sqrt(v_squared), np.sqrt(v_squared))
+    ]
+    return (min(currents), max(currents))
+
+
+def sir(beta: float = 0.9, gamma: float = 0.2, N: float = 1000.0,
+        initial_infected: float = 1.0, t_end: float = 80.0) -> Benchmark:
+    """The compartment model everyone met in 2020: susceptible, infected, recovered.
+
+    Worth having as more than a topical example. ``S + I + R`` is conserved
+    exactly, which makes it one of the few nonlinear models here with an
+    invariant a reader can check by inspection -- and the basic reproduction
+    number ``R0 = beta/gamma`` decides the whole qualitative outcome, so it is a
+    two-slider demonstration that a threshold in a parameter is a different kind
+    of thing from a change of degree.
+    """
+
+    def f(t, y):
+        S, I = y[0], y[1]
+        infection = beta * S * I / N
+        recovery = gamma * I
+        return np.array([-infection, infection - recovery, recovery])
+
+    def jac(t, y):
+        S, I = y[0], y[1]
+        return np.array([
+            [-beta * I / N, -beta * S / N, 0.0],
+            [beta * I / N, beta * S / N - gamma, 0.0],
+            [0.0, gamma, 0.0],
+        ])
+
+    prob = ODEProblem(
+        f=f, t_span=(0.0, t_end),
+        y0=[N - initial_infected, initial_infected, 0.0], jac=jac,
+    )
+    return Benchmark(
+        name="sir",
+        problem=prob,
+        invariant=lambda y: float(np.sum(np.asarray(y)[:3])),
+        description="Epidemic compartments; S+I+R is conserved and R0 = beta/gamma.",
+        tags=("nonlinear", "nonstiff", "biology"),
     )
 
 
@@ -1396,6 +1494,8 @@ TEXTBOOK = (
 
 #: Non-stiff benchmarks for the work-precision diagrams.
 NONSTIFF = (
+    fitzhugh_nagumo,
+    sir,
     exponential_decay,
     linear_system,
     sine_cosine,
