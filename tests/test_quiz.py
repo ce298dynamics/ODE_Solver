@@ -333,18 +333,40 @@ def _started(screen, qapp):
 
 def test_the_note_is_pinned_by_the_first_answer(screen, qapp):
     """As the verdict is. A second attempt that got further would otherwise
-    have the report describe an answer that was never scored."""
+    have the report describe an answer that was never scored.
+
+    Both of the faults its sibling above was hardened against were still here,
+    and between them they made this test fail on some runs and not others --
+    which is exactly how it was found, passing alone and failing in a longer
+    run of the same files.
+
+    * The paper was seeded from the wall clock, so which questions appeared
+      depended on the second the test happened to start. `seed_override` pins
+      it, and is the seam that exists for this.
+    * `screen._index` was read *after* the second check. A correct second
+      answer settles the question and advances, so `_index` then points at the
+      next question -- which has no verdict and no note yet, and the assertion
+      died on `KeyError` rather than on anything to do with pinning. The index
+      under test is captured before either attempt, which is also the only
+      index the invariant is about.
+    """
+    screen.seed_override = 20_260_907
     lesson, _template, question = _typed(_started(screen, qapp), qapp)
+    index = screen._index
     screen.answer.setText("0")
     screen._check(lesson, question)
     qapp.processEvents()
-    if screen._verdicts.get(screen._index) is not False:
+    if screen._verdicts.get(index) is not False:
         pytest.skip("this draw accepts 0, so there is no miss to pin")
 
-    first = screen._notes[screen._index]
+    first = screen._notes[index]
     screen.answer.setText("1")
     screen._check(lesson, question)
-    assert screen._notes[screen._index] == first
+    qapp.processEvents()
+    assert screen._notes[index] == first
+    assert screen._verdicts[index] is False, (
+        "the second attempt must not turn the miss into a hit either"
+    )
 
 
 def test_the_report_lists_the_lessons_behind_the_misses(screen, qapp):

@@ -41,8 +41,10 @@ generalises, and that one can be worked end to end.
 from __future__ import annotations
 
 from .model import (
+    Case,
     Choice,
     ChoiceTemplate,
+    ClassifyTemplate,
     Example,
     Lesson,
     Note,
@@ -1013,6 +1015,106 @@ FROBENIUS = Lesson(
                 # is not how anyone writes a coefficient of one.
                 ("p", ("2", "-3", "5", "-2")),
                 ("q", ("-1", "4", "2")),
+            ),
+        ),
+        ClassifyTemplate(
+            key="which-kind-of-point",
+            title="What kind of point is t = 0?",
+            prompt="Classify t = 0, and say what decided it. Do not solve "
+                   "it.",
+            options=("ordinary", "regular singular", "irregular singular"),
+            table="points",
+            cases=(
+                Case(
+                    equation="y'' - t*y = 0",
+                    technique="ordinary",
+                    why="Airy's equation. The leading coefficient is 1, which "
+                        "does not vanish anywhere at all, so every point is "
+                        "ordinary and there is nothing to work around.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y'' + t*y' + y = 0",
+                    technique="ordinary",
+                    why="Leading coefficient 1 again. The t in front of y' "
+                        "looks like trouble and is not: what matters is "
+                        "whether the coefficients stay finite at 0, and a "
+                        "polynomial always does.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="(1 - t**2)*y'' - 2*t*y' + 6*y = 0",
+                    technique="ordinary",
+                    why="Legendre's equation. The leading coefficient does "
+                        "vanish — at t = ±1, not at 0 — so t = 0 is ordinary "
+                        "and the series is guaranteed only out to radius 1.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y'' + exp(t)*y' + y = 0",
+                    technique="ordinary",
+                    why="Not a polynomial, and it does not need to be. The "
+                        "leading coefficient is 1 and e^t is finite at 0, "
+                        "which is the whole test.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="2*t*y'' + y' + t*y = 0",
+                    technique="regular singular",
+                    why="The leading coefficient vanishes at 0, so check the "
+                        "two limits: t·Q/P = 1/2 and t²·R/P = t²/2, both "
+                        "finite. Mild enough for Frobenius.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="t*y'' + (1 - t)*y' + y = 0",
+                    technique="regular singular",
+                    why="Laguerre's equation. P = t vanishes at 0, and "
+                        "t·Q/P = 1 − t with t²·R/P = t are both finite there. "
+                        "Frobenius, with an indicial equation to solve first.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="t**2*y'' + t*y' + (t**2 - 1)*y = 0",
+                    technique="regular singular",
+                    why="Bessel's equation of order one. t·Q/P = 1 and "
+                        "t²·R/P = t² − 1, both finite — the two powers of t "
+                        "in front are exactly what the test allows.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="t**2*y'' - t*y' + (1 + t)*y = 0",
+                    technique="regular singular",
+                    why="t·Q/P = −1 and t²·R/P = 1 + t. The sign on the "
+                        "middle term changes the indicial roots and not the "
+                        "classification, which is decided by finiteness "
+                        "alone.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="t**2*y'' + y' + y = 0",
+                    technique="irregular singular",
+                    why="One power of t too few on the y' term: t·Q/P = 1/t, "
+                        "which blows up at 0. Frobenius has nothing to stand "
+                        "on here.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="t**3*y'' + t*y' + y = 0",
+                    technique="irregular singular",
+                    why="t·Q/P = 1/t and t²·R/P = 1/t, and either one failing "
+                        "is enough. A cube in front of y'' needs matching "
+                        "powers behind it, and these are short.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="t**3*y'' + y = 0",
+                    technique="irregular singular",
+                    why="No y' term at all, so only the second limit has "
+                        "anything to say: t²·R/P = 1/t, which is not finite. "
+                        "A missing term cannot rescue a classification.",
+                    tier="harder",
+                ),
             ),
         ),
     ),

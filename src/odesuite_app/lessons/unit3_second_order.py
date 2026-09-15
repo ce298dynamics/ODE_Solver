@@ -2086,6 +2086,206 @@ HIGHER = Lesson(
                 ("p,v,w", ((0, 1, 3), (1, 0, 0), (1, 1, 1))),
             ),
         ),
+        ClassifyTemplate(
+            key="which-method-cumulative",
+            title="Which method? — anything from the course so far",
+            prompt="No lesson has just told you the answer to this one. Read "
+                   "it, decide, and say what decided it. Do not solve it.",
+            # Every method the narrator knows, on one menu. The per-unit
+            # drills each offer four or five, which still hands over half the
+            # answer: told the menu is first-order, you already know not to
+            # look for a characteristic equation. This is the version an exam
+            # asks, and the order of the equations below is deliberately not
+            # the order of the options.
+            options=("separable", "1st_linear", "1st_exact",
+                     "1st_homogeneous_coeff_best", "Bernoulli",
+                     "nth_linear_constant_coeff_homogeneous",
+                     "nth_linear_constant_coeff_undetermined_coefficients",
+                     "nth_linear_constant_coeff_variation_of_parameters",
+                     "nth_linear_euler_eq_homogeneous"),
+            cases=(
+                Case(
+                    equation="y' = 3*y*(1 - y)",
+                    technique="separable",
+                    why="The logistic equation. Nothing on the right depends "
+                        "on t at all, so it is f(t)·g(y) with f = 1 — the "
+                        "easiest kind of separable there is.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y' = (1 + y**2)/(1 + t**2)",
+                    technique="separable",
+                    why="A quotient that is already split: every y upstairs, "
+                        "every t downstairs. Both sides integrate to an "
+                        "arctangent.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y' = exp(t)*sqrt(y)",
+                    technique="separable",
+                    why="A product of a function of t and a function of y, "
+                        "which is the whole test. The square root makes it "
+                        "nonlinear, so no integrating factor applies.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y' - 3*y = exp(2*t)",
+                    technique="1st_linear",
+                    why="Linear with constant p = −3, so μ = e^(−3t). The "
+                        "exponential on the right is what stops it "
+                        "separating: e^(2t) + 3y does not factor.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y' + 3*y = t",
+                    technique="1st_linear",
+                    why="Linear, p = 3, μ = e^(3t). Compare it with "
+                        "y' = 3y(1 − y) above: the same coefficient, and a "
+                        "different method, because this one is linear in y "
+                        "and that one is not.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y' - 2*y/t = t**3",
+                    technique="1st_linear",
+                    why="Linear with a variable coefficient, p = −2/t, so "
+                        "μ = t^(−2). A variable p changes the integral and "
+                        "not the method.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="2*t*y + (t**2 + 2*y)*y' = 0",
+                    technique="1st_exact",
+                    why="M = 2ty and N = t² + 2y, and ∂M/∂y = ∂N/∂t = 2t. "
+                        "The left side is already d/dt of t²y + y², so there "
+                        "is nothing to multiply by.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="(3*t**2 + 2*y) + (2*t - 3*y**2)*y' = 0",
+                    technique="1st_exact",
+                    why="∂M/∂y = 2 and ∂N/∂t = 2, so it is exact and F = t³ "
+                        "+ 2ty − y³. Written in M + N·y' form, which is the "
+                        "shape worth recognising on sight.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y' = (y - t)/(y + t)",
+                    technique="1st_homogeneous_coeff_best",
+                    why="Divide top and bottom by t and nothing but y/t is "
+                        "left. It is not linear — y appears in the "
+                        "denominator — and it does not separate, so v = y/t "
+                        "is the way in.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y' = (t + 3*y)/(t - y)",
+                    technique="1st_homogeneous_coeff_best",
+                    why="Both numerator and denominator are degree one in "
+                        "(t, y), which is what makes the ratio a function of "
+                        "y/t alone. The substitution turns it into a "
+                        "separable equation in v.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="y' + y/t = y**2",
+                    technique="Bernoulli",
+                    why="Linear apart from the y² on the right, so n = 2 and "
+                        "v = y^(−1). Without that square it would be an "
+                        "integrating-factor problem, which is the comparison "
+                        "worth making.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y' + y = t*y**3",
+                    technique="Bernoulli",
+                    why="n = 3, so v = y^(−2). The t on the right belongs to "
+                        "q(t) and plays no part in choosing the "
+                        "substitution — only the power of y does.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y'' - 4*y' + 4*y = 0",
+                    technique="nth_linear_constant_coeff_homogeneous",
+                    why="Constant coefficients, nothing on the right. The "
+                        "characteristic equation is (r − 2)², a repeated "
+                        "root — which changes the form of the answer and not "
+                        "the method that finds it.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y'' + 6*y' + 13*y = 0",
+                    technique="nth_linear_constant_coeff_homogeneous",
+                    why="Homogeneous with constant coefficients. The "
+                        "discriminant is negative, so the roots are −3 ± 2i "
+                        "and the answer oscillates inside a decaying "
+                        "envelope.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y'' - y' - 2*y = exp(3*t)",
+                    technique=(
+                        "nth_linear_constant_coeff_undetermined_coefficients"
+                    ),
+                    why="Forced by an exponential, whose derivatives stay "
+                        "inside a finite family, so a trial Ae^(3t) can be "
+                        "written down. Check 3 is not a characteristic root "
+                        "first — it is not, the roots are 2 and −1.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="y'' + 9*y = t + 1",
+                    technique=(
+                        "nth_linear_constant_coeff_undetermined_coefficients"
+                    ),
+                    why="A polynomial forcing term, so try At + B. "
+                        "Variation of parameters would also work and would "
+                        "cost two integrals for an answer a trial solution "
+                        "gives in a line.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y'' + 4*y = 1/sin(2*t)",
+                    technique=(
+                        "nth_linear_constant_coeff_variation_of_parameters"
+                    ),
+                    why="A cosecant has no finite family of derivatives, so "
+                        "there is no trial solution to write down. That is "
+                        "the whole reason variation of parameters exists, and "
+                        "the reason it costs two integrals.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="y'' - 2*y' + y = exp(t)/t",
+                    technique=(
+                        "nth_linear_constant_coeff_variation_of_parameters"
+                    ),
+                    why="An exponential *divided by t* is not an exponential: "
+                        "differentiating it produces new terms forever. The "
+                        "quotient is the tell, and it rules out undetermined "
+                        "coefficients however familiar e^t looks.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="t**2*y'' + 5*t*y' + 4*y = 0",
+                    technique="nth_linear_euler_eq_homogeneous",
+                    why="Each derivative carries its matching power of t — "
+                        "t² with y'', t with y', none with y — so y = t^r "
+                        "turns it into a polynomial in r. Constant "
+                        "coefficients it is not.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="t**2*y'' + t*y' - 9*y = 0",
+                    technique="nth_linear_euler_eq_homogeneous",
+                    why="The same matching-powers pattern. Compare it with "
+                        "the Bessel-like equations of the series unit: what "
+                        "makes this one solvable in closed form is that no "
+                        "power of t is left over.",
+                    tier="typical",
+                ),
+            ),
+        ),
     ),
 )
 
