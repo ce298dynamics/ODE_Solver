@@ -1135,6 +1135,18 @@ NUMERICAL = Lesson(
             "shows you happening.",
             kind="aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: Euler is unstable on an oscillator",
+            "On y'' + y = 0 every Euler step multiplies the amplitude by √(1 + "
+            "h²), for any h at all: the numerical orbit spirals outwards "
+            "however small the step, and over a long enough run it overflows. "
+            "On y' = λy with λ < 0 the method is stable only for h < 2/|λ|, so "
+            "a fast-decaying component forces a tiny step whether or not "
+            "accuracy needs one.",
+            r"|1 + ih| = \sqrt{1 + h^{2}} > 1",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -1418,6 +1430,19 @@ RUNGEKUTTA = Lesson(
             "problem RK4's advantage disappears entirely — the constraint "
             "there is stability, which order does nothing about.",
             kind="aside",
+        ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: stiffness",
+            "Every explicit Runge–Kutta method has a bounded stability region. "
+            "For y' = −1000y, RK4 is stable only for h below about 2.785/1000 —"
+            " roughly 0.0028 — long after the solution has decayed to nothing. "
+            "A problem with one fast and one slow scale is dominated by that "
+            "bound for its whole length; it is called stiff, and the cure is an"
+            " implicit method.",
+            r"y' = \lambda y:\ \text{RK4 stable for } h|\lambda| < 2.785 \ (\lambda "
+            r"< 0)",
+            "pitfall",
         ),
     ),
     questions=(

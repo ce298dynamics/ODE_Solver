@@ -282,6 +282,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Every method lesson says where its method stops** (PED-06). The course's
+  pitfalls were about students' mistakes -- a lost constant, a forgotten
+  divide -- and much thinner on the method's own domain. Thirteen lessons now
+  carry a "Where it stops" note: separation needs f to factor, and y' = t + y
+  never will; undetermined coefficients has no finite guess for sec t, whose
+  derivatives never close; Euler multiplies an oscillator's amplitude by
+  √(1 + h²) every step, for every h; RK4 on y' = −1000y is stable only below
+  h ≈ 0.0028; Laplace needs exponential order and constant coefficients,
+  because L{t·f} = −F′(s) turns a variable coefficient into a new
+  differential equation; a power series is guaranteed only out to the
+  nearest singularity, complex ones included. A test requires one on each.
+
 - **The technique each worked example gets is pinned** (SYM-04, first half).
   The narrator picks its method from `classify_ode`'s hint names, which sympy
   does not promise to keep. A rename already fails loudly; a reordering would

@@ -202,6 +202,17 @@ ROOTS = Lesson(
             r"b^{2} - 4ac > 0 \ \mid\ = 0 \ \mid\ < 0",
             "aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: constant coefficients only",
+            "Guessing eʳᵗ works because differentiating it only rescales it, "
+            "and that survives multiplication by a constant but not by a "
+            "function of t. For y'' + t·y = 0 the guess leaves t·eʳᵗ terms that"
+            " no choice of r cancels, and a different method — a series, here —"
+            " is needed.",
+            r"y'' + t\,y = 0: \ e^{rt} \text{ leaves } t\,e^{rt}",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -593,6 +604,19 @@ UNDETERMINED = Lesson(
             "or the Laplace transform.",
             kind="aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: the forcing must have finitely many derivatives",
+            "A guess works when the forcing and all its derivatives lie in a "
+            "finite family: polynomials, exponentials, sines and cosines, and "
+            "their products. sec t does not — its derivatives keep producing "
+            "new functions — so no finite guess can contain the answer, and "
+            "variation of parameters is the method that still works. The "
+            "equation must also have constant coefficients.",
+            r"\frac{d}{dt}\sec t = \sec t\tan t,\quad \frac{d^{2}}{dt^{2}}\sec t = "
+            r"\sec t\tan^{2} t + \sec^{3} t,\ \dots",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -923,6 +947,17 @@ CAUCHY = Lesson(
             "being second order at all — a singular point, and conditions "
             "cannot be given there.",
             kind="aside",
+        ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: t = 0, and the wrong pattern",
+            "The guess y = tʳ works only when the k-th derivative is multiplied"
+            " by exactly tᵏ. And t = 0 is a singular point: the solutions are "
+            "found on t > 0 (or on t < 0 with |t|), and generally do not "
+            "continue through zero — tʳ with r negative or fractional is not "
+            "defined there.",
+            r"t^{2}y'' + a\,t\,y' + b\,y = 0 \quad (t > 0)",
+            "pitfall",
         ),
     ),
     questions=(
@@ -1570,6 +1605,18 @@ VARIATION = Lesson(
             "already carries both with arbitrary coefficients.",
             r"y = C_1 y_1 + C_2 y_2 + u_1 y_1 + u_2 y_2",
             "aside",
+        ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: you need the homogeneous solutions first",
+            "Variation of parameters never guesses, but it assumes y₁ and y₂ "
+            "are already known. For constant coefficients they are; for most "
+            "variable-coefficient equations they are not, and the method has "
+            "nothing to start from. And the integrals it produces need not be "
+            "elementary — the answer is then correct but written with integrals"
+            " in it.",
+            r"u_1' = -\frac{y_2\,g}{W},\qquad u_2' = \frac{y_1\,g}{W}",
+            "pitfall",
         ),
     ),
     questions=(

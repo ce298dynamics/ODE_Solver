@@ -197,6 +197,17 @@ SEPARABLE = Lesson(
             r"y^{2} = t^{2} + C \;\Longrightarrow\; y = \pm\sqrt{t^{2} + C}",
             "pitfall",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: f must factor",
+            "The method needs y' = g(t)·h(y) exactly. y' = t + y does not "
+            "factor, however it is rearranged, and needs an integrating factor "
+            "instead. And a factored equation can still defeat the second step:"
+            " ∫ exp(y²) dy has no elementary form, so the answer stays an "
+            "integral or an implicit relation.",
+            r"y' = t + y \;\neq\; g(t)\,h(y)",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -518,6 +529,17 @@ LINEAR = Lesson(
             "p is 1/t and not 1 — and a wrong p gives a wrong μ, which leaves "
             "the left side not the derivative of anything.",
             r"t y' + y = t \;\Longrightarrow\; y' + \frac{1}{t}\,y = 1",
+            "pitfall",
+        ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: y must appear linearly",
+            "An integrating factor exists because y and y' appear only to the "
+            "first power. y' = y² + t is not linear, and no μ(t) straightens "
+            "it. Even when the equation is linear, ∫ μq dt may have no "
+            "elementary antiderivative; the method still works, and the answer "
+            "keeps that integral in it.",
+            r"y' = y^{2} + t \quad\text{is not linear in } y",
             "pitfall",
         ),
     ),
@@ -1632,6 +1654,19 @@ EXACT = Lesson(
             "above, run on your equation.",
             kind="aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: most equations are not exact",
+            "Exactness is a coincidence of partial derivatives, and most "
+            "equations lack it. The rescue is an integrating factor, and the "
+            "usual ones exist only in special cases: a factor depending on t "
+            "alone exists exactly when (M_y − N_t)/N depends on t alone. When "
+            "neither that nor its y-counterpart does, the textbook routes have "
+            "nothing to offer.",
+            r"\mu(t) \text{ exists} \Leftrightarrow \frac{M_y - N_t}{N} \text{ "
+            r"depends on } t \text{ only}",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -1923,6 +1958,18 @@ SUBSTITUTIONS = Lesson(
             "signs solve the equation. Only one passes through your initial "
             "point. Substituting will not tell you which — the condition is "
             "the only thing that does.",
+            "pitfall",
+        ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: the form has to match exactly",
+            "Each substitution is built for one shape. Homogeneous needs f(λt, "
+            "λy) = f(t, y); Bernoulli needs y' + p y = q yⁿ and nothing else. "
+            "y' = y² + t is neither — it is a Riccati equation, which has no "
+            "general elementary method at all. A substitution that does not fit"
+            " the equation does not fail loudly; it just produces something no "
+            "easier.",
+            r"y' = y^{2} + t: \ \text{neither homogeneous nor Bernoulli}",
             "pitfall",
         ),
     ),

@@ -231,6 +231,17 @@ LAPLACE = Lesson(
             r"\mathcal{L}\{f\}(s) = \int_{0}^{\infty} e^{-st} f(t)\,dt",
             "aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: exponential order and constant coefficients",
+            "The transform exists only for functions that grow no faster than "
+            "some exp(at): exp(t²) has none. And the method turns derivatives "
+            "into algebra only for constant coefficients; a coefficient of t "
+            "turns multiplication into differentiation in s, so t·y'' gives a "
+            "new differential equation rather than an equation to rearrange.",
+            r"\mathcal{L}\{t\,f(t)\} = -F'(s)",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(

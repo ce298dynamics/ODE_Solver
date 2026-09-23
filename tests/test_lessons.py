@@ -2199,3 +2199,22 @@ def test_the_figure_agrees_with_the_narrator_on_the_same_matrix(qapp):
     step = next(s for s in narrated.steps if s.title == "What the origin is")
     assert "saddle" in step.note and "saddle" in made.readout.text()
     made.deleteLater()
+
+
+#: The lessons that teach a method, each of which must say where it stops
+#: working (PED-06). A pitfall about a *student's* mistake is not that: these
+#: notes are about the method's own domain, headed "Where it stops".
+METHOD_LESSONS = (
+    "separable", "linear", "exact", "substitutions", "roots", "undetermined",
+    "variation", "cauchy", "numerical", "rungekutta", "laplace",
+    "power-series", "eigenvalues",
+)
+
+
+@pytest.mark.parametrize("key", METHOD_LESSONS)
+def test_a_method_lesson_says_where_the_method_stops(key):
+    lesson = next(lesson for lesson in LESSONS if lesson.key == key)
+    limits = [note for note in lesson.notes
+              if note.kind == "pitfall" and note.heading.startswith("Where it stops")]
+    assert len(limits) == 1, f"{key} does not say where its method fails"
+    assert len(limits[0].body) >= 200

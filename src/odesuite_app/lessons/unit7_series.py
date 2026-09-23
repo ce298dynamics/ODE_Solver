@@ -237,6 +237,17 @@ POWERSERIES = Lesson(
             r"y'' + y \;\longrightarrow\; O(t^{N})",
             "pitfall",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: at a singular point",
+            "A power series about t₀ is guaranteed only when p and q are "
+            "analytic there, and then it converges at least out to the nearest "
+            "singularity — complex ones included. At a singular point itself "
+            "there may be no power series solution at all: t²y'' + t y' + (t² −"
+            " ν²)y = 0 at t = 0 needs the Frobenius form t^r·Σ aₙtⁿ.",
+            r"y = t^{r}\sum_{n \geq 0} a_n t^{n}",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(

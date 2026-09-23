@@ -521,6 +521,17 @@ DISTINCT = Lesson(
             r"\lambda_1 < 0 < \lambda_2",
             "idea",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: linear and constant",
+            "The eigenvalue method solves x' = A x for a constant matrix A and "
+            "nothing else. A nonlinear system can only be linearised about an "
+            "equilibrium, which describes it near that point and says nothing "
+            "far from it; a time-varying A(t) has no eigenvalue shortcut at "
+            "all.",
+            r"\mathbf{x}' = A\,\mathbf{x},\quad A \text{ constant}",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
