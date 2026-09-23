@@ -511,7 +511,7 @@ def _separable(equation: sp.Eq, function: sp.Function, ics: dict,
     general = sp.simplify(_pick_branch(solutions, ics))
     derivation.steps.append(Step(
         title=f"Solve for {variable}",
-        latex=_eq(f"{variable}(t)", general),
+        latex=_eq(f"{variable}(t)", _branches_latex(solutions, ics, general)),
         note="The general solution: one arbitrary constant, as a first-order "
              "equation must have."
              + ("" if len(solutions) < 2 else
@@ -522,6 +522,33 @@ def _separable(equation: sp.Eq, function: sp.Function, ics: dict,
         verified=_satisfies(equation, function, general),
     ))
     _apply_conditions(general, ics, derivation, _constants_in(general))
+
+
+def _branches_latex(solutions, ics: dict, chosen):
+    r"""The right-hand side a "Solve for y" step shows (SYM-03).
+
+    With a condition, the branch it sits on -- `_pick_branch` has chosen it.
+    Without one, *every* branch: showing one of two as "the general solution"
+    silently discards half the family, and ``y' = -t/y`` came out as
+    ``y = -sqrt(2C - t^2)`` with nothing on the page to say the upper half of
+    every circle existed. Two branches are written the way a textbook writes
+    them, as a centre plus or minus a half-difference, which gives both
+    ``\pm\sqrt{2C - t^2}`` and the exact equation's
+    ``-t^2/2 \pm \sqrt{4C + t^4}/2``; anything else is listed.
+    """
+    if ics or len(solutions) < 2:
+        return sp.latex(chosen)
+    if len(solutions) == 2:
+        first, second = solutions
+        centre = sp.simplify((first + second) / 2)
+        half = sp.simplify((first - second) / 2)
+        if half.could_extract_minus_sign():
+            half = -half
+        if centre == 0:
+            return rf"\pm {sp.latex(half)}"
+        return rf"{sp.latex(centre)} \pm {sp.latex(half)}"
+    return r"\quad\text{or}\quad ".join(sp.latex(sp.simplify(branch))
+                                         for branch in solutions)
 
 
 def _pick_branch(solutions, ics: dict):
@@ -1385,7 +1412,7 @@ def _exact_equation(equation: sp.Eq, function: sp.Function, ics: dict,
     general = sp.simplify(_pick_branch(solutions, ics))
     derivation.steps.append(Step(
         title="Solve for y",
-        latex=_eq("y(t)", general),
+        latex=_eq("y(t)", _branches_latex(solutions, ics, general)),
         note="The general solution."
              + ("" if len(solutions) < 2 else
                 "  Rearranging gave several branches; this is the one the "

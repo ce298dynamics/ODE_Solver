@@ -189,7 +189,8 @@ def test_time_as_an_argument_and_time_as_a_state_agree(
     def f(t, y):
         return np.array([-k * y[0] + np.sin(omega * t)])
 
-    extras = {"dfdt": lambda t, y: np.array([omega * np.cos(omega * t)])}         if exact_dfdt else {}
+    extras = ({"dfdt": lambda t, y: np.array([omega * np.cos(omega * t)])}
+              if exact_dfdt else {})
     direct = ODEProblem(f=f, t_span=(0.0, t_end), y0=[y0],
                         jac=lambda t, y: np.array([[-k]]), **extras)
     extended = ODEProblem(

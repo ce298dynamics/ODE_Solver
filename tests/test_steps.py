@@ -1210,3 +1210,34 @@ def test_a_narration_failure_never_costs_the_answer():
     assert reply["ok"] is True, reply.get("error")
     assert reply["derivation"]["result"] is None
     assert reply["derivation"]["message"]
+
+
+# ---------------------------------------------------------------------------
+# SYM-03 -- a general solution with two branches shows both
+# ---------------------------------------------------------------------------
+
+
+def _solve_step(derivation):
+    return next(step for step in derivation.steps
+                if step.title.startswith("Solve for"))
+
+
+@pytest.mark.parametrize("equation,shown", [
+    # Separable, where the branches are a sign apart.
+    (_eq(Y(T).diff(T), -T / Y(T)), r"\pm \sqrt{2 C - t^{2}}"),
+    # Exact, where they are a quadratic's two roots.
+    (_eq(2 * T * Y(T) + (T**2 + 2 * Y(T)) * Y(T).diff(T)),
+     r"- \frac{t^{2}}{2} \pm \frac{\sqrt{4 C + t^{4}}}{2}"),
+])
+def test_a_general_solution_keeps_both_branches(equation, shown):
+    """``y' = -t/y`` used to be solved as ``y = -sqrt(2C - t^2)`` alone: half
+    of every circle, presented as the general solution."""
+    step = _solve_step(_derive(equation))
+    assert step.latex == f"y(t) = {shown}"
+
+
+def test_a_condition_still_picks_its_branch():
+    equation = _eq(Y(T).diff(T), -T / Y(T))
+    derivation = _derive(equation, {Y(sp.Integer(0)): 2})
+    assert r"\pm" not in _solve_step(derivation).latex
+    assert sp.simplify(derivation.result - sp.sqrt(4 - T**2)) == 0

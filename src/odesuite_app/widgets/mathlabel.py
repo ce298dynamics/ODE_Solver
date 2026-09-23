@@ -111,7 +111,7 @@ class _FontWatch(QObject):
         super().__init__()
         self._labels: weakref.WeakSet = weakref.WeakSet()
 
-    def watch(self, label: "MathLabel") -> None:
+    def watch(self, label: MathLabel) -> None:
         self._labels.add(label)
 
     def eventFilter(self, obj, event) -> bool:
@@ -127,7 +127,7 @@ class _FontWatch(QObject):
 _FONT_WATCH: _FontWatch | None = None
 
 
-def _watch_font(label: "MathLabel") -> None:
+def _watch_font(label: MathLabel) -> None:
     global _FONT_WATCH
     app = QApplication.instance()
     if app is None:

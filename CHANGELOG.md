@@ -182,6 +182,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **A general solution with two branches shows both** (SYM-03). Without an
+  initial condition, "Solve for y" took the first root sympy returned and
+  called it the general solution: `y' = -t/y` became `y = -√(2C - t²)`, the
+  lower half of every circle, with the upper half nowhere on the page. It now
+  reads `y = ±√(2C - t²)`, and the exact equation `2ty + (t² + 2y)y' = 0`
+  reads `y = -t²/2 ± √(4C + t⁴)/2` beneath its implicit `ψ = C`. With a
+  condition nothing changes: the branch it sits on is still the one shown.
+  What was *not* found is the defect the audit expected -- the initial-value
+  case was already choosing the right branch, via `_pick_branch`.
+
 - **Separatrices differ in pattern as well as colour** (A11Y-03). The stable
   manifold is solid and the unstable one dash-dot, and the legend draws the
   two patterns. They were red against green only, the pairing red–green

@@ -239,7 +239,7 @@ def _settle(qapp, label: MathLabel, until=None, timeout: float = 20.0) -> None:
     # if it lags, the event never reached the label at all. That single number
     # separates the two, and nothing smaller than a whole-suite run produces
     # the failure that needs separating.
-    believed = getattr(label, "_scale", "?") if label is not None else "?" 
+    believed = getattr(label, "_scale", "?") if label is not None else "?"
     raise AssertionError(
         f"the equation never settled: waited {waited:.1f}s of a {timeout:g}s "
         f"budget, with a render job still {'pending' if pending else 'finished'}; "
