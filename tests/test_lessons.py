@@ -1213,12 +1213,27 @@ def test_switching_around_does_not_accumulate_widgets(screen, qapp):
 
 
 def test_the_tool_button_asks_for_the_matching_screen(screen, qapp):
+    """And carries the lesson's own example with it.
+
+    `open_tool` widened to `Signal(str, str, str)` when the button began
+    handing the tool an equation to open on, and a one-argument slot silently
+    collected nothing at all: `list.append` raised inside the emission, so the
+    list stayed empty rather than wrong. Three arguments are taken here, and
+    the payload is asserted rather than merely tolerated.
+    """
     seen = []
-    screen.open_tool.connect(seen.append)
+    screen.open_tool.connect(
+        lambda tool, equation, conditions: seen.append(
+            (tool, equation, conditions))
+    )
     for lesson in LESSONS:
         _open(screen, qapp, lesson.key, "Learn")
         screen._open_tool()
-    assert seen == [lesson.tool for lesson in LESSONS]
+
+    assert [tool for tool, _, _ in seen] == [lesson.tool for lesson in LESSONS]
+    assert [equation for _, equation, _ in seen] == [
+        lesson.example for lesson in LESSONS
+    ], "the tool is opened on the lesson's own example"
 
 
 @pytest.mark.slow
@@ -1416,10 +1431,19 @@ def test_drill_is_withheld_from_a_lesson_that_has_none(screen, qapp):
 
 
 def test_the_drill_page_offers_every_template(screen, qapp):
+    """Every drill, and each saying how many versions it has.
+
+    The count is the one for the tier the card is *drawing from*, which is the
+    whole pool unless the template offers a choice of difficulty. "One of 18
+    versions" beside a control set to harder would be counting questions the
+    drill is not going to ask.
+    """
     lesson = _drill(screen, qapp, "separable")
     assert set(screen._verdicts) == {t.key for t in lesson.templates}
     for template in lesson.templates:
-        assert str(generate.combinations(template)) in _page_text(screen), (
+        offered = generate.tiers(template)
+        tier = screen._tier_of(template, offered) if len(offered) > 1 else ""
+        assert str(generate.combinations(template, tier)) in _page_text(screen), (
             "the drill does not say how many versions there are"
         )
 
@@ -1427,11 +1451,16 @@ def test_the_drill_page_offers_every_template(screen, qapp):
 def test_a_new_question_is_a_different_question(screen, qapp):
     lesson = _drill(screen, qapp, "separable")
     template = lesson.templates[0]
+    # At whichever tier the card is set to, or the drawn question is not the
+    # one on the screen: this drill offers a choice of difficulty, and a draw
+    # that ignored it would be comparing against a question nobody was asked.
+    offered = generate.tiers(template)
+    tier = screen._tier_of(template, offered) if len(offered) > 1 else ""
 
-    first = generate.draw(template, screen._drill_seed[template.key])
+    first = generate.draw(template, screen._drill_seed[template.key], tier)
     _press(screen, "New question")
     qapp.processEvents()
-    second = generate.draw(template, screen._drill_seed[template.key])
+    second = generate.draw(template, screen._drill_seed[template.key], tier)
 
     assert (first.equation, first.conditions) != (second.equation,
                                                   second.conditions)
@@ -1452,6 +1481,106 @@ def test_the_question_survives_leaving_the_lesson_and_coming_back(screen,
     _open(screen, qapp, "roots", "Learn")
     _drill(screen, qapp, "separable")
     assert screen._drill_seed[template.key] == seed
+
+
+def _enter(widget, qapp):
+    """Press Return on `widget`, the way a reader working a drill would."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    QTest.keyClick(widget, Qt.Key_Return)
+    qapp.processEvents()
+
+
+def test_enter_marks_the_answer_and_enter_again_draws_the_next(screen, qapp,
+                                                               store):
+    """The whole of the keyboard loop, in the order a reader meets it.
+
+    Enter used only to mark. *New question* was a button, so a drill -- the
+    one part of this application somebody does forty times in a row -- needed
+    the mouse for every second action.
+    """
+    lesson = _drill(screen, qapp, "separable")
+    template = lesson.templates[0]
+    box = screen._drill_inputs[template.key]
+    seed = screen._drill_seed[template.key]
+
+    box.setText("y = nonsense")
+    _enter(box, qapp)
+    assert screen._drill_seed[template.key] == seed, (
+        "the first press should mark the answer, not skip past it"
+    )
+    assert screen._verdicts[template.key].text(), "nothing was marked"
+
+    _enter(screen._drill_inputs[template.key], qapp)
+    assert screen._drill_seed[template.key] == seed + 1, (
+        "the second press should draw the next question"
+    )
+
+
+def test_the_caret_lands_in_the_next_question(screen, qapp, store):
+    """Advancing rebuilds the whole segment, which destroys the box being
+    typed in. Without putting the caret back, the loop would run exactly one
+    question before handing the mouse back."""
+    lesson = _drill(screen, qapp, "separable")
+    template = lesson.templates[0]
+    box = screen._drill_inputs[template.key]
+
+    box.setText("y = nonsense")
+    _enter(box, qapp)
+    _enter(screen._drill_inputs[template.key], qapp)
+
+    fresh = screen._drill_inputs[template.key]
+    assert fresh is not box, "the card was not rebuilt"
+    assert screen.focusWidget() is fresh, "the caret was not put back"
+
+
+def test_an_empty_box_is_not_spent_as_a_turn(screen, qapp, store):
+    """`graded` reports whether it actually marked anything, which is what
+    keeps a stray Return from skipping a question unanswered."""
+    lesson = _drill(screen, qapp, "numerical")       # a Numeric drill
+    template = next(t for t in lesson.templates if t.kind == "numeric-template")
+    box = screen._drill_inputs[template.key]
+    seed = screen._drill_seed[template.key]
+
+    for _ in range(3):
+        _enter(box, qapp)
+    assert screen._drill_seed[template.key] == seed, (
+        "an unreadable answer should leave the reader on the same question"
+    )
+
+
+def test_a_multiple_choice_drill_answers_to_the_keyboard_too(screen, qapp,
+                                                             store):
+    """It has no box to type in, so the card itself takes the key -- and only
+    that card, or one press would answer every drill on the page."""
+    from PySide6.QtWidgets import QRadioButton
+
+    lesson = _drill(screen, qapp, "impulses")
+    template = lesson.templates[0]
+    seed = screen._drill_seed[template.key]
+
+    option = screen._page.findChildren(QRadioButton)[0]
+    option.setChecked(True)
+    _enter(option, qapp)
+    assert screen._drill_seed[template.key] == seed, "the first press marks"
+    assert screen._verdicts[template.key].text()
+
+    _enter(screen._page.findChildren(QRadioButton)[0], qapp)
+    assert screen._drill_seed[template.key] == seed + 1, "the second advances"
+
+
+def test_an_unpicked_option_is_not_spent_as_a_turn(screen, qapp, store):
+    from PySide6.QtWidgets import QRadioButton
+
+    lesson = _drill(screen, qapp, "impulses")
+    template = lesson.templates[0]
+    seed = screen._drill_seed[template.key]
+
+    for _ in range(3):
+        _enter(screen._page.findChildren(QRadioButton)[0], qapp)
+    assert screen._drill_seed[template.key] == seed
+    assert "pick an option" in screen._verdicts[template.key].text()
 
 
 def test_a_drill_is_mastered_by_three_in_a_row(screen, qapp, store):
@@ -1707,21 +1836,71 @@ def test_the_two_orders_are_reported_as_measured_ratios(qapp):
     made.deleteLater()
 
 
-def test_a_lesson_with_a_figure_shows_it_and_one_without_does_not(screen, qapp):
+def test_every_lesson_has_a_figure():
+    """All thirty-five, which was not true until the seventeen were written.
+
+    Asserted over the whole course rather than over a list, so a lesson added
+    later without a picture fails here rather than quietly being the only one
+    missing its graphical leg."""
+    without = [lesson.key for lesson in LESSONS if not lesson.figure]
+    assert without == [], f"no figure for: {', '.join(without)}"
+
+
+def test_a_lesson_shows_its_figure_in_learn_and_not_in_examples(screen, qapp):
     from odesuite_app.widgets.lessonfigure import LessonFigure
 
     _open(screen, qapp, "slopefields", "Learn")
     assert screen._page.findChildren(LessonFigure), "the figure is missing"
 
-    # And it belongs to Learn only: the same lesson's Practice is questions.
-    _open(screen, qapp, "slopefields", "Practice")
+    # It belongs to Learn. Examples is the narrator working an equation
+    # through, and a figure there would be a third thing to read.
+    _open(screen, qapp, "slopefields", "Examples")
     assert not screen._page.findChildren(LessonFigure)
 
-    # A lesson genuinely without one. Eighteen of the thirty-five have a
-    # figure and seventeen do not, because a figure earns its place only
-    # where the lesson has a parameter worth turning.
-    _open(screen, qapp, "basics", "Learn")
+
+def test_a_question_can_be_asked_about_a_picture(screen, qapp):
+    """The graphical leg becoming assessable rather than only illustrative.
+
+    `slopefields` has a question carrying `figure=`, so its Practice segment
+    shows one; `separable` has none, so its Practice is questions alone. Both
+    directions are checked, because a screen that drew a figure on every
+    question card would pass the first assertion for the wrong reason."""
+    from odesuite_app.widgets.lessonfigure import LessonFigure
+
+    _open(screen, qapp, "slopefields", "Practice")
+    shown = screen._page.findChildren(LessonFigure)
+    assert shown, "a question that names a figure should show it"
+    assert any(type(one).__name__ == "SlopeFieldFigure" for one in shown), (
+        "and it should be the figure the question actually names"
+    )
+
+    _open(screen, qapp, "separable", "Practice")
     assert not screen._page.findChildren(LessonFigure)
+
+
+def test_every_figure_a_question_names_exists():
+    from odesuite_app.widgets.lessonfigure import FIGURES
+
+    for lesson in LESSONS:
+        for question in lesson.questions:
+            key = getattr(question, "figure", "")
+            if key:
+                assert key in FIGURES, (
+                    f"{lesson.key}/{question.key} names a figure that does "
+                    f"not exist: {key!r}"
+                )
+
+
+def test_the_figure_questions_are_spread_across_the_course():
+    """One per unit, which is the point: reading a picture is a skill the
+    whole course uses, not a trick of the unit that happened to get one."""
+    units = {
+        content.unit_of(lesson).key
+        for lesson in LESSONS
+        for question in lesson.questions
+        if getattr(question, "figure", "")
+    }
+    assert len(units) >= 7, f"figure questions reach only {sorted(units)}"
 
 
 # ---------------------------------------------------------------------------

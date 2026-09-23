@@ -383,6 +383,7 @@ RECURRENCE = Lesson(
             "answer it builds can be trusted.",
     tool="steps",
     reference="Edwards 8.2",
+    figure="recurrence",
     motivation=(
         "Assuming a series and substituting it is the easy half. What comes "
         "back is an equation between three or four infinite sums whose powers "
@@ -642,6 +643,34 @@ RECURRENCE = Lesson(
                 "So a₆ and everything past it are zero, leaving a quartic.",
             ),
         ),
+        Choice(
+            key="q-figure",
+            prompt="Slide l in the figure onto 4. Reading the stems in the "
+                   "left pane, which of the drawn coefficients are zero?",
+            figure="recurrence",
+            options=(
+                "a₆ and every even coefficient after it",
+                "a₄ and every even coefficient after it",
+                "Every odd coefficient, because l is even",
+                "None of them — a recurrence never produces an exact zero",
+            ),
+            answer=0,
+            becauses=(
+                "The numerator n(n+1) − l(l+1) is zero at n = 4, and the "
+                "recurrence takes a₄ to a₆, so a₆ is zero and every later "
+                "even coefficient inherits it. What is left is a polynomial "
+                "of degree 4, which is why Legendre polynomials exist.",
+                "a₄ is the last coefficient that survives, not the first that "
+                "dies. The recurrence multiplies a₄ by the vanishing factor "
+                "to get a₆, so the zero lands one step further on.",
+                "The odd coefficients descend from a₁ and their numerators "
+                "are n(n+1) − 20 at odd n, which is never zero. Read the "
+                "stems: they are still there at a₁₅.",
+                "It produces one exactly when l is a whole number, and that "
+                "is the whole reason whole numbers are the interesting case. "
+                "The slider snaps onto them so that it can be seen happening.",
+            ),
+        ),
     ),
     templates=(
         ChoiceTemplate(
@@ -692,6 +721,7 @@ FROBENIUS = Lesson(
             "that rescues it.",
     tool="steps",
     reference="Edwards 8.3",
+    figure="indicial",
     motivation=(
         "The series method came with a condition: the point must be ordinary. "
         "The points that are not ordinary are exactly the interesting ones. A "

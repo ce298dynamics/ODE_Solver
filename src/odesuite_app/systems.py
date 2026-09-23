@@ -554,7 +554,19 @@ def _apply_conditions(general, constants, functions, ics: dict, matrix,
     wanted = {}
     for key, value in ics.items():
         for index, function in enumerate(functions):
-            if getattr(key, "func", None) is function:
+            # `==` rather than `is`, and the difference is not stylistic.
+            # `sp.Function("x")` is memoised, so two calls normally hand back
+            # one object and identity looks safe -- but sympy's cache is an
+            # `lru_cache` bounded at `SYMPY_CACHE_SIZE`, 1000 by default. Once
+            # a thousand other functions and symbols have been built, the entry
+            # for "x" is evicted and the next `Function("x")` is a *different*
+            # class that is still equal to the first. Under identity the
+            # conditions then match nothing, and this reports "one condition
+            # per unknown is needed" about a pair that was supplied -- so the
+            # general solution is shown where a particular one was asked for,
+            # silently, and only in a session long enough to have filled the
+            # cache. Reproduced by building 3000 throwaway functions.
+            if getattr(key, "func", None) == function:
                 point = key.args[0]
                 if not point.free_symbols:
                     wanted[index] = (point, sp.sympify(value))

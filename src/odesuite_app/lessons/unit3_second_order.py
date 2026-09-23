@@ -37,6 +37,7 @@ ROOTS = Lesson(
             "becomes a quadratic.",
     tool="steps",
     reference="Edwards 3.1–3.3",
+    figure="root_cases",
     motivation=(
         "Superposition says that two independent solutions are the whole "
         "answer. It does not say how to find even one of them, and for a "
@@ -287,6 +288,39 @@ ROOTS = Lesson(
                 "y = C₁cos 3t + C₂sin 3t.",
                 "y(0) = 0 kills the cosine; y′(0) = 3 gives 3C₂ = 3, so "
                 "y = sin 3t.",
+            ),
+        ),
+        Choice(
+            key="q-figure",
+            prompt="In the left pane of the figure, hold b fixed and drag c "
+                   "upwards until the marker crosses the parabola. What "
+                   "happens to the solution in the right pane as it does?",
+            figure="root_cases",
+            options=(
+                "The two real roots collide into one, and past the parabola "
+                "the solution starts to oscillate",
+                "The solution changes from decaying to growing, because "
+                "crossing the parabola changes the sign of the roots",
+                "Nothing visible happens: the parabola marks a change in the "
+                "formula used, not in the behaviour",
+                "The solution stops existing, because above the parabola the "
+                "characteristic equation has no roots",
+            ),
+            answer=0,
+            becauses=(
+                "b² − 4c changes sign exactly at the parabola. Below it the "
+                "roots are two real numbers, on it they are one repeated "
+                "root, and above it they are a complex pair — which is the "
+                "first moment the curve crosses the axis rather than "
+                "approaching it.",
+                "Growth or decay is decided by the real part, which is −b/2 "
+                "and has nothing to do with c. Hold b positive and everything "
+                "decays on both sides of the parabola.",
+                "The formula changes because the behaviour does. Watch the "
+                "right pane while you cross: the curve goes from never "
+                "crossing zero to crossing it repeatedly.",
+                "It always has roots — a quadratic always does. What changes "
+                "is whether they are real, and complex roots are roots.",
             ),
         ),
     ),
@@ -995,6 +1029,7 @@ SUPERPOSITION = Lesson(
             "to tell whether the two you have will do.",
     tool="steps",
     reference="Edwards 3.1",
+    figure="superposition",
     motivation=(
         "Everything so far has been first order, and first order means one "
         "constant and one condition. The physical world is mostly second "
@@ -1348,9 +1383,10 @@ SUPERPOSITION = Lesson(
                  "out.",
                  "harder"),
                 ("C₁ + C₂e^(-4t)", "y'' + 4*y' = 0",
-                 "A bare constant is e^(0t), so the roots are 0 and −4 and "
-                 "the polynomial is r(r + 4) = r² + 4r. The missing constant "
-                 "term is the zero root.",
+                 "A bare constant is an exponential too, with rate zero. So "
+                 "the roots are 0 and −4, and the polynomial is "
+                 "r(r + 4) = r² + 4r — the missing constant term is the zero "
+                 "root.",
                  "harder"),
             )),),
             level=lambda slots: slots["tier"],
@@ -1366,6 +1402,7 @@ VARIATION = Lesson(
             "guess.",
     tool="steps",
     reference="Edwards 3.5",
+    figure="variation",
     motivation=(
         "Undetermined coefficients works because one particular family of "
         "functions is closed under differentiation. Step outside that family "
@@ -1811,6 +1848,7 @@ HIGHER = Lesson(
             "and multiplicity to respect.",
     tool="steps",
     reference="Edwards 3.2–3.3",
+    figure="higher_order",
     motivation=(
         "Second order covers a mass on a spring. Higher orders appear as soon "
         "as more than one thing is storing energy: a beam's deflection is "

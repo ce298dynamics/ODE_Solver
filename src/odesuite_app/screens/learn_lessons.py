@@ -939,6 +939,7 @@ class LessonsScreen(QWidget):
         prompt.setProperty("role", "muted")
         prompt.setWordWrap(True)
         layout.addWidget(prompt)
+        self._question_figure(question, layout)
 
         if len(offered) > 1:
             layout.addLayout(self._tier_row(template, offered))
@@ -1399,12 +1400,53 @@ class LessonsScreen(QWidget):
         prompt.setProperty("role", "heading")
         prompt.setWordWrap(True)
         layout.addWidget(prompt)
+        # After the prompt and before the options: the prompt says what to
+        # read off the picture, so it has to have been read first.
+        self._question_figure(question, layout)
 
-        if question.kind == "choice":
-            self._build_choice(lesson, question, layout)
+        # Dispatched by kind rather than by "choice or everything else",
+        # which is what it was. A practice question could only ever be a
+        # `Choice` or a `Solve`, so the fall-through was safe; the first
+        # `Numeric` written into a lesson's `questions` landed in
+        # `_build_solve` and raised on `question.equation`, which a `Numeric`
+        # does not have. An unknown kind now says so on the card instead of
+        # taking the page down.
+        builder = {
+            "choice": self._build_choice,
+            "numeric": self._build_numeric,
+            "solve": self._build_solve,
+        }.get(question.kind)
+        if builder is None:
+            unknown = QLabel(
+                f"this question is a {question.kind!r}, which this screen "
+                "does not know how to ask"
+            )
+            unknown.setWordWrap(True)
+            unknown.setStyleSheet(
+                theme.scaled(f"color: {self.palette_obj.danger};")
+            )
+            layout.addWidget(unknown)
         else:
-            self._build_solve(lesson, question, layout)
+            builder(lesson, question, layout)
         return frame
+
+    def _question_figure(self, question, layout) -> None:
+        """Put a question's own figure above its prompt, where it has one.
+
+        The same widget the Learn segment shows, deliberately: a question
+        about a phase portrait should be answered by moving the sliders on
+        the phase portrait, not by remembering one. The figure is live here
+        for the same reason it is live there.
+
+        Silent where the key is unknown, as `build_figure` is: a question that
+        lost its picture is still a question, and the tests catch the typo.
+        """
+        key = getattr(question, "figure", "")
+        if not key:
+            return
+        figure = build_figure(key, self.palette_obj)
+        if figure is not None:
+            layout.addWidget(figure)
 
     def _build_choice(self, lesson, question, layout) -> None:
         if question.latex:
@@ -1438,6 +1480,68 @@ class LessonsScreen(QWidget):
 
         check.clicked.connect(
             lambda: self._check_choice(lesson, question, group, verdict)
+        )
+        self._restore(lesson, question, verdict)
+
+    def _build_numeric(self, lesson, question, layout) -> None:
+        """A practice question whose answer is a number.
+
+        The same shape as the drill's numeric card and for the same reasons:
+        a box, a tolerance-graded check through `symbolic.grade_numeric`, and
+        the hint ladder behind it. No "Show me" — what is being asked for is a
+        value read off a figure or off one step of a method, and there is no
+        narrator that works through *that*; the reason the answer is the
+        answer arrives with the verdict instead.
+        """
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        answer = QLineEdit()
+        answer.setPlaceholderText("a number")
+        answer.setClearButtonEnabled(True)
+        row.addWidget(answer, 1)
+
+        if question.units:
+            # Beside the box rather than inside it: the units are never part
+            # of what is typed, and a placeholder showing them would invite
+            # somebody to type them.
+            units = QLabel(question.units)
+            units.setProperty("role", "muted")
+            row.addWidget(units)
+
+        check = QPushButton("Check")
+        check.setToolTip("Mark the number you have entered")
+        check.setProperty("role", "primary")
+        check.setCursor(Qt.PointingHandCursor)
+        row.addWidget(check)
+
+        hint_button = QPushButton("Hint")
+        hint_button.setToolTip(
+            "Reveal the next hint. They come one at a time, and never the "
+            "answer."
+        )
+        hint_button.setCursor(Qt.PointingHandCursor)
+        hint_button.setEnabled(bool(question.hints))
+        row.addWidget(hint_button)
+        layout.addLayout(row)
+
+        verdict = QLabel("")
+        verdict.setWordWrap(True)
+        verdict.setTextFormat(Qt.RichText)
+        layout.addWidget(verdict)
+        self._verdicts[question.key] = verdict
+
+        hints = QLabel("")
+        hints.setProperty("role", "muted")
+        hints.setWordWrap(True)
+        hints.setVisible(False)
+        layout.addWidget(hints)
+
+        self._wire_hints(question, hints, hint_button)
+        check.clicked.connect(
+            lambda: self._check_numeric(lesson, question, answer, verdict)
+        )
+        answer.returnPressed.connect(
+            lambda: self._check_numeric(lesson, question, answer, verdict)
         )
         self._restore(lesson, question, verdict)
 

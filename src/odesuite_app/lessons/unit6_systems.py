@@ -43,6 +43,7 @@ FIRSTORDER = Lesson(
             "equation turns into one.",
     tool="steps",
     reference="Edwards 4.1",
+    figure="state_plane",
     motivation=(
         "Every equation so far has had one unknown function. Very little in "
         "the world comes that way. Two tanks exchanging brine, two masses "
@@ -342,6 +343,7 @@ DISTINCT = Lesson(
             "collapses into an eigenvalue problem.",
     tool="steps",
     reference="Edwards 5.2",
+    figure="eigen_modes",
     motivation=(
         "The system is written as a matrix times a vector, and the difficulty "
         "is entirely that a matrix changes direction. Multiply a vector by a "
@@ -993,6 +995,7 @@ REPEATED = Lesson(
             "provides one direction.",
     tool="steps",
     reference="Edwards 5.4",
+    figure="defective",
     motivation=(
         "A two-by-two system needs two independent solutions, and the "
         "eigenvalue method supplies one per eigenvector. When the "
@@ -1562,6 +1565,38 @@ PORTRAITS = Lesson(
                 "arrives tangent to it.",
             ),
         ),
+        Choice(
+            key="q-figure",
+            prompt="Leave the figure's matrix at its default entries "
+                   "(1, 2; 3, 2). How many straight-line solutions does the "
+                   "picture show, and why that many?",
+            figure="eigenlines",
+            options=(
+                "Two, one along each eigenvector, because the eigenvalues are "
+                "real and distinct",
+                "One, because only one of the two eigenvalues is positive",
+                "None, because every trajectory drawn in the picture bends",
+                "Infinitely many, because every line through the origin is "
+                "invariant under a linear system",
+            ),
+            answer=0,
+            becauses=(
+                "The trace is 3 and the determinant is 2 − 6 = −4, so the "
+                "eigenvalues are 4 and −1: real, distinct, and each with its "
+                "own eigendirection. A trajectory starting on one stays on "
+                "it, which is what a straight-line solution is.",
+                "The sign of an eigenvalue decides which way the flow runs "
+                "along its line, not whether the line is there. Drag an entry "
+                "until both are negative and there are still two of them.",
+                "The bending curves are the ones that started off an "
+                "eigendirection. The two heavy lines through the origin do "
+                "not bend, and the readout names the eigenvalues they belong "
+                "to.",
+                "Only the eigendirections are invariant. Take any other line "
+                "through the origin and the field crosses it rather than "
+                "running along it — which is visible in the picture.",
+            ),
+        ),
     ),
     templates=(
         NumericTemplate(
@@ -1706,6 +1741,7 @@ NONHOMOGENEOUS = Lesson(
             "matrix that expresses the whole answer.",
     tool="steps",
     reference="Edwards 5.5–5.6",
+    figure="forced_system",
     motivation=(
         "Everything in this unit so far has had nothing on the right-hand "
         "side, and the same objection applies as at second order: an unforced "

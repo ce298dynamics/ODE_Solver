@@ -76,6 +76,7 @@ from .. import exam, progress, theme
 from .. import lessons as content
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
+from ..widgets.lessonfigure import build_figure
 from ..widgets.mathlabel import MathLabel
 
 __all__ = ["QuizScreen"]
@@ -456,6 +457,21 @@ class QuizScreen(QWidget):
             return
         self._run([self._questions[index] for index in wrong], retrying=True)
 
+    def _question_figure(self, question, layout) -> None:
+        """Put a question's own figure above its prompt, where it has one.
+
+        The same helper the Lessons screen has, because a quiz question *is*
+        an ordinary question: one that asks what a phase portrait shows has to
+        show one here too, or the quiz would silently drop the only leg of the
+        rule of four this application has just learned to assess.
+        """
+        key = getattr(question, "figure", "")
+        if not key:
+            return
+        figure = build_figure(key, self.palette_obj)
+        if figure is not None:
+            layout.addWidget(figure)
+
     def _show_question(self) -> None:
         self._clear()
         if self._index >= len(self._questions):
@@ -492,6 +508,7 @@ class QuizScreen(QWidget):
         )
         prompt.setWordWrap(True)
         inner.addWidget(prompt)
+        self._question_figure(question, inner)
 
         # A Choice carries real LaTeX and is typeset; a Solve carries source
         # text, which is shown monospaced. Running generated source through the

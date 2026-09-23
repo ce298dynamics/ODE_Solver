@@ -744,6 +744,7 @@ BASICS = Lesson(
             "have solved one.",
     tool="steps",
     reference="Edwards 1.1–1.2",
+    figure="solution_family",
     motivation=(
         "Algebra asks which *number* satisfies a condition. A differential "
         "equation asks which *function* does — and the condition is about the "
@@ -1362,6 +1363,38 @@ SLOPEFIELDS = Lesson(
                 "even though the equation itself looks harmless there.",
             ),
         ),
+        Choice(
+            key="q-figure",
+            prompt="In the figure, drag a down to −1 and b to 0, so the "
+                   "equation is y′ = −y. Now read the dashes rather than any "
+                   "curve: what do they say about every solution?",
+            figure="slope_field",
+            options=(
+                "Every solution approaches y = 0, from whichever side it "
+                "started on",
+                "Solutions above the axis rise and those below it fall, so "
+                "they separate",
+                "Solutions cross the axis and oscillate about it",
+                "It depends on the initial condition, and the field cannot "
+                "say",
+            ),
+            answer=0,
+            becauses=(
+                "The slope is −y, so it is negative wherever y is positive "
+                "and positive wherever y is negative. Every dash leans "
+                "towards the axis, and a solution curve has no choice but to "
+                "follow them there.",
+                "That is what a = +1 would give. Read the sign: with a = −1 a "
+                "positive y has a negative slope, so the curve comes back "
+                "down rather than running away.",
+                "Nothing crosses the axis. y = 0 is itself a solution, and "
+                "uniqueness says no other curve may touch it — so no curve "
+                "can get to the other side of it.",
+                "Answering exactly this, without solving anything, is what a "
+                "slope field is for. Drop conditions anywhere you like and "
+                "every curve does the same thing.",
+            ),
+        ),
     ),
     templates=(
         NumericTemplate(
@@ -1705,6 +1738,7 @@ SUBSTITUTIONS = Lesson(
             "of variable that make them so.",
     tool="steps",
     reference="Edwards 1.6",
+    figure="substitution",
     motivation=(
         "Four techniques in, the pattern is that each one recognises a shape. "
         "That raises an obvious question about everything else: is an equation "

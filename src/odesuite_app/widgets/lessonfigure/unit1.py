@@ -437,7 +437,8 @@ class FamilyFigure(LessonFigure):
     def _describe(self, a, n, y0, ending) -> None:
         power = n + 1
         self.readout.setText(
-            f"y′ = {a:.2f}·t^{n:.2f}  →  y = {a / power:.3f}·t^{power:.2f} + C, "
+            f"y′ = {a:.2f}·t^({n:.2f})  →  y = {a / power:.3f}·t^({power:.2f})"
+            " + C, "
             f"and y(0) = {y0:.2f} makes C = {y0:.2f}. Every curve here solves "
             f"the equation; only this one meets the condition, and it reaches "
             f"{ending:.2f} at t = {self._TLIM[1]:.1f}."

@@ -54,6 +54,14 @@ machinery that already existed.
 And every slot-based template can say which of `TIERS` each of its draws
 belongs to, so a drill can be made easier or harder without becoming a
 different drill.
+
+**A question can be asked about a picture.** `Choice`, `Numeric` and `Solve`
+each carry an optional `figure`, a key into the same registry a lesson's own
+figure comes from, and it is shown above the prompt. This is the graphical
+leg of the rule of four becoming assessable rather than merely illustrative:
+until a question could hold a figure, every question here was about a formula
+or a number, and reading a phase portrait -- which is most of what the later
+units are for -- could be demonstrated to a student and never asked of one.
 """
 
 from __future__ import annotations
@@ -191,6 +199,19 @@ class Choice:
     #: a different option every time. This maps the position back to the
     #: option the author wrote, which is stable, and `progress` stores that.
     origins: tuple[int, ...] = ()
+    #: A figure to put *above* the prompt, named by key as `Lesson.figure` is.
+    #:
+    #: The difference between this and the lesson's own figure is what the
+    #: picture is for. A lesson's figure illustrates; a question's figure is
+    #: the question -- "read the marked point off the b-c plane" cannot be
+    #: asked without one, and until a question could carry a picture the
+    #: graphical leg of the rule of four was the only one this application
+    #: never assessed.
+    #:
+    #: The same registry and the same widget, so a figure written for a lesson
+    #: can be asked about without being written twice, and moving its sliders
+    #: while answering is the intended way to answer.
+    figure: str = ""
 
     kind: str = field(default="choice", init=False)
 
@@ -220,6 +241,19 @@ class Solve:
     #: is revealed only when asked for, and "Show me" -- the narrator itself --
     #: sits at the end of it.
     hints: tuple[str, ...] = ()
+    #: A figure to put *above* the prompt, named by key as `Lesson.figure` is.
+    #:
+    #: The difference between this and the lesson's own figure is what the
+    #: picture is for. A lesson's figure illustrates; a question's figure is
+    #: the question -- "read the marked point off the b-c plane" cannot be
+    #: asked without one, and until a question could carry a picture the
+    #: graphical leg of the rule of four was the only one this application
+    #: never assessed.
+    #:
+    #: The same registry and the same widget, so a figure written for a lesson
+    #: can be asked about without being written twice, and moving its sliders
+    #: while answering is the intended way to answer.
+    figure: str = ""
 
     kind: str = field(default="solve", init=False)
 
@@ -261,6 +295,19 @@ class Numeric:
     #: The equation the question is about, if it is about one.
     latex: str = ""
     hints: tuple[str, ...] = ()
+    #: A figure to put *above* the prompt, named by key as `Lesson.figure` is.
+    #:
+    #: The difference between this and the lesson's own figure is what the
+    #: picture is for. A lesson's figure illustrates; a question's figure is
+    #: the question -- "read the marked point off the b-c plane" cannot be
+    #: asked without one, and until a question could carry a picture the
+    #: graphical leg of the rule of four was the only one this application
+    #: never assessed.
+    #:
+    #: The same registry and the same widget, so a figure written for a lesson
+    #: can be asked about without being written twice, and moving its sliders
+    #: while answering is the intended way to answer.
+    figure: str = ""
 
     kind: str = field(default="numeric", init=False)
 

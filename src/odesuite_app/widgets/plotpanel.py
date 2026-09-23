@@ -269,6 +269,9 @@ class PlotPanel(QFrame):
         self.show_slope_field.toggled.connect(lambda _: self._redraw())
         self._last = None
         self._auto_log_for: str | None = None
+        # An empty panel is still a panel somebody may land on, and "" is not
+        # a description of anything.
+        self._say("Nothing has been solved yet.")
 
     # -- helpers ---------------------------------------------------------
 
@@ -330,12 +333,20 @@ class PlotPanel(QFrame):
     def clear(self, message: str = "") -> None:
         self._reset()
         self.title.setText(message or "—")
-        words = message or "Nothing has been solved yet."
-        self.summary_label.setText(words)
-        self.plot.setAccessibleName("plot")
-        self.plot.setAccessibleDescription(words)
+        self._say(message or "Nothing has been solved yet.")
         self.table_model.set_solution(np.empty(0), np.empty((0, 0)))
         self.table_note.setText("")
+
+    def _say(self, words: str, title: str = "") -> None:
+        """Put one paragraph on the words tab and on the plot's alt text.
+
+        One function for both, so the two can never say different things --
+        which is the failure mode of every hand-maintained alternative text
+        there has ever been.
+        """
+        self.summary_label.setText(words)
+        self.plot.setAccessibleName(f"plot of {title}" if title else "plot")
+        self.plot.setAccessibleDescription(words)
 
     def update_from(self, result, view: str = "Auto") -> None:
         # Apply the catalogue's log-time preference once per problem, then
@@ -462,11 +473,9 @@ class PlotPanel(QFrame):
         else:
             words = describe.summarise(solution, labels, title=title)
 
-        self.summary_label.setText(words)
         # The plot is an image, and an image with no alternative text is
         # nothing at all to a screen reader.
-        self.plot.setAccessibleName(f"plot of {title}" if title else "plot")
-        self.plot.setAccessibleDescription(words)
+        self._say(words, title)
 
         times, values = describe.table_rows(solution)
         self.table_model.set_solution(times, values, labels)

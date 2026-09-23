@@ -47,14 +47,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import exam
+from .. import exam, printable, theme
 from .. import lessons as content
-from .. import printable, theme
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
 from ..widgets.mathlabel import MathLabel
 
-__all__ = ["PrintScreen", "SOURCES", "sources"]
+__all__ = ["PrintScreen", "sources", "draw", "title_for"]
 
 #: How many questions a worksheet offers by default. Longer than a check-up:
 #: the cost of a printed page is in the printing, and a sheet you work over two
@@ -65,13 +64,13 @@ DEFAULT_LENGTH = 10
 #: offers: a worksheet spanning the course but not sized like the final.
 WHOLE_COURSE = "whole-course"
 
-#: What a worksheet may be drawn from, as ``(kind, key, label)``. Built at call
-#: time rather than at import, so it follows the curriculum rather than a copy.
-SOURCES = "unit", "paper", "course"
-
-
 def sources() -> list[tuple[str, str, str]]:
-    """Everything a worksheet can be drawn from, in the order it is offered."""
+    """Everything a worksheet can be drawn from, as ``(kind, key, label)``.
+
+    A function rather than a constant, so the list follows the curriculum
+    rather than a copy of it taken at import: a unit added to `lessons.UNITS`
+    or a paper added to `exam.PAPERS` appears here without being named twice.
+    """
     out: list[tuple[str, str, str]] = [
         ("unit", unit.key, f"Unit — {unit.title}")
         for unit in content.UNITS if unit.quizzable

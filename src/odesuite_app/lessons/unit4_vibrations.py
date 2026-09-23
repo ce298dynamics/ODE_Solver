@@ -21,6 +21,7 @@ from .model import (
     Lesson,
     ModelTemplate,
     Note,
+    Numeric,
     Passage,
     Solve,
     Template,
@@ -312,6 +313,26 @@ FREE = Lesson(
                 "carries a factor of t.",
                 "y = (C₁ + C₂t)e^{−2t}. y(0) = 2 gives C₁ = 2, and "
                 "y′(0) = C₂ − 2C₁ = 0 gives C₂ = 4.",
+            ),
+        ),
+        Numeric(
+            key="q-figure",
+            prompt="Leave the figure at m = 1 and k = 4, and drag c up until "
+                   "the two roots meet on the real axis in the left pane. "
+                   "What value of c is that?",
+            figure="damping",
+            answer=4.0,
+            tolerance=0.02,
+            because="Critical damping is c = 2√(mk) = 2√(1·4) = 4. Below it "
+                    "the roots are a complex pair off the axis and the mass "
+                    "oscillates; above it they are two real numbers and it "
+                    "does not; at it they collide, which is the moment the "
+                    "curve on the right stops crossing zero.",
+            hints=(
+                "The two roots are real when the discriminant is positive and "
+                "complex when it is negative. They meet where it is zero.",
+                "For m·x″ + c·x′ + k·x = 0 the discriminant is c² − 4mk.",
+                "So c² = 4mk, and with m = 1 and k = 4 that is c² = 16.",
             ),
         ),
     ),
@@ -805,6 +826,7 @@ CIRCUITS = Lesson(
             "who knows springs already knows circuits.",
     tool="steps",
     reference="Edwards 3.7",
+    figure="circuit_analogue",
     motivation=(
         "A mass on a spring and a circuit with a coil and a capacitor have "
         "nothing in common physically. One stores energy in a stretched "

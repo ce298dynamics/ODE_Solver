@@ -23,7 +23,6 @@ pytest.importorskip("sympy")
 from odesuite_app import exam  # noqa: E402
 from odesuite_app import lessons as content  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # The papers themselves
 # ---------------------------------------------------------------------------

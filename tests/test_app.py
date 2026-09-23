@@ -768,3 +768,96 @@ def test_geometry_is_not_kept_in_the_progress_file(qapp, scratch_settings):
     assert "geometry" not in text
     assert "1100" not in text
     window.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# A lesson opening its tool
+# ---------------------------------------------------------------------------
+#
+# "Open the tool for this topic" used to emit a screen name and nothing else,
+# so a button whose tooltip promised "with an example loaded" landed on an
+# empty one. It now carries the lesson's own example across.
+
+
+@pytest.mark.parametrize("lesson_key,screen_key", [
+    ("separable", "steps"),
+    ("shifting", "laplace"),
+])
+def test_a_lesson_opens_its_tool_on_its_own_example(qapp, lesson_key,
+                                                    screen_key):
+    from odesuite_app import lessons as content
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow("dark")
+    lessons = window._screens["lessons"]
+    lessons.select(lesson_key)
+    qapp.processEvents()
+    lessons._open_tool()
+    qapp.processEvents()
+
+    lesson = content.by_key(lesson_key)
+    assert window.stack.currentWidget() is window._screens[screen_key]
+    editor = window._screens[screen_key].editor
+    assert editor.equation_texts() == [lesson.example]
+    assert editor.ics.text() == lesson.example_conditions
+    window.deleteLater()
+
+
+def test_a_system_written_with_a_semicolon_arrives_as_several_equations(qapp):
+    """A lesson writes a system as one string separated by semicolons, because
+    the comma was already taken by the initial conditions. The editor has a
+    field per equation, so the split has to happen on the way in."""
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow("dark")
+    window._open_tool("steps", "x' = x + 2*y; y' = 3*x + 2*y", "")
+    qapp.processEvents()
+
+    assert window._screens["steps"].editor.equation_texts() == [
+        "x' = x + 2*y", "y' = 3*x + 2*y",
+    ]
+    window.deleteLater()
+
+
+def test_a_tool_that_cannot_take_an_equation_still_opens(qapp):
+    """Two of the four tools a lesson links to are driven by the catalogue and
+    have no box to type into. They open, as they always did."""
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow("dark")
+    window._open_tool("byhand", "y' = y", "y(0) = 1")
+    qapp.processEvents()
+    assert window.stack.currentWidget() is window._screens["byhand"]
+    window.deleteLater()
+
+
+def test_the_tool_button_says_where_it_goes_and_on_what(qapp):
+    from odesuite_app import lessons as content
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow("dark")
+    lessons = window._screens["lessons"]
+    lessons.select("separable")
+    qapp.processEvents()
+
+    assert lessons.tool_button.text() == "Open in Solve Step by Step"
+    assert content.by_key("separable").example in lessons.tool_button.toolTip()
+
+    # A catalogue-driven tool promises less, because it delivers less.
+    lessons.select("numerical")
+    qapp.processEvents()
+    assert lessons.tool_button.text() == "Open in Methods by Hand"
+    assert content.by_key("numerical").example not in lessons.tool_button.toolTip()
+    window.deleteLater()
+
+
+def test_the_tool_names_match_the_sidebar(qapp):
+    """`learn_lessons.TOOL_NAMES` is a copy of four of the sidebar's labels,
+    kept there so the screen that module builds need not import it back. A
+    copy is only safe while something checks it."""
+    from odesuite_app.app import SCREENS
+    from odesuite_app.screens.learn_lessons import TOOL_NAMES
+
+    labels = {key: label for key, label, _ in SCREENS}
+    for key, name in TOOL_NAMES.items():
+        assert labels[key] == name, f"{key}: sidebar says {labels[key]!r}"

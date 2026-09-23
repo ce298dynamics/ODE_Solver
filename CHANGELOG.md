@@ -182,6 +182,50 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **"Open the tool for this topic" now opens it on the topic.** The button
+  emitted a screen name and nothing else, so a tooltip promising "with an
+  example loaded" landed on an empty screen. It carries the lesson's own
+  example and conditions across, and says which screen it is opening and on
+  what equation. Where the tool is catalogue-driven and has no box to type
+  into — Methods by Hand, Worked Problems — it promises less, because it
+  delivers less. A lesson writes a system as one string separated by
+  semicolons, so the split happens on the way into the editor's fields.
+
+- **A drill runs from the keyboard alone.** Enter marks what is in the box;
+  Enter again draws the next question and puts the caret where the answer
+  goes. It was the one part of this application somebody does forty times in
+  a row and the one part that needed the mouse for every second action.
+
+  Two things had to be got right. The grader now reports whether it actually
+  marked anything, so an empty box or an unpicked option is not spent as a
+  turn. And the key is taken once, by the card: a `QLineEdit` emits
+  `returnPressed` *and* lets the event travel on, so wiring both checked and
+  advanced on a single press. A `QShortcut` scoped to the card was the first
+  attempt and is the wrong tool — shortcuts are matched against the window,
+  so they do nothing until it is active, which makes the behaviour untestable
+  and dependent on something the reader cannot see.
+
+- **Rendered mathematics follows the operating system's text scale** (A11Y-04).
+  Every font size in this application is written in pixels, and the OS text
+  scale reaches Qt as a larger default font point size and nothing else — so
+  raising it left the whole interface exactly where it was. Equations were
+  the worst case, because they are matplotlib bitmaps and cannot inherit a
+  font size at all, and would have been the smallest thing on a page whose
+  prose had grown around them.
+
+  `theme.text_scale` reads the factor and `theme.scaled` applies it to the
+  application style sheet and to every inline one; `MathLabel` multiplies its
+  point size by it and re-renders when the scale moves. Three things were
+  found by measuring rather than reasoning. `QApplication.setFont` delivers
+  only `FontChange` to a label that has never been shown, not the
+  `ApplicationFontChange` the documentation suggests, so both are handled and
+  the guard is that the scale actually moved. The render cache is keyed on
+  point size, so the two scales cannot collide. And the fixed `pad_inches`
+  around a rendered equation was about 40% of its height at 15 pt, which made
+  a bitmap rendered at twice the size only 1.55× taller — padding is part of
+  the typography, so it grows with the type, and the maths now tracks the
+  body text to within 10% across the range.
+
 - **A non-hyperbolic equilibrium is no longer labelled with a definite answer.**
   The Phase Portrait printed `kind` verbatim, in bold. For
   `x' = -y + x(x²+y²)`, `y' = x + y(x²+y²)` that reads "centre" — which is what
@@ -204,6 +248,95 @@ All notable changes to this project are documented here. The format follows
   install alongside anything else.
 
 ### Added
+
+- **A figure for every lesson — the seventeen that had none.** The course
+  honoured the rule of four everywhere except its graphical leg, which
+  eighteen lessons had and seventeen did not. All thirty-five have one now,
+  and `tests/test_lessons.py` asserts it over the whole course rather than
+  over a list, so a lesson added later without a picture fails rather than
+  quietly being the only one missing a representation.
+
+  The two the audit named as close to indispensable are there. `systems-intro`
+  draws the same motion twice — two graphs against time, and one curve in the
+  (y, y′) plane — because the reader is entitled to ask what rewriting a
+  second-order equation as a pair bought, and that is the answer.
+  `eigenvalues` draws the two modes against time with both eigenvalues on
+  sliders and the eigenvectors held fixed, which is the one arrangement in
+  which "the eigenvalue decides what survives" can be watched in isolation;
+  the eigenvector half of the story already had `eigenlines`.
+
+  The rest, in course order: the family of antiderivatives and the condition
+  that picks one of it; `v = y/t` straightening a homogeneous family into
+  parallel straight lines of slope 2, which is what "the substituted equation
+  is separable" looks like drawn; exponential against logistic growth from
+  identical r and P(0), with the moment they part company measured rather
+  than asserted; two solutions of y″ − y = 0 and every combination of them;
+  the b–c plane, whose parabola b² = 4c *is* the three-case distinction;
+  sec t against the shapes a guess would have to be built from, with the
+  answer variation of parameters produces beside it; three roots and the
+  measured point where the largest takes the answer over; an RLC loop and its
+  mass–spring twin driven from one set of sliders through L = m, R = c,
+  1/C = k; the Laplace integral as the shaded area it actually is, with the
+  region of convergence as a place on the axis rather than a proviso; the
+  answer to y″ + 3y′ + 2y = sin t rebuilt one pole at a time; a rectangle of
+  unit area narrowing onto a delta with the response converging faster than
+  it does; the single eigendirection of a defective matrix and the t·e^(λt)
+  that makes up the difference; three starts spiralling onto one forced loop;
+  the Legendre recurrence as a stem per coefficient, with the stems past
+  n = ℓ vanishing the moment ℓ lands on a whole number; and Bessel's leading
+  power t^ν against the Frobenius series that corrects it.
+
+  Two measurements changed what was drawn. The impulse pulse is **centred**
+  on the instant rather than starting at it — both sequences converge, but a
+  pulse that starts there also arrives half a width late, and that offset is
+  first order in w, so it dominated the difference and made the convergence
+  look far slower than it is; centred, a pulse of width 0.5 matches the
+  impulse response to 1.05% of its peak and one of width 0.2 to 0.17%. And
+  the higher-order readout reports the leading term's *share* at the end of
+  the window rather than only where it crosses a threshold, because "it has
+  not taken over yet" with no number attached is the least useful thing it
+  could say.
+
+- **A question can now be asked about a picture.** `Choice`, `Numeric` and
+  `Solve` carry an optional `figure`, a key into the same registry a lesson's
+  own figure comes from, shown above the prompt in Practice, in Drill and in
+  the quiz. Until now every question here was about a formula or a number:
+  reading a phase portrait — which is most of what the later units are for —
+  could be demonstrated to a student and never asked of one.
+
+  Seven questions use it, one per unit, and each is answered by moving the
+  sliders on the figure rather than by remembering it: read the slope field
+  with a = −1 and say where every solution goes; raise the harvest until the
+  two equilibria vanish and say what has happened to the population; cross
+  the parabola in the b–c plane and say what the solution does; drag the
+  damping until the roots meet and type the value; push s below a and say
+  what happens to the area; count the straight-line solutions in a phase
+  portrait; read which coefficients the recurrence has just killed.
+
+- **Every plot says in words what it shows, and offers its numbers.** The
+  trajectory panel has three tabs — the curve, a paragraph, and a table of
+  the output times and states, keyboard-navigable with Ctrl+C to copy. The
+  paragraph is also the plot's accessible description, which is what a screen
+  reader announces in place of the image, and it is generated by the new
+  `describe` module rather than written: the shape comes from counting
+  turning points, the limit from comparing the last tenth of the record with
+  the endpoint, and blow-up from the solver's own report that it stopped
+  early.
+
+  The first turning-point counter was wrong in a way worth recording. It
+  counted sign changes of `diff` with small steps discarded, which compares
+  *one step* against a fraction of the whole range — so on a finely sampled
+  curve every step is small, every step is discarded, and a decaying
+  oscillation was reported as turning once. Step size is a property of the
+  solver, not of the solution. What is measured now is the *swing*, and
+  `tests/test_describe.py` renders the same curve at 200 and at 20 000
+  samples and requires the same count.
+
+  Lesson figures gained the same thing for free: each already wrote a readout
+  in words, and that readout is now attached to its plots as alternative text
+  by the base class, so a figure added later cannot forget to do it. The
+  Phase Portrait describes its window, its equilibria and their
+  classification from the same `analysis` results the report beside it uses.
 
 - **Four kinds of question the drills could not ask.** Every drill in the
   Hub handed you an equation and asked what to do with it. That is one of the

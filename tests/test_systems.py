@@ -190,6 +190,46 @@ def test_one_condition_short_is_reported_rather_than_guessed():
     assert "one condition per unknown" in derivation.message
 
 
+def test_conditions_survive_sympys_cache_being_full():
+    """The bug this is here for is invisible until a session gets long.
+
+    `sp.Function("x")` is memoised, so two calls normally hand back one object
+    and matching a condition to its unknown by identity looks safe. But sympy's
+    cache is an `lru_cache` bounded at `SYMPY_CACHE_SIZE`, which defaults to a
+    thousand entries: once that many other functions and symbols have been
+    built, the entry for "x" is evicted and the next `Function("x")` is a
+    *different* class, still equal to the first. Under identity the conditions
+    then matched nothing, and `derive` reported "one condition per unknown is
+    needed" about a pair that had been supplied -- handing back the general
+    solution where a particular one was asked for, silently.
+
+    It surfaced as a full-suite failure that passed on its own, which is the
+    signature of exactly this: nothing to do with the test before it, only with
+    how much sympy had been made to build first. Filling the cache here makes
+    it deterministic and costs about a tenth of a second.
+    """
+    evicted = sp.Function("x")
+    for index in range(3000):
+        sp.Function(f"cachefiller{index}")
+    assert sp.Function("x") is not evicted, (
+        "sympy no longer evicts, and this test is no longer testing anything"
+    )
+
+    fresh_x, fresh_y = sp.Function("x"), sp.Function("y")
+    system = [sp.Eq(fresh_x(T).diff(T), CASES["distinct"][0] * fresh_x(T)
+                    + CASES["distinct"][1] * fresh_y(T)),
+              sp.Eq(fresh_y(T).diff(T), CASES["distinct"][2] * fresh_x(T)
+                    + CASES["distinct"][3] * fresh_y(T))]
+    # The conditions are keyed by the *stale* classes, which is the situation
+    # the application is in: the parse that made them happened earlier.
+    derivation = derive(system, [fresh_x, fresh_y],
+                        ics={evicted(0): 1, sp.Function("y")(0): 0})
+
+    assert derivation.complete
+    assert not derivation.result.free_symbols - {T}
+    assert float(derivation.result[0].subs(T, 0)) == pytest.approx(1.0)
+
+
 @pytest.mark.parametrize("entries,expected", [
     ((1, 2, 3, 2), "saddle"),
     ((-2, 1, 1, -2), "stable node"),

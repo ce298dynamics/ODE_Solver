@@ -484,7 +484,11 @@ class MainWindow(QWidget):
         chrome and kept its content the size it was.
         """
         super().changeEvent(event)
-        if event.type() != QEvent.ApplicationFontChange:
+        # Both events, for the reason `MathLabel._FONT_EVENTS` records: which
+        # of the two Qt delivers depends on the widget, and the scale
+        # comparison below is what makes listening for both harmless.
+        if event.type() not in (QEvent.ApplicationFontChange,
+                                QEvent.FontChange):
             return
         scale = theme.text_scale()
         if abs(scale - self._text_scale) < 0.005:

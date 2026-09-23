@@ -555,3 +555,112 @@ def test_the_collapse_control_round_trips(solved, qapp):
     assert not lab.stats.collapsed
     assert seen == [True, False]
     lab.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# The two views that are not the picture
+# ---------------------------------------------------------------------------
+#
+# A plot is the one representation of a solution this application could not
+# hand to somebody who is not looking at it. These are the other two: the
+# paragraph a screen reader announces in its place, and the numbers behind it.
+
+
+def test_the_panel_offers_the_plot_the_words_and_the_data(solved, qapp):
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    tabs = [panel.views.tabText(i) for i in range(panel.views.count())]
+    assert tabs == ["Plot", "In words", "Data"]
+    panel.deleteLater()
+
+
+def test_a_plot_describes_itself_for_a_reader_who_cannot_see_it(solved, qapp):
+    """The alternative text is the accessible description of the plot widget,
+    which is what a screen reader reads in place of the image."""
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    panel.update_from(solved.result, "Auto")
+    qapp.processEvents()
+
+    words = panel.plot.accessibleDescription()
+    assert words == panel.summary()
+    assert "Van der Pol" in words
+    # Not vacuous: it names the shape and the interval it was found over.
+    assert "oscillates" in words, words
+    assert "t from 0 to 60" in words, words
+    panel.deleteLater()
+
+
+def test_an_empty_panel_says_so_rather_than_describing_nothing(qapp):
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    assert "Nothing has been solved" in panel.plot.accessibleDescription()
+    panel.clear("solve failed")
+    assert panel.plot.accessibleDescription() == "solve failed"
+    panel.deleteLater()
+
+
+def test_the_data_table_matches_the_solution(solved, qapp):
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    panel.update_from(solved.result, "Auto")
+    qapp.processEvents()
+
+    model = panel.table_model
+    solution = solved.result.solution
+    assert model.columnCount() == solution.y.shape[0] + 1
+    assert model.column_name(0) == "t"
+    assert model.column_name(1) == catalog.get("van_der_pol").labels[0]
+
+    index = model.index(0, 0)
+    assert float(model.data(index)) == pytest.approx(float(solution.t[0]),
+                                                     rel=1e-5)
+    last = model.index(model.rowCount() - 1, 1)
+    assert float(model.data(last)) == pytest.approx(float(solution.y[0, -1]),
+                                                    rel=1e-5)
+    panel.deleteLater()
+
+
+def test_the_data_table_is_reachable_and_copyable_from_the_keyboard(solved,
+                                                                    qapp):
+    """Qt gives a table view selection and navigation and no copying at all,
+    so `Ctrl+C` is the part that had to be written and is the part worth
+    testing."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QGuiApplication
+
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    panel.update_from(solved.result, "Auto")
+    qapp.processEvents()
+
+    assert panel.table.focusPolicy() != Qt.NoFocus, "not reachable by tab"
+    panel.table.selectRow(0)
+    copied = panel.table.copy_selection()
+    assert copied, "nothing was copied"
+    assert "\t" in copied, "a row should be tab separated for a spreadsheet"
+    assert QGuiApplication.clipboard().text() == copied
+    panel.deleteLater()
+
+
+def test_a_huge_solution_is_thinned_for_the_table_and_says_so(solved, qapp):
+    """Robertson has tens of thousands of output points, and a table row per
+    point costs more to build than the solve did."""
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    panel.update_from(solved.result, "Auto")
+    qapp.processEvents()
+
+    total = solved.result.solution.t.size
+    assert panel.table_model.rowCount() <= 2001
+    if total > 2000:
+        assert "of" in panel.table_note.text()
+    else:
+        assert str(total) in panel.table_note.text()
+    panel.deleteLater()

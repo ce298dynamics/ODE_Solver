@@ -34,6 +34,7 @@ POPULATION = Lesson(
             "what its two parameters mean.",
     tool="worked",
     reference="Edwards 2.1",
+    figure="growth_models",
     motivation=(
         "Where the equations of the first unit came from was never asked. "
         "This unit asks it, because a differential equation is not handed "
@@ -604,6 +605,40 @@ EQUILIBRIA = Lesson(
                 "and not autonomous, and it can turn round.",
                 "Systems of them do. A single scalar autonomous equation "
                 "cannot: it is monotone on each interval between equilibria.",
+            ),
+        ),
+        Choice(
+            key="q-figure",
+            prompt="In the figure, leave r and K where they are and raise h. "
+                   "The two equilibria slide together and vanish. What has "
+                   "happened to the population at that moment?",
+            figure="phase_line",
+            options=(
+                "f(y) is now negative for every y, so the population falls to "
+                "zero from any starting size",
+                "The population settles at the single equilibrium where the "
+                "two met",
+                "The population grows without bound, because nothing is "
+                "holding it back any more",
+                "Nothing changes: losing an equilibrium is an artefact of the "
+                "plotting window",
+            ),
+            answer=0,
+            becauses=(
+                "The parabola has been pushed entirely below the axis, so "
+                "there is no y at which growth balances harvest. Every arrow "
+                "points left, and the population crashes however large it "
+                "was — which is the point of the figure.",
+                "That is the state one slider-step earlier, at the fold "
+                "itself, where the two roots coincide. Past it there is no "
+                "root at all, and a population cannot settle at an "
+                "equilibrium that does not exist.",
+                "The harvest is subtracted at a constant rate, so raising it "
+                "can only push f(y) down. Unbounded growth is what h = 0 and "
+                "no capacity would give.",
+                "The curve really has left the axis: check the readout, which "
+                "counts the equilibria it found rather than the ones visible "
+                "in the window.",
             ),
         ),
     ),
