@@ -249,6 +249,60 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **A chaotic trajectory marks where it stops being a prediction** (UX-04).
+  Lorenz's default duration is 40 and its predictability horizon at
+  rtol = 1e-8 is about 20, so the default view presented a second half that
+  is a sample of the attractor exactly like a first half that is a forecast.
+  For entries tagged chaotic the Lab now estimates the largest Lyapunov
+  exponent in the background -- `largest_lyapunov` existed since DYN-03 and
+  nothing in the interface used it -- and, when the plot runs past
+  `ln(1/rtol)/λ`, shades the time axis beyond it, draws that stretch of the
+  orbit faint, and says why in one caption. Faded rather than cut: the
+  attractor is the part that stays true.
+
+  The estimate is a 15-time-unit run, about three seconds, cached per
+  parameter setting and abandoned when the user moves on. Measured against
+  the 300-unit run it is 0.80 ± 0.05 against 0.89 ± 0.01, so the caption says
+  "about" and gives the horizon to two figures. The duration is left out of
+  the cache key, since lengthening the plot does not change the exponent.
+  Below the onset of chaos (ρ = 15) the exponent is negative and there is no
+  horizon at all, rather than a large one.
+
+- **The Solver Lab says where the solver fought a discontinuity** (PED-08).
+  `y' = -y + H(t - 2)` came back as unqualified success although the solver
+  had spent twenty rejected steps bisecting onto t = 2 and recorded every
+  one. `analysis.rough_spots` looks for an instant covered by at least four
+  rejected intervals whose step sizes span a factor of twenty -- the
+  signature of a controller creeping up on a jump. A smooth but fast feature,
+  such as Van der Pol's relaxation jump, also rejects steps, but its
+  rejections neither share a point nor shrink by orders of magnitude, and
+  none is flagged. Every catalogue problem at its defaults is clean once
+  rejections *at t0* are set aside: Robertson's first-step search halves
+  five times from the start, which has the same signature and is about the
+  initial guess, not the equation. Flagged spots get a dashed rule on the
+  time plot and a caution worded as an observation about the solver.
+
+  At rtol = 1e-3 nothing is found even where there is a jump: the solver
+  steps across without noticing. A detector built on its rejections cannot
+  do better, so the absence of a remark means no evidence, not smoothness.
+
+- **Property-based tests** (TEST-03), in `tests/test_properties.py`:
+  time-reversibility of Verlet and Yoshida on the nonlinear pendulum,
+  superposition for linear systems, time-translation invariance, and
+  invariance under autonomisation. The last one needed redesigning after
+  measurement. Through `solve` it could not see NUM-03 at all -- error
+  control simply took smaller steps, and the pre-fix RODAS4 agreed with its
+  autonomised form to 5e-14 -- so it marches the stepper at a fixed h with
+  exact Jacobians on both sides. There every Runge-Kutta method and Radau are
+  invariant to round-off, and RODAS4 misses by 2.6e-10 before NUM-03, 4.9e-13
+  with the central difference, and 6.7e-16 with an exact `dfdt`. The bound
+  of 1e-11 fails the old code and passes the current one, each by more than
+  an order of magnitude.
+
+- **Picard–Lindelöf and Lipschitz are named** (PED-07), in an aside in the
+  slope-fields lesson, so a student who wants to read further can search
+  for what they were taught. The ∂f/∂y form stays the one taught.
+
 - **A figure for every lesson — the seventeen that had none.** The course
   honoured the rule of four everywhere except its graphical leg, which
   eighteen lessons had and seventeen did not. All thirty-five have one now,

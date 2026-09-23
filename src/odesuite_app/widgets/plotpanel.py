@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import describe, theme
+from .. import analysis, describe, theme
 from ..theme import Palette
 from .flow import FlowWidget
 
@@ -268,6 +268,14 @@ class PlotPanel(QFrame):
         self.log_time.toggled.connect(lambda _: self._redraw())
         self.show_slope_field.toggled.connect(lambda _: self._redraw())
         self._last = None
+        #: Where the solver kept refusing steps onto one instant -- see
+        #: `analysis.rough_spots`. Read by the Solver Lab for its caution line,
+        #: so the words and the marks on the plot come from one computation.
+        self.rough_spots: list[float] = []
+        #: Where a single trajectory stops being a prediction (UX-04), or
+        #: None. Set by the Solver Lab, which owns the Lyapunov estimate it
+        #: comes from; the panel only draws it.
+        self.horizon: float | None = None
         self._auto_log_for: str | None = None
         # An empty panel is still a panel somebody may land on, and "" is not
         # a description of anything.
@@ -332,6 +340,7 @@ class PlotPanel(QFrame):
 
     def clear(self, message: str = "") -> None:
         self._reset()
+        self.rough_spots = []
         self.title.setText(message or "—")
         self._say(message or "Nothing has been solved yet.")
         self.table_model.set_solution(np.empty(0), np.empty((0, 0)))
@@ -372,6 +381,7 @@ class PlotPanel(QFrame):
 
         entry, solution = result.entry, result.solution
         self._reset()
+        self.rough_spots = analysis.rough_spots(solution)
 
         kind = entry.plot_kind if view == "Auto" else {
             "Time series": "time", "Phase": "phase", "Components": "time",
@@ -640,6 +650,40 @@ class PlotPanel(QFrame):
                 # a trail of dots exactly where its curve used to be.
                 self._series.setdefault(index, []).append(marker)
 
+        # A dashed rule at each rough spot, beneath the curves. The tooltip
+        # repeats the caution rather than inventing a second wording.
+        tip = analysis.rough_spot_note(self.rough_spots) or ""
+        for spot in self.rough_spots:
+            if use_log and spot <= 0:
+                continue
+            rule = pg.InfiniteLine(
+                pos=np.log10(spot) if use_log else spot, angle=90,
+                pen=pg.mkPen(self.palette_obj.warning, width=1,
+                             style=Qt.DashLine),
+            )
+            rule.setZValue(-5)
+            rule.setToolTip(tip)
+            self.plot.addItem(rule)
+
+        # The horizon: a rule, and everything after it shaded, so the part of
+        # the curve that is a prediction and the part that is a sample of the
+        # attractor are told apart without reading the caption.
+        if self.horizon is not None and self.horizon < t[-1]:
+            start = np.log10(self.horizon) if use_log else self.horizon
+            finish = np.log10(t[-1]) if use_log else t[-1]
+            shade = pg.LinearRegionItem(
+                values=(start, finish), movable=False,
+                brush=pg.mkBrush(self.palette_obj.text_muted + "22"),
+                pen=pg.mkPen(self.palette_obj.text_muted, width=1,
+                             style=Qt.DashLine),
+            )
+            shade.setZValue(-20)
+            shade.setToolTip(
+                "Beyond here a single trajectory is not a prediction: the "
+                "attractor is, the path is not."
+            )
+            self.plot.addItem(shade)
+
         self.title.setText(
             f"{entry.title} — {solution.stats.naccepted} steps, "
             f"{solution.y.shape[0]} component"
@@ -675,11 +719,26 @@ class PlotPanel(QFrame):
         self.plot.setLabel("bottom", x_label)
         self.plot.setLabel("left", y_label)
 
+        # Past the predictability horizon the path is drawn faint: the shape
+        # it traces is still the attractor, but *where on it* the system is
+        # has stopped being information. Faded rather than cut, because the
+        # attractor is the part that remains true.
+        times, _ = self._dense(solution)
+        cut = (int(np.searchsorted(times, self.horizon))
+               if self.horizon is not None else times.size)
         self._curves.append(
             self.plot.plot(
-                y[i], y[j], pen=pg.mkPen(self._colour(0), width=2), name="trajectory"
+                y[i, :cut + 1], y[j, :cut + 1],
+                pen=pg.mkPen(self._colour(0), width=2), name="trajectory",
             )
         )
+        if cut < times.size - 1:
+            beyond = self.plot.plot(
+                y[i, cut:], y[j, cut:], pen=pg.mkPen(self._colour(0), width=1),
+                name="past the horizon",
+            )
+            beyond.setOpacity(0.3)
+            self._curves.append(beyond)
         if self.show_steps.isChecked() and solution.t.size < 4000:
             marker = self.plot.plot(
                 solution.y[i], solution.y[j], pen=None, symbol="o", symbolSize=4,

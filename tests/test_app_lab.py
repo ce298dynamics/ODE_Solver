@@ -664,3 +664,107 @@ def test_a_huge_solution_is_thinned_for_the_table_and_says_so(solved, qapp):
     else:
         assert str(total) in panel.table_note.text()
     panel.deleteLater()
+
+
+def test_a_switch_in_the_right_hand_side_is_marked_and_said(qapp):
+    """PED-08. `y' = -y + H(t - 2)` used to come back as unqualified success,
+    although the solver had spent twenty rejected steps bisecting onto t = 2.
+    The Lab now says so, and draws a rule where it happened."""
+    from types import SimpleNamespace
+
+    import pyqtgraph as pg
+
+    from odesuite import ODEProblem, solve
+    from odesuite_app.solver import SolveRequest, SolveResult
+
+    problem = ODEProblem(
+        f=lambda t, y: np.array([-y[0] + (1.0 if t > 2 else 0.0)]),
+        t_span=(0.0, 6.0), y0=[1.0],
+    )
+    solution = solve(problem, method="dopri5", rtol=1e-6, atol=1e-8,
+                     dense_output=True)
+    state = SessionState()
+    state.set_problem("logistic", resolve=False)
+    lab = _lab(qapp, state)
+    result = SolveResult(
+        request=SolveRequest("logistic", "dopri5", 1e-6, 1e-8),
+        solution=solution, benchmark=SimpleNamespace(problem=problem),
+        entry=catalog.get("logistic"),
+    )
+    lab.plot.view.setCurrentText("Time series")
+    lab._on_result(result)
+    qapp.processEvents()
+
+    assert lab.plot.rough_spots == [pytest.approx(2.0, abs=0.01)]
+    assert lab.caution.isVisible()
+    assert "t ≈ 2" in lab.caution.text()
+    rules = [item for item in lab.plot.plot.getPlotItem().items
+             if isinstance(item, pg.InfiniteLine) and item.angle == 90]
+    assert len(rules) == 1 and rules[0].value() == pytest.approx(2.0, abs=0.01)
+    assert "t ≈ 2" in rules[0].toolTip()
+
+    # A smooth answer on the same screen clears both.
+    lab._on_result(SolveResult(
+        request=result.request,
+        solution=solve(ODEProblem(lambda t, y: -y, (0.0, 6.0), [1.0]),
+                       method="dopri5", rtol=1e-6, atol=1e-8, dense_output=True),
+        benchmark=SimpleNamespace(problem=problem), entry=catalog.get("logistic"),
+    ))
+    qapp.processEvents()
+    assert lab.plot.rough_spots == []
+    assert "refused" not in lab.caution.text() or not lab.caution.isVisible()
+    lab.deleteLater()
+
+
+def _until(qapp, condition, seconds=90.0):
+    import time
+
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        qapp.processEvents()
+        if condition():
+            return True
+        time.sleep(0.02)
+    return False
+
+
+def test_a_chaotic_trajectory_marks_where_it_stops_being_a_prediction(qapp):
+    """UX-04. Lorenz's default duration is 40 and its horizon at rtol = 1e-8 is
+    about 20, so the default view used to present its second half -- which is
+    a sample of the attractor, not a forecast -- exactly like its first."""
+    state = SessionState()
+    state.set_problem("lorenz", resolve=False)
+    state.set_method("dopri5", resolve=False)
+    state.set_tolerances(1e-8, 1e-11, resolve=False)
+    _resolve(qapp, state)
+    lab = _lab(qapp, state)
+
+    assert _until(qapp, lambda: lab.plot.horizon is not None), "no horizon"
+    assert 14.0 <= lab.plot.horizon <= 28.0
+    assert lab.caution.isVisible() and "not a prediction" in lab.caution.text()
+    # The part past the horizon is drawn separately, and faint.
+    faint = [curve for curve in lab.plot._curves if curve.opacity() < 1.0]
+    assert len(faint) == 1
+
+    # Inside the horizon, nothing to say -- the caption is about the plot shown.
+    state.set_param("t_end", 10.0, resolve=False)
+    _resolve(qapp, state)
+    assert lab.plot.horizon is not None
+    assert "not a prediction" not in lab.caution.text() or not lab.caution.isVisible()
+    assert all(curve.opacity() == 1.0 for curve in lab.plot._curves)
+
+    # Below the onset of chaos there is no horizon at all, not a large one.
+    state.set_param("t_end", 40.0, resolve=False)
+    state.set_param("rho", 15.0, resolve=False)
+    _resolve(qapp, state)
+    key = lab._exponent_key(state.result)
+    assert _until(qapp, lambda: lab._exponents.get(key) not in (None, "pending"))
+    assert lab._exponents[key].value < 0
+    assert lab.plot.horizon is None
+    lab.deleteLater()
+
+
+def test_a_non_chaotic_problem_never_asks_for_an_exponent(solved, qapp):
+    lab = _lab(qapp, solved)
+    assert lab.plot.horizon is None and lab._exponents == {}
+    lab.deleteLater()

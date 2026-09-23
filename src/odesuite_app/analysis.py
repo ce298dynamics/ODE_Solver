@@ -34,6 +34,8 @@ __all__ = [
     "largest_lyapunov",
     "LyapunovEstimate",
     "predictability_horizon",
+    "rough_spots",
+    "rough_spot_note",
     "phase_line",
     "nullclines",
     "separatrices",
@@ -364,6 +366,108 @@ def uniqueness_warning(problem: ODEProblem) -> str | None:
         "uniqueness half of the existence-and-uniqueness theorem does not "
         "apply here. More than one solution may pass through this point, and a "
         "numerical method will return only one of them."
+    )
+
+
+#: A rough spot needs this many rejected steps overlapping it...
+ROUGH_MIN_REJECTIONS = 4
+#: ...whose step sizes span at least this ratio.
+ROUGH_MIN_SHRINK = 20.0
+
+
+def rough_spots(solution) -> list[float]:
+    """Times at which the solver kept rejecting steps *onto one point* (PED-08).
+
+    `Solution.rejected` records every refused attempt as ``(t, h)``, and its
+    docstring says those mark where the solution got hard. Two quite different
+    kinds of hard produce rejections, and only one of them is worth a remark:
+
+    * **A jump in f, or in its derivative.** The controller cannot step over
+      it, so it creeps up to it: attempt after attempt from ever closer starts,
+      every one of them straddling the same instant, the step shrinking by
+      orders of magnitude until it is small enough for the error estimate to
+      stop noticing.
+    * **A smooth but fast feature** -- Van der Pol's relaxation jump, a
+      close pass in Lorenz. A few rejections, at comparable step sizes, and
+      their intervals do not pile up on one point.
+
+    So the test is geometric: find an instant covered by at least
+    `ROUGH_MIN_REJECTIONS` rejected intervals whose step sizes span a factor
+    of `ROUGH_MIN_SHRINK`. Measured with DOPRI5 (count, shrink):
+
+    =======================  ===============  ================  ===========
+    problem                  rtol = 1e-3      rtol = 1e-6       rtol = 1e-9
+    =======================  ===============  ================  ===========
+    ``y' = sign(t-1)``       --               25, 2.6e3         46, 8e6
+    ``y' = |t-1|``           --               9, 54             14, 1.6e3
+    ``y' = -y + H(t-2)``     --               20, 2.7e3         25, 2.2e5
+    Van der Pol, mu = 10     --               --                --
+    Lorenz, pendulum         --               --                --
+    =======================  ===============  ================  ===========
+
+    Every catalogue problem at its default method and tolerance is clean, once
+    rejections *at the initial time* are set aside: Robertson's step-size
+    search halves from t0 five times, which looks exactly like the signature
+    and says something about the first guess, not about the equation.
+
+    At rtol = 1e-3 nothing is found even where there is a jump: the solver
+    steps across it without noticing, and a detector built on its rejections
+    cannot notice either. That is the honest answer -- silence here means "no
+    evidence", not "smooth".
+
+    A failed solve is skipped. Its diagnosis already says where and why it
+    stopped, and a second remark about the same place would only compete.
+    """
+    rejected = np.asarray(getattr(solution, "rejected", ()), dtype=float)
+    if rejected.ndim != 2 or len(rejected) < ROUGH_MIN_REJECTIONS:
+        return []
+    diagnosis = getattr(solution, "diagnosis", None)
+    if diagnosis is not None and diagnosis.failed:
+        return []
+
+    times = np.asarray(solution.t, dtype=float)
+    if times.size:
+        rejected = rejected[rejected[:, 0] != times[0]]
+    if len(rejected) < ROUGH_MIN_REJECTIONS:
+        return []
+
+    start, step = rejected[:, 0], rejected[:, 1]
+    low = np.minimum(start, start + step)
+    high = np.maximum(start, start + step)
+    size = np.abs(step)
+
+    # Smallest first: the smallest rejected interval is the controller's
+    # closest approach, so it is where the instant is, and everything that
+    # overlaps it belongs to the same siege.
+    spots: list[float] = []
+    claimed = np.zeros(len(rejected), dtype=bool)
+    for i in np.argsort(size):
+        if claimed[i] or size[i] <= 0.0:
+            continue
+        overlapping = (low <= high[i]) & (high >= low[i]) & ~claimed
+        if (overlapping.sum() >= ROUGH_MIN_REJECTIONS
+                and size[overlapping].max() >= ROUGH_MIN_SHRINK * size[i]):
+            spots.append(float(0.5 * (low[i] + high[i])))
+        claimed |= overlapping
+    return sorted(spots)
+
+
+def rough_spot_note(spots: list[float]) -> str | None:
+    """The sentence the Solver Lab shows for `rough_spots`, or None.
+
+    Worded as an observation about the solver, not a claim about the equation:
+    what was measured is where the steps were refused.
+    """
+    if not spots:
+        return None
+    where = ", ".join(f"t ≈ {t:.4g}" for t in spots[:3])
+    if len(spots) > 3:
+        where += f" and {len(spots) - 3} more"
+    return (
+        f"The solver repeatedly refused steps closing in on {where}. The "
+        f"right-hand side may be discontinuous there, or not smooth; the curve "
+        f"is still computed to tolerance, but the method's order does not hold "
+        f"across that point."
     )
 
 

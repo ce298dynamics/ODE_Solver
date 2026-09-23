@@ -1270,6 +1270,22 @@ SLOPEFIELDS = Lesson(
             r"\frac{\partial}{\partial y} y^{1/3} = \frac{1}{3y^{2/3}}",
             "pitfall",
         ),
+        # PED-07. The content above is the ∂f/∂y form deliberately -- it is the
+        # one a student can check -- and this note does not change that. It
+        # exists so that someone who wants to read further can search for what
+        # they were taught: without the names, nothing here is findable.
+        Note(
+            "Its name, for reading further",
+            "Books call the uniqueness half the Picard–Lindelöf theorem, and "
+            "usually state it with a weaker-looking hypothesis: that f is "
+            "Lipschitz in y, meaning |f(t, y₁) − f(t, y₂)| ≤ L·|y₁ − y₂| for "
+            "some constant L near the point. A continuous ∂f/∂y implies that "
+            "— take L to be the largest |∂f/∂y| nearby — so the test taught "
+            "here is a special case of the textbook one, and y^{1/3} fails "
+            "both for the same reason.",
+            r"|f(t, y_1) - f(t, y_2)| \leq L\,|y_1 - y_2|",
+            kind="aside",
+        ),
     ),
     questions=(
         Choice(

@@ -26,7 +26,7 @@ still selected on every other screen.
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -83,6 +83,43 @@ def _make_entry(spec, ranges, method: str):
     return entry, parsed
 
 
+#: Length of the Lyapunov run behind the predictability horizon. Measured on
+#: Lorenz: 15 time units gives +0.80 +/- 0.05 in about three seconds against
+#: +0.89 +/- 0.01 in twenty-six for 300, and the horizon it implies moves by
+#: about as much as that difference. A horizon is an order of magnitude, not a
+#: date -- the caption says "about" -- so the short run is the right trade for
+#: something computed every time a slider settles on a new parameter.
+HORIZON_SPAN = 15.0
+
+
+class _HorizonSignals(QObject):
+    done = Signal(object, object)          # cache key, LyapunovEstimate | None
+
+
+class _HorizonJob(QRunnable):
+    """The Lyapunov estimate, off the interface thread: seconds, not frames."""
+
+    def __init__(self, problem, key, wanted, signals) -> None:
+        super().__init__()
+        self.problem, self.key = problem, key
+        self.wanted, self.signals = wanted, signals
+
+    def run(self) -> None:
+        try:
+            estimate = analysis.largest_lyapunov(
+                self.problem, t_end=HORIZON_SPAN,
+                should_stop=lambda: self.wanted() != self.key,
+            )
+        except Exception:                       # noqa: BLE001 - no horizon, then
+            estimate = None
+        if estimate is not None and estimate.verdict == "cancelled":
+            estimate = None
+        try:
+            self.signals.done.emit(self.key, estimate)
+        except RuntimeError:
+            pass                        # the screen went away mid-computation
+
+
 class LabScreen(QWidget):
     def __init__(self, state: SessionState, palette: Palette, parent=None) -> None:
         super().__init__(parent)
@@ -90,6 +127,13 @@ class LabScreen(QWidget):
         self.palette_obj = palette
         self._parsed = None                 # the typed equation, once parsed
         self._catalog_key = state.problem_key
+        #: Lyapunov estimates by (problem, parameters), so a horizon is paid
+        #: for once per setting rather than once per solve. None records an
+        #: estimate that failed, which is not worth retrying.
+        self._exponents: dict = {}
+        self._horizon_wanted = None
+        self._horizon_signals = _HorizonSignals()
+        self._horizon_signals.done.connect(self._on_exponent)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(14, 14, 14, 14)
@@ -388,10 +432,88 @@ class LabScreen(QWidget):
             self.stats.clear("solving…")
 
     def _on_result(self, result) -> None:
+        self.plot.horizon = self._horizon_for(result)
         self.stats.update_from(result)
         self.plot.update_from(result, self.plot.view.currentText())
         self.timeline.update_from(result, log_time=self.plot.log_time.isChecked())
         self._show_cautions(result)
+
+    # -- the predictability horizon (UX-04) -------------------------------
+
+    @staticmethod
+    def _exponent_key(result):
+        """The Lyapunov cache key for this result, or None if it has none.
+
+        Only for entries tagged chaotic, and not for a spacetime plot: the
+        Kuramoto-Sivashinsky entry is tagged chaotic too, but it is a
+        discretised PDE whose time axis the Lab does not draw, and a
+        Lyapunov run over its hundreds of components would cost minutes.
+        """
+        entry = getattr(result, "entry", None)
+        if (entry is None or "chaotic" not in entry.tags
+                or entry.plot_kind == "spacetime" or not result.ok):
+            return None
+        # The duration is a parameter like any other to the catalogue, and
+        # the one that does not change the exponent: lengthening the plot must
+        # not throw away three seconds of estimate and start again.
+        params = tuple(sorted(
+            (name, value) for name, value in (result.request.params or {}).items()
+            if name != "t_end"
+        ))
+        return entry.key, params
+
+    def _horizon_for(self, result) -> float | None:
+        """The horizon to draw now, starting the estimate if it is not known.
+
+        Parameters matter, not only the problem: Lorenz at rho = 15 is
+        attracting and has no horizon at all, and `predictability_horizon`
+        returns None for it rather than a number.
+        """
+        key = self._exponent_key(result)
+        self._horizon_wanted = key
+        if key is None:
+            return None
+        if key not in self._exponents:
+            problem = getattr(result.benchmark, "problem", None)
+            if problem is not None:
+                self._exponents[key] = "pending"
+                QThreadPool.globalInstance().start(_HorizonJob(
+                    problem, key, lambda: self._horizon_wanted,
+                    self._horizon_signals,
+                ))
+            return None
+        estimate = self._exponents[key]
+        if estimate is None or estimate == "pending":
+            return None
+        return analysis.predictability_horizon(estimate, result.request.rtol)
+
+    def _on_exponent(self, key, estimate) -> None:
+        if estimate is None and self._horizon_wanted != key:
+            # Abandoned because the user moved on, not failed: forget it, so
+            # coming back to this setting tries again.
+            self._exponents.pop(key, None)
+            return
+        self._exponents[key] = estimate
+        if key == self._horizon_wanted:
+            self._replot()
+
+    def horizon_note(self, result) -> str | None:
+        """The caption, only when the plot actually runs past the horizon."""
+        horizon = self.plot.horizon
+        solution = getattr(result, "solution", None)
+        if horizon is None or solution is None or solution.t[-1] <= horizon:
+            return None
+        estimate = self._exponents.get(self._exponent_key(result))
+        return (
+            # Two significant figures: the exponent behind it is good to
+            # about 20% on a short run, and "23.1" would claim otherwise.
+            f"Past about t ≈ {horizon:.2g} (marked on the plot), a single "
+            f"trajectory is not "
+            f"a prediction: an error the size of the tolerance grows like "
+            f"e^(λt) with λ ≈ {estimate.value:.2f} ± {estimate.error:.2f}, and "
+            f"has reached the size of the attractor by then. The attractor is "
+            f"real; the path along it is not."
+        )
 
     def _show_cautions(self, result) -> None:
         """Say when the answer on screen is not the whole answer.
@@ -417,6 +539,17 @@ class LabScreen(QWidget):
                 f"The step size is chosen to resolve the solution, not the "
                 f"event; raise the event's `subdivisions` to catch them."
             )
+
+        # PED-08. A switched forcing term used to come back as unqualified
+        # success, although the solver had spent twenty rejected steps
+        # bisecting its way onto the switch and recorded every one of them.
+        rough = analysis.rough_spot_note(self.plot.rough_spots)
+        if rough:
+            notes.append(rough)
+
+        horizon = self.horizon_note(result)
+        if horizon:
+            notes.append(horizon)
 
         if notes:
             self.caution.setStyleSheet(

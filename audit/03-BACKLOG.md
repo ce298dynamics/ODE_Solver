@@ -90,16 +90,21 @@ Three of these needed their design changed by measurement rather than reasoning:
   *growth* under refinement, which separates them from `y^(1/3)` by four orders
   of magnitude.
 
-### M3 in progress
+### M3 in progress (updated 2026-09-23)
 
 | Item | State | Evidence |
 |---|---|---|
 | **PED-04** FitzHugh–Nagumo and SIR in the catalogue | **done** | Hopf window *derived* from trace J = 0 → `I ∈ (0.331281, 1.418719)`, matching the measured onset (1.5e-2 at I=0.30 vs 3.75 at I=0.33) and collapse (3.75 at 1.42 vs 3.4e-5 at 1.50); SIR conserves S+I+R to 1.5e-12 |
 | **DYN-03** Lyapunov exponent with an honest error bar | **done** | Lorenz **+0.9001 ± 0.0117** against literature 0.9056; damped pendulum −0.1497; Lotka–Volterra "indistinguishable from zero" |
-| DYN-01 continuation / bifurcation | open | prototypes `cont01–04.py` survive in scratch |
-| DYN-02 limit cycles / Poincaré | open | prototypes `proto_period*.py` survive |
-| UX-04 predictability horizon | unblocked | `predictability_horizon` now exists and returns None unless the exponent resolves positive |
-| PED-01, PED-02, SYM-02/03/04, A11Y-01/02, TEST-03 | open | |
+| **DYN-01** continuation / bifurcation | **done** | `bb0b8eb` |
+| **DYN-02** limit cycles / Poincaré | **done** | `bb0b8eb` |
+| **PED-02** figures for the 17 lessons without | **done** | all 35 lessons have one; `test_lessons.py` asserts it over the course |
+| **A11Y-02** text alternative and data table | **done** | `describe.py`; Plot / In words / Data tabs |
+| **UX-04** predictability horizon | **done** | Lorenz at rtol 1e-8: horizon ≈ 20–23 from a 15-unit, ~3 s background estimate; none at ρ = 15 |
+| **PED-08** flag a discontinuous RHS | **done** | `analysis.rough_spots`: sign, kink and switch located at 1e-6 and 1e-9; every catalogue problem clean; silent at 1e-3, and says why |
+| **PED-07** name Lipschitz and Picard–Lindelöf | **done** | aside in `slopefields` |
+| **TEST-03** property-based tests | **done, redesigned** | property 4 is invisible through `solve`; fixed-step with exact Jacobians it fails `66e7491` (2.6e-10 against a 1e-11 bound) |
+| PED-01, SYM-02/03/04, A11Y-01/03 | open | |
 
 **DYN-03's error bar is the part worth reading.** The obvious one is wrong by a
 factor of 8.5, and the measurement that shows it is in the docstring: over 12
