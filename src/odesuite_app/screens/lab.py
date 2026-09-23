@@ -147,6 +147,7 @@ class LabScreen(QWidget):
         centre.setSpacing(10)
 
         self.tabs = QTabWidget()
+        self.tabs.setAccessibleName("trajectory or closed form")
         self.plot = PlotPanel(palette)
         self.tabs.addTab(self.plot, "Trajectory")
         self.symbolic = SymbolicPanel(palette)
@@ -218,6 +219,7 @@ class LabScreen(QWidget):
         catalogue_layout.setSpacing(6)
 
         self.problem_picker = QComboBox()
+        self.problem_picker.setAccessibleName("problem")
         for key in catalog.keys():
             self.problem_picker.addItem(catalog.get(key).title, key)
         self.problem_picker.currentIndexChanged.connect(self._on_problem_picked)
@@ -250,6 +252,7 @@ class LabScreen(QWidget):
         add_heading(layout, "Method", space_above=6)
 
         self.method_picker = MethodPicker()
+        self.method_picker.setAccessibleName("method")
         self.method_picker.method_chosen.connect(self.state.set_method)
         layout.addWidget(self.method_picker)
 

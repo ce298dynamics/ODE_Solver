@@ -82,6 +82,7 @@ class HomeScreen(QWidget):
         outer.setSpacing(0)
 
         scroll = QScrollArea()
+        scroll.setAccessibleName("problem gallery")
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         outer.addWidget(scroll)

@@ -145,6 +145,7 @@ class LaplaceScreen(QWidget):
         outer.addWidget(self.table_note)
 
         scroll = QScrollArea()
+        scroll.setAccessibleName("transform derivation")
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         page = QWidget()

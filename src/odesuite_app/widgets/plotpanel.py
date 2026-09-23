@@ -189,6 +189,7 @@ class PlotPanel(QFrame):
         header.addStretch(1)
 
         self.view = QComboBox()
+        self.view.setAccessibleName("plot view")
         self.view.addItems(["Auto", "Time series", "Phase", "Components"])
         self.view.setFixedWidth(118)
         self.view.currentTextChanged.connect(
@@ -241,6 +242,7 @@ class PlotPanel(QFrame):
         self._series: dict[int, list] = {}
 
         self.plot = pg.PlotWidget()
+        self.plot.setAccessibleName("plot")
         self.plot.setBackground(palette.plot_background)
         self.plot.showGrid(x=True, y=True, alpha=0.18)
 
@@ -249,6 +251,7 @@ class PlotPanel(QFrame):
         # one arrangement of them that a keyboard already knows how to move
         # between.
         self.views = QTabWidget()
+        self.views.setAccessibleName("plot, words or data")
         self.views.addTab(self.plot, "Plot")
         self.views.addTab(self._build_description(), "In words")
         self.views.addTab(self._build_table(), "Data")

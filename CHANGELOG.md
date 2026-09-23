@@ -182,6 +182,22 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Every control a keyboard can reach has a name** (A11Y-01). Measured by
+  asking Qt's accessibility layer what a screen reader would announce, not by
+  counting `setAccessibleName` calls -- a button is already named by its
+  caption -- about 170 focusable widgets across the fourteen screens
+  announced nothing: every field of the equation editor, every slider, every
+  combo box, the plots and the scroll areas. They are named at the few
+  constructors that make most of them. Two things are more than a label. A
+  `ValueSlider`'s own value is a tick from 0 to 1000, which on a logarithmic
+  slider is actively misleading, so its accessible description carries the
+  real value and follows the readout. And the parameter fields of the
+  equation editor are renamed after the parameter they hold, because their
+  column headings are only visual. `tests/test_app.py` walks every screen,
+  and a lesson's practice page for the answer boxes built on demand, and
+  fails on any focusable widget without a name; it failed on all of them
+  before.
+
 - **A general solution with two branches shows both** (SYM-03). Without an
   initial condition, "Solve for y" took the first root sympy returned and
   called it the general solution: `y' = -t/y` became `y = -√(2C - t²)`, the

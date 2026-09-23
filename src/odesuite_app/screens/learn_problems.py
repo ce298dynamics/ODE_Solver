@@ -75,6 +75,7 @@ class WorkedProblemsScreen(QWidget):
         layout.addWidget(note)
 
         self.listing = QListWidget()
+        self.listing.setAccessibleName("worked problems")
         self.listing.setMinimumHeight(220)
         for key in catalog.keys(include_user=False):
             entry = catalog.get(key)
@@ -112,6 +113,7 @@ class WorkedProblemsScreen(QWidget):
         outer.addWidget(self.title)
 
         scroll = QScrollArea()
+        scroll.setAccessibleName("worked problem")
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         inner = QWidget()

@@ -128,6 +128,7 @@ class CourseScreen(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
 
         scroll = QScrollArea()
+        scroll.setAccessibleName("course map")
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setFrameShape(QFrame.NoFrame)

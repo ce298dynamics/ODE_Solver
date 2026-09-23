@@ -212,6 +212,7 @@ class StiffnessScreen(QWidget):
         add_heading(layout, "Problem", space_above=4)
 
         self.problem_picker = QComboBox()
+        self.problem_picker.setAccessibleName("problem")
         self.refresh_problems()
         self.problem_picker.currentIndexChanged.connect(self._on_problem)
         layout.addWidget(self.problem_picker)
@@ -219,6 +220,7 @@ class StiffnessScreen(QWidget):
         add_heading(layout, "Method")
 
         self.method_picker = QComboBox()
+        self.method_picker.setAccessibleName("method")
         self.method_picker.currentTextChanged.connect(self._on_method)
         layout.addWidget(self.method_picker)
 
@@ -243,6 +245,7 @@ class StiffnessScreen(QWidget):
         layout.addWidget(self.play_button)
 
         self.scrub = QSlider(Qt.Horizontal)
+        self.scrub.setAccessibleName("animation time")
         self.scrub.setRange(0, 0)
         self.scrub.valueChanged.connect(self._on_scrub)
         layout.addWidget(self.scrub)
@@ -273,6 +276,7 @@ class StiffnessScreen(QWidget):
         layout.addWidget(self.region_title)
 
         self.region_plot = pg.PlotWidget()
+        self.region_plot.setAccessibleName("stability region")
         self.region_plot.setBackground(self.palette_obj.plot_background)
         self.region_plot.showGrid(x=True, y=True, alpha=0.15)
         self.region_plot.setLabel("bottom", "Re(hλ)")
@@ -293,6 +297,7 @@ class StiffnessScreen(QWidget):
         layout.addWidget(self.trajectory_title)
 
         self.trajectory_plot = pg.PlotWidget()
+        self.trajectory_plot.setAccessibleName("trajectory")
         self.trajectory_plot.setBackground(self.palette_obj.plot_background)
         self.trajectory_plot.showGrid(x=True, y=True, alpha=0.15)
         self.trajectory_plot.setLabel("bottom", "t")
@@ -300,6 +305,7 @@ class StiffnessScreen(QWidget):
         layout.addWidget(self.trajectory_plot, 1)
 
         self.step_plot = pg.PlotWidget()
+        self.step_plot.setAccessibleName("step size")
         self.step_plot.setBackground(self.palette_obj.plot_background)
         self.step_plot.showGrid(x=True, y=True, alpha=0.15)
         self.step_plot.setLabel("left", "h")

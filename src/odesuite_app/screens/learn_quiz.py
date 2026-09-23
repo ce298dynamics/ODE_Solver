@@ -177,6 +177,7 @@ class QuizScreen(QWidget):
         # between two modes -- each of which then needs its own list -- would
         # be three clicks where one does.
         self.unit_picker = QComboBox()
+        self.unit_picker.setAccessibleName("quiz or exam")
         for unit in buildable():
             self.unit_picker.addItem(f"Unit — {unit.title}",
                                      ("unit", unit.key))
@@ -194,6 +195,7 @@ class QuizScreen(QWidget):
 
         add_heading(layout, "Questions", space_above=8)
         self.length = QSpinBox()
+        self.length.setAccessibleName("number of questions")
         self.length.setRange(4, 20)
         self.length.setValue(DEFAULT_LENGTH)
         self.length.setToolTip(
@@ -238,6 +240,7 @@ class QuizScreen(QWidget):
 
     def _build_body(self) -> QWidget:
         self._scroll = QScrollArea()
+        self._scroll.setAccessibleName("quiz questions")
         self._scroll.setWidgetResizable(True)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._page = QWidget()
@@ -563,6 +566,7 @@ class QuizScreen(QWidget):
                 inner.addWidget(button)
         else:
             self.answer = QLineEdit()
+            self.answer.setAccessibleName("your answer")
             self.answer.setPlaceholderText(
                 "a number" if counting
                 else "an equation, with an = in it" if question.kind == "model"

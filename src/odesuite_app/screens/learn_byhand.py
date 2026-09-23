@@ -74,6 +74,7 @@ class ByHandScreen(QWidget):
 
         add_heading(layout, "Problem")
         self.problem = QComboBox()
+        self.problem.setAccessibleName("problem")
         self.problem.setToolTip(
             "Only problems with a closed-form solution, so every row can be "
             "compared with the truth."
@@ -82,6 +83,7 @@ class ByHandScreen(QWidget):
 
         add_heading(layout, "Method", space_above=6)
         self.method = QComboBox()
+        self.method.setAccessibleName("method")
         for key in SUPPORTED:
             self.method.addItem(
                 {"euler": "Euler (order 1)", "rk4": "RK4 (order 4)"}[key], key
@@ -132,6 +134,7 @@ class ByHandScreen(QWidget):
         outer.addWidget(self.title)
 
         scroll = QScrollArea()
+        scroll.setAccessibleName("worked table")
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         inner = QWidget()

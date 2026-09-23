@@ -861,3 +861,94 @@ def test_the_tool_names_match_the_sidebar(qapp):
     labels = {key: label for key, label, _ in SCREENS}
     for key, name in TOOL_NAMES.items():
         assert labels[key] == name, f"{key}: sidebar says {labels[key]!r}"
+
+
+# ---------------------------------------------------------------------------
+# A11Y-01 -- every control a keyboard can reach has a name
+# ---------------------------------------------------------------------------
+
+
+def _unnamed_focusable(root):
+    """Focusable widgets under `root` whose *effective* accessible name is empty.
+
+    Effective, because that is what a screen reader announces: Qt already
+    names a button by its caption and a check box by its text, so asking
+    whether `setAccessibleName` was called would demand redundant work and
+    miss nothing real. Three kinds of widget are Qt's own internals and take
+    their name from their owner -- a combo box's popup list, the line edit
+    inside a spin box or combo box, and a scroll area's viewport -- and are
+    skipped for that reason, not because they are hard.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QAccessible
+    from PySide6.QtWidgets import (
+        QAbstractScrollArea,
+        QAbstractSpinBox,
+        QComboBox,
+        QWidget,
+    )
+
+    def internal(widget) -> bool:
+        parent = widget.parentWidget()
+        if isinstance(parent, (QAbstractSpinBox, QComboBox)):
+            return True
+        if isinstance(parent, QAbstractScrollArea) and parent.viewport() is widget:
+            return True
+        ancestor = parent
+        while ancestor is not None:
+            if isinstance(ancestor, QComboBox):
+                return True
+            ancestor = ancestor.parentWidget()
+        return False
+
+    missing = []
+    for widget in root.findChildren(QWidget):
+        if widget.focusPolicy() == Qt.NoFocus or internal(widget):
+            continue
+        interface = QAccessible.queryAccessibleInterface(widget)
+        name = interface.text(QAccessible.Name) if interface is not None else ""
+        if not (name or "").strip():
+            missing.append(f"{type(widget).__name__} under "
+                           f"{type(widget.parentWidget()).__name__}")
+    return missing
+
+
+def test_every_focusable_control_on_every_screen_has_a_name(qapp):
+    """Measured before the fix: roughly 170 focusable widgets across the
+    fourteen screens had no name a screen reader could announce -- every
+    field of the equation editor, every slider, every combo box."""
+    from odesuite_app.app import SCREENS, MainWindow
+
+    window = MainWindow("dark")
+    window.resize(1400, 900)
+    window.show()
+    problems = {}
+    for key, _label, _shortcut in SCREENS:
+        window.go(key)
+        qapp.processEvents()
+        missing = _unnamed_focusable(window._screens[key])
+        if missing:
+            problems[key] = missing
+    assert not problems, problems
+    window.close()
+
+
+def test_a_practice_answer_box_has_a_name(qapp):
+    """Answer boxes are built when a question is shown, not with the screen,
+    so the walk above never sees them."""
+    from PySide6.QtWidgets import QLineEdit
+
+    from odesuite_app.screens.learn_lessons import LessonsScreen
+    from odesuite_app.state import SessionState
+    from odesuite_app.theme import PALETTES
+
+    screen = LessonsScreen(SessionState(), PALETTES["dark"])
+    screen.resize(1400, 900)
+    screen.select("basics")
+    screen._choose_segment("Practice")
+    qapp.processEvents()
+    boxes = [box for box in screen.findChildren(QLineEdit)
+             if box.accessibleName() == "your answer"]
+    assert boxes, "no named answer box on the practice page"
+    assert not _unnamed_focusable(screen)
+    screen.deleteLater()

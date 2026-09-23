@@ -257,6 +257,7 @@ class PrintScreen(QWidget):
         layout.addWidget(blurb)
 
         self.source_picker = QComboBox()
+        self.source_picker.setAccessibleName("worksheet source")
         for kind, key, label in sources():
             self.source_picker.addItem(label, (kind, key))
         self.source_picker.currentIndexChanged.connect(self._redraw)
@@ -268,6 +269,7 @@ class PrintScreen(QWidget):
         count.setProperty("role", "muted")
         row.addWidget(count, 1)
         self.length = QSpinBox()
+        self.length.setAccessibleName("number of questions")
         self.length.setRange(2, 30)
         self.length.setValue(DEFAULT_LENGTH)
         self.length.valueChanged.connect(self._redraw)
@@ -283,6 +285,7 @@ class PrintScreen(QWidget):
         label.setProperty("role", "muted")
         seeds.addWidget(label, 1)
         self.seed = QSpinBox()
+        self.seed.setAccessibleName("worksheet seed")
         self.seed.setRange(1, 99_999)
         self.seed.setValue(1)
         self.seed.setToolTip(
@@ -320,6 +323,7 @@ class PrintScreen(QWidget):
         layout.addWidget(crib)
 
         self.sheet_picker = QComboBox()
+        self.sheet_picker.setAccessibleName("formula sheet units")
         self.sheet_picker.addItem("Whole course", "")
         for unit in content.UNITS:
             self.sheet_picker.addItem(unit.title, unit.key)
@@ -370,6 +374,7 @@ class PrintScreen(QWidget):
 
     def _build_body(self) -> QWidget:
         self._scroll = QScrollArea()
+        self._scroll.setAccessibleName("printable preview")
         self._scroll.setWidgetResizable(True)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._page = QWidget()

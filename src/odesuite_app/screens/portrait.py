@@ -139,6 +139,7 @@ class PortraitScreen(QWidget):
         add_heading(layout, "System")
 
         self.picker = QComboBox()
+        self.picker.setAccessibleName("system")
         # Only planar autonomous systems have a phase portrait in this sense.
         # `autonomous_2d` is the honest gate: a static vector field only means
         # anything when the right-hand side does not depend on t. A typed
@@ -223,6 +224,7 @@ class PortraitScreen(QWidget):
         layout.addLayout(header)
 
         self.plot = pg.PlotWidget()
+        self.plot.setAccessibleName("phase portrait")
         self.plot.setBackground(self.palette_obj.plot_background)
         self.plot.showGrid(x=True, y=True, alpha=0.15)
         self.plot.setMenuEnabled(False)
@@ -235,6 +237,7 @@ class PortraitScreen(QWidget):
         # navigation would put the parameter sliders on one screen and the
         # picture of what they do on another.
         self.views = QTabWidget()
+        self.views.setAccessibleName("portrait or bifurcation diagram")
         self.views.addTab(self.plot, "Portrait")
         self.views.addTab(self._build_bifurcation(), "Bifurcation")
         layout.addWidget(self.views, 1)
@@ -249,6 +252,7 @@ class PortraitScreen(QWidget):
         row = QHBoxLayout()
         row.addWidget(QLabel("Sweep"))
         self.sweep_param = QComboBox()
+        self.sweep_param.setAccessibleName("parameter to sweep")
         self.sweep_param.setMinimumWidth(130)
         row.addWidget(self.sweep_param)
         self.sweep_button = QPushButton("Draw diagram")
@@ -262,6 +266,7 @@ class PortraitScreen(QWidget):
         layout.addLayout(row)
 
         self.sweep_plot = pg.PlotWidget()
+        self.sweep_plot.setAccessibleName("bifurcation diagram")
         self.sweep_plot.setBackground(self.palette_obj.plot_background)
         self.sweep_plot.showGrid(x=True, y=True, alpha=0.15)
         self.sweep_plot.setMenuEnabled(False)

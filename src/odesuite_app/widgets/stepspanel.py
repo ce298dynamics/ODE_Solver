@@ -43,6 +43,7 @@ class StepsPanel(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
 
         scroll = QScrollArea()
+        scroll.setAccessibleName("derivation steps")
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         outer.addWidget(scroll)
