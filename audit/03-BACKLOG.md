@@ -809,7 +809,21 @@ predictability horizon).
 - **Acceptance criteria:** dopri5 on Robertson fails in under 1 s (currently 22.6 s) with a diagnosis naming stiffness; no `NONSTIFF` benchmark triggers it at `rtol` from `1e-3` to `1e-12`; the Method Race test drops below 10 s.
 - **Dependencies / risks:** false positives would be worse than the current slowness — the no-false-alarm criterion above is the gate. Best after ARCH-01.
 
-### [PERF-03] Hoist the ERK stage buffer out of the step loop
+### [PERF-03] ~~Hoist the ERK stage buffer out of the step loop~~ — **WITHDRAWN 2026-09-23**
+
+> **Measured, and not worth doing.** 50 000 RK4 steps took 0.76 s at n = 1,
+> 0.87 s at n = 28 and 3.20 s at n = 400; allocating the `(7, n)` buffer the
+> same number of times took 0.008, 0.009 and 0.014 s — **1.0%, 1.0% and 0.4%**
+> of the run. The step is dominated by the Python-level stage loop and the
+> right-hand side, not by one `np.empty`.
+>
+> And the proposal as written would have introduced a bug. `step` returns
+> `f_new = K[-1]` for FSAL tableaux, which is a *view* into `K`. The driver
+> carries it as `f` into the next attempt; if that attempt is rejected and `K`
+> is reused, the trial's last stage overwrites the row `f` points at and the
+> retry starts from a wrong derivative. A safe version must copy `f_new`,
+> which spends part of the 1% it saves. Left as it is.
+
 
 - **Severity:** P3
 - **Effort:** S
