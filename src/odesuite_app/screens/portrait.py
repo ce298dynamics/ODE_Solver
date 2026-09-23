@@ -549,10 +549,19 @@ class PortraitScreen(QWidget):
                 )
 
         if self.toggles["separatrices"].isChecked():
+            # A11Y-03. Colour alone was red against green -- the pairing
+            # red-green colour blindness collapses -- although this file already
+            # encodes equilibria by marker shape for exactly that reason. The
+            # unstable manifold is dash-dot rather than dashed because the
+            # nullclines already have dashes, and a third line that matched
+            # them in pattern would only move the ambiguity.
             for path, label in data.separatrices:
-                colour = palette.danger if label == "unstable" else palette.success
+                unstable = label == "unstable"
                 self.plot.plot(
-                    path[:, 0], path[:, 1], pen=pg.mkPen(colour, width=2.2)
+                    path[:, 0], path[:, 1],
+                    pen=pg.mkPen(palette.danger if unstable else palette.success,
+                                 width=2.2,
+                                 style=Qt.DashDotLine if unstable else Qt.SolidLine),
                 )
 
         if self.toggles["fixed"].isChecked():
@@ -581,8 +590,8 @@ class PortraitScreen(QWidget):
             f"{entry.labels[0] if entry.labels else 'x'}′=0 &nbsp; "
             f"<span style='color:{palette.series[1]}'>--</span> "
             f"{entry.labels[1] if len(entry.labels) > 1 else 'y'}′=0 &nbsp; "
-            f"<span style='color:{palette.danger}'>—</span> unstable manifold "
-            f"&nbsp;<span style='color:{palette.success}'>—</span> stable manifold"
+            f"<span style='color:{palette.danger}'>-·-</span> unstable manifold "
+            f"&nbsp;<span style='color:{palette.success}'>——</span> stable manifold"
         )
         self._write_report()
         self._describe_plot()

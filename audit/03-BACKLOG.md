@@ -104,7 +104,8 @@ Three of these needed their design changed by measurement rather than reasoning:
 | **PED-08** flag a discontinuous RHS | **done** | `analysis.rough_spots`: sign, kink and switch located at 1e-6 and 1e-9; every catalogue problem clean; silent at 1e-3, and says why |
 | **PED-07** name Lipschitz and Picard–Lindelöf | **done** | aside in `slopefields` |
 | **TEST-03** property-based tests | **done, redesigned** | property 4 is invisible through `solve`; fixed-step with exact Jacobians it fails `66e7491` (2.6e-10 against a 1e-11 bound) |
-| PED-01, SYM-02/03/04, A11Y-01/03 | open | |
+| **A11Y-03** separatrices by pattern | **done** | stable solid, unstable dash-dot (nullclines own the dash) |
+| PED-01, SYM-02/03/04, A11Y-01 | open | |
 
 **DYN-03's error bar is the part worth reading.** The obvious one is wrong by a
 factor of 8.5, and the measurement that shows it is in the docstring: over 12

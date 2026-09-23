@@ -182,6 +182,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Separatrices differ in pattern as well as colour** (A11Y-03). The stable
+  manifold is solid and the unstable one dash-dot, and the legend draws the
+  two patterns. They were red against green only, the pairing red–green
+  colour blindness collapses, in a file that already encodes equilibria by
+  marker shape for that reason. Dash-dot rather than dashed, because the
+  nullclines are dashed.
+
 - **"Open the tool for this topic" now opens it on the topic.** The button
   emitted a screen name and nothing else, so a tooltip promising "with an
   example loaded" landed on an empty screen. It carries the lesson's own
