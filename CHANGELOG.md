@@ -266,6 +266,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **The technique each worked example gets is pinned** (SYM-04, first half).
+  The narrator picks its method from `classify_ode`'s hint names, which sympy
+  does not promise to keep. A rename already fails loudly; a reordering would
+  not -- the equation would be narrated, correctly, by a different method, and
+  every test would pass. `tests/test_steps.py` now records, for all 37
+  distinct worked examples the steps narrator explains, which of the nine
+  techniques they get under sympy 1.14, and fails on any change. A new worked
+  example has to be added to the table. The second half -- making the app's
+  own recognisers primary so that `classify_ode` is only a fallback -- is not
+  done.
+
 - **A chaotic trajectory marks where it stops being a prediction** (UX-04).
   Lorenz's default duration is 40 and its predictability horizon at
   rtol = 1e-8 is about 20, so the default view presented a second half that
