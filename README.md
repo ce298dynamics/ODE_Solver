@@ -945,11 +945,15 @@ test asserts there never is. No telemetry, no analytics, no crash reporting, no
 update check, no fonts or assets fetched at runtime. It works with the network
 cable out, because it never wanted it.
 
-**Two files on disk**, in the same per-user directory. `progress.json` is
+**Three files on disk**, in the same per-user directory. `progress.json` is
 written only if you answer a question in the Learning Hub; `session.json` holds
 what was on screen when you last closed — the problem, method, tolerances,
 parameter values and screen — so the application reopens where you left it.
-Neither holds anything about you or the machine.
+`diagnostics.log` is written only when a solve fails, and records the same
+things `session.json` does plus the error and its traceback, with every
+filesystem path cut down to the package that raised. It is capped at 64 KB,
+and it leaves the machine only if you press **Copy diagnostics** and paste the
+result somewhere yourself. None of the three holds anything about you.
 
 | | |
 |---|---|
@@ -965,7 +969,7 @@ recorded" rather than an error, and there is a button in the interface that
 deletes it. Deleting it by hand does no harm either.
 
 Everything else the application shows is recomputed from the equation in front
-of it, which is why this was the only file for a long time.
+of it, which is why `progress.json` was the only file for a long time.
 
 See [`SECURITY.md`](SECURITY.md) for the threat model and how to report a
 vulnerability.

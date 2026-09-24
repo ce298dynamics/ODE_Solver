@@ -170,6 +170,16 @@ class Sidebar(QFrame):
         self.theme_button.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.theme_button)
 
+        # REL-04: the one way a failure here can reach the author, and only
+        # when the user chooses to paste it somewhere.
+        self.diagnostics_button = QPushButton("Copy diagnostics")
+        self.diagnostics_button.setCursor(Qt.PointingHandCursor)
+        self.diagnostics_button.setToolTip(
+            "Copy versions, platform and the last few failed solves to the "
+            "clipboard, for a bug report. Nothing is sent anywhere."
+        )
+        layout.addWidget(self.diagnostics_button)
+
         self.status = QLabel("ready")
         self.status.setProperty("role", "muted")
         self.status.setStyleSheet(theme.scaled("font-size: 10.5px; padding: 8px 8px 0 8px;"))
@@ -225,6 +235,7 @@ class MainWindow(QWidget):
         self.sidebar.section_changed.connect(self.show_section)
 
         self.sidebar.theme_button.clicked.connect(self.toggle_theme)
+        self.sidebar.diagnostics_button.clicked.connect(self.copy_diagnostics)
         self.state.busy_changed.connect(
             lambda busy: self.sidebar.status.setText("solving…" if busy else "ready")
         )
@@ -379,6 +390,17 @@ class MainWindow(QWidget):
         group = next((g for s, _, g in SECTIONS if s == section), None)
         if group:
             self.go(group[0][0])
+
+    def copy_diagnostics(self) -> str:
+        """Put the diagnostics report on the clipboard, and return it."""
+        from PySide6.QtGui import QGuiApplication
+
+        from . import diagnostics
+
+        text = diagnostics.report()
+        QGuiApplication.clipboard().setText(text)
+        self.sidebar.status.setText("diagnostics copied to the clipboard")
+        return text
 
     def go(self, key: str) -> None:
         """Open a screen by key, switching section if it lives in the other one.

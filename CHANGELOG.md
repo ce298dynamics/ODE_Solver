@@ -303,6 +303,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **A local record of failed solves, and "Copy diagnostics"** (REL-04). With
+  no telemetry -- a position worth keeping -- the only way the author learns a
+  solver failed for somebody is that they report it, and until now there was
+  nothing to report: the traceback was captured and then discarded. Failures
+  now go to `diagnostics.log` beside `progress.json`, one JSON line each:
+  problem, method, tolerances, parameters, the error or the solver's
+  structured diagnosis, and the traceback with every path cut down to the
+  package that raised, so a username in a home directory is never pasted into
+  an issue. Capped at 64 KB by dropping the older half; never fatal. The
+  sidebar's **Copy diagnostics** puts versions, platform and the last ten
+  failures on the clipboard. The README's privacy section names the file. The
+  test suite writes its own deliberate failures to a temporary log, not the
+  developer's.
+
 - **y' = y^(1/3) is a worked example** (PED-05). The slope-fields lesson said
   it has two solutions through the origin, and the Solver Lab answers y ≡ 0
   with a green "finished" and nothing else. The example narrates the other
