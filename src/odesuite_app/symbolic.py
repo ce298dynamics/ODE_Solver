@@ -1129,6 +1129,8 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
     except ParseError as exc:
         return AnswerCheck(message=str(exc))
 
+    from .steps import vanishes
+
     check = AnswerCheck(expression=candidate)
     try:
         equation = parsed.equation
@@ -1136,7 +1138,11 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
             (equation.lhs - equation.rhs).subs(parsed.function(_T), candidate).doit()
         )
         check.residual = residual
-        check.correct = bool(sp.simplify(residual) == 0)
+        # `vanishes`, not `simplify(...) == 0`. The docstring above always
+        # promised that a residual sympy merely failed to simplify is "cannot
+        # tell", not "wrong", and the code said wrong: a correct answer to the
+        # course's own non-uniqueness example was marked as a mistake.
+        check.correct, domain = vanishes(residual)
     except Exception as exc:
         check.message = f"could not decide: {exc}"
         return check
@@ -1146,8 +1152,15 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
 
     if check.correct is False:
         check.message = "substituting it does not give zero"
+    elif check.correct is None:
+        check.message = ("sympy could not simplify what is left, though it "
+                         "vanishes at every point tried -- probably right, "
+                         "not proven")
     elif check.matches_conditions is False:
         check.message = "it solves the equation, but not with these conditions"
+    elif domain:
+        check.message = (f"verified for {domain}: substituting it gives "
+                         f"exactly zero there")
     else:
         check.message = "verified: substituting it gives exactly zero"
     check.diagnosis = diagnose(parsed, check)

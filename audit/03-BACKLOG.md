@@ -109,6 +109,7 @@ Three of these needed their design changed by measurement rather than reasoning:
 | **SYM-04** classifier drift | **half done** | 37 worked examples pinned to their technique; recognisers-first inversion not started |
 | **A11Y-01** accessible names | **done** | ~170 unnamed focusable widgets → 0, measured through `QAccessible`; a tree-walking test holds it |
 | **PED-06** when each method fails | **done** | 13 method lessons, one "Where it stops" pitfall each, asserted |
+| **PED-05** y' = y^(1/3) as a lesson | **done** | a worked example; building it found the grader marking the correct answer wrong, and the narrator choosing a non-solution branch |
 | PED-01, SYM-02 | open | |
 
 **DYN-03's error bar is the part worth reading.** The obvious one is wrong by a

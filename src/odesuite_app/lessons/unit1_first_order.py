@@ -1247,6 +1247,31 @@ SLOPEFIELDS = Lesson(
                 "than a solution."
             ),
         ),
+        # PED-05. The lesson says this equation has two solutions through the
+        # origin, and the Solver Lab answers y = 0 and nothing else. Made into
+        # an example so the contradiction is the lesson rather than a surprise.
+        Example(
+            equation="y' = y**(1/3)",
+            conditions="y(0) = 0",
+            why="∂f/∂y = 1/(3y^(2/3)) is infinite on y = 0, so the uniqueness "
+                "half of the theorem has nothing to say at the origin, and "
+                "separation finds a solution that is not the obvious one.",
+            commentary=(
+                "Notice first what separation did not find. Dividing by y^(1/3) "
+                "assumed it was not zero, and y ≡ 0 is exactly the solution that "
+                "division threw away: it passes through the origin, its slope is "
+                "zero, and y^(1/3) is zero there too. So this condition is met by "
+                "two different curves, (2t/3)^(3/2) and the constant zero, and in "
+                "fact by infinitely many — stay at zero until any t = a, then leave "
+                "along (2(t − a)/3)^(3/2).\n\n"
+                "Then put it into the Solver Lab and watch a numerical method "
+                "choose. Started exactly at y = 0, every step sees a slope of zero "
+                "and the answer is y ≡ 0, reported as a success, while the Lab "
+                "warns that the uniqueness hypothesis fails at the start. Neither "
+                "answer is wrong. A method returns one solution, and only the "
+                "theorem can tell you whether there was only one to return."
+            ),
+        ),
     ),
     notes=(
         Note(

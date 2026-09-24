@@ -43,6 +43,27 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A correct answer that sympy could not simplify was marked wrong.**
+  `check_answer`'s docstring promised that a residual which merely failed to
+  simplify would be reported as "cannot tell", and the code reported it as
+  wrong. The case that exposed it is the course's own: `y = (2t/3)^(3/2)`
+  solves `y' = y^(1/3)`, `y(0) = 0` -- the slope-fields lesson's example of
+  non-uniqueness -- and was graded as a mistake, because `t` is declared real
+  and the cube root of its cube does not cancel without `t > 0`. The new
+  `steps.vanishes` decides in three steps: simplify; simplify again with `t`
+  positive, and if that works say "verified for t > 0" rather than claiming
+  more; otherwise evaluate at four positive times, and report wrong only if
+  the residual is measurably nonzero somewhere, "probably right, not proven"
+  if it vanishes at all of them. The narrator's own check uses the same
+  function.
+
+- **The narrator chose a branch that is not a solution.** For that same
+  equation both roots pass through the origin with C = 0, and the first --
+  the negative one, not a solution under sympy's principal cube root -- was
+  taken, so the lesson's tool showed an unverified answer. Branches are now
+  ranked: proven solution, then one the numeric probe cannot fault, then the
+  rest.
+
 - **Radau missed the tolerance it was asked for, and reported success.** Below
   `rtol = 1e-9` the achieved error stopped tracking the request: 15x too large
   at 1e-10, 30x at 1e-11, 54x at 1e-12, 103x at 1e-13, while DOPRI5 held 1.8x
@@ -281,6 +302,14 @@ All notable changes to this project are documented here. The format follows
   install alongside anything else.
 
 ### Added
+
+- **y' = y^(1/3) is a worked example** (PED-05). The slope-fields lesson said
+  it has two solutions through the origin, and the Solver Lab answers y ≡ 0
+  with a green "finished" and nothing else. The example narrates the other
+  one, points out that separation found it only by dividing away the first,
+  notes that there are in fact infinitely many, and sends the reader to the
+  Lab to watch a numerical method pick one while the uniqueness warning says
+  why it could. Building it is what found the two defects under Fixed.
 
 - **Every method lesson says where its method stops** (PED-06). The course's
   pitfalls were about students' mistakes -- a lost constant, a forgotten

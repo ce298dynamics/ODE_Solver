@@ -2218,3 +2218,19 @@ def test_a_method_lesson_says_where_the_method_stops(key):
               if note.kind == "pitfall" and note.heading.startswith("Where it stops")]
     assert len(limits) == 1, f"{key} does not say where its method fails"
     assert len(limits[0].body) >= 200
+
+
+def test_both_solutions_through_the_origin_are_accepted():
+    """PED-05. The slope-fields lesson teaches that y' = y^(1/3), y(0) = 0 has
+    two solutions. The grader marked the non-trivial one wrong -- t is real
+    here, and the cube root of (2t/3)^(3/2) does not simplify without t > 0 --
+    and the narrator narrated the branch that is not a solution at all."""
+    from odesuite_app.symbolic import check_answer, parse_equation, spec_for
+
+    parsed = parse_equation(spec_for("y' = y**(1/3)", "y(0) = 0"))
+    for answer in ("y = 0", "y = (2*t/3)**(3/2)"):
+        verdict = check_answer(parsed, answer)
+        assert verdict.correct is True and verdict.matches_conditions is not False, (
+            answer, verdict.message)
+    assert "t > 0" in check_answer(parsed, "y = (2*t/3)**(3/2)").message
+    assert check_answer(parsed, "y = t").correct is False

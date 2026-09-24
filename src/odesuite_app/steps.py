@@ -260,13 +260,69 @@ def _is_zero(expr) -> bool:
         return False
 
 
+#: A stand-in for t with the assumption the real `_T` lacks. `t` is declared
+#: real project-wide, which is right for plotting and wrong for simplifying:
+#: sympy will not reduce ((2t/3)^(3/2))^(1/3) to (2t/3)^(1/2) without knowing
+#: t is positive, because for negative t it is not true.
+_T_POSITIVE = sp.Symbol("t", positive=True)
+
+#: Where `vanishes` evaluates a residual that would not simplify, and the value
+#: every other free symbol -- a constant C1, a parameter -- is given there.
+#: Positive times, because the positive-t retry is the one that just failed and
+#: a solution valid only for t > 0 must not be condemned at t < 0; irregular
+#: values, so that no sample lands on a special point by accident.
+_PROBE_TIMES = (0.37, 0.81, 1.29, 2.03)
+_PROBE_VALUE = 0.731
+
+
+def vanishes(residual) -> tuple[bool | None, str]:
+    """Whether a substituted residual is zero, and on what domain.
+
+    Three answers, not two, and "not simplified" is never "wrong":
+
+    1. It simplifies to zero: ``(True, "")``.
+    2. It simplifies to zero once t is known positive: ``(True, "t > 0")``.
+       ``y = (2t/3)^(3/2)`` solves ``y' = y^(1/3)`` -- the slope-fields
+       lesson's own example of non-uniqueness -- and was graded *wrong*,
+       because with t merely real the cube root of its cube will not cancel.
+    3. Otherwise it is evaluated at a few positive times. Measurably nonzero
+       anywhere it is finite: ``(False, "")``, because that is a proof. Zero
+       at every sample: ``(None, "")`` -- strong evidence, not a proof, and
+       this function never claims more than it has.
+    """
+    try:
+        if sp.simplify(residual) == 0:
+            return True, ""
+        if sp.simplify(residual.subs(_T, _T_POSITIVE)) == 0:
+            return True, "t > 0"
+    except Exception:
+        pass
+    others = {symbol: _PROBE_VALUE for symbol in residual.free_symbols
+              if symbol is not _T}
+    for time in _PROBE_TIMES:
+        try:
+            value = complex(residual.subs(others).subs(_T, time).evalf())
+        except Exception:
+            continue
+        if not (abs(value) < float("inf")):
+            continue
+        if abs(value) > 1e-9:
+            return False, ""
+    return None, ""
+
+
 def _satisfies(equation: sp.Eq, function: sp.Function, candidate) -> bool | None:
-    """Substitute `candidate` into `equation`; the check `_verify` already uses."""
+    """Substitute `candidate` into `equation`; the check `_verify` already uses.
+
+    True where the residual vanishes, including only for t > 0 -- a
+    narrator's answer involving t^(3/2) or ln t is a solution there and
+    nowhere else, which is how every textbook states it.
+    """
     try:
         residual = (equation.lhs - equation.rhs).subs(
             function(_T), candidate
         ).doit()
-        return bool(sp.simplify(residual) == 0)
+        return vanishes(residual)[0]
     except Exception:
         return None
 
@@ -508,7 +564,7 @@ def _separable(equation: sp.Eq, function: sp.Function, ics: dict,
             "the integrated form is correct but cannot be rearranged for y"
         )
         return
-    general = sp.simplify(_pick_branch(solutions, ics))
+    general = sp.simplify(_pick_branch(solutions, ics, equation, function))
     derivation.steps.append(Step(
         title=f"Solve for {variable}",
         latex=_eq(f"{variable}(t)", _branches_latex(solutions, ics, general)),
@@ -551,7 +607,7 @@ def _branches_latex(solutions, ics: dict, chosen):
                                          for branch in solutions)
 
 
-def _pick_branch(solutions, ics: dict):
+def _pick_branch(solutions, ics: dict, equation=None, function=None):
     """The branch the initial condition actually sits on.
 
     Solving ``y²/2 = t²/2 + C`` for y gives a positive and a negative root, and
@@ -562,28 +618,45 @@ def _pick_branch(solutions, ics: dict):
     """
     if len(solutions) < 2 or not ics:
         return solutions[0]
-    for candidate in solutions:
-        constants = _constants_in(candidate)
-        if not constants:
-            if _conditions_hold(candidate, ics):
-                return candidate
-            continue
-        try:
-            equations = []
-            for key, value in ics.items():
-                point, order = _condition_point(key)
-                if point is None:
-                    continue
-                expression = (candidate.diff(_T, order) if order else candidate)
-                equations.append(
-                    sp.Eq(expression.subs(_T, _exact(point)), _exact(value))
-                )
-            found = sp.solve(equations, list(constants), dict=True)
-        except Exception:
-            continue
-        if found and _conditions_hold(candidate.subs(found[0]), ics):
-            return candidate
-    return solutions[0]
+    on_the_point = [candidate for candidate in solutions
+                    if _passes_through(candidate, ics)]
+    # Several branches can pass through the point -- for y' = y^(1/3) and
+    # y(0) = 0 both roots do, with C = 0 -- and only one of them may solve the
+    # equation: under sympy's principal cube root, -(2t/3)^(3/2) does not. The
+    # first was being taken, so the lesson on non-uniqueness narrated an
+    # answer its own check then marked unverified.
+    #
+    # Ranked rather than filtered: a proven solution first, then one the
+    # numeric probe could not fault, and a proven non-solution only if nothing
+    # else passes through the point. With C still free the right branch here
+    # is usually only "not faulted" -- (C + t)^(3/2) will not simplify.
+    if equation is not None and len(on_the_point) > 1:
+        rank = {True: 0, None: 1, False: 2}
+        return min(on_the_point,
+                   key=lambda candidate: rank[_satisfies(equation, function,
+                                                         candidate)])
+    return on_the_point[0] if on_the_point else solutions[0]
+
+
+def _passes_through(candidate, ics: dict) -> bool:
+    """Whether some choice of the constants puts `candidate` on the condition."""
+    constants = _constants_in(candidate)
+    if not constants:
+        return bool(_conditions_hold(candidate, ics))
+    try:
+        equations = []
+        for key, value in ics.items():
+            point, order = _condition_point(key)
+            if point is None:
+                continue
+            expression = (candidate.diff(_T, order) if order else candidate)
+            equations.append(
+                sp.Eq(expression.subs(_T, _exact(point)), _exact(value))
+            )
+        found = sp.solve(equations, list(constants), dict=True)
+    except Exception:
+        return False
+    return bool(found) and bool(_conditions_hold(candidate.subs(found[0]), ics))
 
 
 # ---------------------------------------------------------------------------
@@ -1409,7 +1482,7 @@ def _exact_equation(equation: sp.Eq, function: sp.Function, ics: dict,
             "rearranged for y"
         )
         return
-    general = sp.simplify(_pick_branch(solutions, ics))
+    general = sp.simplify(_pick_branch(solutions, ics, equation, function))
     derivation.steps.append(Step(
         title="Solve for y",
         latex=_eq("y(t)", _branches_latex(solutions, ics, general)),

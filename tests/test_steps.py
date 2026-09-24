@@ -1262,6 +1262,7 @@ PINNED_TECHNIQUES = {
     "y'' + y = 0": 'nth_linear_constant_coeff_homogeneous',
     "y' = y - t": '1st_linear',
     "y' = t/y": 'separable',
+    "y' = y**(1/3)": 'separable',
     "y' = y*(1 - y)": 'separable',
     "y' = y**2": 'separable',
     "y' + 2*y = t": '1st_linear',
