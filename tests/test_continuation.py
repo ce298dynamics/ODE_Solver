@@ -216,6 +216,42 @@ def test_the_damped_pendulum_has_no_bifurcation_in_its_damping():
     assert diagram.bifurcations == []
 
 
+@pytest.mark.parametrize("parameter", ["a", "b", "c", "d"])
+def test_a_centre_for_every_parameter_value_is_not_a_string_of_hopfs(parameter):
+    """Lotka-Volterra's interior equilibrium is a centre whatever the rates:
+    its real parts are rounding noise, 1e-12 either side of zero. Reading their
+    raw sign found 35 to 52 Hopf bifurcations per slider, one per flip."""
+    diagram = continuation.sweep(catalog.get("lotka_volterra"), parameter)
+    assert diagram.bifurcations == [], [(b.kind, b.parameter) for b in diagram.bifurcations]
+
+
+@pytest.mark.slow
+def test_lorenz_keeps_its_nontrivial_equilibria_in_view_through_the_hopf():
+    """C+ and C- sit at z = rho - 1, far from the start at (1, 1, 1). Framed on
+    the initial condition alone, the window lost them one sample after they
+    were born, and the diagram never saw the Hopf bifurcation at
+    rho = sigma(sigma + beta + 3) / (sigma - beta - 1) = 24.7368."""
+    diagram = continuation.sweep(catalog.get("lorenz"), "rho")
+    sigma, beta = 10.0, 8.0 / 3.0
+    exact = sigma * (sigma + beta + 3.0) / (sigma - beta - 1.0)
+
+    assert diagram.clipped is False
+    hopfs = diagram.of_kind(continuation.HOPF)
+    assert len(hopfs) == 2, "one for C+ and one for C-"
+    for hopf in hopfs:
+        assert hopf.parameter == pytest.approx(exact, abs=1e-3)
+    pitchforks = diagram.of_kind(continuation.PITCHFORK)
+    assert [p.parameter for p in pitchforks] == [pytest.approx(1.0, abs=1e-3)]
+
+
+def test_an_equilibrium_the_state_has_to_travel_to_is_found():
+    """A tank starting at 5 kg settles at inflow concentration x volume = 40 kg.
+    The search window was 4.95 to 5.05 and the diagram was empty."""
+    diagram = continuation.sweep(catalog.get("mixing_tank"), "flow")
+    assert len(diagram.branches) == 1
+    assert diagram.branches[0].coordinate() == pytest.approx(40.0, rel=1e-6)
+
+
 def test_a_constant_system_yields_one_flat_branch():
     def linear(mu):
         return ODEProblem(

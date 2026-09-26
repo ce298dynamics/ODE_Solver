@@ -51,7 +51,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from odesuite import ODEProblem
+from odesuite import ODEProblem, solve
 
 from .analysis import classify, jacobian_at
 
@@ -486,16 +486,28 @@ def _solve_near(make_problem: Callable[[float], ODEProblem], value: float,
     return BranchPoint(value, point, values, kind, stability)
 
 
-def _refine_stability_crossing(make_problem, branch: Branch, index: int,
+def _definite_sign(point: BranchPoint) -> int:
+    """The sign of the leading real part, or 0 where it is too small to tell.
+
+    The tolerance is `analysis.classify`'s, so a point this calls 0 is one the
+    portrait calls a centre or non-hyperbolic -- the diagram and the portrait
+    cannot disagree about whether an equilibrium is on the axis.
+    """
+    scale = max(float(np.max(np.abs(point.eigenvalues))), 1e-12)
+    if abs(point.growth) <= 1e-8 * scale:
+        return 0
+    return 1 if point.growth > 0 else -1
+
+
+def _refine_stability_crossing(make_problem, low: BranchPoint, high: BranchPoint,
                                window, span: float) -> BranchPoint:
     """Bisect the parameter for the zero of the leading real part.
 
-    Between `index` and ``index + 1`` the largest real part changes sign. The
+    Between `low` and `high` the largest real part changes sign. The
     equilibrium is re-solved at each trial value, seeded from the bracket, so
     the branch is followed rather than re-found -- which matters when several
     equilibria coexist and only one of them is crossing.
     """
-    low, high = branch.points[index], branch.points[index + 1]
     p_low, p_high = low.parameter, high.parameter
     guess_low, guess_high = low.position, high.position
     sign_low = np.sign(low.growth)
@@ -625,16 +637,26 @@ def _find_bifurcations(make_problem, diagram: Diagram, span: float,
             used.update((i, j))
             break
 
-    # Then the stability crossings along each branch.
+    # Then the stability crossings along each branch: from definitely stable
+    # to definitely unstable, or back, across any run of samples too close to
+    # the axis to call. Reading the raw sign instead found 38 "Hopf
+    # bifurcations" on a sweep of Lotka-Volterra's `a` -- its interior
+    # equilibrium is a centre for every value, its real parts rounding noise
+    # of 1e-12 either side of zero, and every flip of that noise was a pair of
+    # conjugates "crossing" the axis.
     for branch in diagram.branches:
-        for index in range(len(branch.points) - 1):
-            before, after = branch.points[index], branch.points[index + 1]
-            if before.growth == 0.0:
+        last = None
+        for index, point in enumerate(branch.points):
+            sign = _definite_sign(point)
+            if sign == 0:
                 continue
-            if np.sign(before.growth) == np.sign(after.growth):
+            if last is None or sign == _definite_sign(branch.points[last]):
+                last = index
                 continue
-            crossing = _refine_stability_crossing(make_problem, branch, index,
+            before, after = branch.points[last], point
+            crossing = _refine_stability_crossing(make_problem, before, after,
                                                   window, span)
+            last = index
             if before.oscillatory and after.oscillatory:
                 found.append(Bifurcation(
                     crossing.parameter, crossing.position, HOPF,
@@ -708,6 +730,26 @@ def _name_steady_crossing(diagram: Diagram, crossing: BranchPoint,
 _WINDOW_PROBES = (0.0, 0.5, 1.0)
 
 
+#: Step budget for the trajectory `_frame_on_equilibria` widens its net with.
+#: It needs the region the state visits, not an accurate path, and a stiff
+#: problem that would take a million explicit steps is cut off rather than
+#: waited for -- whatever was reached by then still widens the net.
+_VISIT_STEPS = 4000
+
+
+def _visited(problem: ODEProblem) -> np.ndarray | None:
+    """The states a loose trajectory from the initial condition passes through."""
+    try:
+        path = solve(problem, "dopri5", rtol=1e-4, atol=1e-7, max_steps=_VISIT_STEPS)
+    except Exception:
+        return None
+    y = np.asarray(path.y, dtype=float)
+    if y.ndim != 2 or y.shape[1] < 2:
+        return None
+    y = y[:, np.all(np.isfinite(y), axis=0)]
+    return y if y.shape[1] >= 2 else None
+
+
 def _frame_on_equilibria(problem: ODEProblem) -> tuple[tuple[float, float], ...]:
     """A box around the system's own equilibria, not around its trajectory.
 
@@ -720,11 +762,27 @@ def _frame_on_equilibria(problem: ODEProblem) -> tuple[tuple[float, float], ...]
     like a branch that ends.
 
     So this frames on the equilibria alone, found over a deliberately wide
-    net -- five times the initial condition's own reach in each component.
+    net -- five times the initial condition's own reach in each component,
+    widened to take in wherever a short trajectory from it goes.
+
+    The trajectory is not optional. Framed on the initial condition alone, the
+    net missed every equilibrium the state has to travel to: Lorenz's C+ and
+    C- sit at z = rho - 1, far above a start at (1, 1, 1), so a sweep of rho
+    lost them one sample after they were born -- and with them the Hopf
+    bifurcation at rho = 24.74 that is the most famous thing in the diagram.
+    A mixing tank starting at 5 kg and settling at 40 had a window from 4.95
+    to 5.05. A trajectory heads for the attractors, which is where the
+    equilibria worth drawing are.
     """
     y0 = np.asarray(problem.y0, dtype=float).reshape(-1)
     reach = np.maximum(np.abs(y0), 1.0)
-    search = tuple((float(a - 5.0 * r), float(a + 5.0 * r)) for a, r in zip(y0, reach))
+    low, high = y0 - 5.0 * reach, y0 + 5.0 * reach
+    visited = _visited(problem)
+    if visited is not None:
+        extent = visited.max(axis=1) - visited.min(axis=1)
+        low = np.minimum(low, visited.min(axis=1) - 0.5 * extent)
+        high = np.maximum(high, visited.max(axis=1) + 0.5 * extent)
+    search = tuple((float(a), float(b)) for a, b in zip(low, high))
 
     positions = [p.position for p in
                  equilibria_at(problem, search, grid_seeds=9)]
