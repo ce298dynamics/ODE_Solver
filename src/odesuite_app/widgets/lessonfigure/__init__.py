@@ -51,6 +51,14 @@ from .unit6 import (
     StatePlaneFigure,
 )
 from .unit7 import IndicialFigure, PartialSumsFigure, RecurrenceFigure
+from .unit8 import (
+    AlmostLinearFigure,
+    CompetitionFigure,
+    LimitCycleFigure,
+    LinearisationFigure,
+    NormalFormsFigure,
+    PendulumEnergyFigure,
+)
 
 __all__ = ["FIGURES", "LessonFigure", "build_figure"]
 
@@ -91,6 +99,12 @@ FIGURES: dict[str, type[LessonFigure]] = {
     "partial_sums": PartialSumsFigure,
     "recurrence": RecurrenceFigure,
     "indicial": IndicialFigure,
+    "linearise": LinearisationFigure,
+    "almost_linear": AlmostLinearFigure,
+    "competition": CompetitionFigure,
+    "pendulum_energy": PendulumEnergyFigure,
+    "limit_cycle": LimitCycleFigure,
+    "normal_forms": NormalFormsFigure,
 }
 
 

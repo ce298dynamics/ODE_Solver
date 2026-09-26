@@ -44,7 +44,7 @@ An example that drifted out of step with the tool that explains it would be
 worse than none.
 
 Content only -- no PySide6, no Qt -- so the curriculum can be read, counted and
-tested without an interface. One module per unit, because thirty-five lessons
+tested without an interface. One module per unit, because forty-one lessons
 is not something one file should carry.
 """
 
@@ -58,6 +58,7 @@ from . import (
     unit5_laplace,
     unit6_systems,
     unit7_series,
+    unit8_nonlinear,
 )
 from .model import (
     NOTE_KINDS,
@@ -165,6 +166,15 @@ UNITS: tuple[Unit, ...] = (
                 "makes them one problem again.",
         reference="Edwards ch. 4-5",
         lessons=unit6_systems.LESSONS,
+    ),
+    Unit(
+        key="nonlinear",
+        title="Nonlinear systems and phenomena",
+        summary="Systems no formula solves, read instead from their "
+                "equilibria, their linearisations and their pictures — up to "
+                "limit cycles, bifurcations and chaos.",
+        reference="Edwards ch. 6",
+        lessons=unit8_nonlinear.LESSONS,
     ),
     Unit(
         key="series",

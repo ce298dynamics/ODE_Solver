@@ -344,6 +344,22 @@ class PortraitScreen(QWidget):
         self.picker.setCurrentIndex(index)
         self._on_problem_picked(index)
 
+    def load_equation(self, key: str, _conditions: str = "") -> None:
+        """Open on a catalogue system, for a lesson's "Open in Phase Portrait".
+
+        Named for the method the other tools a lesson opens already have, so
+        the application asks every screen the same question. What arrives
+        here is a catalogue key rather than an equation; a key this screen
+        does not offer is ignored and the screen opens as it was.
+        """
+        index = self.picker.findData(key)
+        if index < 0:
+            return
+        if index != self.picker.currentIndex():
+            self.picker.setCurrentIndex(index)   # fires _on_problem_picked
+        else:
+            self._on_problem_picked(index)
+
     def refresh_problems(self) -> None:
         """Re-read the catalogue, so a newly typed equation appears here too."""
         from ..widgets.controls import fill_problem_picker

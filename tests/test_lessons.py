@@ -98,8 +98,23 @@ def test_every_lesson_is_complete():
         assert lesson.title and lesson.summary
         assert len(lesson.notes) >= 3, f"{lesson.key} is thin on notes"
         assert len(lesson.questions) >= 4, f"{lesson.key} is thin on practice"
-        assert lesson.tool in {"steps", "laplace", "byhand", "worked"}
+        assert lesson.tool in {"steps", "laplace", "byhand", "worked", "portrait"}
         assert lesson.narrator in NARRATORS
+
+
+def test_a_portrait_lesson_opens_on_a_system_the_portrait_offers():
+    """The key is checked against the catalogue and against the screen's own
+    gate: a lesson that sent the reader to a system with no planar portrait
+    would open the screen on whatever it happened to be showing."""
+    from odesuite_app import catalog
+
+    for lesson in LESSONS:
+        if lesson.tool != "portrait":
+            assert not lesson.portrait, f"{lesson.key} names a portrait it never opens"
+            continue
+        assert lesson.portrait, f"{lesson.key} opens the portrait on nothing"
+        assert catalog.get(lesson.portrait).autonomous_2d, (
+            f"{lesson.key}: {lesson.portrait} has no planar phase portrait")
 
 
 def test_keys_are_unique():
@@ -237,6 +252,12 @@ FULL_DEPTH = (
     "repeated-eigenvalues",
     "forced-systems",
     "phase-portraits",
+    "nonlinear-equilibria",
+    "almost-linear",
+    "ecological-models",
+    "nonlinear-mechanics",
+    "limit-cycles",
+    "bifurcations-chaos",
     "power-series",
     "recurrence",
     "frobenius",
@@ -624,7 +645,7 @@ def test_lessons_needs_no_interface_toolkit():
 
     code = (
         "import sys; sys.modules['PySide6'] = None\n"
-        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 35\n"
+        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 41\n"
     )
     done = subprocess.run([sys.executable, "-c", code], capture_output=True,
                           text=True)
@@ -1231,8 +1252,11 @@ def test_the_tool_button_asks_for_the_matching_screen(screen, qapp):
         screen._open_tool()
 
     assert [tool for tool, _, _ in seen] == [lesson.tool for lesson in LESSONS]
+    # A portrait lesson sends its catalogue system instead: the portrait is
+    # driven by the catalogue and cannot open on a typed equation.
     assert [equation for _, equation, _ in seen] == [
-        lesson.example for lesson in LESSONS
+        lesson.portrait if lesson.tool == "portrait" else lesson.example
+        for lesson in LESSONS
     ], "the tool is opened on the lesson's own example"
 
 

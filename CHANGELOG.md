@@ -43,6 +43,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The nonlinear analysis tools were confidently wrong in four places.**
+  The Lyapunov estimate called Lotka–Volterra, Kepler and FitzHugh–Nagumo
+  chaotic and read Lorenz at ρ = 15 as −0.0008 against its true −0.3502;
+  continuation reported dozens of Hopf bifurcations on a centre and missed
+  Lorenz's real one at ρ = 24.74; the limit-cycle finder gave up on slow
+  relaxation oscillators; and a large result took up to 6.8 s to redraw. All
+  are now checked against closed forms.
+
 - **A correct answer that sympy could not simplify was marked wrong.**
   `check_answer`'s docstring promised that a residual which merely failed to
   simplify would be reported as "cannot tell", and the code reported it as
@@ -302,6 +310,15 @@ All notable changes to this project are documented here. The format follows
   install alongside anything else.
 
 ### Added
+
+- **Unit 8, nonlinear systems and phenomena** (Edwards ch. 6): six lessons —
+  equilibria and linearisation, almost linear systems, ecological models,
+  conservative mechanics, limit cycles and Poincaré–Bendixson, bifurcations and
+  chaos — each with an interactive figure and a drill checked against the
+  analysis routine that decides it. Lessons open the Phase Portrait on their
+  own system.
+- **The Phase Portrait draws the limit cycle**, with its period and whether it
+  is isolated, beside the equilibria.
 
 - **A local record of failed solves, and "Copy diagnostics"** (REL-04). With
   no telemetry -- a position worth keeping -- the only way the author learns a

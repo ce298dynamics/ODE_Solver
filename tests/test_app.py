@@ -831,6 +831,23 @@ def test_a_tool_that_cannot_take_an_equation_still_opens(qapp):
     window.deleteLater()
 
 
+def test_the_portrait_opens_on_the_system_a_lesson_names(qapp):
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow("dark")
+    window._open_tool("portrait", "van_der_pol", "")
+    qapp.processEvents()
+    portrait = window._screens["portrait"]
+    assert window.stack.currentWidget() is portrait
+    assert portrait.picker.currentData() == "van_der_pol"
+
+    # A key the portrait does not offer leaves it where it was.
+    window._open_tool("portrait", "lorenz", "")
+    qapp.processEvents()
+    assert portrait.picker.currentData() == "van_der_pol"
+    window.deleteLater()
+
+
 def test_the_tool_button_says_where_it_goes_and_on_what(qapp):
     from odesuite_app import lessons as content
     from odesuite_app.app import MainWindow

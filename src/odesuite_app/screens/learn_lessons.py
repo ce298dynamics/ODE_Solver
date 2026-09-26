@@ -76,6 +76,7 @@ TOOL_NAMES = {
     "laplace": "Laplace Transforms",
     "byhand": "Methods by Hand",
     "worked": "Worked Problems",
+    "portrait": "Phase Portrait",
 }
 
 #: Which of those can be opened *on* an equation. The other two are driven by
@@ -1925,9 +1926,16 @@ class LessonsScreen(QWidget):
 
     def _open_tool(self) -> None:
         lesson = self.current_lesson()
-        if lesson is not None:
-            self.open_tool.emit(lesson.tool, lesson.example,
-                                lesson.example_conditions)
+        if lesson is None:
+            return
+        if lesson.tool == "portrait":
+            # The portrait takes a catalogue key, not an equation: what a
+            # nonlinear lesson is about is a system no narrator can solve, and
+            # its worked examples are the pieces of it that can be.
+            self.open_tool.emit("portrait", lesson.portrait, "")
+            return
+        self.open_tool.emit(lesson.tool, lesson.example,
+                            lesson.example_conditions)
 
     def _describe_tool(self, lesson) -> None:
         """Say which screen the button opens, and on what.
@@ -1946,7 +1954,15 @@ class LessonsScreen(QWidget):
         name = TOOL_NAMES.get(lesson.tool, "the tool for this topic")
         self.tool_button.setText(f"Open in {name}")
         equation = lesson.example
-        if equation and lesson.tool in CARRIES_EQUATION:
+        if lesson.tool == "portrait" and lesson.portrait:
+            from .. import catalog
+
+            try:
+                title = catalog.get(lesson.portrait).title
+            except KeyError:
+                title = lesson.portrait
+            self.tool_button.setToolTip(f"Opens {name} on  {title}")
+        elif equation and lesson.tool in CARRIES_EQUATION:
             shown = equation + (f",  {lesson.example_conditions}"
                                 if lesson.example_conditions else "")
             self.tool_button.setToolTip(f"Opens {name} on  {shown}")

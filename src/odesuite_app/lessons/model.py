@@ -745,6 +745,11 @@ class Lesson:
     figure: str = ""
     #: Where this sits in Edwards, Penney and Calvis, 6e.
     reference: str = ""
+    #: The catalogue system the Phase Portrait opens on, for a lesson whose
+    #: `tool` is "portrait". A key rather than an equation: the portrait is
+    #: driven by the catalogue, and a nonlinear system is the one thing a
+    #: lesson's worked examples cannot carry, since no narrator solves one.
+    portrait: str = ""
 
     @property
     def example(self) -> str:
