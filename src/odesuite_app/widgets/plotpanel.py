@@ -271,6 +271,7 @@ class PlotPanel(QFrame):
         self.log_time.toggled.connect(lambda _: self._redraw())
         self.show_slope_field.toggled.connect(lambda _: self._redraw())
         self._last = None
+        self._dense_cache = None
         #: Where the solver kept refusing steps onto one instant -- see
         #: `analysis.rough_spots`. Read by the Solver Lab for its caution line,
         #: so the words and the marks on the plot come from one computation.
@@ -311,6 +312,19 @@ class PlotPanel(QFrame):
         resolution everywhere, while the uniform part keeps slow stretches
         smooth.
         """
+        # One entry, keyed on the solution object. The same result is redrawn
+        # far more often than a new one arrives -- a view switch, a toggle, the
+        # predictability horizon landing seconds later -- and evaluating the
+        # dense output was the largest remaining cost of a redraw (0.27 s of
+        # 0.30 s on Lorenz, measured).
+        cached = self._dense_cache
+        if cached is not None and cached[0] is solution and cached[1] == samples:
+            return cached[2]
+        grid = self._dense_grid(solution, samples)
+        self._dense_cache = (solution, samples, grid)
+        return grid
+
+    def _dense_grid(self, solution, samples: int):
         if solution.sol is None:
             return solution.t, solution.y
         lo, hi = solution.sol.t_min, solution.sol.t_max
@@ -459,6 +473,24 @@ class PlotPanel(QFrame):
         inner.addWidget(self.table_note)
         return holder
 
+    def _size_columns(self) -> None:
+        """Column widths from the format, not from the contents.
+
+        `resizeColumnsToContents` asks the model for up to a thousand rows of
+        every column, through Python, on every redraw -- whether or not the
+        Data tab is open. Measured, that was 97% of the time to show a result:
+        1.2 s of 1.2 s on Pleiades, six seconds on Kuramoto-Sivashinsky. Even
+        sampling 64 rows left 0.4 s on the latter's 129 columns. Every cell is
+        ``%.6g``, so the widest a number can be is known without looking, and
+        only the headers vary.
+        """
+        metrics = self.table.fontMetrics()
+        widest_number = metrics.horizontalAdvance("-8.88888e-888")
+        padding = 18
+        for column in range(self.table_model.columnCount()):
+            header = metrics.horizontalAdvance(self.table_model.column_name(column))
+            self.table.setColumnWidth(column, max(widest_number, header) + padding)
+
     def summary(self) -> str:
         """The paragraph currently describing the plot. For tests, and alt text."""
         return self.summary_label.text()
@@ -492,7 +524,7 @@ class PlotPanel(QFrame):
 
         times, values = describe.table_rows(solution)
         self.table_model.set_solution(times, values, labels)
-        self.table.resizeColumnsToContents()
+        self._size_columns()
         shown, total = times.size, solution.t.size
         self.table_note.setText(
             f"{total} output points." if shown == total else
@@ -698,7 +730,7 @@ class PlotPanel(QFrame):
         self.plot.setLogMode(x=False, y=False)
         self.plot.setAspectLocked(kind in ("orbit", "nbody"))
 
-        _, y = self._dense(solution)
+        times, y = self._dense(solution)
 
         if kind == "nbody":
             self.plot.setLabel("bottom", "x")
@@ -726,7 +758,6 @@ class PlotPanel(QFrame):
         # it traces is still the attractor, but *where on it* the system is
         # has stopped being information. Faded rather than cut, because the
         # attractor is the part that remains true.
-        times, _ = self._dense(solution)
         cut = (int(np.searchsorted(times, self.horizon))
                if self.horizon is not None else times.size)
         self._curves.append(
