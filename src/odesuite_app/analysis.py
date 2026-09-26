@@ -1360,6 +1360,9 @@ def default_window(problem: ODEProblem, solution=None, pad: float = 0.35):
 #: thing here -- ample, and cheap at these tolerances.
 CYCLE_TRANSIENT = 60.0
 CYCLE_SPAN = 120.0
+#: How many times `CYCLE_SPAN` a slow orbit may be followed for, when the
+#: first run shows it is too slow to close five times in one span.
+CYCLE_SPAN_LIMIT = 16
 
 #: Returns the closure test is measured over. The audit asked for five.
 CYCLE_MIN_RETURNS = 5
@@ -1578,7 +1581,34 @@ def largest_closed_orbit(problem: ODEProblem, seed=None, *,
             "was half a transient ago -- so there is no orbit to close"
         )
 
+    # The span is a starting guess, not a limit. A slow orbit fits too few
+    # circuits into it -- FitzHugh-Nagumo at its defaults goes round once in
+    # about 40 time units, and "crossed the section 3 times in 120 time units,
+    # too few to judge" was the verdict on the textbook example of a
+    # relaxation oscillation. The crossings already seen give the period, so
+    # the run is lengthened to hold the returns the test needs, up to
+    # `CYCLE_SPAN_LIMIT` times the original.
     section = poincare_section(problem, base=base, start=base, span=span)
+    #
+    # Without two crossings there is no period to size the run from, and a
+    # trajectory that never came back at all -- a ball falling with no floor,
+    # a saddle's outflow -- is not going to: one blind extension, then stop,
+    # or every such case spent 3.4 s following it for 1920 time units.
+    ceiling = span * CYCLE_SPAN_LIMIT
+    blind = False
+    while len(section) < CYCLE_MIN_RETURNS + 1 and span < ceiling:
+        if should_stop is not None and should_stop():
+            return _no_cycle("cancelled")
+        if len(section) >= 2:
+            period = float(np.mean(np.diff(section.times)))
+            wanted = 1.5 * (CYCLE_MIN_RETURNS + 2) * period
+        elif blind:
+            break
+        else:
+            blind = True
+            wanted = 4.0 * span
+        span = float(min(max(wanted, 2.0 * span), ceiling))
+        section = poincare_section(problem, base=base, start=base, span=span)
     if len(section) < CYCLE_MIN_RETURNS + 1:
         return _no_cycle(
             f"the trajectory crossed the section {len(section)} times in "
