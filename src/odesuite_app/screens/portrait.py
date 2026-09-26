@@ -52,6 +52,7 @@ _MARKERS = {
 class _Signals(QObject):
     done = Signal(object, object)          # PortraitData, token
     diagram = Signal(object, object)       # continuation.Diagram, token
+    cycle = Signal(object, object)         # analysis.LimitCycle, token
 
 
 class _AnalysisJob(QRunnable):
@@ -69,6 +70,32 @@ class _AnalysisJob(QRunnable):
             data = None
         try:
             self.signals.done.emit(data, self.token)
+        except RuntimeError:
+            pass                        # the screen went away mid-computation
+
+
+class _CycleJob(QRunnable):
+    """The closed orbit the default trajectory settles onto, if it has one.
+
+    Its own job rather than part of the portrait's, because it is the slower
+    of the two -- about a second on Van der Pol, several on a slow relaxation
+    oscillator -- and the streamlines should not wait for it. It is abandoned
+    as soon as a newer parameter value supersedes it.
+    """
+
+    def __init__(self, problem, token, current, signals) -> None:
+        super().__init__()
+        self.problem, self.token = problem, token
+        self.current, self.signals = current, signals
+
+    def run(self) -> None:
+        try:
+            cycle = analysis.largest_closed_orbit(
+                self.problem, should_stop=lambda: self.current() != self.token)
+        except Exception:
+            cycle = None
+        try:
+            self.signals.cycle.emit(cycle, self.token)
         except RuntimeError:
             pass                        # the screen went away mid-computation
 
@@ -113,9 +140,13 @@ class PortraitScreen(QWidget):
         self._launched = 0
         self._diagram: continuation.Diagram | None = None
         self._diagram_token = 0
+        self._cycle: analysis.LimitCycle | None = None
+        self._cycle_pending = False
+        self._cycle_items: list = []
         self._signals = _Signals()
         self._signals.done.connect(self._on_analysis)
         self._signals.diagram.connect(self._on_diagram)
+        self._signals.cycle.connect(self._on_cycle)
         self.destroyed.connect(lambda *_: setattr(self, "_token", -1))
 
         layout = QHBoxLayout(self)
@@ -175,6 +206,9 @@ class PortraitScreen(QWidget):
             ("separatrices", "separatrices",
              "Stable and unstable manifolds of each saddle — the boundaries "
              "between qualitatively different behaviour", True),
+            ("cycle", "limit cycle",
+             "The closed orbit the starting trajectory settles onto, if it "
+             "settles onto one, with its period", True),
         ]:
             box = QCheckBox(label)
             box.setChecked(default)
@@ -333,6 +367,12 @@ class PortraitScreen(QWidget):
         self._recompute(reset_window=False)
 
     def _on_layer_toggled(self, _checked: bool) -> None:
+        if (self.toggles["cycle"].isChecked() and self._cycle is None
+                and not self._cycle_pending):
+            # Switched on after the parameters were set: nothing has been
+            # searched for yet, so search now rather than drawing nothing.
+            self._recompute(reset_window=False)
+            return
         if self._data is not None:
             self._render()
 
@@ -379,6 +419,14 @@ class PortraitScreen(QWidget):
                 bench.problem, xlim, ylim, options, self._token, self._signals
             )
         )
+        self._cycle = None
+        self._remove_cycle()
+        self._cycle_pending = self.toggles["cycle"].isChecked()
+        if self._cycle_pending:
+            QThreadPool.globalInstance().start(
+                _CycleJob(bench.problem, self._token, lambda: self._token,
+                          self._signals)
+            )
 
     def _on_analysis(self, data, token: int) -> None:
         if token != self._token:
@@ -389,6 +437,52 @@ class PortraitScreen(QWidget):
         self._data = data
         self.status.setText("")
         self._render()
+
+    def _on_cycle(self, cycle, token: int) -> None:
+        if token != self._token:
+            return
+        self._cycle_pending = False
+        if cycle is None or cycle.verdict == "cancelled":
+            return
+        self._cycle = cycle
+        # Drawn on its own rather than by re-rendering, which would throw away
+        # the trajectories the user has clicked while the search was running.
+        self._draw_cycle()
+        self._write_report()
+        self._describe_plot()
+
+    def _remove_cycle(self) -> None:
+        for item in self._cycle_items:
+            try:
+                self.plot.removeItem(item)
+            except Exception:
+                pass
+        self._cycle_items.clear()
+
+    def _draw_cycle(self) -> None:
+        self._remove_cycle()
+        cycle = self._cycle
+        if (cycle is None or not self.toggles["cycle"].isChecked()
+                or cycle.orbit.size == 0):
+            return
+        orbit = np.vstack([cycle.orbit, cycle.orbit[:1]])
+        # Thick and in the accent colour, and dotted when the orbit is one of
+        # a continuum: a centre's closed orbits are real, but picking one out
+        # as if it were special would draw the distinction the verdict makes.
+        style = Qt.SolidLine if cycle.isolated else Qt.DotLine
+        self._cycle_items.append(self.plot.plot(
+            orbit[:, 0], orbit[:, 1],
+            pen=pg.mkPen(self.palette_obj.accent, width=3.2, style=style),
+        ))
+
+    def _cycle_sentence(self) -> str:
+        """The limit-cycle finding in one line, or "" when there is nothing yet."""
+        cycle = self._cycle
+        if cycle is None or not self.toggles["cycle"].isChecked():
+            return ""
+        if not np.isfinite(cycle.period):
+            return f"No limit cycle from the starting point: {cycle.verdict}."
+        return f"A closed orbit of period {cycle.period:.4g}: {cycle.verdict}."
 
     # -- the bifurcation diagram -----------------------------------------
 
@@ -597,7 +691,10 @@ class PortraitScreen(QWidget):
             f"{entry.labels[1] if len(entry.labels) > 1 else 'y'}′=0 &nbsp; "
             f"<span style='color:{palette.danger}'>-·-</span> unstable manifold "
             f"&nbsp;<span style='color:{palette.success}'>——</span> stable manifold"
+            + (f" &nbsp;<span style='color:{palette.accent}'><b>——</b></span> "
+               "closed orbit" if self.toggles["cycle"].isChecked() else "")
         )
+        self._draw_cycle()
         self._write_report()
         self._describe_plot()
 
@@ -633,16 +730,20 @@ class PortraitScreen(QWidget):
             found = (f"{len(data.fixed_points)} equilibri"
                      f"{'um' if len(data.fixed_points) == 1 else 'a'}. {found}")
         self.plot.setAccessibleName(f"phase portrait of {entry.title}")
+        cycle = self._cycle_sentence()
         self.plot.setAccessibleDescription(
             f"{entry.title}: the vector field over {where}, with nullclines "
             f"and the trajectories through any points clicked. {found}"
+            + (f" {cycle}" if cycle else "")
         )
 
     def _write_report(self) -> None:
         data, palette = self._data, self.palette_obj
+        cycle = self._cycle_sentence()
+        cycle_row = f"<br><i>{cycle}</i>" if cycle else ""
         if data is None or not data.fixed_points:
             self.report.setText(
-                "<i>no equilibria in this window</i>"
+                "<i>no equilibria in this window</i>" + cycle_row
                 if data is not None else "—"
             )
             return
@@ -676,7 +777,7 @@ class PortraitScreen(QWidget):
                 f"<span style='color:{colour}'><b>{point.kind}</b></span>"
                 f"&nbsp;&nbsp;λ&nbsp;=&nbsp;{values}{caveat}"
             )
-        self.report.setText("<br>".join(rows))
+        self.report.setText("<br>".join(rows) + cycle_row)
 
     # -- interaction -----------------------------------------------------
 
