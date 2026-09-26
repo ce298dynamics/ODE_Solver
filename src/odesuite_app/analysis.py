@@ -502,8 +502,14 @@ class LyapunovEstimate:
 
     @property
     def significant(self) -> bool:
-        """Whether the sign of the exponent is resolved at all."""
-        return abs(self.value) > 2.0 * self.error
+        """Whether the sign of the exponent is resolved at all.
+
+        Read from the verdict, not recomputed from value and error: the error
+        bar measures scatter between runs, and the power-law bias every run
+        shares is invisible to it. Lotka-Volterra reads +0.0043 +/- 0.0001 --
+        forty error bars from zero, and still zero.
+        """
+        return self.verdict in ("chaotic", "attracting")
 
     def __str__(self) -> str:
         return f"{self.value:+.4f} ± {self.error:.4f}  ({self.verdict})"
@@ -544,24 +550,32 @@ def largest_lyapunov(
     and on a 15-time-unit Lorenz run that produced an error bar of exactly
     0.0000 -- the precise false negative an error bar exists to prevent.
 
-    Measured with this design (five replicates):
+    Measured with this design (five replicates, T = 300, catalogue defaults):
 
     ==============================  ==========  ========  ==========================
     system                          estimate    error     verdict
     ==============================  ==========  ========  ==========================
-    Lorenz, T = 300                   +0.8936    0.0078   chaotic  (lit. 0.9056)
-    damped pendulum, T = 300          -0.1501    0.0002   attracting
-    Lotka-Volterra, T = 400           +0.0035    0.0064   indistinguishable from zero
-    harmonic oscillator, T = 400      -0.0000    0.0000   indistinguishable from zero
+    Lorenz                            +0.9096    0.0021   chaotic  (lit. 0.9056)
+    Lorenz, rho = 15                  -0.3502    0.0000   attracting (eigenvalue -0.3502)
+    Duffing, delta = 0.2              -0.1000    0.0000   attracting
+    Kepler                            +0.0050    0.0004   indistinguishable from zero
+    Lotka-Volterra                    +0.0043    0.0001   indistinguishable from zero
+    FitzHugh-Nagumo (a limit cycle)   -0.0011    0.0002   indistinguishable from zero
+    harmonic oscillator               -0.0000    0.0000   indistinguishable from zero
     ==============================  ==========  ========  ==========================
 
-    The last two are why the verdict exists. A conservative system's largest
-    exponent *is* zero, and a routine that reports "+0.0035, chaotic" of
-    Lotka-Volterra would be confidently wrong about the most famous
-    non-chaotic system in the catalogue.
+    The bottom four are why the verdict exists, and every one of them was
+    wrong before the fitted slope, the power-law floor and the planar rule
+    below: Kepler, Lotka-Volterra and FitzHugh-Nagumo all read "chaotic", and
+    the harmonic oscillator "attracting". A conservative system's largest
+    exponent *is* zero, and so is a limit cycle's, and a routine that calls
+    Lotka-Volterra chaotic is confidently wrong about the most famous
+    non-chaotic system in the catalogue. Note that the error bar is *smaller*
+    than the estimate in all four: the error bar measures scatter between
+    runs, and these errors are a bias every run shares.
 
     `should_stop` is polled once per interval and abandons the estimate when it
-    returns True, because a 300-time-unit Lorenz run takes about 26 seconds and
+    returns True, because a 300-time-unit Lorenz run takes about 20 seconds and
     must not pin a thread the user has moved on from.
     """
     base = np.asarray(problem.y0, dtype=float)
@@ -569,10 +583,20 @@ def largest_lyapunov(
     rng = np.random.default_rng(0)
     f_user, args = problem.f_user, problem.args
 
+    # The perturbation is carried as w = (perturbed - y) / d0, a vector of
+    # length one, and never as the perturbed state itself. Carried as a state
+    # 1e-8 away from y, it sat ten times below the solver's own tolerance
+    # (rtol * |y| is 1.4e-7 on Lorenz), so nothing made the controller resolve
+    # it: once y settled on an equilibrium the steps grew to the stability
+    # limit and the perturbation's dynamics went unintegrated. Lorenz at
+    # rho = 15, whose true exponent is the slow pair's real part, -0.350,
+    # read as -0.0008. Scaled to O(1), the tolerance applies to it.
     def pair(t, z):
-        first = np.asarray(f_user(t, z[:n], *args), dtype=float).reshape(-1)
-        second = np.asarray(f_user(t, z[n:], *args), dtype=float).reshape(-1)
-        return np.concatenate([first, second])
+        y, w = z[:n], z[n:]
+        here = np.asarray(f_user(t, y, *args), dtype=float).reshape(-1)
+        there = np.asarray(f_user(t, y + LYAPUNOV_D0 * w, *args),
+                           dtype=float).reshape(-1)
+        return np.concatenate([here, (there - here) / LYAPUNOV_D0])
 
     estimates = []
     for _ in range(max(2, replicates)):
@@ -587,7 +611,7 @@ def largest_lyapunov(
         )
         y = settled.y[:, -1].copy()
         t = float(settled.t[-1])
-        perturbed = y + LYAPUNOV_D0 * direction
+        w = direction
 
         growths = []
         for _ in range(max(4, int(round(t_end / LYAPUNOV_TAU)))):
@@ -595,32 +619,108 @@ def largest_lyapunov(
                 return LyapunovEstimate(float("nan"), float("nan"), 0, "cancelled")
             step = solve(
                 ODEProblem(f=pair, t_span=(t, t + LYAPUNOV_TAU),
-                           y0=np.concatenate([y, perturbed])),
+                           y0=np.concatenate([y, w])),
                 "dopri5", rtol=rtol, atol=atol,
             )
             both = step.y[:, -1]
-            y, perturbed = both[:n].copy(), both[n:].copy()
+            y, w = both[:n].copy(), both[n:].copy()
             t = float(step.t[-1])
-            separation = perturbed - y
-            distance = float(np.linalg.norm(separation))
-            if distance <= 0.0:
+            length = float(np.linalg.norm(w))
+            if not length > 0.0 or not np.isfinite(length):
                 break
-            growths.append(np.log(distance / LYAPUNOV_D0))
-            perturbed = y + (LYAPUNOV_D0 / distance) * separation
+            growths.append(np.log(length))
+            w = w / length
 
         if len(growths) < 4:
             return LyapunovEstimate(float("nan"), float("nan"), 0, "not converged")
-        second_half = np.asarray(growths[len(growths) // 2:]) / LYAPUNOV_TAU
-        estimates.append(float(second_half.mean()))
+        # The exponent is the *slope* of the accumulated log-separation, fitted
+        # over the second half -- not its rise from the middle to the end, which
+        # is what the mean of the growths is. The two differ only when the
+        # exponent is zero, and there they differ badly: on a relaxation cycle
+        # the separation swells and shrinks with the speed along the loop, so
+        # the rise depends on which phase the run happened to stop at. That
+        # read FitzHugh-Nagumo's attracting cycle as +0.0104 +/- 0.0015,
+        # "chaotic". A fitted slope averages over the phases instead.
+        accumulated = np.cumsum(growths)
+        times = LYAPUNOV_TAU * np.arange(1, accumulated.size + 1)
+        half = accumulated.size // 2
+        estimates.append(float(np.polyfit(times[half:], accumulated[half:], 1)[0]))
 
     values = np.asarray(estimates)
     value = float(values.mean())
     error = float(values.std(ddof=1) / np.sqrt(values.size))
-    if abs(value) <= 2.0 * error:
+    # The floor applies in both directions. Decay like a power of time is as
+    # much a zero exponent as growth like one, and without it the harmonic
+    # oscillator -- whose exponent is exactly zero -- was "attracting" on the
+    # strength of the integrator's own dissipation, a few parts in a million
+    # with an error bar smaller still.
+    if abs(value) - 2.0 * error <= sub_exponential_rate(times[half:]):
+        verdict = "indistinguishable from zero"
+    elif value < 0:
+        verdict = "attracting"
+    elif not _can_be_chaotic(problem):
         verdict = "indistinguishable from zero"
     else:
-        verdict = "chaotic" if value > 0 else "attracting"
+        verdict = "chaotic"
     return LyapunovEstimate(value, error, values.size, verdict)
+
+
+#: The highest power of time a separation may grow like and still not be
+#: chaos. Shear -- neighbouring orbits of a centre or a Kepler ellipse going
+#: round at slightly different speeds -- separates them linearly; two leaves
+#: room for a secular term on top.
+SUB_EXPONENTIAL_POWER = 2
+
+
+def sub_exponential_rate(times: np.ndarray) -> float:
+    """The exponent that growth like ``t**2`` would *appear* to have here.
+
+    A separation growing like a power of time has a zero Lyapunov exponent,
+    but over a finite run its log still rises, and a fitted slope reads that
+    rise as a small positive exponent -- the same in every replicate, so the
+    error bar does not see it. Measured before this existed, at T = 300:
+    Kepler +0.0051 +/- 0.0003, the undamped pendulum +0.0052 +/- 0.0006, both
+    "chaotic". A positive exponent is therefore only reported as one when it
+    clears the slope ``log(t**2)`` would have over the same window, which
+    shrinks like 1/T: longer runs resolve weaker chaos.
+    """
+    times = np.asarray(times, dtype=float)
+    if times.size < 2:
+        return float("inf")
+    return float(SUB_EXPONENTIAL_POWER * np.polyfit(times, np.log(times), 1)[0])
+
+
+def _is_autonomous(problem: ODEProblem) -> bool:
+    """Whether f ignores t, judged at a few states and times. A probe, not a proof."""
+    base = np.asarray(problem.y0, dtype=float)
+    rng = np.random.default_rng(1)
+    for scale in (0.0, 0.3, 1.0):
+        y = base + scale * rng.normal(size=base.size)
+        try:
+            reference = np.asarray(problem.f_user(problem.t0, y, *problem.args), dtype=float)
+            for shift in (0.37, 1.9, 7.3):
+                moved = np.asarray(problem.f_user(problem.t0 + shift, y, *problem.args),
+                                   dtype=float)
+                if not np.allclose(moved, reference, rtol=1e-12, atol=1e-14):
+                    return False
+        except Exception:
+            return False
+    return True
+
+
+def _can_be_chaotic(problem: ODEProblem) -> bool:
+    """False where a theorem forbids chaos: autonomous flows in one or two dimensions.
+
+    Poincare-Bendixson: a bounded orbit of a planar autonomous flow tends to an
+    equilibrium, a closed orbit, or a cycle of equilibria and the orbits joining
+    them -- never to anything chaotic. A positive estimate there is a finite-run
+    artefact, and saying "chaotic" would contradict the theorem the Phase
+    Portrait's lessons teach. A time-dependent forcing adds a dimension, which
+    is how a forced Duffing oscillator *can* be chaotic.
+    """
+    if np.asarray(problem.y0).size > 2:
+        return True
+    return not _is_autonomous(problem)
 
 
 def predictability_horizon(exponent: LyapunovEstimate, rtol: float) -> float | None:
@@ -634,7 +734,7 @@ def predictability_horizon(exponent: LyapunovEstimate, rtol: float) -> float | N
     an exponent indistinguishable from zero would be an enormous number
     presented as a fact, and for an attracting system there is no horizon at all.
     """
-    if not exponent.significant or exponent.value <= 0 or not np.isfinite(exponent.value):
+    if exponent.verdict != "chaotic" or not np.isfinite(exponent.value) or exponent.value <= 0:
         return None
     return float(np.log(1.0 / max(rtol, 1e-16)) / exponent.value)
 

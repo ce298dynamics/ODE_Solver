@@ -1354,6 +1354,68 @@ def test_a_conservative_system_is_not_called_chaotic(name):
     assert not estimate.significant
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("name, params", [
+    ("kepler", {}),                 # shear: separation grows like t
+    ("fitzhugh_nagumo", {}),        # a limit cycle: the exponent is zero
+    ("pendulum", {"damping": 0.0}),
+])
+def test_zero_exponents_are_not_called_chaotic(name, params):
+    """Before the fitted slope and the power-law floor, every one of these read
+    "chaotic" with an error bar far smaller than the estimate: Kepler
+    +0.0051 +/- 0.0003, FitzHugh-Nagumo +0.0104 +/- 0.0015. The error bar is
+    scatter between runs, and this is a bias they all share."""
+    from odesuite_app import catalog
+    from odesuite_app.analysis import largest_lyapunov
+
+    entry = catalog.get(name)
+    problem = entry.build({**entry.defaults(), **params}).problem
+    estimate = largest_lyapunov(problem, t_end=200.0, replicates=3)
+    assert estimate.verdict == "indistinguishable from zero", str(estimate)
+    assert not estimate.significant
+
+
+@pytest.mark.slow
+def test_convergence_to_an_equilibrium_gives_its_eigenvalue():
+    """Lorenz at rho = 15 settles on C+ or C-, whose slowest eigenvalues are
+    -0.3502 +/- 7.58i, so the exponent is -0.3502. It read -0.0008: the
+    perturbation was carried as a state 1e-8 away, ten times below the
+    solver's tolerance, and went unresolved once the steps grew."""
+    from odesuite.problems import lorenz
+    from odesuite_app.analysis import largest_lyapunov
+
+    estimate = largest_lyapunov(lorenz(rho=15.0).problem, t_end=100.0, replicates=2)
+    assert estimate.verdict == "attracting"
+    assert estimate.value == pytest.approx(-0.3502, abs=0.005), str(estimate)
+
+
+def test_the_power_law_floor_shrinks_with_the_run():
+    """Growth like t**2 has a zero exponent but a positive fitted slope over
+    any finite window, shrinking like 1/T -- longer runs resolve weaker chaos."""
+    from odesuite_app.analysis import sub_exponential_rate
+
+    short = sub_exponential_rate(0.5 * np.arange(100, 201))
+    long = sub_exponential_rate(0.5 * np.arange(1000, 2001))
+    assert 0 < long < short
+    assert short / long == pytest.approx(10.0, rel=0.05)
+
+
+def test_a_planar_autonomous_flow_is_never_chaotic():
+    """Poincare-Bendixson. Forcing adds a dimension, which is how a forced
+    oscillator can be chaotic, so a time-dependent planar system stays open."""
+    from odesuite_app import catalog
+    from odesuite_app.analysis import _can_be_chaotic
+
+    def problem(key):
+        entry = catalog.get(key)
+        return entry.build(entry.defaults()).problem
+
+    assert not _can_be_chaotic(problem("lotka_volterra"))
+    assert not _can_be_chaotic(problem("van_der_pol"))
+    assert _can_be_chaotic(problem("forced_spring"))
+    assert _can_be_chaotic(problem("lorenz"))
+
+
 def test_replicates_differ_in_where_they_start_not_only_how_they_are_nudged():
     """Replicates that share a start point agree with each other while being
     wrong together: on a 15-time-unit Lorenz run that produced an error bar of
