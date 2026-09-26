@@ -1295,9 +1295,9 @@ class LessonsScreen(QWidget):
         self._wire_hints(question, hints, hint_button)
 
         def graded() -> bool:
-            marked = self._check_model(lesson, question, answer, verdict,
-                                       bucket=progress.drill_key(lesson.key),
-                                       key=template.key)
+            marked = self._check_equivalent(lesson, question, answer, verdict,
+                                            bucket=progress.drill_key(lesson.key),
+                                            key=template.key)
             now, done = self._streak_of(lesson, template)
             run.setText(self._streak_text(now, done))
             run.setStyleSheet(
@@ -1378,7 +1378,7 @@ class LessonsScreen(QWidget):
         self._wire_hints(question, hints, hint_button)
 
         def graded() -> bool:
-            marked = self._check_expression(
+            marked = self._check_equivalent(
                 lesson, question, answer, verdict,
                 bucket=progress.drill_key(lesson.key), key=template.key,
             )
@@ -1810,72 +1810,32 @@ class LessonsScreen(QWidget):
         # question rather than counting a typo as a turn taken.
         return right is not None
 
-    def _check_model(self, lesson, question, answer: QLineEdit,
-                     verdict: QLabel, *, bucket: str = "",
-                     key: str = "") -> bool:
-        """Mark an equation somebody wrote, and say where a wrong one differs.
-
-        The three verdicts again, and the third does more work here than
-        anywhere else: "write the whole equation, with an = in it" and "write
-        it in terms of y" are both things to fix rather than things to be
-        marked wrong for, and neither says anything about whether the model
-        was understood.
-
-        A wrong answer shows what is left over when the two equations are
-        subtracted, which is usually the whole diagnosis -- a forgotten
-        inflow term appears by itself, and a sign that went the wrong way
-        appears as twice the term it belongs to.
-        """
-        from ..symbolic import check_model
-
-        palette = self.palette_obj
-        result = check_model(question.equation, answer.text())
-        if result.correct is True:
-            colour, text = palette.success, "✓ " + result.message
-            state = progress.State.CORRECT
-        elif result.correct is False:
-            colour, text = palette.danger, "✗ " + result.message
-            state = progress.State.ATTEMPTED
-        else:
-            colour, text = palette.text_muted, result.message
-            state = progress.State.ATTEMPTED
-
-        detail = ""
-        if result.correct is False and result.difference is not None:
-            detail = self._aside(f"what differs: {result.difference}")
-        elif result.correct is True and question.because:
-            detail = self._aside(question.because)
-        verdict.setStyleSheet("")
-        verdict.setText(f'<span style="color:{colour};">{text}</span>{detail}')
-        self._record(bucket or lesson.key, key or question.key, state)
-        return result.correct is not None
-
-    def _check_expression(self, lesson, question, answer: QLineEdit,
+    def _check_equivalent(self, lesson, question, answer: QLineEdit,
                           verdict: QLabel, *, bucket: str = "",
                           key: str = "") -> bool:
-        """Mark one move of a method."""
-        from ..symbolic import check_expression
+        """Mark an equation somebody wrote, or one move of a method.
+
+        What the verdict *means* -- which line goes under it, and whether it
+        counts -- is `symbolic.mark_equivalent`'s, shared with the quiz. This
+        only colours it and records it. A wrong model shows what is left over
+        when the two equations are subtracted, which is usually the whole
+        diagnosis: a forgotten inflow term appears by itself, and a sign that
+        went the wrong way appears as twice the term it belongs to.
+        """
+        from ..symbolic import mark_equivalent
 
         palette = self.palette_obj
-        result = check_expression(question.answer, answer.text(),
-                                  up_to_constant=question.up_to_constant)
-        if result.correct is True:
-            colour, text = palette.success, "✓ " + result.message
-            state = progress.State.CORRECT
-        elif result.correct is False:
-            colour, text = palette.danger, "✗ " + result.message
-            state = progress.State.ATTEMPTED
-        else:
-            colour, text = palette.text_muted, result.message
-            state = progress.State.ATTEMPTED
-
-        detail = ""
-        if result.correct is not None and question.because:
-            detail = self._aside(question.because)
+        _, marking = mark_equivalent(question, answer.text())
+        colour = {"right": palette.success,
+                  "wrong": palette.danger}.get(marking.tone, palette.text_muted)
+        state = (progress.State.CORRECT if marking.tone == "right"
+                 else progress.State.ATTEMPTED)
+        detail = self._aside(marking.detail) if marking.detail else ""
         verdict.setStyleSheet("")
-        verdict.setText(f'<span style="color:{colour};">{text}</span>{detail}')
+        verdict.setText(
+            f'<span style="color:{colour};">{marking.headline}</span>{detail}')
         self._record(bucket or lesson.key, key or question.key, state)
-        return result.correct is not None
+        return marking.counts
 
     def _aside(self, text: str) -> str:
         """A second line under a verdict, in the muted colour."""

@@ -1783,6 +1783,55 @@ def check_model(reference: str, text: str) -> EquivalenceCheck:
     return check
 
 
+@dataclass(frozen=True)
+class Marking:
+    """What an `EquivalenceCheck` says to the person who typed the answer.
+
+    Decided here, once, rather than on each screen. It was written out three
+    times -- the lesson drill's model and expression cards and the quiz -- and
+    by the time the third copy existed the three disagreed: a wrong
+    *expression* in a lesson showed the question's `because`, which states the
+    rule and very nearly the answer, while a wrong *model* in the same lesson
+    and anything wrong in the quiz did not. The rule is now the model card's,
+    because it is the one that keeps a retry a question:
+
+    * right -- the `because`, which is the reason it is right;
+    * wrong -- what differs, when the two could be lined up, and nothing else;
+    * cannot tell -- the message only, and it is not a mark.
+    """
+
+    #: "right", "wrong" or "undecided". A screen maps these to its colours.
+    tone: str
+    #: The verdict line, with its tick or cross.
+    headline: str
+    #: A second line under it, or "".
+    detail: str = ""
+
+    @property
+    def counts(self) -> bool:
+        """Whether this was a mark at all. "Could not read that" is not."""
+        return self.tone != "undecided"
+
+
+def mark_equivalent(question, typed: str) -> tuple[EquivalenceCheck, Marking]:
+    """Grade a `Model` or an `Expression` question and say what it means."""
+    if question.kind == "model":
+        result = check_model(question.equation, typed)
+    else:
+        result = check_expression(question.answer, typed,
+                                  up_to_constant=question.up_to_constant)
+    because = getattr(question, "because", "")
+    if result.correct is True:
+        marking = Marking("right", "✓ " + result.message, because)
+    elif result.correct is False:
+        detail = (f"what differs: {result.difference}"
+                  if result.difference is not None else "")
+        marking = Marking("wrong", "✗ " + result.message, detail)
+    else:
+        marking = Marking("undecided", result.message)
+    return result, marking
+
+
 def _multiple_of(written, wanted):
     """The non-constant factor relating two equations, when there is one.
 

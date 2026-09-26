@@ -667,24 +667,16 @@ class QuizScreen(QWidget):
         question that could not be set up and an `Expression`, having no
         equation at all, was worse. Both are now graded as the lessons intend.
         """
-        from ..symbolic import check_expression, check_model
+        from ..symbolic import mark_equivalent
 
         palette = self.palette_obj
-        typed = self.answer.text()
-        if question.kind == "model":
-            result = check_model(question.equation, typed)
-        else:
-            result = check_expression(question.answer, typed,
-                                      up_to_constant=question.up_to_constant)
-        right = result.correct is True
-        colour = (palette.success if right
-                  else palette.danger if result.correct is False
-                  else palette.text_muted)
-        mark = "✓ " if right else "✗ " if result.correct is False else ""
-        because = (f"  —  {question.because}"
-                   if right and question.because else "")
+        result, marking = mark_equivalent(question, self.answer.text())
+        right = marking.tone == "right"
+        colour = {"right": palette.success,
+                  "wrong": palette.danger}.get(marking.tone, palette.text_muted)
         self.verdict.setStyleSheet(f"color: {colour};")
-        self.verdict.setText(mark + result.message + because)
+        self.verdict.setText(marking.headline
+                             + (f"  —  {marking.detail}" if marking.detail else ""))
         # The difference is the useful half of a wrong verdict here: a
         # forgotten inflow term or a sign that went the other way appears in
         # it by itself, which no restatement of the right answer would show.

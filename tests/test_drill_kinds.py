@@ -601,7 +601,7 @@ def test_a_model_drill_accepts_the_equation_rearranged(screen, qapp, store):
     box = _boxes(screen)[0]
     for written in (question.equation, f"({left}) - ({right}) = 0"):
         box.setText(written)
-        marked = screen._check_model(
+        marked = screen._check_equivalent(
             lesson, question, box, screen._verdicts[template.key],
             bucket=store.drill_key(lesson.key), key=template.key,
         )
@@ -618,7 +618,7 @@ def test_a_model_drill_shows_what_differs(screen, qapp, store):
 
     box = _boxes(screen)[0]
     box.setText("y' = t + 1")
-    screen._check_model(lesson, question, box,
+    screen._check_equivalent(lesson, question, box,
                         screen._verdicts[template.key],
                         bucket=store.drill_key(lesson.key), key=template.key)
     verdict = screen._verdicts[template.key].text()
@@ -638,7 +638,7 @@ def test_an_expression_drill_takes_any_constant_multiple(screen, qapp, store):
     box = _boxes(screen)[-1]
     for written in (question.answer, f"7*({question.answer})"):
         box.setText(written)
-        screen._check_expression(
+        screen._check_equivalent(
             lesson, question, box, screen._verdicts[template.key],
             bucket=store.drill_key(lesson.key), key=template.key,
         )
