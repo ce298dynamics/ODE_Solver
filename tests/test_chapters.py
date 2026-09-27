@@ -29,6 +29,7 @@ CHAPTERED = (
     "population",
     "equilibria",
     "motion",
+    "numerical",
 )
 
 #: About five pages of prose.

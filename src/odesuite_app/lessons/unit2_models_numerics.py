@@ -1009,6 +1009,7 @@ MOTION = Lesson(
 
 NUMERICAL = Lesson(
     key="numerical",
+    chapter=chapters.NUMERICAL,
     title="Euler's method",
     summary="What to do when there is no closed form — which is almost always "
             "— starting with the simplest thing that could work.",

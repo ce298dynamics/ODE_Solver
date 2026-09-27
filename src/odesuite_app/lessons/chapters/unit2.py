@@ -4,7 +4,402 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["POPULATION", "EQUILIBRIA", "MOTION"]
+__all__ = ["POPULATION", "EQUILIBRIA", "MOTION", "NUMERICAL"]
+
+
+NUMERICAL = (
+    Section("When there is no formula", (
+        Para(
+            "Every method so far has produced a formula, and it is easy to "
+            "come away thinking that is what solving an equation means. It is "
+            "not, and it usually cannot be. y' = t² + y² has no solution in "
+            "elementary functions; neither does the pendulum, nor the "
+            "logistic equation with a harvest that varies with the seasons. "
+            "For almost every equation that arises in practice, the only "
+            "answers available are numbers: approximate values of y at a "
+            "chosen set of times. Computing them well is numerical analysis, "
+            "and this lesson is its first step."
+        ),
+        Para(
+            "The slope field already contains the idea. At the starting point "
+            "(t₀, y₀) the equation gives the slope f(t₀, y₀). Follow that "
+            "slope for a short time h, and you arrive near the solution. At "
+            "the new point, read the new slope and repeat. The result is a "
+            "chain of short straight segments that approximately follows the "
+            "solution curve, and the shorter the segments, the more closely "
+            "it follows."
+        ),
+    )),
+    Section("Euler's method", (
+        Box(
+            "definition", "Euler's method",
+            "For y' = f(t, y), y(t₀) = y₀ and a step size h, set tₙ = t₀ + nh "
+            "and generate approximations yₙ ≈ y(tₙ) by following the slope at "
+            "the start of each step.",
+            r"y_{n+1} = y_n + h\, f(t_n, y_n)",
+        ),
+        Para(
+            "The formula is the tangent-line approximation from calculus, "
+            "y(t + h) ≈ y(t) + h y'(t), with the derivative supplied by the "
+            "equation. Each step costs one evaluation of f. The only choice to "
+            "make is h, and the whole of what follows is about the trade it "
+            "represents: small h means many cheap steps and an accurate "
+            "answer, large h means few steps and a poor one."
+        ),
+        Worked(
+            "Four steps by hand",
+            "Use Euler's method with h = 0.25 on y' = y − t, y(0) = 2, to "
+            "approximate y(1).",
+            (
+                Step("Step 1: the slope at (0, 2) is 2 − 0 = 2, so "
+                     "y₁ = 2 + 0.25 × 2 = 2.5.",
+                     r"y_1 = 2 + 0.25 \cdot 2 = 2.5"),
+                Step("Step 2: the slope at (0.25, 2.5) is 2.25, so "
+                     "y₂ = 2.5 + 0.25 × 2.25 = 3.0625."),
+                Step("Step 3: the slope at (0.5, 3.0625) is 2.5625, so "
+                     "y₃ = 3.0625 + 0.640625 = 3.703125."),
+                Step("Step 4: the slope at (0.75, 3.703125) is 2.953125, so "
+                     "y₄ = 3.703125 + 0.73828125 ≈ 4.4414.",
+                     r"y(1) \approx y_4 \approx 4.4414"),
+            ),
+            answer_latex=r"y(1) \approx 4.4414",
+        ),
+        Worked(
+            "The exact solution, for comparison",
+            "Solve y' = y − t, y(0) = 2 exactly.",
+            (
+                Step("The equation is linear, y' − y = −t. With integrating "
+                     "factor e^(−t), (e^(−t)y)' = −te^(−t), so e^(−t)y = "
+                     "(t + 1)e^(−t) + C and y = t + 1 + Ce^t. At t = 0, C = 1.",
+                     r"y = t + 1 + e^{t}"),
+                Step("So y(1) = 2 + e ≈ 4.7183, and Euler's answer 4.4414 is "
+                     "low by about 0.277."),
+            ),
+            equation="y' = y - t", conditions="y(0) = 2",
+            answer="t + 1 + exp(t)", answer_latex=r"y(t) = t + 1 + e^{t}",
+        ),
+        Plot(
+            "Euler's polygon against the solution",
+            "The four Euler segments with h = 0.25 (the polygon) and the exact "
+            "solution t + 1 + eᵗ. Each segment follows the slope at its left "
+            "end, and because this solution curves upwards the slope at the "
+            "left end is always too small: the polygon falls further behind "
+            "at every step. The errors after each step are 0.034, 0.086, "
+            "0.164 and 0.277.",
+            (Curve("t + 1 + exp(t)", "exact"),
+             Curve("Piecewise((2 + 2*t, t < 0.25), (2.5 + 2.25*(t - 0.25), t < 0.5),"
+                   " (3.0625 + 2.5625*(t - 0.5), t < 0.75),"
+                   " (3.703125 + 2.953125*(t - 0.75), True))", "Euler, h = 0.25")),
+            t=(0.0, 1.0), ylim=(1.9, 4.8),
+        ),
+    )),
+    Section("How the error depends on the step", (
+        Para(
+            "The error of Euler's method has two sources, and it helps to "
+            "separate them. Each step makes a *local* error: even starting "
+            "exactly on the solution, a straight segment of length h misses "
+            "the curve by about (h²/2)y″, from the next term of Taylor's "
+            "series. And each step starts from the previous step's answer, "
+            "not from the true solution, so earlier errors are carried "
+            "forward and sometimes amplified. The *global* error at a fixed "
+            "time is the accumulation of both."
+        ),
+        Box(
+            "theorem", "Euler's method is first order",
+            "If f and its first partial derivatives are continuous, the global "
+            "error of Euler's method at a fixed time T is bounded by a "
+            "constant times h: halving the step halves the error.",
+            r"|y(T) - y_N| \leq C\, h",
+        ),
+        Para(
+            "The reason is counting. Reaching time T takes N = T/h steps, "
+            "each contributing a local error of order h², so the total is of "
+            "order N·h² = T·h — proportional to h. The constant C depends on "
+            "the equation, on T and on how strongly errors grow along the "
+            "solution, but not on h. A method whose global error behaves "
+            "like hᵖ is said to be of *order* p, and Euler's method is the "
+            "simplest example of order one."
+        ),
+        Worked(
+            "Watching the error halve",
+            "Apply Euler's method to y' = y, y(0) = 1, up to t = 0.5, with "
+            "h = 0.1, 0.05 and 0.025, and compare with e^(0.5).",
+            (
+                Step("For y' = y each Euler step multiplies by (1 + h), so "
+                     "after N = 0.5/h steps the approximation is (1 + h)^N.",
+                     r"y_N = (1 + h)^{0.5/h}"),
+                Step("h = 0.1 gives 1.61051, h = 0.05 gives 1.62889, and "
+                     "h = 0.025 gives 1.63862, against e^(0.5) = 1.64872. The "
+                     "errors are 0.0382, 0.0198 and 0.0101: each halving of h "
+                     "very nearly halves the error.",
+                     r"0.0382 \;\to\; 0.0198 \;\to\; 0.0101"),
+            ),
+            answer_latex=r"\text{error} \approx 0.38\, h",
+        ),
+        Para(
+            "Being first order sounds acceptable until it is costed. To get "
+            "one more correct decimal place, the error must fall by a factor "
+            "of ten, which means ten times as many steps. Six correct digits "
+            "from the example above would need a step of about 1.3 × 10⁻⁶ — "
+            "some four hundred thousand steps for half a unit of time — and "
+            "rounding errors in the arithmetic would by then be starting to "
+            "compete with the method's own. "
+            "That is why Euler's method is taught and then improved on."
+        ),
+    )),
+    Section("Where the local error comes from", (
+        Para(
+            "The size of one step's error follows from Taylor's theorem. If "
+            "y is twice differentiable, then y(t + h) = y(t) + hy'(t) + "
+            "(h²/2)y″(ξ) for some ξ between t and t + h. Euler's method keeps "
+            "the first two terms and discards the third, so starting exactly "
+            "on the solution, one step misses by (h²/2)y″(ξ). That is the "
+            "*local truncation error*: of order h², and large where the "
+            "solution curves sharply, zero where it is a straight line."
+        ),
+        Display(r"y(t + h) = y(t) + h\, y'(t) + \frac{h^{2}}{2}\, y''(\xi)", "3"),
+        Para(
+            "Two consequences can be read off (3). Euler's method is exact "
+            "for solutions that are straight lines — started on the line "
+            "y = t + 1, which solves y' = y − t, it stays on that line exactly, "
+            "since the slope along it is always 1 — and it is least accurate "
+            "where "
+            "|y″| is large, in the bends. And since y″ can be computed from "
+            "the equation (differentiate y' = f(t, y) once more), the local "
+            "error can be estimated before any step is taken. Adaptive "
+            "solvers use estimates like this to choose h."
+        ),
+    )),
+    Section("Systems and higher-order equations", (
+        Para(
+            "Nothing in Euler's method needs y to be a single number. For a "
+            "system of equations, y is a vector and f a vector-valued "
+            "function, and the same formula advances every component at once "
+            "using the slopes of all of them at the start of the step. A "
+            "higher-order equation is first turned into a system by naming "
+            "its derivatives, as Unit 6 does systematically: y'' = −y becomes "
+            "x₁' = x₂, x₂' = −x₁ with x₁ = y and x₂ = y'."
+        ),
+        Display(r"\mathbf{x}_{n+1} = \mathbf{x}_n + h\, "
+                r"\mathbf{f}(t_n, \mathbf{x}_n)"),
+        Para(
+            "Applied to that harmonic oscillator, Euler's method shows another "
+            "of its weaknesses. The true solutions go round circles in the "
+            "(x₁, x₂) plane for ever, conserving energy. Each Euler step "
+            "multiplies the squared radius by exactly 1 + h², so the computed "
+            "orbit spirals slowly *outwards*: the method manufactures energy. "
+            "For long simulations of mechanical systems this matters more "
+            "than the size of the error at any one time, and it is why "
+            "special *symplectic* methods, such as the Verlet method in the "
+            "Solver Lab, are used for orbits and molecules."
+        ),
+        Worked(
+            "One Euler step on an oscillator",
+            "For x₁' = x₂, x₂' = −x₁ from (1, 0), take one Euler step with "
+            "h = 0.1 and compare the distance from the origin before and "
+            "after.",
+            (
+                Step("The slopes at (1, 0) are x₂ = 0 and −x₁ = −1, so the new "
+                     "point is (1 + 0.1 × 0, 0 + 0.1 × (−1)) = (1, −0.1).",
+                     r"(x_1, x_2) = (1, 0) \;\to\; (1, -0.1)"),
+                Step("The squared distance goes from 1 to 1 + 0.01 = 1.01. In "
+                     "general one step takes (x₁, x₂) to (x₁ + hx₂, x₂ − hx₁), "
+                     "whose squared length is exactly (1 + h²)(x₁² + x₂²). After "
+                     "the 63 steps of one period with h = 0.1 the radius has "
+                     "grown by (1.01)^(31.5) ≈ 1.37 — a 37% error in "
+                     "amplitude from a method whose single steps looked "
+                     "harmless.",
+                     r"x_1^{2} + x_2^{2} \;\to\; (1 + h^{2})(x_1^{2} + x_2^{2})"),
+            ),
+            answer_latex=r"r^{2}: 1 \to 1.01",
+        ),
+    )),
+    Section("Round-off error", (
+        Para(
+            "Truncation error shrinks as h shrinks, but it is not the only "
+            "error. Every arithmetic operation on a computer is rounded, to "
+            "about sixteen significant digits in standard double precision. "
+            "One rounding error is negligible; the number of them grows like "
+            "1/h. So as h decreases the total error first falls, as the "
+            "truncation error shrinks, and then rises again, as rounding "
+            "errors accumulate over ever more steps."
+        ),
+        Para(
+            "For Euler's method in double precision the best achievable "
+            "accuracy is typically around eight digits, reached at a step "
+            "around 10⁻⁸; smaller steps only make things worse. A "
+            "higher-order method reaches the same accuracy with far larger "
+            "steps, and so with far fewer roundings, which is another reason "
+            "the next lesson's methods are preferred. The general lesson is "
+            "that 'smaller step' is not an unlimited path to accuracy."
+        ),
+    )),
+    Section("The improved Euler method", (
+        Para(
+            "Euler's method uses the slope at the start of each step, which "
+            "is systematically wrong whenever the solution curves. A better "
+            "estimate of the average slope over the step is the average of "
+            "the slopes at its two ends. The slope at the far end is not "
+            "known, because the value there is not known — but an ordinary "
+            "Euler step gives a good enough guess to evaluate it."
+        ),
+        Box(
+            "definition", "Improved Euler (Heun's) method",
+            "Take a trial Euler step to predict the value at the end of the "
+            "step, evaluate the slope there, and use the average of the two "
+            "slopes to take the real step. Two evaluations of f per step.",
+            r"k_1 = f(t_n, y_n), \quad k_2 = f(t_n + h,\, y_n + h k_1), "
+            r"\quad y_{n+1} = y_n + \frac{h}{2}(k_1 + k_2)",
+        ),
+        Worked(
+            "One step of improved Euler",
+            "Take one step of the improved Euler method with h = 0.25 on "
+            "y' = y − t, y(0) = 2.",
+            (
+                Step("k₁ = f(0, 2) = 2. The trial step gives 2 + 0.25 × 2 = "
+                     "2.5, and the slope there is k₂ = f(0.25, 2.5) = 2.25.",
+                     r"k_1 = 2, \qquad k_2 = 2.25"),
+                Step("Average them: y₁ = 2 + 0.25 × (2 + 2.25)/2 = 2.53125, "
+                     "against the true value 2.53403 — an error of 0.0028, "
+                     "twelve times smaller than Euler's 0.034 on the same "
+                     "step.",
+                     r"y_1 = 2 + 0.125 \times 4.25 = 2.53125"),
+            ),
+            answer_latex=r"y(0.25) \approx 2.53125",
+        ),
+        Para(
+            "Over the whole interval to t = 1 the improved method's error is "
+            "0.0234 with h = 0.25 and 0.0064 with h = 0.125: halving the step "
+            "divides the error by about 3.6, approaching the factor 4 that a "
+            "second-order method achieves in the limit. For y' = y up to "
+            "t = 0.5, h = 0.1 gives error 0.0013 and h = 0.05 gives 0.00033, "
+            "a factor of 3.9. The method is *second order*: the error behaves "
+            "like h², so each halving of the step buys two correct binary "
+            "digits instead of one."
+        ),
+        Box(
+            "remark", "Why averaging the ends gains an order",
+            "The average of the slopes at the two ends is the trapezoidal "
+            "rule for the integral of y' over the step, and the trapezoidal "
+            "rule is exact for straight lines and has error proportional to "
+            "h³ per step. Euler's method is the left-endpoint rule, with error "
+            "proportional to h². The numerical methods for integrals and for "
+            "differential equations are the same methods.",
+        ),
+    )),
+    Section("Stability: when the step is too big", (
+        Para(
+            "A small step is not only about accuracy. For some equations a "
+            "step that is too large makes Euler's method produce nonsense of "
+            "a qualitative kind — oscillations and growth where the true "
+            "solution decays smoothly. The simplest example is y' = −2y, "
+            "whose solutions e^(−2t) decay. An Euler step multiplies y by "
+            "(1 − 2h), and whether the numbers decay depends on the size of "
+            "that factor."
+        ),
+        Worked(
+            "A step that is too large",
+            "Apply Euler's method to y' = −2y, y(0) = 1 with h = 0.6 and with "
+            "h = 1.2.",
+            (
+                Step("With h = 0.6 each step multiplies by 1 − 1.2 = −0.2: the "
+                     "values are 1, −0.2, 0.04, −0.008, … They alternate in "
+                     "sign, which the true solution never does, but they do "
+                     "shrink."),
+                Step("With h = 1.2 each step multiplies by 1 − 2.4 = −1.4: the "
+                     "values are 1, −1.4, 1.96, −2.74, 3.84, … They grow in "
+                     "size without bound, while the true solution decays to "
+                     "zero.",
+                     r"|1 - 2h| > 1 \;\Longleftrightarrow\; h > 1"),
+            ),
+            answer_latex=r"\text{stable for } h < 1",
+        ),
+        Plot(
+            "Size of the Euler iterates for y' = −2y",
+            "The exact solution e^(−2t), and the magnitude of the Euler values "
+            "|1 − 2h|^(t/h) for h = 0.25, 0.6 and 1.2. The first two decay, "
+            "the second while flipping sign at every step; the third grows. "
+            "For this equation Euler's method is stable only for h < 1, "
+            "however little accuracy is wanted.",
+            (Curve("exp(-2*t)", "exact"),
+             Curve("0.5**(t/0.25)", "h = 0.25"),
+             Curve("0.2**(t/0.6)", "h = 0.6"),
+             Curve("1.4**(t/1.2)", "h = 1.2")),
+            t=(0.0, 6.0), ylabel="size of y", ylim=(0.0, 3.0),
+        ),
+        Para(
+            "In general, for y' = λy with λ < 0, Euler's method is stable only "
+            "when h < 2/|λ|. A quickly decaying component — large |λ| — "
+            "forces a tiny step even after it has decayed and contributes "
+            "nothing to the answer. Equations with such components are called "
+            "*stiff*, and they are the reason implicit methods exist; the "
+            "Stiffness Explorer shows an explicit method forced into tiny "
+            "steps on a problem an implicit method crosses in large ones."
+        ),
+        Figure("euler_error",
+               "Change the step size and watch Euler's polygon follow — or "
+               "fail to follow — the true solution, with the error printed."),
+    )),
+    Section("Using a numerical method well", (
+        Para(
+            "Three habits separate good use of a numerical method from bad. "
+            "First, never trust a single run: repeat it with the step halved. "
+            "If the answer barely changes, both are probably accurate; if it "
+            "changes a lot, neither is. For a first-order method the change "
+            "between the two runs is roughly the error of the finer one, "
+            "which gives a free error estimate."
+        ),
+        Para(
+            "Second, know what the method cannot see. A numerical method "
+            "follows one solution from one starting point. It cannot find "
+            "solutions it does not start on, it cannot tell you a solution is "
+            "not unique, and near a blow-up it will produce enormous numbers "
+            "and carry on as if nothing were wrong. The qualitative tools of "
+            "the earlier lessons — slope fields, phase lines, the existence "
+            "theorem — are what tell you whether the numbers mean anything."
+        ),
+        Para(
+            "Third, prefer a better method to a smaller step. Halving the step "
+            "of a first-order method halves the error at twice the cost; "
+            "switching to a fourth-order method, the subject of the next "
+            "lesson, typically cuts the error by orders of magnitude for "
+            "twice the cost per step. Professional solvers go further and "
+            "choose the step automatically, taking large steps where the "
+            "solution is smooth and small ones where it changes quickly."
+        ),
+        Para(
+            "The solvers behind this application's Solver Lab do exactly "
+            "that. The default method computes two answers for every step, "
+            "one of fourth order and one of fifth, from the same six slope "
+            "evaluations — so the second answer costs almost nothing — uses "
+            "the difference between the two as an estimate of the local "
+            "error, and accepts the step only if the "
+            "estimate is within the tolerance you set — shrinking h and trying "
+            "again if not, and growing it if the step was needlessly "
+            "accurate. The step-size plot in the Lab shows the result: long "
+            "strides through the quiet stretches of a solution and a flurry of "
+            "short steps wherever it turns sharply. Euler's method, with one "
+            "fixed h everywhere, is the ancestor of all of that."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "Euler's method follows the slope at the start of each step: "
+            "yₙ₊₁ = yₙ + h f(tₙ, yₙ). It is first order — the global error is "
+            "proportional to h — so it is simple, cheap per step, and slow to "
+            "become accurate. The improved Euler method averages the slopes "
+            "at the two ends of the step, using an Euler step to predict the "
+            "far end; it is second order, with error proportional to h². "
+            "Both can become unstable if h is too large for a quickly "
+            "decaying solution, producing growing oscillations where the true "
+            "solution decays. Check any numerical answer by halving the step, "
+            "and use the qualitative theory to decide whether the answer "
+            "means anything at all. The next lesson shows how much further "
+            "the averaging idea can be pushed, and what each extra order of "
+            "accuracy costs."
+        ),
+    )),
+)
 
 
 MOTION = (
