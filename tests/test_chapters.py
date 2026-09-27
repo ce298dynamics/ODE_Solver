@@ -42,6 +42,7 @@ CHAPTERED = (
     "forced-vibration",
     "circuits",
     "transform",
+    "laplace",
 )
 
 #: About five pages of prose.

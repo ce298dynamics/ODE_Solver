@@ -4,7 +4,414 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["TRANSFORM"]
+__all__ = ["TRANSFORM", "LAPLACE"]
+
+
+LAPLACE = (
+    Section("Solving an equation in three moves", (
+        Para(
+            "The last lesson built the tools: a table of transforms, "
+            "linearity, and the rule that turns a derivative into "
+            "multiplication by s. This lesson uses them on initial value "
+            "problems, and the method never changes. Transform the equation, "
+            "so that it becomes an algebraic equation for Y(s) with the "
+            "initial values already inside it. Solve that equation for Y. "
+            "Then invert: rearrange Y into pieces the table recognises, and "
+            "read the solution off piece by piece."
+        ),
+        Para(
+            "Almost all the effort is in the third move, and almost all of "
+            "that is partial fractions. Y(s) is typically a ratio of "
+            "polynomials in s, and the table recognises only a few simple "
+            "shapes — 1/(s − a), s/(s² + k²), k/(s² + k²) and their shifted "
+            "cousins. Partial fractions is the algebra that breaks a "
+            "complicated ratio into a sum of those shapes. So this lesson is "
+            "as much about partial fractions as about differential equations, "
+            "and it is worth getting fluent in them."
+        ),
+        Box(
+            "definition", "The transform method",
+            "To solve a linear initial value problem with constant "
+            "coefficients: (1) transform both sides, using the derivative "
+            "rule with the initial values; (2) solve for Y(s); (3) decompose "
+            "Y(s) by partial fractions; (4) invert each term using the table.",
+            r"y \;\to\; Y(s) \;\to\; \text{algebra} \;\to\; y(t)",
+        ),
+        Para(
+            "The Laplace Transforms screen of this application carries out "
+            "exactly these four steps on any equation you type, showing the "
+            "transformed equation, the solved Y(s), its partial fractions and "
+            "the inversion as separate stages, and checking the final answer "
+            "by substitution. It is worth working each example below by hand "
+            "first and then comparing, stage by stage, with what the screen "
+            "produces: a discrepancy points to the exact step where the hand "
+            "calculation went astray. Most of the time it will be the partial "
+            "fractions."
+        ),
+    )),
+    Section("A first example, every step shown", (
+        Worked(
+            "Distinct real roots",
+            "Solve y'' − y' − 2y = 0 with y(0) = 1, y'(0) = 0.",
+            (
+                Step("Transform, using L{y''} = s²Y − sy(0) − y'(0) and "
+                     "L{y'} = sY − y(0):",
+                     r"(s^{2}Y - s) - (sY - 1) - 2Y = 0"),
+                Step("Collect the Y terms and solve. The quadratic multiplying "
+                     "Y is the characteristic polynomial, which is no "
+                     "coincidence.",
+                     r"Y = \frac{s - 1}{s^{2} - s - 2} = \frac{s - 1}{(s - 2)(s + 1)}"),
+                Step("Partial fractions: (s − 1)/((s − 2)(s + 1)) = A/(s − 2) + "
+                     "B/(s + 1). Multiply through and set s = 2: 1 = 3A, so "
+                     "A = 1/3. Set s = −1: −2 = −3B, so B = 2/3.",
+                     r"Y = \frac{1/3}{s - 2} + \frac{2/3}{s + 1}"),
+                Step("Invert each term from the table: 1/(s − a) comes from "
+                     "e^(at)."),
+            ),
+            equation="y'' - y' - 2*y = 0", conditions="y(0) = 1, y'(0) = 0",
+            answer="exp(2*t)/3 + 2*exp(-t)/3",
+            answer_latex=r"y(t) = \frac{1}{3}e^{2t} + \frac{2}{3}e^{-t}",
+        ),
+        Para(
+            "Two things in that example are worth underlining. The "
+            "polynomial multiplying Y was s² − s − 2 — the characteristic "
+            "polynomial of Unit 3 — so the transform method is secretly "
+            "finding the characteristic roots too; they appear as the "
+            "denominators of the partial fractions. And no constants had to "
+            "be fitted: the initial values entered at the first step, and the "
+            "answer came out already satisfying them."
+        ),
+    )),
+    Section("Partial fractions, systematically", (
+        Para(
+            "A proper rational function P(s)/Q(s) — the degree of P below that "
+            "of Q — can be written as a sum of simple fractions, one group for "
+            "each factor of Q. The rules are the same as in the integration "
+            "techniques of a calculus course, and they are summarised below."
+        ),
+        Box(
+            "theorem", "Partial-fraction forms",
+            "Each factor of the denominator contributes terms of a fixed "
+            "shape: a simple linear factor s − a gives A/(s − a); a repeated "
+            "factor (s − a)ⁿ gives A₁/(s − a) + … + Aₙ/(s − a)ⁿ; an irreducible "
+            "quadratic s² + bs + c gives (Bs + C)/(s² + bs + c), and a repeated "
+            "one a term for each power.",
+            r"\frac{P(s)}{(s - a)(s - b)} = \frac{A}{s - a} + \frac{B}{s - b}",
+        ),
+        Para(
+            "For distinct linear factors the *cover-up* method is quickest: to "
+            "find the coefficient of 1/(s − a), cover up the factor s − a in "
+            "the original fraction and evaluate what is left at s = a. That is "
+            "exactly what setting s = 2 and s = −1 did in the example. For "
+            "repeated and quadratic factors, multiply through by the "
+            "denominator and either substitute convenient values of s or "
+            "compare coefficients of like powers."
+        ),
+        Worked(
+            "Three linear factors",
+            "Solve y'' − 3y' + 2y = 4 with y(0) = 0, y'(0) = 0.",
+            (
+                Step("With zero initial values the transform is simply "
+                     "(s² − 3s + 2)Y = 4/s, so Y = 4/(s(s − 1)(s − 2)).",
+                     r"Y = \frac{4}{s(s - 1)(s - 2)}"),
+                Step("Cover-up: at s = 0 the rest is 4/((−1)(−2)) = 2; at s = 1, "
+                     "4/(1·(−1)) = −4; at s = 2, 4/(2·1) = 2.",
+                     r"Y = \frac{2}{s} - \frac{4}{s - 1} + \frac{2}{s - 2}"),
+                Step("Invert: 2 − 4e^t + 2e^(2t). The constant 2 is the steady "
+                     "state 4/2 that the forcing alone would produce; the "
+                     "exponentials make up the start from rest."),
+            ),
+            equation="y'' - 3*y' + 2*y = 4", conditions="y(0) = 0, y'(0) = 0",
+            answer="2 - 4*exp(t) + 2*exp(2*t)",
+            answer_latex=r"y(t) = 2 - 4e^{t} + 2e^{2t}",
+        ),
+        Figure("partial_fractions",
+               "A rational function of s and its partial fractions side by "
+               "side: each pole of the denominator becomes one simple term, "
+               "and each term one exponential or sinusoid in the solution."),
+    )),
+    Section("Quadratic factors: forcing by a sinusoid", (
+        Para(
+            "Sinusoidal forcing and oscillatory solutions bring irreducible "
+            "quadratics like s² + k² into the denominator. The partial "
+            "fraction for such a factor has a linear numerator, (Bs + C)/(s² + "
+            "k²), and it inverts to B cos kt + (C/k) sin kt. When all the "
+            "quadratic factors are of the form s² + k², a useful shortcut is to "
+            "treat s² as a single variable."
+        ),
+        Worked(
+            "Two frequencies",
+            "Solve y'' + 4y = sin t with y(0) = 0, y'(0) = 0.",
+            (
+                Step("(s² + 4)Y = 1/(s² + 1), so Y = 1/((s² + 1)(s² + 4)).",
+                     r"Y = \frac{1}{(s^{2} + 1)(s^{2} + 4)}"),
+                Step("Treat s² as u: 1/((u + 1)(u + 4)) = (1/3)(1/(u + 1) − "
+                     "1/(u + 4)) by cover-up.",
+                     r"Y = \frac{1}{3}\left(\frac{1}{s^{2} + 1} - "
+                     r"\frac{1}{s^{2} + 4}\right)"),
+                Step("1/(s² + 1) inverts to sin t and 1/(s² + 4) to (1/2)sin 2t."),
+            ),
+            equation="y'' + 4*y = sin(t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="sin(t)/3 - sin(2*t)/6",
+            answer_latex=r"y(t) = \frac{1}{3}\sin t - \frac{1}{6}\sin 2t",
+        ),
+        Plot(
+            "The response to sin t of a system tuned to 2",
+            "y = sin t/3 − sin 2t/6: the forcing frequency 1 and the natural "
+            "frequency 2 both appear, each coming from one quadratic factor "
+            "in the denominator of Y. The transform found both without a "
+            "separate complementary function.",
+            (Curve("sin(t)/3 - sin(2*t)/6", "y(t)"),
+             Curve("sin(t)/3", "forced part")),
+            t=(0.0, 13.0),
+        ),
+    )),
+    Section("Repeated factors and resonance", (
+        Worked(
+            "A repeated quadratic",
+            "Solve y'' + y = 2 cos t with y(0) = 0, y'(0) = 0.",
+            (
+                Step("(s² + 1)Y = 2s/(s² + 1), so Y = 2s/(s² + 1)². The repeated "
+                     "factor signals resonance: the forcing is at the natural "
+                     "frequency.",
+                     r"Y = \frac{2s}{(s^{2} + 1)^{2}}"),
+                Step("The last lesson found L{t sin t} = 2s/(s² + 1)² by "
+                     "differentiating in s, so the solution is t sin t — the "
+                     "linearly growing response of Unit 4."),
+            ),
+            equation="y'' + y = 2*cos(t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="t*sin(t)", answer_latex=r"y(t) = t\sin t",
+        ),
+        Para(
+            "In Unit 3 resonance required the modification rule, a special "
+            "case to remember. Here it required nothing special at all: the "
+            "algebra produced a squared factor and the table entry for "
+            "t sin t read it off. That is typical of the transform method — "
+            "the exceptional cases of the classical method become ordinary "
+            "entries in a table, and the method does not need to know in "
+            "advance which case it is in."
+        ),
+    )),
+    Section("First-order equations", (
+        Para(
+            "The method works just as well at first order, where it is an "
+            "alternative to the integrating factor. The derivative rule "
+            "needs only y(0), and the algebra is a single division."
+        ),
+        Worked(
+            "A cancellation",
+            "Solve y' + 2y = e^(−t) with y(0) = 1.",
+            (
+                Step("sY − 1 + 2Y = 1/(s + 1), so "
+                     "Y = 1/((s + 1)(s + 2)) + 1/(s + 2).",
+                     r"Y = \frac{1}{(s + 1)(s + 2)} + \frac{1}{s + 2}"),
+                Step("The first fraction is 1/(s + 1) − 1/(s + 2), and its second "
+                     "term cancels the 1/(s + 2) outside. So Y = 1/(s + 1), and "
+                     "y = e^(−t).",
+                     r"Y = \frac{1}{s + 1}"),
+                Step("Check: y' + 2y = −e^(−t) + 2e^(−t) = e^(−t), and y(0) = 1. "
+                     "The initial value happened to be exactly the one for "
+                     "which the natural mode e^(−2t) is absent."),
+            ),
+            equation="y' + 2*y = exp(-t)", conditions="y(0) = 1",
+            answer="exp(-t)", answer_latex=r"y(t) = e^{-t}",
+        ),
+    )),
+    Section("Why it always works: the transformed equation in general", (
+        Para(
+            "It is worth doing the first move once in general, because the "
+            "result explains the whole method. Transform ay'' + by' + cy = f(t) "
+            "with initial values y(0) = y₀ and y'(0) = y₁. The derivative rules "
+            "give a(s²Y − sy₀ − y₁) + b(sY − y₀) + cY = F(s), and collecting the "
+            "terms in Y leaves a single linear equation."
+        ),
+        Display(r"(a s^{2} + b s + c)\, Y = F(s) + (a s + b)\, y_0 + a\, y_1", "1"),
+        Para(
+            "So Y is always the right-hand side divided by the characteristic "
+            "polynomial p(s) = as² + bs + c. The right-hand side has two "
+            "parts: the transform of the forcing, and a polynomial built from "
+            "the initial values. Dividing splits the solution accordingly "
+            "into the response to the forcing with zero initial values, "
+            "F(s)/p(s), and the response to the initial values with no "
+            "forcing. The classical method called these the particular "
+            "solution and the complementary function; the transform method "
+            "produces both from one division."
+        ),
+        Display(r"Y = \frac{F(s)}{p(s)} + \frac{(a s + b)\, y_0 + a\, y_1}{p(s)}",
+                "2"),
+    )),
+    Section("The transfer function", (
+        Para(
+            "The factor 1/p(s) in (2) depends only on the system, not on the "
+            "forcing or the initial values, and it has a name: the *transfer "
+            "function*, G(s) = 1/p(s). With zero initial values, the "
+            "transform of the output is simply G(s) times the transform of "
+            "the input, Y = G·F. A system is described completely by its "
+            "transfer function, and the response to any input is found by one "
+            "multiplication in the s-domain."
+        ),
+        Para(
+            "This is how control engineers think. A motor, an amplifier and a "
+            "sensor each have a transfer function, and when they are "
+            "connected in a chain the transfer function of the whole is the "
+            "product of the parts. Feedback — feeding the output back to the "
+            "input — produces a new transfer function whose poles can be "
+            "moved by the design, which is the whole art of making systems "
+            "stable and responsive. The convolution lesson later in this unit "
+            "shows what multiplying by G(s) means back in the time domain."
+        ),
+        Box(
+            "remark", "Reading the transfer function",
+            "For the spring my'' + cy' + ky = f, G(s) = 1/(ms² + cs + k). Its "
+            "poles are the characteristic roots, the natural modes; its value "
+            "at s = iω, in size, is the amplitude response C(ω)/F₀ of the "
+            "forced-vibration lesson. The frequency response is the transfer "
+            "function evaluated on the imaginary axis.",
+        ),
+    )),
+    Section("Higher order, no harder", (
+        Para(
+            "The method does not change with the order of the equation. A "
+            "third-order equation needs three initial values and the rule "
+            "L{y'''} = s³Y − s²y(0) − sy'(0) − y''(0); after that it is the "
+            "same algebra. The characteristic polynomial is now cubic, and the "
+            "partial fractions have one more term, but nothing new has to be "
+            "understood."
+        ),
+        Worked(
+            "A third-order problem",
+            "Solve y''' − y' = 0 with y(0) = 1, y'(0) = 0, y''(0) = 1.",
+            (
+                Step("Transform: (s³Y − s² − 0 − 1) − (sY − 1) = 0, and the "
+                     "constants cancel to leave (s³ − s)Y = s².",
+                     r"Y = \frac{s^{2}}{s(s^{2} - 1)} = \frac{s}{s^{2} - 1}"),
+                Step("The factor s cancels, and s/(s² − 1) is the transform of "
+                     "cosh t. (Partial fractions give the same thing: "
+                     "(1/2)/(s − 1) + (1/2)/(s + 1), which is (e^t + e^(−t))/2.)"),
+            ),
+            equation="y''' - y' = 0", conditions="y(0) = 1, y'(0) = 0, y''(0) = 1",
+            answer="cosh(t)", answer_latex=r"y(t) = \cosh t",
+        ),
+        Para(
+            "Notice the cancellation of s. The characteristic polynomial has "
+            "the root 0, so the general solution contains a constant term; "
+            "these particular initial values happen to make that term zero, "
+            "and the transform shows it by cancelling the pole at s = 0 before "
+            "any partial fractions are needed. Cancellations like this are "
+            "not accidents to be surprised by; they are the transform's way "
+            "of reporting that a mode is absent."
+        ),
+    )),
+    Section("Comparing the two methods", (
+        Para(
+            "For equations that Unit 3 can already solve, which method is "
+            "better? For homogeneous equations and simple forcing, the "
+            "classical method is often quicker: write down the characteristic "
+            "roots, guess the particular solution, fit two constants. The "
+            "transform method does the same work in a different order and "
+            "costs a partial-fraction decomposition that can be longer than "
+            "the classical algebra."
+        ),
+        Para(
+            "The transform method wins in three situations. When the initial "
+            "values are the point — in engineering, most problems start from "
+            "rest, and zero initial values make the transform especially "
+            "clean. When the forcing is discontinuous or impulsive, where the "
+            "classical method has to solve piece by piece and match at every "
+            "switch, and the transform handles the whole thing at once, as "
+            "the step-forcing and impulse lessons show. And when the same "
+            "system is driven by many different inputs, where the transfer "
+            "function is computed once and reused."
+        ),
+    )),
+    Section("Poles and behaviour", (
+        Para(
+            "The denominators of Y(s) carry the qualitative behaviour of the "
+            "solution, and with practice it can be read off before any "
+            "partial fractions are done. The values of s where the denominator "
+            "vanishes are called the *poles* of Y. A pole at a real number a "
+            "produces e^(at): decaying if a < 0, growing if a > 0. A pair of "
+            "complex poles α ± iβ produces e^(αt) times a sinusoid of frequency "
+            "β. A repeated pole multiplies by powers of t."
+        ),
+        Para(
+            "So the location of the poles in the complex plane is a picture "
+            "of the solution's character. Poles in the left half-plane mean "
+            "decay; poles on the imaginary axis mean sustained oscillation; "
+            "poles in the right half-plane mean growth. Engineers designing "
+            "feedback systems reason almost entirely in terms of pole "
+            "positions, moving them leftwards to make a system more stable "
+            "and further from the axis to make it ring less. The next lesson "
+            "shows how a pole off the real axis is handled with the shifting "
+            "theorem."
+        ),
+        Box(
+            "remark", "Poles come from two places",
+            "Some poles of Y come from the characteristic polynomial — the "
+            "system's own modes — and some from the transform of the forcing. "
+            "The first kind produce the transient, the second the forced "
+            "response. When a forcing pole coincides with a system pole, the "
+            "pole is repeated, and that is resonance.",
+        ),
+    )),
+    Section("Quick checks: the initial- and final-value theorems", (
+        Para(
+            "Two theorems let an answer be checked without inverting. The "
+            "*initial-value theorem* says that sY(s) tends to y(0) as s → ∞, "
+            "and the *final-value theorem* that sY(s) tends to the limit of "
+            "y(t) as t → ∞ when s → 0 — provided that limit exists, which "
+            "requires every pole of sY(s) to lie in the left half-plane."
+        ),
+        Display(r"\lim_{s\to\infty} sY(s) = y(0), \qquad "
+                r"\lim_{s\to 0} sY(s) = \lim_{t\to\infty} y(t)"),
+        Para(
+            "For the charging capacitor of the circuits lesson, "
+            "Q(s) = 1.2/(s(s + 10)), so sQ(s) = 1.2/(s + 10), which tends to 0 as "
+            "s → ∞ — the capacitor starts uncharged — and to 0.12 as s → 0 — its "
+            "final charge. Both facts are confirmed without any partial "
+            "fractions. But for Y = 4/(s(s − 1)(s − 2)) in this lesson, sY has "
+            "poles at 1 and 2, in the right half-plane, and the final-value "
+            "theorem does not apply: blindly it would give 4/((−1)(−2)) = 2, "
+            "while the true solution 2 − 4e^t + 2e^(2t) grows without bound. "
+            "The condition on the poles is not a technicality."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "Most errors come in the partial fractions. Using a constant "
+            "numerator over a quadratic factor, A/(s² + 1) instead of "
+            "(Bs + C)/(s² + 1), loses the cosine part. Using only the highest "
+            "power for a repeated factor, A/(s − 2)² without B/(s − 2), makes the "
+            "equations for the coefficients inconsistent. And applying "
+            "cover-up to a repeated or quadratic factor, where it does not "
+            "work directly, gives wrong numbers silently."
+        ),
+        Para(
+            "In the inversion, the frequency must be matched: 1/(s² + 4) is "
+            "(1/2) sin 2t, not sin 2t, because the table entry is k/(s² + k²) "
+            "with k in the numerator. And an improper fraction — numerator of "
+            "degree at least that of the denominator — signals an algebra "
+            "error earlier, since the transform of a solution of an ordinary "
+            "initial value problem is always proper. Checking the final "
+            "answer against the equation and both initial values catches all "
+            "of these."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "To solve a linear initial value problem with constant "
+            "coefficients by transform: transform both sides, putting in the "
+            "initial values through L{y'} = sY − y(0) and "
+            "L{y''} = s²Y − sy(0) − y'(0); solve the resulting algebraic "
+            "equation for Y; split Y into partial fractions, one group per "
+            "factor of the denominator; and invert each term from the table. "
+            "The characteristic polynomial appears as the coefficient of Y, "
+            "the constants never need fitting, and resonance is simply a "
+            "repeated factor. The poles of Y — real, complex or repeated — tell "
+            "the character of the solution at a glance."
+        ),
+    )),
+)
 
 
 TRANSFORM = (

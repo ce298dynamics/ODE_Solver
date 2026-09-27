@@ -43,6 +43,7 @@ __all__ = ["TRANSFORM", "LAPLACE", "SHIFTING", "CONVOLUTION",
 
 LAPLACE = Lesson(
     key="laplace",
+    chapter=chapters.LAPLACE,
     title="Laplace transforms",
     summary="Turn the differential equation into algebra — and handle forcing "
             "that switches on partway through.",
