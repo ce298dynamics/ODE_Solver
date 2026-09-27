@@ -4,7 +4,405 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["BASICS", "SEPARABLE", "LINEAR"]
+__all__ = ["BASICS", "SLOPEFIELDS", "SEPARABLE", "LINEAR"]
+
+
+SLOPEFIELDS = (
+    Section("The equation draws its own picture", (
+        Para(
+            "Every technique in this unit ends with a formula, and that "
+            "invites a false impression: that solving an equation means "
+            "finding a formula, and that an equation without one is an "
+            "equation you know nothing about. Most equations have no formula. "
+            "y' = t² + y² is a perfectly ordinary first-order equation whose "
+            "solutions cannot be written in elementary functions. And yet a "
+            "great deal about them can be read straight off the equation, "
+            "without solving anything — which way they go, where they level "
+            "off, whether they cross, whether they exist at all."
+        ),
+        Para(
+            "The key observation is that y' = f(t, y) is a statement about "
+            "slopes. At any point (t, y) of the plane it says: a solution "
+            "passing through this point has slope f(t, y) here. You do not "
+            "need the solution to know its slope; the equation hands it to "
+            "you. Draw a short segment with that slope at every point of a "
+            "grid, and the picture shows the solutions, because each solution "
+            "curve has to run tangent to the segments along its whole length."
+        ),
+        Box(
+            "definition", "Slope field",
+            "The *slope field* (or direction field) of y' = f(t, y) is the "
+            "collection of short line segments through the points of a grid, "
+            "the segment at (t, y) having slope f(t, y). A solution curve is "
+            "a curve tangent to the field at each of its points.",
+        ),
+        Figure("slope_field",
+               "Drag the coefficient and watch the field change; click to drop "
+               "an initial condition and see the solution through it follow "
+               "the segments."),
+        Para(
+            "Sketching a field by hand is tedious but instructive, and the "
+            "tedium can be cut down by drawing along *isoclines* — curves on "
+            "which the slope is constant. Along the isocline f(t, y) = m every "
+            "segment has slope m, so a whole curve's worth of segments is "
+            "drawn at once. For y' = y − t the isoclines are the lines "
+            "y = t + m: slope 0 along y = t, slope 1 along y = t + 1, and so "
+            "on."
+        ),
+        Box(
+            "definition", "Isocline",
+            "A curve along which the slope field has a constant value m: the "
+            "level curve f(t, y) = m. Isoclines are not solutions in general; "
+            "they are where solutions have a given slope.",
+            r"f(t, y) = m",
+        ),
+    )),
+    Section("Reading a field: one example in detail", (
+        Para(
+            "Take y' = y − t and read what it says before solving it. Above "
+            "the line y = t the slope is positive, so solutions rise; below "
+            "it they fall. On the isocline y = t + 1 the slope is exactly 1 — "
+            "and a line of slope 1 is the line y = t + 1 itself. So that "
+            "isocline is also a solution: a solution that is a straight line. "
+            "Solutions above it rise faster than it and pull away upwards; "
+            "solutions below it rise slower, cross the line y = t, and fall "
+            "away downwards. The straight-line solution is a watershed "
+            "between two fates."
+        ),
+        Worked(
+            "The straight-line solution",
+            "Verify that y = t + 1 solves y' = y − t, and find the solution "
+            "with y(0) = 1.",
+            (
+                Step("If y = t + 1 then y' = 1 and y − t = 1. They agree, so "
+                     "the line is a solution, and it passes through (0, 1).",
+                     r"y' = 1 = (t + 1) - t"),
+            ),
+            equation="y' = y - t", conditions="y(0) = 1",
+            answer="t + 1", answer_latex=r"y(t) = t + 1",
+        ),
+        Worked(
+            "Either side of the watershed",
+            "Find the solutions of y' = y − t with y(0) = 2 and with y(0) = 0.",
+            (
+                Step("The equation is linear, y' − y = −t, and the integrating "
+                     "factor e^(−t) gives y = t + 1 + Ce^t for every C.",
+                     r"y = t + 1 + C e^{t}"),
+                Step("y(0) = 2 gives C = 1, so y = t + 1 + e^t, which leaves "
+                     "the line upwards. y(0) = 0 gives C = −1, so y = t + 1 − "
+                     "e^t, which eventually falls away below it."),
+            ),
+            equation="y' = y - t", conditions="y(0) = 2",
+            answer="t + 1 + exp(t)", answer_latex=r"y(t) = t + 1 + e^{t}",
+        ),
+        Plot(
+            "Solutions of y' = y − t either side of y = t + 1",
+            "The straight line is the solution with C = 0. Every other "
+            "solution differs from it by Ce^t, which grows, so solutions "
+            "starting even slightly above the line run off upwards and those "
+            "below run off downwards. The picture was predictable from the "
+            "field alone; the formula only confirms it.",
+            (Curve("t + 1 + exp(t)", "y(0) = 2"),
+             Curve("t + 1 + 0.1*exp(t)", "y(0) = 1.1"),
+             Curve("t + 1", "y = t + 1"),
+             Curve("t + 1 - 0.1*exp(t)", "y(0) = 0.9"),
+             Curve("t + 1 - exp(t)", "y(0) = 0")),
+            t=(-2.0, 2.5), ylim=(-4.0, 6.0),
+        ),
+        Para(
+            "That is the general lesson of a slope field: *qualitative* "
+            "behaviour — rising or falling, approaching or leaving, bounded "
+            "or not — is visible without any solving. Numbers need a "
+            "formula or a computation. Shapes do not."
+        ),
+    )),
+    Section("Sketching a field by hand", (
+        Para(
+            "An exam will not hand you a computer, and a rough sketch done "
+            "well is worth more than a precise one done blindly. A reliable "
+            "procedure is: find where f = 0, which is the isocline of "
+            "horizontal segments and often contains the most important "
+            "curve; find where f > 0 and where f < 0, which tells you where "
+            "solutions rise and fall; draw two or three more isoclines with "
+            "their slopes marked; look for a straight-line or constant "
+            "solution; then thread a few solution curves through, keeping "
+            "them tangent to the segments."
+        ),
+        Para(
+            "Apply that to y' = t − y. The slope is zero along y = t, positive "
+            "below that line and negative above it. The isocline of slope 1 "
+            "is y = t − 1, and a line of slope 1 lying along an isocline of "
+            "slope 1 is a solution, so y = t − 1 is a straight-line solution "
+            "again. This time the picture is the opposite of y' = y − t: a "
+            "solution above y = t − 1 has slope less than 1 and is caught up "
+            "by the line from above; one below has slope greater than 1 and "
+            "catches up from below. The line attracts."
+        ),
+        Worked(
+            "An attracting straight-line solution",
+            "Solve y' = t − y with y(0) = 0, and describe the long-run "
+            "behaviour.",
+            (
+                Step("Linear: y' + y = t, integrating factor e^t, so "
+                     "(e^t y)' = t e^t and e^t y = (t − 1)e^t + C:",
+                     r"y = t - 1 + C e^{-t}"),
+                Step("y(0) = 0 gives C = 1. The term e^(−t) dies away, so the "
+                     "solution approaches the line y = t − 1, as the sketch "
+                     "predicted.",
+                     r"y(t) - (t - 1) = e^{-t} \to 0"),
+            ),
+            equation="y' = t - y", conditions="y(0) = 0",
+            answer="t - 1 + exp(-t)", answer_latex=r"y(t) = t - 1 + e^{-t}",
+        ),
+        Plot(
+            "Solutions of y' = t − y close in on y = t − 1",
+            "Starting values y(0) = −3, 0 and 3. Every solution differs from "
+            "the line by Ce^(−t), which shrinks, so they converge on it from "
+            "both sides: an attracting solution, where y = t + 1 for y' = y − t "
+            "was a repelling one.",
+            (Curve("t - 1 - 2*exp(-t)", "y(0) = −3"),
+             Curve("t - 1 + exp(-t)", "y(0) = 0"),
+             Curve("t - 1 + 4*exp(-t)", "y(0) = 3"),
+             Curve("t - 1", "y = t − 1")),
+            t=(0.0, 5.0),
+        ),
+    )),
+    Section("Autonomous equations", (
+        Para(
+            "When the right-hand side does not depend on t at all, y' = f(y), "
+            "the equation is called *autonomous*, and its slope field has a "
+            "special symmetry: the slope at (t, y) is the same for every t, so "
+            "the field looks identical along every horizontal line. Slide a "
+            "solution sideways in time and it is still a solution. Everything "
+            "about the field is therefore captured by one vertical line "
+            "showing, at each height y, whether f(y) is positive or negative."
+        ),
+        Para(
+            "The heights where f(y) = 0 are the constant solutions, the "
+            "equilibria, and between them solutions move monotonically up or "
+            "down. Combined with the non-crossing theorem proved below, that "
+            "is enough to describe every solution qualitatively: "
+            "each one moves towards an equilibrium or off to infinity, and "
+            "never turns back. Unit 2 makes this into the *phase line*, the "
+            "one-dimensional ancestor of the phase portraits of Units 6 and 8."
+        ),
+        Display(r"y' = f(y), \qquad f(c) = 0 \;\Longrightarrow\; "
+                r"y \equiv c \;\text{is a solution}"),
+    )),
+    Section("Existence and uniqueness", (
+        Para(
+            "The slope field suggests that through every point there passes "
+            "exactly one solution: start somewhere, follow the arrows, and "
+            "the curve is determined. That is usually true, and when it is, "
+            "it is the mathematical form of determinism — the present state "
+            "determines the future. But it is not always true, and the "
+            "theorem that says when it is true is one of the most important "
+            "in the subject."
+        ),
+        Box(
+            "theorem", "Existence and uniqueness",
+            "Suppose f(t, y) and its partial derivative ∂f/∂y are continuous "
+            "on a rectangle containing the point (t₀, y₀) in its interior. "
+            "Then the initial value problem below has a solution on some open "
+            "interval containing t₀, and it has only one.",
+            r"y' = f(t, y), \qquad y(t_0) = y_0",
+        ),
+        Para(
+            "Two hypotheses, two conclusions, and it matters which goes with "
+            "which. Continuity of f alone is enough for *existence* — some "
+            "solution passes through the point. It is the continuity of ∂f/∂y "
+            "that buys *uniqueness*. Roughly, ∂f/∂y controls how fast the "
+            "slopes change as y changes; if it is bounded, two solutions that "
+            "start together cannot pull apart, because the difference between "
+            "their slopes is at most a constant times the difference between "
+            "them, and something that starts at zero and grows at most in "
+            "proportion to itself stays at zero."
+        ),
+        Box(
+            "remark", "Lipschitz and Picard–Lindelöf",
+            "The condition really used in the proof is that f is *Lipschitz* "
+            "in y: |f(t, y₁) − f(t, y₂)| ≤ L|y₁ − y₂| for some constant L. A "
+            "continuous ∂f/∂y guarantees it on a closed rectangle. The theorem "
+            "in this form is the Picard–Lindelöf theorem, and its proof "
+            "constructs the solution by repeatedly integrating — the same "
+            "idea as a numerical method, taken to the limit.",
+            r"|f(t, y_1) - f(t, y_2)| \leq L\, |y_1 - y_2|",
+        ),
+        Box(
+            "warning", "The interval may be short",
+            "The theorem promises a solution on *some* interval around t₀, "
+            "not on the whole domain of f. y' = y² has f and ∂f/∂y continuous "
+            "everywhere, and its solution through (0, 1) still ends at t = 1, "
+            "where it blows up. Existence is local unless something more — "
+            "linearity, for example — is known.",
+        ),
+    )),
+    Section("When uniqueness fails", (
+        Para(
+            "The standard counterexample is y' = y^(1/3) with y(0) = 0. The "
+            "right-hand side is continuous everywhere, so a solution exists. "
+            "But ∂f/∂y = (1/3)y^(−2/3) blows up at y = 0, so the uniqueness "
+            "half of the theorem says nothing there — and indeed uniqueness "
+            "fails."
+        ),
+        Worked(
+            "The obvious solution",
+            "Show that y = 0 solves y' = y^(1/3), y(0) = 0.",
+            (
+                Step("Both sides are zero: y' = 0 and 0^(1/3) = 0. The "
+                     "constant zero is an equilibrium solution through the "
+                     "origin."),
+            ),
+            equation="y' = y**(1/3)", conditions="y(0) = 0",
+            answer="0", answer_latex=r"y(t) = 0",
+        ),
+        Worked(
+            "A second solution through the same point",
+            "Find a solution of y' = 2√y with y(0) = 0 other than y = 0.",
+            (
+                Step("Separate for y > 0: dy/(2√y) = dt, so √y = t + C. At "
+                     "t = 0, y = 0 gives C = 0, so √y = t and y = t² for "
+                     "t ≥ 0.",
+                     r"\frac{dy}{2\sqrt{y}} = dt \;\Longrightarrow\; "
+                     r"\sqrt{y} = t"),
+                Step("Check: y' = 2t and 2√(t²) = 2t for t ≥ 0. So y = t² "
+                     "solves the problem on [0, ∞), and so does y = 0 — two "
+                     "different solutions through the same point."),
+            ),
+            equation="y' = 2*sqrt(y)", conditions="y(0) = 0",
+            answer="t**2", answer_latex=r"y(t) = t^{2}, \quad t \geq 0",
+        ),
+        Para(
+            "In fact there are infinitely many. For any c ≥ 0 the function "
+            "that is 0 until t = c and (t − c)² afterwards is a solution: it "
+            "sits at the equilibrium for as long as it likes and then leaves. "
+            "The equation has no way of saying when. Physically, y' = 2√y "
+            "describes water draining from a tank through a hole, run "
+            "backwards in time — and an empty tank really could have become "
+            "empty at any moment in the past."
+        ),
+        Plot(
+            "Many solutions through the origin",
+            "Solutions of y' = 2√y with y(0) = 0: the equilibrium y = 0, and "
+            "curves that wait at zero until t = c and then rise as (t − c)², "
+            "for c = 0, 1 and 2. All satisfy the equation and the condition. "
+            "Uniqueness fails exactly where ∂f/∂y = 1/√y is unbounded, "
+            "along y = 0.",
+            (Curve("t**2", "c = 0"),
+             Curve("Piecewise((0, t < 1), ((t - 1)**2, True))", "c = 1"),
+             Curve("Piecewise((0, t < 2), ((t - 2)**2, True))", "c = 2"),
+             Curve("0*t", "y = 0")),
+            t=(0.0, 4.0), ylim=(-0.3, 9.0),
+        ),
+        Para(
+            "Two lessons follow. First, a numerical solver started at y(0) = 0 "
+            "on this equation returns y = 0 with complete confidence; the "
+            "other solutions are invisible to it. The Solver Lab prints a "
+            "warning in exactly this situation, and this is why. Second, "
+            "separation of variables found t² and missed the rest, so the "
+            "method that produced an answer is not what decides whether the "
+            "answer is the only one. The theorem decides that."
+        ),
+    )),
+    Section("Why uniqueness matters: curves cannot cross", (
+        Para(
+            "Where the theorem applies, two solution curves can never cross, "
+            "and can never even touch. If they met at a point, both would be "
+            "solutions of the initial value problem starting there, and "
+            "uniqueness says there is only one. This simple consequence is "
+            "enormously useful, because it turns known solutions into fences "
+            "that other solutions cannot pass."
+        ),
+        Box(
+            "theorem", "Solution curves do not cross",
+            "If f and ∂f/∂y are continuous on a region R, then two solutions "
+            "of y' = f(t, y) whose graphs lie in R and share a single point "
+            "are the same solution.",
+        ),
+        Para(
+            "The logistic equation y' = y(1 − y) shows the power of this. Its "
+            "right-hand side is a polynomial, so the theorem applies "
+            "everywhere. The constants y = 0 and y = 1 are solutions. A "
+            "solution starting at y(0) = 1/2 can therefore never reach 1 or "
+            "0 — it would have to meet one of those solutions to get there — "
+            "so it stays strictly between them for all time. Since y' > 0 in "
+            "that band, it rises; since it cannot pass 1, it must level off "
+            "below 1. All of that is known without solving anything."
+        ),
+        Worked(
+            "Trapped between two equilibria",
+            "Find the solution of y' = y(1 − y) with y(0) = 1/2 and confirm "
+            "that it stays between 0 and 1.",
+            (
+                Step("The separable lesson found y = 1/(1 + e^(−t)). Its "
+                     "denominator is always greater than 1, so 0 < y < 1 for "
+                     "every t, exactly as uniqueness predicted.",
+                     r"y(t) = \frac{1}{1 + e^{-t}}, \qquad 0 < y < 1"),
+            ),
+            equation="y' = y*(1 - y)", conditions="y(0) = 1/2",
+            answer="1/(1 + exp(-t))",
+            answer_latex=r"y(t) = \frac{1}{1 + e^{-t}}",
+        ),
+    )),
+    Section("Checking the hypotheses in practice", (
+        Para(
+            "Applying the theorem means computing ∂f/∂y and asking where f "
+            "and it are continuous. Three quick cases show the pattern."
+        ),
+        Para(
+            "For y' = t² + y², f and ∂f/∂y = 2y are polynomials, continuous "
+            "everywhere, so every initial value problem has exactly one "
+            "solution — on some interval, which here does end in finite time. "
+            "For y' = √y, ∂f/∂y = 1/(2√y) is continuous for y > 0 but not at "
+            "0, so uniqueness is guaranteed at every starting point with "
+            "y₀ > 0 and not guaranteed at y₀ = 0 — where, as above, it "
+            "actually fails. For y' = y/t, both are continuous wherever t ≠ 0, "
+            "so any point off the y-axis has a unique solution through it, "
+            "while at t = 0 the theorem is silent."
+        ),
+        Display(r"f = \sqrt{y}: \qquad \frac{\partial f}{\partial y} = "
+                r"\frac{1}{2\sqrt{y}} \quad \text{is unbounded as } y \to 0"),
+        Para(
+            "Notice that failing the hypotheses does not prove that "
+            "uniqueness fails; it only removes the guarantee. y' = |y| has "
+            "∂f/∂y undefined at y = 0 and yet unique solutions through every "
+            "point, because |y| is Lipschitz. The theorem gives sufficient "
+            "conditions, not necessary ones, and a failed hypothesis is a "
+            "reason to look carefully rather than a verdict."
+        ),
+        Para(
+            "The theorem also explains why numerical methods can be trusted "
+            "at all. A solver like Euler's method or Runge–Kutta builds a "
+            "solution step by step from the slope at the current point. If "
+            "several solutions left the same point, there would be nothing "
+            "for the steps to converge to — the method would pick one "
+            "arbitrarily, and a slightly different step size might pick "
+            "another. Where f is Lipschitz, the solution is unique and a "
+            "good method's answers converge to it as the step shrinks. Where "
+            "it is not, the computed answer is one possibility among many, "
+            "and it is reported without any sign that the others exist. "
+            "Knowing the theorem is how you know to be suspicious."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "y' = f(t, y) prescribes a slope at every point, and drawing those "
+            "slopes shows the shape of every solution before any is found. "
+            "Isoclines make the drawing quick. If f and ∂f/∂y are continuous "
+            "near (t₀, y₀), exactly one solution passes through that point, "
+            "on some interval; continuity of f alone gives existence but not "
+            "uniqueness, and y' = y^(1/3) and y' = 2√y show that uniqueness "
+            "can really fail where ∂f/∂y blows up. Where uniqueness holds, "
+            "solution curves cannot cross, so known solutions — equilibria "
+            "above all — act as barriers that trap the others. Those two "
+            "ideas, reading a field and using solutions as fences, are what "
+            "the phase line of Unit 2 and the phase plane of Units 6 and 8 "
+            "are built from. When a solver's answer looks too simple — y = 0 "
+            "through the origin of y' = 2√y — check the hypotheses before "
+            "believing it."
+        ),
+    )),
+)
 
 
 BASICS = (

@@ -1114,6 +1114,7 @@ BASICS = Lesson(
 
 SLOPEFIELDS = Lesson(
     key="slopefields",
+    chapter=chapters.SLOPEFIELDS,
     title="Slope fields, existence and uniqueness",
     summary="What the equation tells you about its solutions before you solve "
             "anything at all.",

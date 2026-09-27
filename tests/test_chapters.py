@@ -21,6 +21,7 @@ from odesuite_app.lessons.chapter import BOX_KINDS, blocks_of, words
 #: and a lesson that grows a chapter without being listed fails below.
 CHAPTERED = (
     "basics",
+    "slopefields",
     "separable",
     "linear",
 )
