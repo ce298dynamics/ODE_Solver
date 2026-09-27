@@ -1377,6 +1377,7 @@ CONVOLUTION = Lesson(
 
 STEPFORCING = Lesson(
     key="step-forcing",
+    chapter=chapters.STEPFORCING,
     title="Step functions and piecewise forcing",
     summary="Forcing that switches on partway through — the case no other "
             "technique in this course handles.",

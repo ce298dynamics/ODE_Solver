@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["TRANSFORM", "LAPLACE", "SHIFTING", "CONVOLUTION"]
+__all__ = ["TRANSFORM", "LAPLACE", "SHIFTING", "CONVOLUTION", "STEPFORCING"]
 
 
 LAPLACE = (
@@ -1797,6 +1797,516 @@ CONVOLUTION = (
             "W = 1/P(s). That formula works for any forcing, including ones "
             "with no closed-form transform, and an unevaluated convolution "
             "integral is a complete answer."
+        ),
+    )),
+)
+
+
+STEPFORCING = (
+    Section("Forcing that changes its formula", (
+        Para(
+            "Real forcing is often switched. A voltage is applied at t = 2 and "
+            "removed at t = 5; a load is placed on a beam and later lifted; a "
+            "valve is opened for exactly one minute. Each is described by "
+            "different formulas on different intervals of time, and none of "
+            "the methods of the earlier units takes such a forcing in one "
+            "piece. Undetermined coefficients needs a forcing whose "
+            "derivatives form a finite family, and a function that jumps has "
+            "no such family. Variation of parameters can be made to work, but "
+            "only by splitting every integral at every switch."
+        ),
+        Para(
+            "The honest alternative is to cut the problem into pieces: solve "
+            "on the first interval, evaluate the solution and its derivative "
+            "at the first switch, use those values as the initial conditions "
+            "on the next interval, and repeat. With two switches that is three "
+            "problems and two matchings. Nothing about it is difficult, but "
+            "every matching is a chance to drop a sign, and the final answer "
+            "comes out as a list of cases that is hard to read as one motion."
+        ),
+        Para(
+            "The Laplace transform does all of that at once, and the reason is "
+            "almost disappointingly simple: a switch has a perfectly ordinary "
+            "transform. Once the act of switching is written as a function — "
+            "the unit step — a piecewise forcing becomes a single expression, "
+            "and a single expression passes through the transform method "
+            "exactly as every forcing in the last three chapters did. The "
+            "matching at the joins is still done, but the algebra does it, "
+            "and it does not drop signs."
+        ),
+    )),
+    Section("The unit step function", (
+        Box(
+            "definition", "Unit step function",
+            "For a ≥ 0 the unit step function u(t − a), also called the "
+            "Heaviside function after the engineer who used it to solve "
+            "circuit equations, is zero before time a and one from time a on. "
+            "Its value exactly at t = a does not affect any transform or any "
+            "solution, and conventions for it differ.",
+            r"u(t-a) = 0 \;\; (t < a), \qquad u(t-a) = 1 \;\; (t \geq a)",
+        ),
+        Para(
+            "Multiplying a function by u(t − a) switches it on at time a: the "
+            "product is zero before a and equal to the function after it. "
+            "Subtracting a later step switches it off again, so the "
+            "difference u(t − a) − u(t − b), for a < b, is a rectangular "
+            "window — one on the interval a ≤ t < b and zero elsewhere. "
+            "Multiplying by a window keeps a function on one interval and "
+            "erases it everywhere else."
+        ),
+        Display(r"u(t-a) - u(t-b) = 1 \;\; (a \leq t < b), \qquad "
+                r"0 \;\; \text{otherwise}", "5.11"),
+        Para(
+            "Any piecewise-defined function can therefore be written as a sum "
+            "of pieces, each multiplied by the window of the interval it "
+            "belongs to. The last piece of all has a window with no end, "
+            "which is a single step. This is a purely mechanical translation, "
+            "and it is worth doing carefully, because every later step works "
+            "on the expression it produces."
+        ),
+        Worked(
+            "A piecewise function in steps",
+            "Write f(t) = 0 for t < 1, f(t) = t for 1 ≤ t < 3, f(t) = 2 for "
+            "t ≥ 3 using unit steps.",
+            (
+                Step("The middle piece lives on the window from 1 to 3, and the "
+                     "last piece is switched on at 3 and never switched off.",
+                     r"f(t) = t\left(u(t-1) - u(t-3)\right) + 2\,u(t-3)"),
+                Step("Collect by step. Each coefficient now says how much the "
+                     "function changes when that switch is thrown: t is added "
+                     "at t = 1, and t is taken away and 2 put in its place at "
+                     "t = 3.",
+                     r"f(t) = t\,u(t-1) + (2 - t)\,u(t-3)"),
+            ),
+            answer="t u(t − 1) + (2 − t) u(t − 3)",
+            answer_latex=r"f(t) = t\,u(t-1) + (2-t)\,u(t-3)",
+        ),
+        Plot(
+            "Steps, windows and a switched ramp",
+            "The window u(t − 1) − u(t − 3), and the function of the worked "
+            "example built from it. Each jump in the graph is one step in the "
+            "formula, and the size of the jump is that step's coefficient "
+            "evaluated at the switching time.",
+            (Curve("Heaviside(t - 1) - Heaviside(t - 3)", "window on [1, 3)"),
+             Curve("t*Heaviside(t - 1) + (2 - t)*Heaviside(t - 3)", "f(t)")),
+            t=(0.0, 5.0), ylim=(-0.5, 3.5),
+        ),
+    )),
+    Section("The transform of a step", (
+        Para(
+            "Transforming u(t − a) straight from the definition takes one "
+            "line. The integrand is zero until t = a, so the integral simply "
+            "starts later, and what is left is an integral of the exponential "
+            "alone."
+        ),
+        Display(r"\mathcal{L}\{u(t-a)\} = \int_{a}^{\infty}e^{-st}\,dt = "
+                r"\frac{e^{-as}}{s}, \qquad s > 0", "5.12"),
+        Para(
+            "With a = 0 the step is the constant 1 and the formula is the "
+            "familiar 1/s. The effect of the delay is the factor e^(−as) and "
+            "nothing else. That is not special to the constant function, and "
+            "the next section shows that the same factor appears whenever any "
+            "function is delayed by a."
+        ),
+    )),
+    Section("The second shifting theorem", (
+        Box(
+            "theorem", "Second shifting theorem",
+            "If F(s) is the transform of f(t) for s > c, and a ≥ 0, then the "
+            "function f delayed by a and switched on at a has the transform "
+            "below, for the same s. Read backwards, an exponential factor "
+            "e^(−as) in a transform means a delay of a in time.",
+            r"\mathcal{L}\left\{u(t-a)\,f(t-a)\right\} = e^{-as}F(s)",
+        ),
+        Box(
+            "proof", "Proof",
+            "The step makes the integrand zero before a, so the integral "
+            "starts at a. Substitute τ = t − a: then t = τ + a, the lower "
+            "limit becomes 0, and the exponential splits into e^(−as), which "
+            "does not depend on τ, times e^(−sτ). What remains is the "
+            "definition of F(s).",
+            r"\int_{a}^{\infty}e^{-st}f(t-a)\,dt = \int_{0}^{\infty}e^{-s(\tau+a)}"
+            r"f(\tau)\,d\tau = e^{-as}F(s)",
+        ),
+        Para(
+            "Compare it with the first shifting theorem of the last chapter. "
+            "There an exponential in t shifted the variable s; here a shift "
+            "of the variable t produces an exponential in s. The two are "
+            "mirror images, and the rule for telling them apart is the one "
+            "given there: a shift in one variable always produces an "
+            "exponential factor in the other."
+        ),
+        Para(
+            "The theorem is a statement about f(t − a), not about f(t). The "
+            "delayed function must be the same function evaluated at the "
+            "shifted time, so that its graph is the graph of f slid a units "
+            "to the right. A function that is merely switched on at a — "
+            "u(t − a) times something that was already running — is a "
+            "different thing, and the next section deals with it."
+        ),
+    )),
+    Section("Switching on a function that was already running", (
+        Para(
+            "Forcing usually arrives in the form u(t − a)g(t): a ramp, a "
+            "sinusoid or an exponential, switched on at a. To use the theorem, "
+            "g(t) must first be rewritten as a function of t − a. The trick "
+            "is to write t = (t − a) + a everywhere in g, which changes "
+            "nothing, and then read the result as h(t − a) with h(t) = g(t + a). "
+            "The theorem applies to h."
+        ),
+        Display(r"\mathcal{L}\left\{u(t-a)\,g(t)\right\} = e^{-as}\,"
+                r"\mathcal{L}\left\{g(t+a)\right\}", "5.13"),
+        Worked(
+            "A ramp switched on at t = 1",
+            "Find the transform of t u(t − 1).",
+            (
+                Step("Here g(t) = t and a = 1, so g(t + 1) = t + 1.",
+                     r"\mathcal{L}\{t\,u(t-1)\} = e^{-s}\,\mathcal{L}\{t + 1\}"),
+                Step("Transform t + 1 from the table and combine over s².",
+                     r"= e^{-s}\left(\frac{1}{s^{2}} + \frac{1}{s}\right) = "
+                     r"\frac{(s+1)\,e^{-s}}{s^{2}}"),
+                Step("Check by writing the ramp as a delayed ramp plus a delayed "
+                     "constant: t u(t − 1) = (t − 1)u(t − 1) + u(t − 1), whose "
+                     "transforms are e^(−s)/s² and e^(−s)/s."),
+            ),
+            answer="(s + 1)e^(−s)/s²",
+            answer_latex=r"\mathcal{L}\{t\,u(t-1)\} = \frac{(s+1)\,e^{-s}}{s^{2}}",
+        ),
+        Para(
+            "Notice what the answer is not. It is not e^(−s)/s², which is the "
+            "transform of the ramp (t − 1)u(t − 1) that starts from zero at "
+            "the switch. The ramp t u(t − 1) jumps to height 1 when it is "
+            "switched on, and the extra e^(−s)/s is exactly that jump."
+        ),
+    )),
+    Section("Inverting a delay", (
+        Para(
+            "In a differential equation the theorem is used backwards, on a "
+            "Y(s) that contains exponential factors. The procedure has three "
+            "steps, and the order matters. First, group Y(s) by exponential "
+            "factor, so that each group has the form e^(−as)G(s). Second, "
+            "invert G(s) on its own, ignoring the exponential, with partial "
+            "fractions if necessary; call the result g(t). Third, replace t "
+            "by t − a everywhere in g and multiply by u(t − a)."
+        ),
+        Display(r"e^{-as}G(s) \;\longrightarrow\; u(t-a)\,g(t-a)", "5.14"),
+        Box(
+            "warning", "The exponential is never part of the partial fractions",
+            "e^(−as) is not a rational function of s and has no place in a "
+            "partial-fraction expansion. Peel it off first, decompose what is "
+            "left, and put it back only as a delay at the end. The other "
+            "common slip is to shift the step but not the function — to write "
+            "u(t − a)g(t) instead of u(t − a)g(t − a). That answer switches on "
+            "at the right moment but starts from the wrong place, as though "
+            "the system had been running all along.",
+            r"e^{-as}G(s) \;\not\longrightarrow\; u(t-a)\,g(t)",
+        ),
+        Worked(
+            "Peel, invert, shift",
+            "Find the inverse transform of e^(−2s)/(s(s + 1)).",
+            (
+                Step("Peel off e^(−2s) and invert what remains by partial "
+                     "fractions.",
+                     r"\frac{1}{s(s+1)} = \frac{1}{s} - \frac{1}{s+1} "
+                     r"\;\longrightarrow\; g(t) = 1 - e^{-t}"),
+                Step("Delay by 2: replace t by t − 2 everywhere, including "
+                     "inside the exponential, and switch on at 2.",
+                     r"\mathcal{L}^{-1}\left\{\frac{e^{-2s}}{s(s+1)}\right\} = "
+                     r"u(t-2)\left(1 - e^{-(t-2)}\right)"),
+            ),
+            answer="u(t − 2)(1 − e^(−(t − 2)))",
+            answer_latex=r"u(t-2)\left(1 - e^{-(t-2)}\right)",
+        ),
+    )),
+    Section("A switch at first order", (
+        Para(
+            "The worked inversion above is already the answer to a "
+            "differential equation. Transforming y' + y = u(t − 2) from rest "
+            "gives (s + 1)Y = e^(−2s)/s, which is the Y(s) just inverted. "
+            "The more instructive version starts away from rest, because then "
+            "the answer has two parts that have to be kept apart."
+        ),
+        Worked(
+            "A constant forcing switched on at t = 2",
+            "Solve y' + y = u(t − 2) with y(0) = 1.",
+            (
+                Step("Transform, using L{y'} = sY − 1 and 5.12.",
+                     r"sY - 1 + Y = \frac{e^{-2s}}{s}"),
+                Step("Solve for Y. The first term comes from the initial value "
+                     "and has no exponential; the second comes from the "
+                     "forcing and carries the delay.",
+                     r"Y = \frac{1}{s+1} + \frac{e^{-2s}}{s(s+1)}"),
+                Step("Invert each group. The first is e^(−t); the second was "
+                     "inverted in the previous section.",
+                     r"y(t) = e^{-t} + u(t-2)\left(1 - e^{-(t-2)}\right)"),
+                Step("Read it on each interval. Before t = 2 the step is zero and "
+                     "y = e^(−t), free decay from 1. After t = 2 the solution is "
+                     "1 − (e² − 1)e^(−t), which climbs towards the new "
+                     "equilibrium 1."),
+            ),
+            equation="y' + y = Heaviside(t - 2)", conditions="y(0) = 1",
+            answer="exp(-t) + Heaviside(t - 2)*(1 - exp(-(t - 2)))",
+            answer_latex=r"y(t) = e^{-t} + u(t-2)\left(1 - e^{-(t-2)}\right)",
+        ),
+        Plot(
+            "Decay, then a switch",
+            "The solution of y' + y = u(t − 2), y(0) = 1, and the forcing. "
+            "The solution decays freely until t = 2, reaching e^(−2) ≈ 0.135, "
+            "and then turns and climbs towards 1. The graph has a corner at "
+            "the switch but no jump.",
+            (Curve("exp(-t) + Heaviside(t - 2)*(1 - exp(-(t - 2)))", "y(t)"),
+             Curve("Heaviside(t - 2)", "forcing u(t − 2)")),
+            t=(0.0, 8.0), ylim=(-0.1, 1.2),
+        ),
+    )),
+    Section("What is continuous at a switch", (
+        Para(
+            "That corner is not an accident of this example. When the forcing "
+            "jumps, something in the equation must jump to balance it, and "
+            "it is always the highest derivative. The lower derivatives are "
+            "integrals of the higher ones, and integrating a function with a "
+            "jump produces a function that is continuous. So in a first-order "
+            "equation y is continuous and y' jumps; in a second-order "
+            "equation y and y' are both continuous and y'' jumps."
+        ),
+        Box(
+            "theorem", "Continuity across a jump in the forcing",
+            "Let y solve ay'' + by' + cy = f(t) with a ≠ 0, where f is "
+            "piecewise continuous with a jump of size J at t = t₀. Then y and "
+            "y' are continuous at t₀, and y'' jumps there by J/a.",
+            r"y''(t_{0}^{+}) - y''(t_{0}^{-}) = \frac{f(t_{0}^{+}) - "
+            r"f(t_{0}^{-})}{a}",
+        ),
+        Para(
+            "This is the fact that the piece-by-piece method uses when it "
+            "matches y and y' across each join, and it is the fact the "
+            "transform builds in automatically. It also gives a quick check "
+            "on any answer. In the example above, y' = −e^(−t) just before "
+            "t = 2 and y' = (e² − 1)e^(−t) just after; the difference is "
+            "e² · e^(−2) = 1, exactly the height of the step, as the theorem "
+            "requires with a = 1. An answer that jumped in value at t = 2 "
+            "would be wrong however well it fitted the equation on either "
+            "side, and that is the error made by writing u(t − 2)(1 − e^(−t)): "
+            "it satisfies the equation on both sides of the switch, but it "
+            "jumps by 1 − e^(−2) at the switch itself."
+        ),
+    )),
+    Section("A pulse on an oscillator", (
+        Para(
+            "A pulse is a window, and a window is one step minus another, so "
+            "a pulse needs no new theory. Linearity carries each step through "
+            "the method on its own. The answer is the response to the first "
+            "step minus the same response delayed to the second — two copies "
+            "of one function, each switched on at its own time."
+        ),
+        Worked(
+            "A unit pulse from t = 1 to t = 2",
+            "Solve y'' + 4y = u(t − 1) − u(t − 2) with y(0) = 0, y'(0) = 0.",
+            (
+                Step("Transform. The system starts at rest, so only the forcing "
+                     "contributes.",
+                     r"(s^{2}+4)\,Y = \frac{e^{-s} - e^{-2s}}{s}"),
+                Step("Both groups share G(s) = 1/(s(s² + 4)), which the "
+                     "convolution chapter inverted by dividing by s.",
+                     r"G(s) = \frac{1}{s(s^{2}+4)} \;\longrightarrow\; "
+                     r"g(t) = \frac{1}{4}\left(1 - \cos 2t\right)"),
+                Step("Delay one copy to t = 1 and one to t = 2, and subtract.",
+                     r"y(t) = u(t-1)\,g(t-1) - u(t-2)\,g(t-2)"),
+            ),
+            equation="y'' + 4*y = Heaviside(t - 1) - Heaviside(t - 2)",
+            conditions="y(0) = 0, y'(0) = 0",
+            answer="(Heaviside(t - 1)*(1 - cos(2*(t - 1)))"
+                   " - Heaviside(t - 2)*(1 - cos(2*(t - 2))))/4",
+            answer_latex=r"y(t) = \frac{1}{4}u(t-1)\left(1 - \cos 2(t-1)\right)"
+                         r" - \frac{1}{4}u(t-2)\left(1 - \cos 2(t-2)\right)",
+        ),
+        Para(
+            "After the pulse, when both steps are on, the constants cancel "
+            "and what is left is a difference of two cosines. Using "
+            "cos A − cos B = −2 sin((A + B)/2) sin((A − B)/2), it is a single "
+            "oscillation whose amplitude depends only on how long the pulse "
+            "lasted. For a pulse of length d on this system the amplitude "
+            "left behind is (1/2)|sin d|; here d = 1, so the spring keeps "
+            "ringing with amplitude (1/2) sin 1 ≈ 0.42 for ever, because "
+            "nothing in the equation takes the energy away."
+        ),
+        Display(r"t \geq 2: \quad y(t) = \frac{1}{4}\left(\cos 2(t-2) - "
+                r"\cos 2(t-1)\right) = \frac{\sin 1}{2}\,\sin(2t - 3)", "5.15"),
+        Para(
+            "The formula has a surprising consequence. If the pulse lasts "
+            "exactly π, one full period of this oscillator, then sin d = 0 and "
+            "the system is left perfectly still: the push it received while "
+            "the forcing was on is undone, to the last decimal, by the "
+            "oscillation it was already making. The solution with the second "
+            "switch at 1 + π checks out by substitution just as the one "
+            "above does, and after 1 + π it is identically zero."
+        ),
+        Plot(
+            "Two pulses, two outcomes",
+            "The response to a pulse from 1 to 2, which leaves the spring "
+            "ringing with amplitude (sin 1)/2, and to a pulse from 1 to 1 + π, "
+            "one full period, which leaves it at rest. Both are zero until "
+            "the first switch.",
+            (Curve("(Heaviside(t - 1)*(1 - cos(2*(t - 1)))"
+                   " - Heaviside(t - 2)*(1 - cos(2*(t - 2))))/4", "pulse of length 1"),
+             Curve("(Heaviside(t - 1)*(1 - cos(2*(t - 1)))"
+                   " - Heaviside(t - 1 - pi)*(1 - cos(2*(t - 1 - pi))))/4",
+                   "pulse of length π")),
+            t=(0.0, 10.0), ylim=(-0.6, 0.7),
+        ),
+        Figure("pulse_response",
+               "Set the damping to zero, put the switch-on at 2 and move the "
+               "switch-off. This oscillator is y'' + 4y, so its period is π: "
+               "with the switch-off near 2 + π ≈ 5.14 the ringing after the "
+               "pulse almost vanishes, and it is largest when the pulse lasts "
+               "half a period. Then add damping and watch every case die away."),
+    )),
+    Section("Switching a damped system off", (
+        Para(
+            "The same method handles forcing that is on from the start and "
+            "switched off later. The forcing 1 − u(t − 1) is one until t = 1 "
+            "and zero afterwards, so the answer is the step response minus "
+            "the step response delayed to t = 1."
+        ),
+        Worked(
+            "Forcing removed at t = 1",
+            "Solve y'' + 3y' + 2y = 1 − u(t − 1) with y(0) = 0, y'(0) = 0.",
+            (
+                Step("Transform. The factor (1 − e^(−s)) multiplies the same "
+                     "rational function twice.",
+                     r"Y = \left(1 - e^{-s}\right)\frac{1}{s(s+1)(s+2)}"),
+                Step("Decompose the rational part and invert it: this is the "
+                     "step response g.",
+                     r"\frac{1}{s(s+1)(s+2)} = \frac{1/2}{s} - \frac{1}{s+1} + "
+                     r"\frac{1/2}{s+2} \;\longrightarrow\; g(t) = \frac{1}{2} - "
+                     r"e^{-t} + \frac{1}{2}e^{-2t}"),
+                Step("The answer is g(t) − u(t − 1)g(t − 1). At t = 1 the "
+                     "solution has reached g(1) ≈ 0.200, two fifths of the way "
+                     "to the equilibrium 1/2 it was heading for when the "
+                     "forcing stopped.",
+                     r"y(t) = g(t) - u(t-1)\,g(t-1)"),
+            ),
+            equation="y'' + 3*y' + 2*y = 1 - Heaviside(t - 1)",
+            conditions="y(0) = 0, y'(0) = 0",
+            answer="1/2 - exp(-t) + exp(-2*t)/2"
+                   " - Heaviside(t - 1)*(1/2 - exp(-(t - 1)) + exp(-2*(t - 1))/2)",
+            answer_latex=r"y(t) = g(t) - u(t-1)\,g(t-1), \quad g(t) = \frac{1}{2} "
+                         r"- e^{-t} + \frac{1}{2}e^{-2t}",
+        ),
+        Para(
+            "After the switch the constants 1/2 cancel, and y is a combination "
+            "of e^(−t) and e^(−2t) alone: the system is overdamped, the forcing "
+            "is gone, and it returns to rest without oscillating. Compare the "
+            "undamped oscillator of the previous section, which kept its "
+            "energy for ever. The difference is one term in the equation, and "
+            "it is visible in the answer as the presence or absence of "
+            "decaying exponentials after the last switch."
+        ),
+        Worked(
+            "A ramp switched on",
+            "Solve y' + 2y = t u(t − 1) with y(0) = 0.",
+            (
+                Step("Transform, using the result of the ramp example, and "
+                     "solve for Y.",
+                     r"Y = e^{-s}\,\frac{s+1}{s^{2}(s+2)}"),
+                Step("Decompose the rational part. Setting s = 0 in "
+                     "(s + 1)/(s + 2) gives the 1/s² coefficient 1/2; s = −2 "
+                     "gives the 1/(s + 2) coefficient −1/4; and the s² "
+                     "coefficients force the 1/s coefficient to be 1/4.",
+                     r"\frac{s+1}{s^{2}(s+2)} = \frac{1/4}{s} + \frac{1/2}{s^{2}} - "
+                     r"\frac{1/4}{s+2}"),
+                Step("Invert, then delay by 1 and simplify: 1/4 + (t − 1)/2 is "
+                     "t/2 − 1/4.",
+                     r"y(t) = u(t-1)\left(\frac{t}{2} - \frac{1}{4} - "
+                     r"\frac{1}{4}e^{-2(t-1)}\right)"),
+            ),
+            equation="y' + 2*y = t*Heaviside(t - 1)", conditions="y(0) = 0",
+            answer="Heaviside(t - 1)*(t/2 - 1/4 - exp(-2*(t - 1))/4)",
+            answer_latex=r"y(t) = u(t-1)\left(\frac{t}{2} - \frac{1}{4} - "
+                         r"\frac{1}{4}e^{-2(t-1)}\right)",
+        ),
+        Para(
+            "Check the continuity theorem on this answer. At t = 1 the bracket "
+            "is 1/2 − 1/4 − 1/4 = 0, so y is continuous. But the forcing jumps "
+            "from 0 to 1 there, because the ramp is switched on at height 1, "
+            "and y' jumps by the same amount: its value just after the switch "
+            "is 1/2 + 1/2 = 1."
+        ),
+    )),
+    Section("Simplifying after the shift", (
+        Para(
+            "A delayed answer can often be tidied once the shift is done, and "
+            "the tidy form can say something the shifted form hides. For "
+            "y'' + y = u(t − π) from rest, Y = e^(−πs)/(s(s² + 1)); the "
+            "rational part inverts to 1 − cos t, so the answer is "
+            "u(t − π)(1 − cos(t − π)). Since cos(t − π) = −cos t, this is "
+            "u(t − π)(1 + cos t). The oscillation after the switch is about the "
+            "new equilibrium 1 and swings between 0 and 2 — the spring, "
+            "suddenly loaded, overshoots to twice the static deflection."
+        ),
+        Para(
+            "The same doubling happens for any undamped spring hit by a "
+            "suddenly applied constant load, and it is the reason engineers "
+            "treat a suddenly applied load as twice as dangerous as the same "
+            "load applied slowly. Damping removes part of the overshoot, and "
+            "the step response of the convolution chapter shows how much."
+        ),
+    )),
+    Section("Periodic switching", (
+        Para(
+            "A square wave that is on for a units and off for a units, "
+            "repeated for ever, is an infinite sum of steps with alternating "
+            "signs: on at 0, off at a, on at 2a, and so on. Its transform is "
+            "a geometric series in e^(−as), which sums in closed form."
+        ),
+        Display(r"f(t) = \sum_{n=0}^{\infty}(-1)^{n}u(t-na) \;\Longrightarrow\; "
+                r"F(s) = \frac{1}{s}\sum_{n=0}^{\infty}\left(-e^{-as}\right)^{n} = "
+                r"\frac{1}{s\left(1 + e^{-as}\right)}", "5.16"),
+        Para(
+            "Solving an equation driven by the square wave then produces a "
+            "Y(s) with that geometric factor in it, and inverting term by term "
+            "gives the response as an infinite sum of delayed step responses. "
+            "At any finite time only finitely many of them are switched on, "
+            "so the sum is really finite wherever it is evaluated. This is "
+            "the route to the steady response of a circuit driven by a "
+            "switched supply, and it is the transform's version of the "
+            "Fourier series that a later course develops."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "The commonest error by far is the one the warning box describes: "
+            "inverting e^(−as)G(s) to u(t − a)g(t) instead of u(t − a)g(t − a). "
+            "It is easy to catch, because the continuity theorem says the "
+            "answer cannot jump, and the wrong answer usually does. Add up "
+            "everything multiplied by u(t − a) and evaluate it at t = a: "
+            "unless the forcing has an impulse there, which is the subject of "
+            "the next chapter, the total must be zero."
+        ),
+        Para(
+            "The second is transforming u(t − a)g(t) as if it were "
+            "u(t − a)g(t − a), which gives e^(−as)G(s) when the correct answer "
+            "is e^(−as) times the transform of g(t + a). The third is putting "
+            "e^(−as) into the partial fractions. The fourth is dropping the "
+            "step from the final answer: without it, the formula claims the "
+            "system was moving before anything touched it, which for a system "
+            "starting at rest is simply false."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "The unit step u(t − a) turns a case distinction into a function, "
+            "so a piecewise forcing becomes one expression built from steps "
+            "and windows. Its transform is e^(−as)/s, and the second shifting "
+            "theorem, L{u(t − a)f(t − a)} = e^(−as)F(s), says that a delay in "
+            "time is an exponential factor in s. To invert, peel the "
+            "exponential off, invert the rest, then shift the argument and "
+            "switch on. The solution and every derivative below the highest "
+            "are continuous across a switch; the highest derivative jumps by "
+            "the size of the jump in the forcing divided by the leading "
+            "coefficient. After the last switch, what the system does is "
+            "decided by its own equation alone: a damped system comes to "
+            "rest, and an undamped one keeps whatever the forcing left it."
         ),
     )),
 )

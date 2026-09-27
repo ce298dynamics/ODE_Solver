@@ -45,6 +45,7 @@ CHAPTERED = (
     "laplace",
     "shifting",
     "convolution",
+    "step-forcing",
 )
 
 #: About five pages of prose.
