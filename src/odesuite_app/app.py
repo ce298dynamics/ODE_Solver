@@ -46,6 +46,7 @@ SECTIONS = [
             ("worked", "Worked Problems", "Ctrl+6"),
             ("quiz", "Quiz & Exams", "Ctrl+7"),
             ("print", "Print & Revise", "Ctrl+8"),
+            ("glossary", "Glossary", "Ctrl+9"),
         ],
     ),
     (
@@ -284,6 +285,11 @@ class MainWindow(QWidget):
         from .screens.learn_print import PrintScreen
 
         self._add("print", PrintScreen(self.state, self.palette_obj))
+        from .screens.learn_glossary import GlossaryScreen
+
+        glossary = GlossaryScreen(self.state, self.palette_obj)
+        glossary.open_lesson.connect(self._open_lesson)
+        self._add("glossary", glossary)
         from .screens.learn_steps import StepsScreen
 
         self._add("steps", StepsScreen(self.state, self.palette_obj))

@@ -15,7 +15,7 @@ Status is kept in this table as work lands.
 | L3 | Reduction of order: narrator, lesson, drill (SYM-02) | M | **done** 2026-09-26 |
 | L4 | Faded worked examples: the reader writes the next step | M | **done** 2026-09-26 |
 | L5 | Diagnose a wrong *number*, not only a wrong formula | S–M | **done** 2026-09-26 |
-| L6 | Glossary, with every term linked to where it is taught | M | open |
+| L6 | Glossary, with every term linked to where it is taught | M | **done** 2026-09-26 |
 | L7 | "Linearise here": zoom into an equilibrium until the flow is linear | M | open |
 | L8 | Exam-readiness report built from the Leitner boxes | M | open |
 
