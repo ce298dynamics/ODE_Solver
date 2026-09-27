@@ -43,6 +43,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A switched or impulsive answer could not be checked, and a wrong one
+  could pass.** Substituting `u(t - 2)(1 - e^(-t))` into `y' + y = u(t - 2)`
+  leaves a `δ(t - 2)` in the residual, and a delta is zero wherever it is
+  sampled, so the answer satisfied the equation on both sides of the switch
+  and failed only *at* it. `check_answer` now separates the impulses from the
+  residual, collects each `c(t)δ⁽ᵏ⁾(t - a)` into constant multiples of
+  `δ⁽ʲ⁾(t - a)`, and calls the answer wrong at any point where one survives,
+  naming it. An answer to an equation that uses `Heaviside` or `DiracDelta`
+  may use both.
+
 - **The nonlinear analysis tools were confidently wrong in four places.**
   The Lyapunov estimate called Lotka–Volterra, Kepler and FitzHugh–Nagumo
   chaotic and read Lorenz at ρ = 15 as −0.0008 against its true −0.3502;
