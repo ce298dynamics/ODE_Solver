@@ -4,7 +4,410 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["POPULATION", "EQUILIBRIA"]
+__all__ = ["POPULATION", "EQUILIBRIA", "MOTION"]
+
+
+MOTION = (
+    Section("Newton's law as a first-order equation", (
+        Para(
+            "Newton's second law, F = ma, is a second-order differential "
+            "equation for position, since acceleration is the second "
+            "derivative of position. But when the force depends only on "
+            "velocity — gravity and air resistance, say — it is really a "
+            "first-order equation for the *velocity* v = x'. Solve that for "
+            "v(t), then integrate once more for x(t). This lesson treats "
+            "motion along a line in that two-stage way, and it is where the "
+            "first-order methods of Unit 1 meet the physics most students "
+            "already know."
+        ),
+        Display(r"m\, \frac{dv}{dt} = F(v), \qquad \frac{dx}{dt} = v", "1"),
+        Para(
+            "A convention has to be fixed first, and fixed once: which "
+            "direction is positive. In this lesson *up is positive* unless a "
+            "problem says otherwise. Then gravity is the force −mg, a body "
+            "moving upwards has v > 0, and a falling body has v < 0. Drag "
+            "always opposes motion, so its sign is opposite to the sign of v — "
+            "which is where most errors in this subject come from."
+        ),
+        Box(
+            "definition", "Drag",
+            "Air resistance is a force opposing the velocity. At low speeds "
+            "(a dust particle, a small bead in oil) it is close to "
+            "proportional to the speed, −kv; at the speeds of a ball or a "
+            "skydiver it is closer to proportional to the square of the "
+            "speed, directed against the motion, −kv|v|.",
+            r"F_{\text{drag}} = -k v \quad\text{or}\quad -k v |v|",
+        ),
+    )),
+    Section("No air resistance", (
+        Para(
+            "With gravity alone, m v' = −mg, so v' = −g, and integrating twice "
+            "gives the familiar formulas. They are worth deriving once as "
+            "differential equations, because every more realistic model "
+            "reduces to them when the drag is switched off, and that is a "
+            "useful check on any answer."
+        ),
+        Display(r"v(t) = v_0 - g t, \qquad x(t) = x_0 + v_0 t - "
+                r"\frac{1}{2} g t^{2}"),
+        Para(
+            "A ball thrown up at 20 m/s reaches the top when v = 0, at "
+            "t = 20/9.8 ≈ 2.04 s, at a height of 20²/(2 × 9.8) ≈ 20.4 m above "
+            "its launch point, and comes back down with the same speed it "
+            "left with. Two of those predictions change as soon as air "
+            "resistance is included: the ball does not rise as high, and it "
+            "comes back more slowly than it went up. Notice too that the "
+            "mass has cancelled: without drag a feather and a hammer fall "
+            "together, as they famously did on the Moon. Drag is what makes "
+            "mass matter, through ρ = k/m."
+        ),
+    )),
+    Section("Linear drag", (
+        Para(
+            "With drag proportional to velocity, the force is −mg − kv, and "
+            "the sign works for both directions: when v > 0 (rising) drag is "
+            "negative, pulling down; when v < 0 (falling) −kv is positive, "
+            "pushing up. So one equation covers the whole flight, which is "
+            "the great convenience of linear drag."
+        ),
+        Display(r"\frac{dv}{dt} = -g - \rho\, v, \qquad \rho = \frac{k}{m}", "2"),
+        Box(
+            "theorem", "Motion with linear drag",
+            "The solution of (2) with v(0) = v₀ tends exponentially to the "
+            "terminal velocity −g/ρ, with time constant 1/ρ.",
+            r"v(t) = -\frac{g}{\rho} + \left(v_0 + \frac{g}{\rho}\right) "
+            r"e^{-\rho t}",
+        ),
+        Para(
+            "The equation is linear with constant coefficients, and also "
+            "separable; the phase line says everything qualitative. Its one "
+            "equilibrium is v = −g/ρ, a downward velocity at which drag "
+            "exactly balances weight, and f′ = −ρ < 0 makes it stable. "
+            "Whatever the ball is doing initially, its velocity settles to "
+            "−g/ρ: the *terminal velocity*."
+        ),
+        Worked(
+            "A ball thrown upwards against linear drag",
+            "A ball is thrown up at 20 m/s with ρ = 0.1 per second and "
+            "g = 9.8 m/s². Find v(t), and when it reaches the top.",
+            (
+                Step("The terminal velocity is −g/ρ = −98 m/s. The theorem "
+                     "gives v = −98 + (20 + 98)e^(−0.1t).",
+                     r"v(t) = -98 + 118\, e^{-t/10}"),
+                Step("At the top v = 0: 118e^(−t/10) = 98, so t = 10 ln(118/98) "
+                     "≈ 1.86 s — earlier than the 2.04 s without drag.",
+                     r"t_{\text{top}} = 10 \ln\frac{118}{98} \approx 1.86"),
+            ),
+            equation="y' = -9.8 - y/10", conditions="y(0) = 20",
+            answer="-98 + 118*exp(-t/10)", answer_latex=r"v(t) = -98 + 118e^{-t/10}",
+        ),
+        Worked(
+            "Integrating once more for the height",
+            "Continuing: find the height x(t) with x(0) = 0, and the maximum "
+            "height.",
+            (
+                Step("Integrate v: x = −98t − 1180e^(−t/10) + C, and x(0) = 0 "
+                     "gives C = 1180.",
+                     r"x(t) = -98t + 1180\left(1 - e^{-t/10}\right)"),
+                Step("At t ≈ 1.86 s, e^(−t/10) = 98/118, so x = −98(1.857) + "
+                     "1180(20/118) ≈ −182.0 + 200.0 = 18.0 m, about 2.4 m lower "
+                     "than without drag."),
+            ),
+            equation="y' = -98 + 118*exp(-t/10)", conditions="y(0) = 0",
+            answer="-98*t + 1180 - 1180*exp(-t/10)",
+            answer_latex=r"x(t) = -98t + 1180 - 1180e^{-t/10}",
+        ),
+        Plot(
+            "Height with and without drag",
+            "The ball thrown up at 20 m/s: without drag (the parabola "
+            "20t − 4.9t²) and with linear drag ρ = 0.1. With drag it peaks "
+            "earlier and lower, and falls back more steeply at first and then "
+            "more slowly, because on the way down it approaches a terminal "
+            "velocity instead of accelerating for ever. The ascent takes less "
+            "time than the descent.",
+            (Curve("20*t - 4.9*t**2", "no drag"),
+             Curve("-98*t + 1180*(1 - exp(-t/10))", "linear drag")),
+            t=(0.0, 4.2), ylabel="height, m", ylim=(-2.0, 22.0),
+        ),
+        Para(
+            "That the descent takes longer than the ascent surprises most "
+            "people, and it is a genuine prediction of the model. Going up, "
+            "gravity and drag both slow the ball; coming down, drag opposes "
+            "gravity. So the ball decelerates faster than g on the way up and "
+            "accelerates slower than g on the way down, and covers the same "
+            "height in more time on the way back."
+        ),
+        Figure("terminal_velocity",
+               "Change the drag coefficient and the mass, and watch the "
+               "velocity approach its terminal value from above or below."),
+    )),
+    Section("Quadratic drag", (
+        Para(
+            "For most everyday objects moving through air, drag grows like the "
+            "square of the speed. The force is then −kv|v|, and because of "
+            "the absolute value, rising and falling need separate equations: "
+            "rising, v > 0 and the drag is −kv²; falling, v < 0 and the drag "
+            "is +kv². Each equation is separable, and each has a clean "
+            "solution in terms of trigonometric or hyperbolic functions."
+        ),
+        Display(r"\text{rising: } v' = -g - \rho v^{2}, \qquad "
+                r"\text{falling: } v' = -g + \rho v^{2}"),
+        Worked(
+            "Falling from rest",
+            "Take down as positive for this example, so a falling body obeys "
+            "v' = g − ρv² with v > 0. With g = 10 and ρ = 1/40, find v(t) "
+            "from rest.",
+            (
+                Step("The terminal speed is √(g/ρ) = √400 = 20 m/s, the "
+                     "stable equilibrium. Separate with partial fractions, "
+                     "exactly as in the substitutions lesson:",
+                     r"\int \frac{dv}{400 - v^{2}} = \int \frac{dt}{40}"),
+                Step("(1/40) ln((20 + v)/(20 − v)) = t/40 + C and v(0) = 0 "
+                     "gives C = 0, so (20 + v)/(20 − v) = e^t, which is the "
+                     "hyperbolic tangent."),
+            ),
+            equation="y' = 10 - y**2/40", conditions="y(0) = 0",
+            answer="20*tanh(t/2)", answer_latex=r"v(t) = 20 \tanh\frac{t}{2}",
+        ),
+        Worked(
+            "Rising against quadratic drag",
+            "Now up is positive again. A ball is thrown up at 10 m/s with "
+            "g = 10 and ρ = 1/10, so v' = −10 − v²/10 while it rises. Find "
+            "v(t) and the time to the top.",
+            (
+                Step("Separate: dv/(100 + v²) = −dt/10, and the left side "
+                     "integrates to an arctangent:",
+                     r"\frac{1}{10}\arctan\frac{v}{10} = -\frac{t}{10} + C"),
+                Step("At t = 0, arctan(1) = π/4, so arctan(v/10) = π/4 − t and "
+                     "v = 10 tan(π/4 − t). The ball stops rising when the "
+                     "tangent reaches zero, at t = π/4 ≈ 0.79 s — compared "
+                     "with 1 s without drag."),
+            ),
+            equation="y' = -10 - y**2/10", conditions="y(0) = 10",
+            answer="10*tan(pi/4 - t)", answer_latex=r"v(t) = 10\tan\left(\frac{\pi}{4} - t\right)",
+        ),
+        Plot(
+            "Falling from rest: linear and quadratic drag",
+            "Speed from rest under quadratic drag, 20 tanh(t/2), and under "
+            "linear drag with the same terminal speed 20 m/s, "
+            "20(1 − e^(−t/2)). Quadratic drag is weak at low speeds, so the "
+            "body falls almost freely at first and then approaches its "
+            "terminal speed faster; linear drag starts resisting at once.",
+            (Curve("20*tanh(t/2)", "quadratic drag"),
+             Curve("20*(1 - exp(-t/2))", "linear drag"),
+             Curve("10*t", "no drag"),
+             Curve("20 + 0*t", "terminal speed")),
+            t=(0.0, 10.0), ylabel="speed, m/s", ylim=(0.0, 24.0),
+        ),
+    )),
+    Section("Choosing the right equation for the direction", (
+        Para(
+            "Quadratic drag makes the sign convention bite. It is tempting to "
+            "write v' = −g − ρv² once and use it for the whole flight, but on "
+            "the way down v < 0 and v² > 0, so that equation makes the drag "
+            "point *down* while the ball falls — speeding it up. The correct "
+            "force is −ρv|v|, which is −ρv² going up and +ρv² coming down. "
+            "The flight has to be split at the top, with the final state of "
+            "the ascent as the initial state of the descent."
+        ),
+        Box(
+            "warning", "Drag opposes the motion",
+            "Before solving, check the sign of the drag term in each phase of "
+            "the motion by asking which way the body is moving and which way "
+            "the air pushes. An equation with drag in the direction of motion "
+            "will be solved perfectly correctly and describe nothing real.",
+        ),
+        Para(
+            "Linear drag avoids the split because −kv already has the sign "
+            "of the motion built in. That is one reason it is used so often in "
+            "textbooks even for objects where quadratic drag would be more "
+            "accurate: the whole trajectory is one linear equation. The price "
+            "is realism, and the phase line shows exactly where the two "
+            "models differ — near v = 0, where quadratic drag is almost "
+            "absent and linear drag is not."
+        ),
+    )),
+    Section("One equation for every body", (
+        Para(
+            "The linear-drag equation v' = −g − ρv has two parameters, but "
+            "only in appearance. Measure speed in units of the terminal speed "
+            "V = g/ρ and time in units of the time constant τ = 1/ρ, by "
+            "writing v = Vu and t = τs. Then dv/dt = (V/τ) du/ds = g du/ds, "
+            "and the equation becomes du/ds = −1 − u, with no parameters "
+            "left at all."
+        ),
+        Display(r"v = V u, \;\; t = \tau s \;\Longrightarrow\; "
+                r"\frac{du}{ds} = -1 - u"),
+        Para(
+            "So every body falling with linear drag — a dust grain, a bead in "
+            "honey, a parachutist under a very large canopy — obeys the same "
+            "equation in its own units, and its motion is the same curve "
+            "stretched differently in speed and in time. Rescaling like this "
+            "is called *nondimensionalising*, and it is the first thing an "
+            "applied mathematician does with a new model. It shows which "
+            "combinations of the parameters actually matter (here g/ρ and "
+            "1/ρ) and it reduces a family of problems to one."
+        ),
+        Para(
+            "It also makes estimates honest. Whether drag matters for a "
+            "particular throw is not a question about ρ alone; it is a "
+            "question about how the flight time compares with τ and how the "
+            "launch speed compares with V. A ball thrown at 20 m/s with "
+            "V = 98 m/s and τ = 10 s is in the regime where drag is a "
+            "correction — which is why Example 2 found only a 2.4 m "
+            "difference in height."
+        ),
+    )),
+    Section("Terminal velocity in practice", (
+        Para(
+            "Terminal velocity is the single most useful number these models "
+            "produce, because it is what is observed. A skydiver in the "
+            "spread-eagle position falls at roughly 55 m/s, about 200 km/h, "
+            "and reaches within a few percent of it in about fifteen seconds. "
+            "Tucking into a dive reduces the drag coefficient and raises the "
+            "terminal speed; opening a parachute increases the drag "
+            "coefficient a hundredfold and lowers it to about 5 m/s. In every "
+            "case the terminal speed under quadratic drag is √(mg/c), so it "
+            "grows only like the square root of the weight."
+        ),
+        Para(
+            "Raindrops show the same law at a smaller scale. A drop's weight "
+            "grows like the cube of its radius and its drag like the square, "
+            "so larger drops fall faster: about 9 m/s for a large drop, 2 m/s "
+            "for drizzle. Very small particles — fog, dust, pollen — are in "
+            "the linear-drag regime, with terminal speeds of centimetres per "
+            "second or less, which is why fog hangs in the air. Nothing about "
+            "those numbers needs the full solution; each is an equilibrium of "
+            "the velocity equation, read off by setting the force to zero."
+        ),
+        Box(
+            "remark", "Reaching terminal velocity takes a few time constants",
+            "With linear drag the gap to terminal velocity shrinks by a factor "
+            "e every 1/ρ seconds, so after three time constants it is 5% of "
+            "its initial size. With quadratic drag the natural time scale is "
+            "V/g, where V is the terminal speed: 55/9.8 ≈ 5.6 s for the "
+            "skydiver, and about three of those make fifteen seconds.",
+        ),
+    )),
+    Section("A driving force", (
+        Para(
+            "The same equations describe anything pushed through a resisting "
+            "medium: a boat under engine power, a car on a level road, a "
+            "sprinter. With a constant thrust per unit mass a and linear drag "
+            "ρv, the equation is v' = a − ρv, and its stable equilibrium "
+            "a/ρ is the *top speed* — the speed at which drag uses up all the "
+            "thrust. The approach to top speed has the same time constant 1/ρ "
+            "as the approach to terminal velocity, because it is the same "
+            "equation with a different constant."
+        ),
+        Worked(
+            "A boat accelerating from rest",
+            "A motor boat's engine gives an acceleration of 2 m/s², and water "
+            "resistance gives ρ = 0.1 per second, so v' = 2 − v/10. Find v(t) "
+            "from rest, and how long it takes to reach 90% of top speed.",
+            (
+                Step("Top speed is 2/0.1 = 20 m/s. Solving the linear equation "
+                     "from v(0) = 0 gives v = 20(1 − e^(−t/10)).",
+                     r"v(t) = 20\left(1 - e^{-t/10}\right)"),
+                Step("90% of top speed means e^(−t/10) = 0.1, so "
+                     "t = 10 ln 10 ≈ 23 s. Reaching 99% takes another 23 s, "
+                     "and 99.9% another 23 after that: each tenfold closing of "
+                     "the gap costs the same time, and the approach never "
+                     "quite finishes.",
+                     r"t_{90} = 10\ln 10 \approx 23\text{ s}"),
+            ),
+            equation="y' = 2 - y/10", conditions="y(0) = 0",
+            answer="20 - 20*exp(-t/10)", answer_latex=r"v(t) = 20 - 20e^{-t/10}",
+        ),
+    )),
+    Section("Coasting to a stop", (
+        Para(
+            "Cut the engine and the boat coasts under drag alone: v' = −ρv, "
+            "so v = v₀e^(−ρt), which never reaches zero. Taken literally, the "
+            "boat never stops. Yet it travels only a finite distance, "
+            "because integrating the velocity gives x = (v₀/ρ)(1 − e^(−ρt)), "
+            "which approaches v₀/ρ. From 20 m/s with ρ = 0.1 that is 200 m: "
+            "the boat creeps ever more slowly towards a point 200 m ahead."
+        ),
+        Para(
+            "Questions about distance rather than time are often easier with "
+            "distance as the independent variable. By the chain rule "
+            "v' = v dv/dx, so v' = −ρv becomes v dv/dx = −ρv, that is "
+            "dv/dx = −ρ: the speed falls *linearly* with distance, "
+            "v = v₀ − ρx, and reaches zero at x = v₀/ρ. The same trick is the "
+            "key to the escape velocity below."
+        ),
+        Display(r"v\,\frac{dv}{dx} = -\rho v \;\Longrightarrow\; v = v_0 - \rho x"),
+        Para(
+            "Quadratic drag behaves differently: v dv/dx = −ρv² gives "
+            "dv/dx = −ρv, so v = v₀e^(−ρx), which never reaches zero at any "
+            "distance. A body slowed only by quadratic drag coasts for ever "
+            "and travels infinitely far — it is slowed less and less as it "
+            "slows down. In practice some other resistance, like rolling "
+            "friction, always takes over at low speed, and the model with it."
+        ),
+    )),
+    Section("Escape velocity", (
+        Para(
+            "Far from the Earth's surface gravity is not constant: it falls off "
+            "like 1/r², where r is the distance from the centre. For a rocket "
+            "coasting straight up, Newton's law is v' = −GM/r². This depends "
+            "on r, not on t, so the trick is to use the chain rule to make r "
+            "the independent variable: v' = dv/dt = (dv/dr)(dr/dt) = v dv/dr."
+        ),
+        Display(r"v\, \frac{dv}{dr} = -\frac{GM}{r^{2}} \;\Longrightarrow\; "
+                r"\frac{v^{2}}{2} = \frac{GM}{r} + C"),
+        Para(
+            "That is conservation of energy: kinetic energy per unit mass plus "
+            "potential energy −GM/r is constant. Launched from the surface "
+            "r = R at speed v₀, the rocket has v² = v₀² + 2GM(1/r − 1/R). It "
+            "escapes — v stays positive for all r — exactly when v₀² ≥ "
+            "2GM/R. With GM/R² = g, the escape velocity is √(2gR), about "
+            "11.2 km/s for the Earth."
+        ),
+        Para(
+            "Notice what the chain-rule trick gave up. It answers how fast the "
+            "rocket is moving at each height, but not *when* it gets there; "
+            "for that, dr/dt = v(r) must be separated and integrated again, "
+            "which is possible here but messier. Choosing the independent "
+            "variable to suit the question is a skill in itself."
+        ),
+        Worked(
+            "Velocity as a function of distance",
+            "In units where GM = 1 and R = 1, a rocket leaves the surface at "
+            "speed 2. With the narrator's t standing for the distance r, "
+            "solve v dv/dr = −1/r² for v(r).",
+            (
+                Step("Separate: v dv = −dr/r², so v²/2 = 1/r + C, and v = 2 at "
+                     "r = 1 gives C = 1.",
+                     r"\frac{v^{2}}{2} = \frac{1}{r} + 1"),
+                Step("So v = √(2/r + 2), which tends to √2 as r → ∞: the rocket "
+                     "escapes with speed to spare, since the escape speed in "
+                     "these units is √2 and it was launched at 2."),
+            ),
+            equation="y' = -1/(t**2*y)", conditions="y(1) = 2",
+            answer="sqrt(2/t + 2)", answer_latex=r"v(r) = \sqrt{\frac{2}{r} + 2}",
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "When the force depends on velocity, Newton's law is a "
+            "first-order equation for v; integrate v to get position. Fix the "
+            "sign convention first and keep it. With linear drag, one linear "
+            "equation covers the whole flight, and the velocity relaxes "
+            "exponentially to the terminal value −g/ρ, with time constant 1/ρ; "
+            "a thrown ball then rises for less time than it falls. With "
+            "quadratic drag the rising and falling phases need separate "
+            "separable equations, solved by arctangents and hyperbolic "
+            "tangents, and the terminal speed is √(g/ρ). When gravity varies "
+            "with height, the chain rule makes distance the independent "
+            "variable and gives conservation of energy, and with it the "
+            "escape velocity √(2gR). Throughout, the equilibria of the "
+            "velocity equation — terminal speed, top speed — are the numbers "
+            "worth finding first, and rescaling by them shows how every "
+            "problem of one kind is really the same problem."
+        ),
+    )),
+)
 
 
 EQUILIBRIA = (

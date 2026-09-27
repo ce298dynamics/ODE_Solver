@@ -682,6 +682,7 @@ EQUILIBRIA = Lesson(
 
 MOTION = Lesson(
     key="motion",
+    chapter=chapters.MOTION,
     title="Acceleration, velocity and drag",
     summary="Newton's second law is a differential equation, and the "
             "interesting part is what the resistance term does.",

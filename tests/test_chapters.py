@@ -28,6 +28,7 @@ CHAPTERED = (
     "substitutions",
     "population",
     "equilibria",
+    "motion",
 )
 
 #: About five pages of prose.
