@@ -18,6 +18,7 @@ enumeration cannot tell in advance which draws those are.
 
 from __future__ import annotations
 
+from .chapters import unit6 as chapters
 from .model import (
     Case,
     Choice,
@@ -38,6 +39,7 @@ __all__ = ["FIRSTORDER", "DISTINCT", "COMPLEX", "REPEATED",
 
 FIRSTORDER = Lesson(
     key="systems-intro",
+    chapter=chapters.INTRO,
     title="First-order systems, and how everything becomes one",
     summary="Why a system is not two problems, and how a higher-order "
             "equation turns into one.",
@@ -338,6 +340,7 @@ FIRSTORDER = Lesson(
 
 DISTINCT = Lesson(
     key="eigenvalues",
+    chapter=chapters.DISTINCT,
     title="The eigenvalue method: real distinct eigenvalues",
     summary="Guess a solution that keeps its direction, and the whole system "
             "collapses into an eigenvalue problem.",
@@ -692,6 +695,7 @@ DISTINCT = Lesson(
 
 COMPLEX = Lesson(
     key="complex-eigenvalues",
+    chapter=chapters.COMPLEX,
     title="Complex eigenvalues, and how to get back to real answers",
     summary="A complex pair means rotation — and one complex solution "
             "quietly contains both real ones.",
@@ -1001,6 +1005,7 @@ COMPLEX = Lesson(
 
 REPEATED = Lesson(
     key="repeated-eigenvalues",
+    chapter=chapters.REPEATED,
     title="Repeated eigenvalues and defective matrices",
     summary="When one eigenvalue has to supply two solutions and only "
             "provides one direction.",
@@ -1306,6 +1311,7 @@ REPEATED = Lesson(
 
 PORTRAITS = Lesson(
     key="phase-portraits",
+    chapter=chapters.PORTRAITS,
     title="Phase portraits, and reading a system without solving it",
     summary="Everything the eigenvalues tell you about the picture, before "
             "any trajectory is drawn.",
@@ -1754,6 +1760,7 @@ PORTRAITS = Lesson(
 
 NONHOMOGENEOUS = Lesson(
     key="forced-systems",
+    chapter=chapters.NONHOMOGENEOUS,
     title="Nonhomogeneous systems and the matrix exponential",
     summary="What to do when something is driving the system, and the one "
             "matrix that expresses the whole answer.",

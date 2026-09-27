@@ -47,6 +47,12 @@ CHAPTERED = (
     "convolution",
     "step-forcing",
     "impulses",
+    "systems-intro",
+    "eigenvalues",
+    "complex-eigenvalues",
+    "repeated-eigenvalues",
+    "forced-systems",
+    "phase-portraits",
 )
 
 #: About five pages of prose.
