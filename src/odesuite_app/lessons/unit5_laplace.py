@@ -761,6 +761,7 @@ TRANSFORM = Lesson(
 
 SHIFTING = Lesson(
     key="shifting",
+    chapter=chapters.SHIFTING,
     title="Shifting theorems and partial fractions",
     summary="The two theorems that let the table cover far more than it "
             "lists, and the algebra that gets Y(s) into their shape.",

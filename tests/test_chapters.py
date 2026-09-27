@@ -43,6 +43,7 @@ CHAPTERED = (
     "circuits",
     "transform",
     "laplace",
+    "shifting",
 )
 
 #: About five pages of prose.

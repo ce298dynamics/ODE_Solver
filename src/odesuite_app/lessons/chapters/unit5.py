@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["TRANSFORM", "LAPLACE"]
+__all__ = ["TRANSFORM", "LAPLACE", "SHIFTING"]
 
 
 LAPLACE = (
@@ -838,6 +838,493 @@ TRANSFORM = (
             "initial values appearing as numbers, so a linear equation with "
             "constant coefficients becomes algebra. Transforms are unique, so "
             "the answer can be read back from the table."
+        ),
+    )),
+)
+
+
+SHIFTING = (
+    Section("A short table, stretched", (
+        Para(
+            "The table of transforms built two lessons ago is short: constants, "
+            "powers of t, exponentials, sines and cosines. Yet the solutions of "
+            "constant-coefficient equations are full of products — e^(−t) cos 2t "
+            "for a damped spring, t·e^(2t) for a repeated root, t²e^(−t) for a "
+            "forced response at resonance with a damped system. None of these is "
+            "on the table, and working out each transform from the definition "
+            "would mean an integration by parts every time."
+        ),
+        Para(
+            "This lesson removes nearly all of that work with two tools. The "
+            "first shifting theorem says that multiplying a function by an "
+            "exponential in t slides its transform along the s axis, so every "
+            "entry of the table becomes a whole family of entries. Partial "
+            "fractions, extended here to repeated factors and irreducible "
+            "quadratics, is the algebra that breaks any rational Y(s) into "
+            "pieces that belong to one of those families. Between them they "
+            "invert every transform that a linear equation with constant "
+            "coefficients and exponential, polynomial or sinusoidal forcing can "
+            "produce."
+        ),
+        Para(
+            "There is a second shifting theorem too, and it is the subject of "
+            "the step-forcing lesson. It is mentioned at the end of this chapter "
+            "only to separate it clearly from the first, because confusing the "
+            "two is the most common single error in the whole unit."
+        ),
+    )),
+    Section("The first shifting theorem", (
+        Box(
+            "theorem", "First shifting theorem",
+            "If F(s) = L{f(t)} exists for s > c, then for any real number a the "
+            "transform of e^(at)f(t) exists for s > a + c, and it is F with s "
+            "replaced by s − a.",
+            r"\mathcal{L}\left\{e^{at}f(t)\right\} = F(s - a)",
+        ),
+        Box(
+            "proof", "Proof",
+            "Write out the definition. The two exponentials inside the integral "
+            "combine into one, and the result is the defining integral of F "
+            "evaluated at the point s − a instead of s. It converges whenever "
+            "s − a > c, which is the stated condition.",
+            r"\int_{0}^{\infty} e^{-st}e^{at}f(t)\,dt = "
+            r"\int_{0}^{\infty} e^{-(s-a)t}f(t)\,dt = F(s-a)",
+        ),
+        Para(
+            "Everything about the theorem is in that one line, and the idea is "
+            "worth saying in words. The transform weights f by e^(−st). An extra "
+            "factor e^(at) in the function is indistinguishable from a weaker "
+            "weight e^(−(s − a)t), so the transform sees f through a weight that "
+            "is a units of s less severe. The graph of F(s − a) is the graph of "
+            "F(s) moved a units to the right: every feature of F, including the "
+            "poles, moves with it."
+        ),
+        Para(
+            "Read in the other direction, the theorem is an inversion rule. "
+            "Whenever a transform is a known F evaluated at s − a — whenever s "
+            "appears only in the combination s − a — the inverse is e^(at) times "
+            "the inverse of F. The practical work is to make that combination "
+            "visible, which usually means completing a square."
+        ),
+    )),
+    Section("The shifted table", (
+        Para(
+            "Applying the theorem to each basic entry doubles the table at no "
+            "cost. The three shifted rows below cover every term that appears "
+            "in the solution of a constant-coefficient equation, because every "
+            "such solution is built from t^n e^(at), e^(at) cos bt and "
+            "e^(at) sin bt."
+        ),
+        Display(r"\mathcal{L}\left\{t^{n}e^{at}\right\} = \frac{n!}{(s-a)^{n+1}}",
+                "5.1"),
+        Display(r"\mathcal{L}\left\{e^{at}\cos bt\right\} = \frac{s-a}{(s-a)^{2}+b^{2}}"
+                r"\qquad \mathcal{L}\left\{e^{at}\sin bt\right\} = "
+                r"\frac{b}{(s-a)^{2}+b^{2}}", "5.2"),
+        Para(
+            "Notice in 5.2 that the numerator of the cosine row shifts too. The "
+            "rule replaces every s in F(s) = s/(s² + b²), not only the ones in "
+            "the denominator, so the numerator becomes s − a. Forgetting this is "
+            "an easy slip, and it matters when inverting: a numerator has to be "
+            "rewritten in terms of s − a before the cosine row can be used."
+        ),
+        Worked(
+            "A forward transform",
+            "Find the transforms of t³e^(2t) and e^(−3t)(2 cos 4t − sin 4t).",
+            (
+                Step("For the first, L{t³} = 3!/s⁴ = 6/s⁴; replace s by s − 2.",
+                     r"\mathcal{L}\left\{t^{3}e^{2t}\right\} = \frac{6}{(s-2)^{4}}"),
+                Step("For the second, a = −3, so s − a = s + 3. The cosine "
+                     "contributes 2(s + 3) and the sine 4 over the same "
+                     "denominator.",
+                     r"\mathcal{L}\left\{e^{-3t}(2\cos 4t - \sin 4t)\right\} = "
+                     r"\frac{2(s+3) - 4}{(s+3)^{2}+16} = \frac{2s+2}{s^{2}+6s+25}"),
+            ),
+            answer="6/(s-2)^4 and (2s+2)/(s²+6s+25)",
+            answer_latex=r"\frac{6}{(s-2)^{4}},\qquad \frac{2s+2}{s^{2}+6s+25}",
+        ),
+        Para(
+            "The last form, with the denominator multiplied out, is what an "
+            "inversion problem will usually present. Recognising it means "
+            "running the calculation backwards: complete the square to recover "
+            "(s + 3)² + 16, then split the numerator into a multiple of s + 3 and "
+            "a constant."
+        ),
+    )),
+    Section("Inverting by completing the square", (
+        Para(
+            "When the denominator of a term is an irreducible quadratic "
+            "s² + ps + q, with p² < 4q, complete the square: "
+            "s² + ps + q = (s + p/2)² + (q − p²/4). The shift is a = −p/2 and the "
+            "frequency is b = √(q − p²/4). Then rewrite the numerator as "
+            "A(s − a) + Bb, and the term inverts to e^(at)(A cos bt + B sin bt)."
+        ),
+        Worked(
+            "An inverse transform",
+            "Find the inverse transform of (s + 3)/(s² + 2s + 5).",
+            (
+                Step("Complete the square: s² + 2s + 5 = (s + 1)² + 4, so "
+                     "a = −1 and b = 2.",
+                     r"\frac{s+3}{s^{2}+2s+5} = \frac{s+3}{(s+1)^{2}+4}"),
+                Step("Write the numerator in terms of s + 1: s + 3 = (s + 1) + 2, "
+                     "and the 2 is exactly b.",
+                     r"= \frac{s+1}{(s+1)^{2}+4} + \frac{2}{(s+1)^{2}+4}"),
+                Step("The first term is the shifted cosine row, the second the "
+                     "shifted sine row."),
+            ),
+            answer="e^(−t)(cos 2t + sin 2t)",
+            answer_latex=r"f(t) = e^{-t}\left(\cos 2t + \sin 2t\right)",
+        ),
+        Para(
+            "The two numbers read off the completed square are the real and "
+            "imaginary parts of the roots of s² + 2s + 5 = 0, namely −1 ± 2i. So "
+            "the decay rate and the frequency of the answer are visible in the "
+            "transform before any inversion has been done — a fact that the "
+            "section on poles below makes systematic."
+        ),
+    )),
+    Section("A damped oscillator by transform", (
+        Worked(
+            "Free damped motion",
+            "Solve y'' + 2y' + 5y = 0 with y(0) = 1, y'(0) = 0.",
+            (
+                Step("Transform: (s²Y − s) + 2(sY − 1) + 5Y = 0, so "
+                     "(s² + 2s + 5)Y = s + 2.",
+                     r"Y = \frac{s+2}{s^{2}+2s+5} = \frac{s+2}{(s+1)^{2}+4}"),
+                Step("Split the numerator: s + 2 = (s + 1) + 1 = (s + 1) + "
+                     "(1/2)·2.",
+                     r"Y = \frac{s+1}{(s+1)^{2}+4} + \frac{1}{2}\cdot"
+                     r"\frac{2}{(s+1)^{2}+4}"),
+                Step("Invert both shifted rows."),
+            ),
+            equation="y'' + 2*y' + 5*y = 0", conditions="y(0) = 1, y'(0) = 0",
+            answer="exp(-t)*(cos(2*t) + sin(2*t)/2)",
+            answer_latex=r"y(t) = e^{-t}\left(\cos 2t + \frac{1}{2}\sin 2t\right)",
+        ),
+        Para(
+            "This is the underdamped spring of the vibrations unit, and the "
+            "answer agrees with what the characteristic roots −1 ± 2i give "
+            "directly. Written in amplitude–phase form it is "
+            "(√5/2)e^(−t)cos(2t − δ), with amplitude √5/2 ≈ 1.118, so the "
+            "solution stays between the two envelope curves ±(√5/2)e^(−t) and "
+            "touches them once in each half period."
+        ),
+        Plot(
+            "A damped oscillation and its envelope",
+            "y = e^(−t)(cos 2t + ½ sin 2t), with the envelope ±(√5/2)e^(−t). "
+            "The shift a = −1 in the transform is the decay rate of the "
+            "envelope; the 2 left under the square is the frequency of the "
+            "oscillation inside it.",
+            (Curve("exp(-t)*(cos(2*t) + sin(2*t)/2)", "y(t)"),
+             Curve("sqrt(5)/2*exp(-t)", "envelope"),
+             Curve("-sqrt(5)/2*exp(-t)", "")),
+            t=(0.0, 5.0), ylim=(-1.2, 1.2),
+        ),
+        Worked(
+            "A second damped oscillator",
+            "Solve y'' + 4y' + 13y = 0 with y(0) = 0, y'(0) = 6.",
+            (
+                Step("Transform: (s²Y − 6) + 4sY + 13Y = 0, since y(0) = 0 "
+                     "removes the s term.",
+                     r"Y = \frac{6}{s^{2}+4s+13} = \frac{6}{(s+2)^{2}+9}"),
+                Step("The frequency is b = 3, so write 6 = 2·3 and use the "
+                     "shifted sine row.",
+                     r"Y = 2\cdot\frac{3}{(s+2)^{2}+9}"),
+            ),
+            equation="y'' + 4*y' + 13*y = 0", conditions="y(0) = 0, y'(0) = 6",
+            answer="2*exp(-2*t)*sin(3*t)",
+            answer_latex=r"y(t) = 2e^{-2t}\sin 3t",
+        ),
+    )),
+    Section("Where the poles are", (
+        Para(
+            "The values of s where a transform becomes infinite are its poles. "
+            "For a rational Y(s) they are the roots of the denominator, and the "
+            "shifted table says exactly how each pole shows up in y(t). A real "
+            "pole at s = a gives e^(at). A pair of complex poles a ± bi gives "
+            "e^(at) times an oscillation of frequency b. A pole of multiplicity "
+            "m brings the powers t, t², …, t^(m−1) with it."
+        ),
+        Box(
+            "theorem", "Poles and behaviour",
+            "Each pole of Y(s) contributes a term to y(t) whose growth or decay "
+            "is set by the real part of the pole and whose frequency is set by "
+            "its imaginary part. The solution decays to zero exactly when every "
+            "pole lies in the left half-plane Re s < 0.",
+            r"s = a \pm bi \;\Longrightarrow\; e^{at}\cos bt,\; e^{at}\sin bt",
+        ),
+        Figure("poles",
+               "Pole positions in the s-plane and the time functions they "
+               "produce: moving a pole left speeds up the decay, moving it away "
+               "from the real axis raises the frequency, and a pole in the "
+               "right half-plane means growth."),
+        Para(
+            "The first shifting theorem is precisely the statement that moving "
+            "every pole a units to the right multiplies the time function by "
+            "e^(at). The picture explains why damping appears in a transform as "
+            "a shift: damping moves the poles of an undamped oscillator, which "
+            "sit on the imaginary axis at ±bi, into the left half-plane."
+        ),
+    )),
+    Section("Repeated linear factors", (
+        Para(
+            "When a factor s − a appears in the denominator k times, the "
+            "partial-fraction expansion needs a term for every power up to k. "
+            "The reason is counting, not convention: a denominator of degree n "
+            "leaves n coefficients to determine, and with only one term per "
+            "distinct factor there would be too few unknowns to match an "
+            "arbitrary numerator."
+        ),
+        Box(
+            "theorem", "Repeated linear factors",
+            "If (s − a)^k divides Q(s) exactly, the expansion of P(s)/Q(s) "
+            "contains the k terms below, and by 5.1 they invert to "
+            "e^(at) times a polynomial of degree k − 1.",
+            r"\frac{A_{1}}{s-a} + \frac{A_{2}}{(s-a)^{2}} + \cdots + "
+            r"\frac{A_{k}}{(s-a)^{k}} \;\to\; e^{at}\left(A_{1} + A_{2}t + "
+            r"\cdots + \frac{A_{k}t^{k-1}}{(k-1)!}\right)",
+        ),
+        Worked(
+            "A repeated root, from initial values",
+            "Solve y'' − 4y' + 4y = 0 with y(0) = 1, y'(0) = 3.",
+            (
+                Step("Transform: (s²Y − s − 3) − 4(sY − 1) + 4Y = 0, so "
+                     "(s − 2)²Y = s − 1.",
+                     r"Y = \frac{s-1}{(s-2)^{2}}"),
+                Step("Write the numerator in powers of s − 2: s − 1 = (s − 2) + 1.",
+                     r"Y = \frac{1}{s-2} + \frac{1}{(s-2)^{2}}"),
+                Step("Invert with 5.1: 1/(s − 2)² is the n = 1 row shifted by 2."),
+            ),
+            equation="y'' - 4*y' + 4*y = 0", conditions="y(0) = 1, y'(0) = 3",
+            answer="exp(2*t)*(1 + t)",
+            answer_latex=r"y(t) = (1 + t)e^{2t}",
+        ),
+        Para(
+            "Rewriting the numerator in powers of s − a, as in the second step, "
+            "is the quickest route whenever the denominator is a single "
+            "repeated factor. It is the same move as completing the square, one "
+            "degree lower, and the factor of t in the answer is the familiar "
+            "t·e^(rt) of a repeated characteristic root, here produced "
+            "automatically by the table rather than by a rule to remember."
+        ),
+    )),
+    Section("Resonance with an exponential", (
+        Para(
+            "A repeated factor also appears when the forcing shares an "
+            "exponent with the equation. The forcing then contributes a pole "
+            "that the equation's own denominator already has, and the two "
+            "combine into a double pole. This is resonance seen from the s "
+            "side, and the partial fractions deal with it without any "
+            "modification rule."
+        ),
+        Worked(
+            "A forcing term with a shared pole",
+            "Solve y'' + 3y' + 2y = e^(−t) with y(0) = 0, y'(0) = 0.",
+            (
+                Step("The equation's denominator is s² + 3s + 2 = (s + 1)(s + 2), "
+                     "and the forcing transforms to 1/(s + 1).",
+                     r"Y = \frac{1}{(s+1)^{2}(s+2)}"),
+                Step("Set up three terms, two for the double factor.",
+                     r"\frac{1}{(s+1)^{2}(s+2)} = \frac{A}{s+1} + \frac{B}{(s+1)^{2}} "
+                     r"+ \frac{C}{s+2}"),
+                Step("Cover-up works for the highest power and the simple "
+                     "factor: B = 1/(−1 + 2) = 1 and C = 1/(−2 + 1)² = 1. For A, "
+                     "compare s² coefficients after clearing denominators: "
+                     "A + C = 0, so A = −1.",
+                     r"Y = -\frac{1}{s+1} + \frac{1}{(s+1)^{2}} + \frac{1}{s+2}"),
+            ),
+            equation="y'' + 3*y' + 2*y = exp(-t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="-exp(-t) + t*exp(-t) + exp(-2*t)",
+            answer_latex=r"y(t) = (t - 1)e^{-t} + e^{-2t}",
+        ),
+        Plot(
+            "The response and its three pieces",
+            "y = (t − 1)e^(−t) + e^(−2t) starts from rest. The term t·e^(−t), "
+            "from the double pole at −1, dominates for large t: it is what "
+            "resonance looks like in a system that also decays.",
+            (Curve("-exp(-t) + t*exp(-t) + exp(-2*t)", "y(t)"),
+             Curve("t*exp(-t)", "t e^(-t)"),
+             Curve("exp(-2*t) - exp(-t)", "the other two")),
+            t=(0.0, 8.0),
+        ),
+        Para(
+            "The coefficient A of a repeated factor is the one that cover-up "
+            "cannot give directly. Besides comparing coefficients, it can be "
+            "found by differentiation: multiply Y by (s + 1)², differentiate "
+            "once, and evaluate at s = −1. Here (s + 1)²Y = 1/(s + 2), whose "
+            "derivative −1/(s + 2)² equals −1 at s = −1, agreeing with the "
+            "value found above. In general the coefficient of 1/(s − a)^(k−j) "
+            "is the j-th derivative of (s − a)^k Y at s = a, divided by j!."
+        ),
+    )),
+    Section("Linear and quadratic factors together", (
+        Para(
+            "A constant forcing term puts a factor s in the denominator, and if "
+            "the equation is underdamped the rest is an irreducible quadratic. "
+            "The expansion then needs one constant over s and one linear "
+            "numerator over the quadratic. Cover-up gives the first coefficient; "
+            "the other two follow by comparing coefficients."
+        ),
+        Worked(
+            "A step response",
+            "Solve y'' + 2y' + 2y = 2 with y(0) = 0, y'(0) = 0.",
+            (
+                Step("From rest, (s² + 2s + 2)Y = 2/s.",
+                     r"Y = \frac{2}{s\left(s^{2}+2s+2\right)}"),
+                Step("Cover up s: A = 2/2 = 1. Then 2 = (s² + 2s + 2) + s(Bs + C) "
+                     "forces B = −1 and C = −2.",
+                     r"Y = \frac{1}{s} - \frac{s+2}{s^{2}+2s+2}"),
+                Step("Complete the square, (s + 1)² + 1, and split s + 2 = "
+                     "(s + 1) + 1.",
+                     r"Y = \frac{1}{s} - \frac{s+1}{(s+1)^{2}+1} - "
+                     r"\frac{1}{(s+1)^{2}+1}"),
+            ),
+            equation="y'' + 2*y' + 2*y = 2", conditions="y(0) = 0, y'(0) = 0",
+            answer="1 - exp(-t)*(cos(t) + sin(t))",
+            answer_latex=r"y(t) = 1 - e^{-t}\left(\cos t + \sin t\right)",
+        ),
+        Para(
+            "The pole at s = 0 gives the steady value 1 that the constant force "
+            "settles the system to; the complex pair −1 ± i gives the decaying "
+            "oscillation about it. Differentiating shows y' = 2e^(−t) sin t, "
+            "which first vanishes again at t = π, where the response reaches "
+            "its peak 1 + e^(−π) ≈ 1.043 — an overshoot of about 4.3 percent "
+            "before it settles."
+        ),
+        Plot(
+            "Step response of an underdamped system",
+            "y = 1 − e^(−t)(cos t + sin t) rises from rest, overshoots the "
+            "steady value 1 by about 4.3 percent at t = π, and settles. The "
+            "steady value comes from the pole at 0, the overshoot from the "
+            "complex pair.",
+            (Curve("1 - exp(-t)*(cos(t) + sin(t))", "y(t)"),
+             Curve("1 + 0*t", "steady value")),
+            t=(0.0, 8.0), ylim=(0.0, 1.2),
+        ),
+    )),
+    Section("Shifted forcing at first order", (
+        Para(
+            "The shifting theorem is just as useful on the forcing side. A "
+            "forcing term like e^(−t) cos t transforms by the shifted cosine "
+            "row, and if the equation happens to share the shift the algebra "
+            "can collapse dramatically."
+        ),
+        Worked(
+            "A cancellation",
+            "Solve y' + y = e^(−t) cos t with y(0) = 0.",
+            (
+                Step("Transform: (s + 1)Y = (s + 1)/((s + 1)² + 1).",
+                     r"(s+1)Y = \frac{s+1}{(s+1)^{2}+1}"),
+                Step("The factor s + 1 cancels, leaving the shifted sine row "
+                     "with b = 1.",
+                     r"Y = \frac{1}{(s+1)^{2}+1}"),
+            ),
+            equation="y' + y = exp(-t)*cos(t)", conditions="y(0) = 0",
+            answer="exp(-t)*sin(t)",
+            answer_latex=r"y(t) = e^{-t}\sin t",
+        ),
+        Para(
+            "The integrating factor gives the same answer, since multiplying by "
+            "e^t leaves (e^t y)' = cos t. The two calculations are closely "
+            "related: the integrating factor e^t in time and the shift by one "
+            "unit in s are the same operation seen in the two domains."
+        ),
+    )),
+    Section("Complex roots, and why the shift appears", (
+        Para(
+            "There is another way to see where the shifted sine and cosine "
+            "come from. Over the complex numbers every quadratic factors, and "
+            "the partial fractions of a quadratic term are a conjugate pair of "
+            "simple complex fractions. Each inverts to a complex exponential, "
+            "and adding a conjugate pair gives a real function."
+        ),
+        Display(r"\frac{1}{s-(a+bi)} + \frac{1}{s-(a-bi)} = \frac{2(s-a)}{(s-a)^{2}+b^{2}}"
+                r"\;\to\; e^{(a+bi)t} + e^{(a-bi)t} = 2e^{at}\cos bt", "5.3"),
+        Para(
+            "The factor e^(at) in the answer comes from the real part of the "
+            "roots, and in the transform that real part is the shift. So the "
+            "first shifting theorem and Euler's formula say the same thing: "
+            "completing the square is a real-arithmetic way of locating the "
+            "complex roots, and it avoids complex numbers altogether. Some "
+            "texts prefer the complex route because every factor is then "
+            "linear and cover-up always applies; for hand work with a single "
+            "quadratic, completing the square is usually shorter."
+        ),
+    )),
+    Section("Heaviside's formula for distinct roots", (
+        Para(
+            "When the denominator Q(s) has only simple roots r₁, …, rₙ, the "
+            "cover-up coefficients have a compact closed form. Covering up the "
+            "factor s − rᵢ and evaluating at rᵢ is the same as dividing P(rᵢ) "
+            "by the derivative Q'(rᵢ), because Q'(rᵢ) is the product of the "
+            "other factors at that point."
+        ),
+        Box(
+            "theorem", "Heaviside expansion formula",
+            "If P and Q are polynomials, the degree of P is less than that of "
+            "Q, and Q has distinct roots r₁, …, rₙ, then the inverse transform "
+            "of P/Q is a sum of exponentials with coefficients P(rᵢ)/Q'(rᵢ).",
+            r"\mathcal{L}^{-1}\left\{\frac{P(s)}{Q(s)}\right\} = "
+            r"\sum_{i=1}^{n}\frac{P(r_{i})}{Q'(r_{i})}e^{r_{i}t}",
+        ),
+        Para(
+            "For Y = 4/(s(s − 1)(s − 2)) from the last lesson, Q(s) = s³ − 3s² + "
+            "2s and Q'(s) = 3s² − 6s + 2. At the roots 0, 1 and 2, Q' takes the "
+            "values 2, −1 and 2, so the coefficients are 2, −4 and 2 — the same "
+            "numbers cover-up gave. The formula is most useful when Q is given "
+            "multiplied out and factoring it is inconvenient, and it works for "
+            "complex roots too, where it produces the conjugate pairs of 5.3."
+        ),
+    )),
+    Section("Not to be confused: the second shifting theorem", (
+        Box(
+            "warning", "Two theorems that look alike",
+            "The first theorem shifts in s and multiplies by an exponential in "
+            "t. The second shifts in t — delays a function by a — and multiplies "
+            "the transform by an exponential in s. It needs the unit step u, "
+            "and it belongs to the step-forcing lesson.",
+            r"\mathcal{L}\left\{e^{at}f(t)\right\} = F(s-a) \quad\text{versus}\quad "
+            r"\mathcal{L}\left\{u(t-a)f(t-a)\right\} = e^{-as}F(s)",
+        ),
+        Para(
+            "One way to keep them apart is to remember which variable is "
+            "shifted and ask where the exponential goes: a shift in one domain "
+            "always produces an exponential factor in the other. An e^(−as) in "
+            "a transform therefore means a delay, and must never be treated as "
+            "part of a partial-fraction expansion; a shifted s inside a "
+            "denominator means an exponential factor in time."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "Shifting only the denominator is the classic slip: L{e^(at) cos bt} "
+            "has s − a on top, not s. The sign of the shift is next: e^(−2t) "
+            "replaces s by s + 2, not s − 2 — the rule is F(s − a) with a = −2. "
+            "When inverting, a numerator must be rewritten in terms of the "
+            "shifted variable before the table is used; (s + 3)/((s + 1)² + 4) "
+            "is not a shifted cosine until the 3 has been split into 1 + 2."
+        ),
+        Para(
+            "In partial fractions, the usual error is to give a repeated factor "
+            "only its highest power, which leaves too few unknowns and an "
+            "inconsistent system. For an irreducible quadratic the numerator "
+            "must be linear, Bs + C, not a constant. And before expanding at all, "
+            "check that the fraction is proper; if the numerator's degree is "
+            "not lower, something has gone wrong earlier, since the transform "
+            "of a solution always tends to zero as s grows."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "Multiplying by e^(at) in time replaces s by s − a in the transform. "
+            "That single rule turns the basic table into the shifted rows 5.1 "
+            "and 5.2, which cover every term of a constant-coefficient "
+            "solution. To invert, factor the denominator; split into partial "
+            "fractions with one term per power of each repeated factor and a "
+            "linear numerator over each irreducible quadratic; complete the "
+            "square on the quadratics and rewrite their numerators in the "
+            "shifted variable. The poles of Y(s) predict the behaviour: real "
+            "part for growth or decay, imaginary part for frequency, "
+            "multiplicity for powers of t."
         ),
     )),
 )
