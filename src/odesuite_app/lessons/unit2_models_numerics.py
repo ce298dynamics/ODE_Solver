@@ -11,6 +11,7 @@ with when none of chapter 1's techniques applies.
 
 from __future__ import annotations
 
+from .chapters import unit2 as chapters
 from .model import (
     Choice,
     Example,
@@ -29,6 +30,7 @@ __all__ = ["POPULATION", "EQUILIBRIA", "MOTION", "NUMERICAL",
 
 POPULATION = Lesson(
     key="population",
+    chapter=chapters.POPULATION,
     title="Population models and the logistic equation",
     summary="Where the first interesting nonlinear equation comes from, and "
             "what its two parameters mean.",

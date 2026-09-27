@@ -26,6 +26,7 @@ CHAPTERED = (
     "linear",
     "exact",
     "substitutions",
+    "population",
 )
 
 #: About five pages of prose.
