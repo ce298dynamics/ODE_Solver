@@ -824,6 +824,7 @@ FORCED = Lesson(
 
 CIRCUITS = Lesson(
     key="circuits",
+    chapter=chapters.CIRCUITS,
     title="Electrical circuits: the RLC analogy",
     summary="The same equation with different letters — and why an engineer "
             "who knows springs already knows circuits.",

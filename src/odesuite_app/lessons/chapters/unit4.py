@@ -4,7 +4,416 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["FREE", "FORCED"]
+__all__ = ["FREE", "FORCED", "CIRCUITS"]
+
+
+CIRCUITS = (
+    Section("The same equation, a different world", (
+        Para(
+            "The mass on a spring was a model for vibration in general, and "
+            "this lesson shows how general. An electrical circuit containing "
+            "a resistor, an inductor and a capacitor obeys *exactly* the "
+            "equation of a damped, forced spring, with the charge on the "
+            "capacitor playing the part of displacement. Everything the last "
+            "two lessons established — natural frequency, damping regimes, "
+            "transients, steady states, resonance — transfers without "
+            "change, and in electrical engineering it is used every day."
+        ),
+        Para(
+            "That is not a coincidence of notation. Both systems store "
+            "energy in two forms and trade it back and forth — kinetic and "
+            "potential energy for the spring, magnetic and electric energy "
+            "for the circuit — while a third element dissipates it as heat. "
+            "Any system with that structure obeys the same second-order "
+            "linear equation, which is why the same mathematics describes "
+            "pendulums, circuits, the acoustics of a room and the "
+            "vibrations of a molecule."
+        ),
+        Para(
+            "For a student this is the best kind of economy: nothing in this "
+            "lesson needs to be learned from scratch. The work is in the "
+            "translation — knowing which electrical quantity stands for which "
+            "mechanical one — and once that is fixed, every result of the "
+            "previous two lessons can be read off in electrical terms."
+        ),
+    )),
+    Section("The three components", (
+        Para(
+            "Current i(t) is the rate at which charge q(t) flows: i = q'. "
+            "Each component relates the voltage drop across it to the charge "
+            "or the current, and each relation is one of the three kinds of "
+            "term in the equation."
+        ),
+        Box(
+            "definition", "Voltage drops",
+            "A *resistor* of resistance R (ohms) drops Ri, proportional to the "
+            "current. An *inductor* of inductance L (henries) drops L·di/dt, "
+            "proportional to the rate of change of current. A *capacitor* of "
+            "capacitance C (farads) drops q/C, proportional to the charge it "
+            "holds.",
+            r"V_R = R\, i, \qquad V_L = L\, \frac{di}{dt}, \qquad V_C = "
+            r"\frac{q}{C}",
+        ),
+        Para(
+            "Physically, the resistor turns electrical energy into heat, like "
+            "a damper. The inductor, a coil of wire, resists *changes* in "
+            "current by building a magnetic field — electrical inertia. The "
+            "capacitor, two plates separated by an insulator, stores charge "
+            "and pushes back harder the more it holds — an electrical spring. "
+            "With those three analogies the circuit equation can almost be "
+            "guessed."
+        ),
+        Para(
+            "These are *ideal* components, and real ones only approximate "
+            "them. A real inductor is a coil of wire and therefore has some "
+            "resistance of its own; a real capacitor leaks a little charge "
+            "through its insulator; every wire has a small inductance and "
+            "every pair of wires a small capacitance. For most purposes the "
+            "idealisation is excellent, and where it is not — at very high "
+            "frequencies, or in precision measurement — the remedy is to add "
+            "further ideal components to the model, a small resistor in "
+            "series with the inductor, say, rather than to abandon the "
+            "equation. The linear model is the language in which the "
+            "corrections are written."
+        ),
+    )),
+    Section("Kirchhoff's law and the circuit equation", (
+        Para(
+            "Kirchhoff's voltage law says that around any closed loop of a "
+            "circuit, the voltage drops across the components add up to the "
+            "voltage E(t) supplied by the source. For a resistor, inductor "
+            "and capacitor in series, with i = q', the three drops give a "
+            "second-order equation for the charge."
+        ),
+        Box(
+            "theorem", "The series RLC circuit",
+            "The charge q(t) on the capacitor of a series RLC circuit driven "
+            "by a source of voltage E(t) satisfies the equation below. "
+            "Differentiating once gives the equation for the current, "
+            "Li'' + Ri' + i/C = E'(t).",
+            r"L\, q'' + R\, q' + \frac{1}{C}\, q = E(t)",
+        ),
+        Para(
+            "Comparing with mx'' + cx' + kx = F(t), the dictionary is: charge "
+            "q for displacement x, current i for velocity x', inductance L for "
+            "mass m, resistance R for damping c, the inverse capacitance 1/C "
+            "for the spring constant k, and the applied voltage E for the "
+            "applied force F. Every formula of the last two lessons "
+            "translates by substituting these."
+        ),
+        Display(r"q \leftrightarrow x, \quad L \leftrightarrow m, \quad "
+                r"R \leftrightarrow c, \quad \frac{1}{C} \leftrightarrow k, "
+                r"\quad E \leftrightarrow F"),
+        Para(
+            "So the natural frequency of the circuit is ω₀ = √(k/m) = "
+            "1/√(LC), the damping ratio is R/(2√(L/C)), and the circuit is "
+            "critically damped when R = 2√(L/C). A circuit designer who wants "
+            "a particular resonant frequency chooses L and C to give it, and "
+            "chooses R to set how sharp the resonance is."
+        ),
+        Figure("circuit_analogue",
+               "The spring and the circuit side by side: move a slider for "
+               "one and watch the corresponding quantity of the other move "
+               "with it, drawing the same curve."),
+    )),
+    Section("First-order circuits: RC and RL", (
+        Para(
+            "Removing one of the energy-storing components leaves a "
+            "first-order circuit, and these are the simplest and most common "
+            "circuits of all. With no inductor, the equation is Rq' + q/C = E: "
+            "a resistor and capacitor, the circuit that charges a camera "
+            "flash or sets the delay of a timer. With no capacitor it is "
+            "Li' + Ri = E, an RL circuit, the circuit of a relay coil or a "
+            "motor winding. Both are linear with constant coefficients, and "
+            "both relax exponentially to a steady state."
+        ),
+        Worked(
+            "Charging a capacitor",
+            "A 10 Ω resistor and a 0.01 F capacitor are connected in series to "
+            "a 12 V battery at t = 0, with the capacitor initially uncharged. "
+            "Find q(t).",
+            (
+                Step("10q' + 100q = 12, since 1/C = 100. The steady state is "
+                     "q = 12/100 = 0.12 C, the charge at which the capacitor's "
+                     "voltage equals the battery's.",
+                     r"q' + 10 q = 1.2"),
+                Step("The time constant is RC = 0.1 s. From q(0) = 0, "
+                     "q = 0.12(1 − e^(−10t)), and the current "
+                     "i = q' = 1.2e^(−10t) starts at E/R = 1.2 A and decays."),
+            ),
+            equation="10*y' + 100*y = 12", conditions="y(0) = 0",
+            answer="12/100 - 12*exp(-10*t)/100",
+            answer_latex=r"q(t) = 0.12\left(1 - e^{-10t}\right)",
+        ),
+        Worked(
+            "Current building up in an inductor",
+            "A 2 H inductor and a 10 Ω resistor are connected to a 12 V "
+            "battery at t = 0. Find the current.",
+            (
+                Step("2i' + 10i = 12, so the steady current is E/R = 1.2 A and "
+                     "the time constant is L/R = 0.2 s.",
+                     r"i' + 5 i = 6"),
+                Step("From i(0) = 0, i = 1.2(1 − e^(−5t)). The inductor delays "
+                     "the current: it does not jump to 1.2 A when the switch "
+                     "closes, which is why switching off an inductive load "
+                     "suddenly produces a spark."),
+            ),
+            equation="2*y' + 10*y = 12", conditions="y(0) = 0",
+            answer="6/5 - 6*exp(-5*t)/5", answer_latex=r"i(t) = 1.2\left(1 - e^{-5t}\right)",
+        ),
+        Plot(
+            "Charging and current in an RC circuit",
+            "The charge q(t) = 0.12(1 − e^(−10t)), scaled by 10 to share the "
+            "axis, rises to its final value while the current 1.2e^(−10t) "
+            "decays. After one time constant RC = 0.1 s the capacitor is 63% "
+            "charged; after five, more than 99%.",
+            (Curve("10*0.12*(1 - exp(-10*t))", "10 × charge"),
+             Curve("1.2*exp(-10*t)", "current")),
+            t=(0.0, 0.6), ylabel="coulombs × 10, amperes",
+        ),
+    )),
+    Section("The free RLC circuit", (
+        Para(
+            "Charge a capacitor, then connect it across an inductor and a "
+            "resistor. With no source the equation is Lq'' + Rq' + q/C = 0, "
+            "the free damped oscillator, and the charge sloshes back and "
+            "forth between the plates through the coil — electrical ringing — "
+            "if the resistance is small, or drains away without oscillating "
+            "if it is large."
+        ),
+        Worked(
+            "Electrical ringing",
+            "L = 1 H, R = 2 Ω and C = 0.2 F. The capacitor starts with 1 C "
+            "and no current flows initially. Find q(t).",
+            (
+                Step("q'' + 2q' + 5q = 0, with 1/C = 5. The roots are −1 ± 2i, "
+                     "so the circuit is underdamped: R = 2 is below the "
+                     "critical 2√(L/C) = 2√5 ≈ 4.47.",
+                     r"q = e^{-t}(c_1\cos 2t + c_2\sin 2t)"),
+                Step("q(0) = c₁ = 1; i(0) = q'(0) = −c₁ + 2c₂ = 0 gives c₂ = 1/2."),
+            ),
+            equation="y'' + 2*y' + 5*y = 0", conditions="y(0) = 1, y'(0) = 0",
+            answer="exp(-t)*(cos(2*t) + sin(2*t)/2)",
+            answer_latex=r"q(t) = e^{-t}\left(\cos 2t + \frac{1}{2}\sin 2t\right)",
+        ),
+        Para(
+            "The charge changes sign every half-period: the plate that was "
+            "positive becomes negative as current overshoots, just as a "
+            "released spring overshoots equilibrium. The energy moves "
+            "between the capacitor's electric field, (1/2)q²/C, and the "
+            "inductor's magnetic field, (1/2)Li², losing a fraction to heat in "
+            "the resistor, at rate Ri², on every swing."
+        ),
+    )),
+    Section("Tuning: the LC circuit and resonance", (
+        Para(
+            "A circuit with negligible resistance is an almost perfect "
+            "oscillator with natural frequency 1/√(LC). Driven by an "
+            "alternating voltage at that frequency, it resonates, and that "
+            "resonance is how a radio receiver selects a station. The aerial "
+            "picks up many frequencies at once; the tuning circuit responds "
+            "strongly only to the one matching its natural frequency, and "
+            "turning the tuning knob changes C, and with it the frequency "
+            "that is selected."
+        ),
+        Worked(
+            "Resonance in an LC circuit",
+            "q'' + 100q = sin 10t, starting with no charge and no current.",
+            (
+                Step("The natural frequency is 10, equal to the driving "
+                     "frequency, so the trial is t(A cos 10t + B sin 10t). The "
+                     "t-terms cancel, leaving −20A sin 10t + 20B cos 10t = "
+                     "sin 10t: A = −1/20, B = 0.",
+                     r"q_p = -\frac{t}{20}\cos 10t"),
+                Step("From rest: c₁ = 0 and −1/20 + 10c₂ = 0, so c₂ = 1/200. "
+                     "The charge oscillation grows without bound until "
+                     "resistance, always present, limits it."),
+            ),
+            equation="y'' + 100*y = sin(10*t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="-t*cos(10*t)/20 + sin(10*t)/200",
+            answer_latex=r"q(t) = -\frac{t}{20}\cos 10t + \frac{1}{200}\sin 10t",
+        ),
+    )),
+    Section("Alternating current and impedance", (
+        Para(
+            "In an AC circuit driven by E = E₀cos ωt, what matters in practice "
+            "is the steady-state current, since the transient dies in a few "
+            "time constants. The translation of the last lesson's amplitude "
+            "formula into circuit language introduces the most important "
+            "quantity in AC circuit theory."
+        ),
+        Box(
+            "theorem", "Impedance",
+            "The steady-state current in a series RLC circuit driven at "
+            "frequency ω has amplitude E₀/Z, where Z is the *impedance*. It is "
+            "largest, E₀/R, at ω = 1/√(LC), where the inductor's and the "
+            "capacitor's contributions cancel.",
+            r"Z = \sqrt{R^{2} + \left(\omega L - \frac{1}{\omega C}\right)^{2}}",
+        ),
+        Para(
+            "The quantity ωL − 1/(ωC) is the *reactance*. At low frequencies "
+            "the capacitor dominates, 1/(ωC) is large, and little current "
+            "flows — a capacitor blocks slowly varying current. At high "
+            "frequencies the inductor dominates and again little flows — an "
+            "inductor blocks rapidly varying current. At resonance the two "
+            "cancel and only the resistance limits the current. Filters in "
+            "audio equipment, which pass the treble to one speaker and the "
+            "bass to another, are built on exactly this behaviour."
+        ),
+        Worked(
+            "An AC steady state",
+            "With L = 1, R = 2, 1/C = 5 and E = 10 cos t, find the steady "
+            "charge and current.",
+            (
+                Step("q'' + 2q' + 5q = 10 cos t is the mechanical example of "
+                     "the last lesson, with steady state q_p = 2 cos t + sin t.",
+                     r"q_p = 2\cos t + \sin t"),
+                Step("The current is its derivative, i = −2 sin t + cos t, of "
+                     "amplitude √5. The impedance at ω = 1 is √(4 + (1 − 5)²) = "
+                     "√20, and E₀/Z = 10/√20 = √5, as it must be."),
+            ),
+            equation="y'' + 2*y' + 5*y = 10*cos(t)",
+            answer="2*cos(t) + sin(t)", answer_latex=r"q_p = 2\cos t + \sin t",
+        ),
+        Plot(
+            "Current amplitude against frequency",
+            "E₀/Z for E₀ = 10, L = 1, C = 0.2 and R = 2, 1 and 0.5. The peak is "
+            "always at ω = 1/√(LC) = √5 ≈ 2.24, where Z = R, so its height is "
+            "E₀/R; smaller resistance gives a taller, sharper peak — a more "
+            "selective tuner.",
+            (Curve("10/sqrt(4 + (t - 5/t)**2)", "R = 2"),
+             Curve("10/sqrt(1 + (t - 5/t)**2)", "R = 1"),
+             Curve("10/sqrt(0.25 + (t - 5/t)**2)", "R = 0.5")),
+            t=(0.3, 6.0), xlabel="frequency ω", ylabel="current amplitude",
+            ylim=(0.0, 21.0),
+        ),
+    )),
+    Section("Energy in a circuit", (
+        Para(
+            "The energy argument of the free-vibration lesson carries over "
+            "term by term. Multiply the free circuit equation by i = q': the "
+            "inductor term becomes the derivative of (1/2)Li², the magnetic "
+            "energy stored in the coil, and the capacitor term the derivative "
+            "of (1/2)q²/C, the electric energy stored between the plates. The "
+            "resistor term Ri² is left over, with a sign that makes the total "
+            "energy decrease."
+        ),
+        Display(r"\frac{d}{dt}\left(\frac{1}{2} L i^{2} + \frac{q^{2}}{2C}\right) "
+                r"= -R\, i^{2}"),
+        Para(
+            "So a resistor is exactly a damper, turning the circuit's energy "
+            "into heat at rate Ri² — the familiar power loss of a wire. In "
+            "the steady state of an AC circuit the source supplies on "
+            "average exactly what the resistor dissipates, and at resonance "
+            "the inductor and capacitor merely pass energy back and forth "
+            "between themselves without drawing any net power from the "
+            "source. That is why, at resonance, the circuit looks to the "
+            "source like the resistor alone."
+        ),
+    )),
+    Section("Other networks", (
+        Para(
+            "The series circuit is the simplest arrangement, but not the "
+            "only one. In a *parallel* RLC circuit the three components share "
+            "the same voltage rather than the same current, and Kirchhoff's "
+            "current law — the currents into any junction sum to the currents "
+            "out — gives a second-order equation for the voltage with the "
+            "same structure but the roles of R and 1/R exchanged. Its "
+            "resonant frequency is again 1/√(LC), but at resonance its "
+            "impedance is *largest* rather than smallest, which makes it the "
+            "natural choice for rejecting a particular frequency instead of "
+            "selecting it."
+        ),
+        Para(
+            "Networks with several loops give systems of equations, one per "
+            "independent loop or junction, and those are the subject of Unit "
+            "6. Two inductively coupled circuits, like the two coils of a "
+            "transformer, obey a pair of coupled second-order equations and "
+            "behave like two masses joined by a spring: energy passes back "
+            "and forth between them, and the combined system has two "
+            "natural frequencies rather than one."
+        ),
+    )),
+    Section("Analogue computers", (
+        Para(
+            "The analogy between springs and circuits once had a direct "
+            "practical use. Before digital computers were fast and cheap, "
+            "engineers solved differential equations by *building* them. A "
+            "circuit whose components were chosen to match the mass, damping "
+            "and stiffness of a mechanical system would produce a voltage "
+            "that followed the mechanical displacement exactly, and an "
+            "oscilloscope displayed the solution in real time. Changing a "
+            "parameter meant turning a knob."
+        ),
+        Para(
+            "These analogue computers, built from amplifiers wired as "
+            "integrators and adders, were used to design aircraft control "
+            "systems and to simulate chemical plants and nuclear reactors "
+            "through the middle of the twentieth century. They worked "
+            "because the equations were the same — the circuit did not "
+            "*approximate* the spring, it obeyed the identical law. The "
+            "numerical methods of Unit 2 replaced them, but the idea behind "
+            "them, that one equation describes many systems and any of them "
+            "can stand in for the others, is the lesson of this unit."
+        ),
+    )),
+    Section("Choosing the resistance", (
+        Para(
+            "In circuit design the damping is usually set deliberately. A "
+            "circuit that must respond quickly to a change without ringing — "
+            "the input stage of a measuring instrument, or a line carrying "
+            "digital pulses — is designed near critical damping, R = 2√(L/C), "
+            "because ringing would be read as a false signal. A circuit meant "
+            "to oscillate, like a clock or a radio transmitter, is designed "
+            "with as little resistance as possible, and an amplifier is added "
+            "to replace the energy the resistance still takes, keeping the "
+            "oscillation going at constant amplitude."
+        ),
+        Para(
+            "That last idea — feeding energy back to cancel the damping — "
+            "produces a self-sustaining oscillation whose amplitude is set by "
+            "the nonlinearity of the amplifier rather than by any initial "
+            "condition. It is exactly Van der Pol's oscillator, which "
+            "reappears in Unit 8 as the standard example of a limit cycle."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "The analogy maps 1/C, not C, to the spring constant — a large "
+            "capacitor is a *soft* spring — and forgetting the inversion "
+            "moves the natural frequency by a factor that can be enormous "
+            "with realistic values, where capacitances are microfarads. The "
+            "second common error is mixing the charge and current equations: "
+            "the current equation involves E'(t), the derivative of the "
+            "source voltage, so a battery (constant E) drops out of it "
+            "entirely, and initial conditions must be translated — i(0) is "
+            "q'(0), and i'(0) comes from the circuit equation at t = 0."
+        ),
+        Para(
+            "Units are the third. In SI, L in henries, R in ohms and C in "
+            "farads give ω in radians per second and the time constants RC "
+            "and L/R in seconds. Household mains is 50 or 60 hertz, so ω is "
+            "about 314 or 377 rad/s, and radio frequencies are millions of "
+            "times higher. Checking that a computed natural frequency is of a "
+            "sensible size for the application catches most unit slips."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "A series RLC circuit obeys Lq'' + Rq' + q/C = E(t), the equation "
+            "of a forced damped spring with charge for displacement, "
+            "inductance for mass, resistance for damping and inverse "
+            "capacitance for stiffness. Its natural frequency is 1/√(LC) and "
+            "it is critically damped at R = 2√(L/C). RC and RL circuits are "
+            "first order and relax with time constants RC and L/R. Under AC "
+            "driving the steady current has amplitude E₀/Z with impedance "
+            "Z = √(R² + (ωL − 1/(ωC))²), largest at resonance, which is how "
+            "circuits select frequencies. The mathematics of this unit, "
+            "learned once for springs, serves every system that stores and "
+            "trades energy in two forms."
+        ),
+    )),
+)
 
 
 FORCED = (

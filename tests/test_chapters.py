@@ -40,6 +40,7 @@ CHAPTERED = (
     "higher",
     "free-vibration",
     "forced-vibration",
+    "circuits",
 )
 
 #: About five pages of prose.
