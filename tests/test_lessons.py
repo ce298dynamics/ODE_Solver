@@ -2254,6 +2254,26 @@ def test_complex_eigenvalues_draw_no_straight_lines(qapp):
     made.deleteLater()
 
 
+def test_a_centre_is_not_called_a_spiral_by_rounding(qapp):
+    """numpy gives the centre's eigenvalues a real part of about 1e-16, and
+    `classify` read that as "an unstable spiral" -- a wrong word at exactly
+    the matrix the phase-portraits chapter sends the reader to."""
+    made = _figure("eigenlines")
+    for key, value in zip("abcd", (1.0, 2.0, -1.0, -1.0)):
+        made.sliders[key].set_value(value)
+    made.draw()
+    qapp.processEvents()
+    assert "centre" in made.readout.text()
+
+    # And a zero eigenvalue is a line of equilibria, not a very slow node.
+    for key, value in zip("abcd", (1.0, 2.0, 1.0, 2.0)):
+        made.sliders[key].set_value(value)
+    made.draw()
+    qapp.processEvents()
+    assert "line of equilibria" in made.readout.text()
+    made.deleteLater()
+
+
 def test_the_figure_agrees_with_the_narrator_on_the_same_matrix(qapp):
     """Two independent routes -- numpy in the figure, sympy in the narrator --
     to the same words. If they ever parted, one screen would contradict the

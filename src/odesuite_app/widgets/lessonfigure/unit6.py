@@ -64,10 +64,17 @@ class EigenlinesFigure(LessonFigure):
 
         numpy rather than sympy: this runs on every slider tick, and the
         narrator's exact arithmetic is not what a picture needs. The two agree
-        on the classification, which is the part that is claimed in words.
+        on the classification, which is the part that is claimed in words --
+        but only once rounding is taken out: a centre's real part comes back
+        as 1e-16, which `systems.classify` would honestly call a spiral, so
+        parts that small are set to the zero they are.
         """
         a, b, c, d = self.entries()
-        return np.linalg.eig(np.array([[a, b], [c, d]], dtype=float))
+        values, vectors = np.linalg.eig(np.array([[a, b], [c, d]], dtype=float))
+        values = values.astype(complex)
+        values.real[np.abs(values.real) < 1e-9] = 0.0
+        values.imag[np.abs(values.imag) < 1e-9] = 0.0
+        return values, vectors
 
     def draw(self) -> None:
         self.plot.clear()
@@ -91,6 +98,13 @@ class EigenlinesFigure(LessonFigure):
                 growing = values[index].real > 0
                 colour = (self.palette_obj.danger if growing
                           else self.palette_obj.success)
+                if values[index].real == 0:
+                    # A zero eigenvalue: every point on this line is an
+                    # equilibrium, so it has no direction to point in.
+                    self.plot.plot([-span[0], span[0]], [-span[1], span[1]],
+                                   pen=pg.mkPen(self.palette_obj.text_muted,
+                                                width=3))
+                    continue
                 self.plot.plot([-span[0], span[0]], [-span[1], span[1]],
                                pen=pg.mkPen(colour, width=3))
                 # An arrowhead a little way out, pointing the way the flow

@@ -43,6 +43,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The eigenlines figure called a centre an unstable spiral.** numpy's
+  eigenvalues for a centre carry a real part of about 1e-16, which
+  `systems.classify` rightly reads as positive. The figure now sets parts
+  below 1e-9 to zero before naming the origin, and draws a zero eigenvalue's
+  line of equilibria without the arrow that made it look like an incoming
+  eigenline.
+
 - **A switched or impulsive answer could not be checked, and a wrong one
   could pass.** Substituting `u(t - 2)(1 - e^(-t))` into `y' + y = u(t - 2)`
   leaves a `δ(t - 2)` in the residual, and a delta is zero wherever it is
