@@ -4,7 +4,407 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED", "VARIATION"]
+__all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED", "VARIATION",
+           "REDUCTION"]
+
+
+REDUCTION = (
+    Section("Half an answer", (
+        Para(
+            "For constant coefficients the characteristic equation hands over "
+            "both independent solutions at once. For variable coefficients "
+            "there is no such recipe, and in general no formula at all. But "
+            "surprisingly often *one* solution can be found — spotted by "
+            "inspection, given by the physics, read from a table, or found by "
+            "trying a power of t or an exponential — and the question becomes "
+            "how to get the second. Reduction of order answers it completely: "
+            "given one nonzero solution of a second-order linear equation, a "
+            "second, independent one follows by solving a first-order "
+            "equation, which Unit 1 always can."
+        ),
+        Para(
+            "The idea is the same one variation of parameters used, applied "
+            "to a single known solution. A constant multiple cy₁ is useless, "
+            "since it is just y₁ again. So let the constant vary: look for a "
+            "second solution y = v(t)y₁(t) and ask what equation v must "
+            "satisfy. The answer turns out to be an equation in v' alone, "
+            "which is why the order drops by one."
+        ),
+        Box(
+            "definition", "Reduction of order",
+            "Given one solution y₁ of y'' + p(t)y' + q(t)y = 0, the method of "
+            "*reduction of order* seeks a second solution in the form v·y₁, "
+            "and obtains a first-order equation for w = v'.",
+            r"y_2 = v(t)\, y_1(t)",
+        ),
+    )),
+    Section("The substitution, carried out", (
+        Para(
+            "With y = vy₁, the product rule gives y' = v'y₁ + vy₁' and "
+            "y'' = v''y₁ + 2v'y₁' + vy₁''. Substitute into y'' + py' + qy = 0 "
+            "and collect the terms by v, v' and v''."
+        ),
+        Display(r"v\,(y_1'' + p y_1' + q y_1) + v'\,(2y_1' + p\, y_1) + "
+                r"v''\, y_1 = 0", "1"),
+        Para(
+            "The bracket multiplying v is the equation applied to y₁, and it "
+            "is zero because y₁ is a solution. That single cancellation is the "
+            "whole method. What remains contains v' and v'' but not v, so with "
+            "w = v' it is a first-order equation — linear and separable at "
+            "once."
+        ),
+        Display(r"y_1\, w' + (2y_1' + p\, y_1)\, w = 0", "2"),
+        Para(
+            "Separating (2): w'/w = −2y₁'/y₁ − p. Integrating gives "
+            "ln w = −2 ln y₁ − ∫p dt, and exponentiating produces a formula "
+            "that needs no further thought."
+        ),
+        Box(
+            "theorem", "The second solution",
+            "If y₁ is a solution of y'' + py' + qy = 0 that is nonzero on an "
+            "interval I, then the function below is a second solution on I, "
+            "independent of y₁.",
+            r"y_2 = y_1 \int \frac{e^{-\int p\, dt}}{y_1^{2}}\, dt",
+        ),
+        Box(
+            "proof", "",
+            "The derivation above shows y₂ satisfies the equation. For "
+            "independence, W(y₁, y₂) = y₁(v'y₁ + vy₁') − y₁'vy₁ = y₁²v' = "
+            "e^(−∫p dt), an exponential, which is never zero. Both constants "
+            "of integration can be dropped: one would multiply y₂ by a "
+            "constant, the other would add a multiple of y₁.",
+        ),
+        Box(
+            "warning", "Standard form, again",
+            "p is the coefficient of y' after dividing by the coefficient of "
+            "y''. For t·y'' − (t + 1)y' + y = 0 it is −(t + 1)/t, not −(t + 1). "
+            "The mistake goes unnoticed through every later step and "
+            "produces a y₂ that fails when substituted.",
+        ),
+    )),
+    Section("Worked examples", (
+        Worked(
+            "An exponential and a polynomial",
+            "One solution of t·y'' − (t + 1)y' + y = 0 is e^t. Find a second, "
+            "and the solution with y(1) = 0, y'(1) = 1.",
+            (
+                Step("Standard form: p = −(t + 1)/t = −1 − 1/t, so "
+                     "∫p dt = −t − ln t and e^(−∫p) = te^t (for t > 0). Divide "
+                     "by y₁² = e^(2t):",
+                     r"v' = \frac{t e^{t}}{e^{2t}} = t e^{-t}"),
+                Step("Integrate by parts: v = −(t + 1)e^(−t), so "
+                     "y₂ = v·e^t = −(t + 1). The second solution is a "
+                     "polynomial — nothing about the equation suggested one.",
+                     r"y = c_1 e^{t} + c_2 (t + 1)"),
+                Step("The conditions give c₁e + 2c₂ = 0 and c₁e + c₂ = 1, so "
+                     "c₂ = −1 and c₁ = 2/e."),
+            ),
+            equation="t*y'' - (t + 1)*y' + y = 0", conditions="y(1) = 0, y'(1) = 1",
+            answer="-t + 2*exp(t - 1) - 1",
+            answer_latex=r"y(t) = 2e^{t-1} - t - 1",
+        ),
+        Worked(
+            "A power and an exponential",
+            "y₁ = t solves t²y'' − t(t + 2)y' + (t + 2)y = 0. Find a second "
+            "solution and the solution with y(1) = 1, y'(1) = 0.",
+            (
+                Step("p = −(t + 2)/t = −1 − 2/t, so e^(−∫p) = t²e^t. Dividing by "
+                     "y₁² = t² leaves v' = e^t — the powers of t cancel, which "
+                     "is the sign the arithmetic is right.",
+                     r"v' = e^{t}, \qquad v = e^{t}, \qquad y_2 = t e^{t}"),
+                Step("With y = c₁t + c₂te^t: y(1) = c₁ + c₂e = 1 and "
+                     "y'(1) = c₁ + 2c₂e = 0, so c₂ = −1/e and c₁ = 2."),
+            ),
+            equation="t**2*y'' - t*(t + 2)*y' + (t + 2)*y = 0",
+            conditions="y(1) = 1, y'(1) = 0",
+            answer="2*t - t*exp(t - 1)", answer_latex=r"y(t) = 2t - t\,e^{t-1}",
+        ),
+        Plot(
+            "Solutions of the two examples",
+            "The solution 2e^(t−1) − t − 1 of the first example "
+            "and 2t − te^(t−1) of the second, both on (0, 3]. Each passes "
+            "through its initial point at t = 1 with the prescribed slope; "
+            "their shapes come entirely from the second solutions that "
+            "reduction of order found.",
+            (Curve("2*exp(t - 1) - t - 1", "example 1"),
+             Curve("2*t - t*exp(t - 1)", "example 2")),
+            t=(0.05, 3.0), ylim=(-6.0, 6.0),
+        ),
+        Figure("reduction",
+               "The family t²y″ − t(t + a)y′ + (t + a)y = 0, whose first solution "
+               "is always t. The second comes from the narrator, and the dashed "
+               "curve is v = y₂/y₁ — not constant, which is why y₂ is new."),
+    )),
+    Section("Where t·e^(rt) really comes from", (
+        Para(
+            "The characteristic-roots lesson asserted that a double root r "
+            "gives a second solution te^(rt), and justified it by checking. "
+            "Reduction of order *derives* it. For y'' − 2ry' + r²y = 0, whose "
+            "characteristic polynomial is (λ − r)², take y₁ = e^(rt). Then "
+            "p = −2r, so e^(−∫p) = e^(2rt), and dividing by y₁² = e^(2rt) "
+            "leaves v' = 1."
+        ),
+        Display(r"v' = \frac{e^{2rt}}{e^{2rt}} = 1 \;\Longrightarrow\; "
+                r"v = t \;\Longrightarrow\; y_2 = t e^{rt}"),
+        Worked(
+            "A double root, from first principles",
+            "Solve y'' − 2y' + y = 0 with y(0) = 1, y'(0) = 2, using reduction "
+            "of order from y₁ = e^t.",
+            (
+                Step("p = −2, so v' = e^(2t)/e^(2t) = 1, v = t and y₂ = te^t.",
+                     r"y = (c_1 + c_2 t)\, e^{t}"),
+                Step("y(0) = c₁ = 1; y'(0) = c₁ + c₂ = 2 gives c₂ = 1."),
+            ),
+            equation="y'' - 2*y' + y = 0", conditions="y(0) = 1, y'(0) = 2",
+            answer="(1 + t)*exp(t)", answer_latex=r"y(t) = (1 + t)\, e^{t}",
+        ),
+        Para(
+            "The same computation explains the Cauchy–Euler repeated root, "
+            "where the second solution is t^r ln t: with y₁ = t^r the quantity "
+            "v' comes out as 1/t, and its integral is ln t. In both cases the "
+            "'extra factor' that looks like a trick is just the integral of "
+            "the simplest possible v'."
+        ),
+    )),
+    Section("Equations with no constant-coefficient shortcut", (
+        Worked(
+            "A Cauchy–Euler equation, reduced",
+            "y₁ = t solves t²y'' + ty' − y = 0. Find a second solution for "
+            "t > 0.",
+            (
+                Step("p = 1/t, so e^(−∫p) = 1/t, and v' = (1/t)/t² = 1/t³.",
+                     r"v' = t^{-3} \;\Longrightarrow\; v = -\frac{1}{2t^{2}}"),
+                Step("y₂ = t·(−1/(2t²)) = −1/(2t); dropping the constant "
+                     "factor, y₂ = 1/t. Check: t²(2/t³) + t(−1/t²) − 1/t = "
+                     "2/t − 1/t − 1/t = 0."),
+            ),
+            equation="t**2*y'' + t*y' - y = 0",
+            answer="1/t", answer_latex=r"y_2 = \frac{1}{t}",
+        ),
+        Para(
+            "Legendre's equation (1 − t²)y'' − 2ty' + n(n + 1)y = 0 is the "
+            "classic example with no elementary shortcut. For n = 1 the "
+            "polynomial y₁ = t is a solution, as substitution shows: "
+            "0 − 2t + 2t = 0. Reduction of order produces the second, which "
+            "is not a polynomial and blows up at t = ±1, the points where the "
+            "leading coefficient 1 − t² vanishes."
+        ),
+        Worked(
+            "Legendre's equation with n = 1",
+            "Find a second solution of (1 − t²)y'' − 2ty' + 2y = 0 on (−1, 1), "
+            "given y₁ = t.",
+            (
+                Step("p = −2t/(1 − t²), so ∫p dt = ln(1 − t²) and "
+                     "e^(−∫p) = 1/(1 − t²). Then v' = 1/(t²(1 − t²)), which "
+                     "splits into partial fractions.",
+                     r"\frac{1}{t^{2}(1 - t^{2})} = \frac{1}{t^{2}} + "
+                     r"\frac{1}{2}\left(\frac{1}{1 - t} + \frac{1}{1 + t}\right)"),
+                Step("Integrating, v = −1/t + (1/2)ln((1 + t)/(1 − t)), and "
+                     "y₂ = tv.",
+                     r"y_2 = \frac{t}{2}\ln\frac{1 + t}{1 - t} - 1"),
+            ),
+            equation="(1 - t**2)*y'' - 2*t*y' + 2*y = 0",
+            answer="t*log((1 + t)/(1 - t))/2 - 1",
+            answer_latex=r"y_2 = \frac{t}{2}\ln\frac{1 + t}{1 - t} - 1",
+        ),
+        Plot(
+            "The two Legendre solutions for n = 1",
+            "y₁ = t, a polynomial, and y₂ = (t/2)ln((1 + t)/(1 − t)) − 1, which "
+            "is even, equals −1 at the origin and grows without bound as t "
+            "approaches ±1. In physics only the bounded solution is usually "
+            "wanted, which is how the Legendre polynomials are selected.",
+            (Curve("t", "y₁ = t"),
+             Curve("t*log((1 + t)/(1 - t))/2 - 1", "y₂")),
+            t=(-0.98, 0.98), ylim=(-1.5, 2.0),
+        ),
+    )),
+    Section("Finding the first solution", (
+        Para(
+            "Everything above assumes y₁ is known, and that is the real "
+            "restriction of the method. A textbook problem usually supplies "
+            "it. When it does not, the practical approach is to try the "
+            "obvious candidates: a power t^r (especially when the coefficients "
+            "are powers of t, as in Cauchy–Euler equations), an exponential "
+            "e^(rt) (when some combination of coefficients is constant), a "
+            "low-degree polynomial, or e^(t²)-type functions when the "
+            "coefficients grow linearly."
+        ),
+        Para(
+            "For e^(rt) there is a quick test: substituting it into "
+            "a(t)y'' + b(t)y' + c(t)y gives (a r² + b r + c)e^(rt), so e^(rt) is a "
+            "solution exactly when a(t)r² + b(t)r + c(t) = 0 for every t. For "
+            "t·y'' − (t + 1)y' + y = 0 that is tr² − (t + 1)r + 1 = "
+            "t(r² − r) − (r − 1), zero for all t only when r = 1. Similar "
+            "bookkeeping works for t^r. The narrator in this application does "
+            "exactly this search — powers, exponentials, low-degree "
+            "polynomials — and keeps the first candidate that substitutes to "
+            "zero, checking rather than assuming."
+        ),
+        Box(
+            "remark", "If no first solution can be found",
+            "Then reduction of order cannot start, and the next resources are "
+            "power series (Unit 7), which produce solutions near ordinary and "
+            "regular singular points, and numerical methods, which always "
+            "work. A second-order linear equation with variable coefficients "
+            "is, in general, not solvable in closed form.",
+        ),
+    )),
+    Section("A shortcut through the Wronskian", (
+        Para(
+            "There is a second way to reach the formula, and it shows why the "
+            "method has to work. Abel's formula from the superposition lesson "
+            "says that the Wronskian of *any* two solutions is a constant "
+            "times e^(−∫p dt), and that constant can be chosen as 1. So if y₁ "
+            "is known, a second solution y₂ must satisfy "
+            "y₁y₂' − y₁'y₂ = e^(−∫p dt), which is a first-order linear "
+            "equation for y₂ — the Wronskian is known before y₂ is."
+        ),
+        Para(
+            "Divide that equation by y₁²: the left side becomes the derivative "
+            "of the quotient y₂/y₁, by the quotient rule. So (y₂/y₁)' = "
+            "e^(−∫p dt)/y₁², and integrating gives exactly the formula of the "
+            "theorem. The two derivations are the same calculation seen "
+            "from two angles: the substitution y = vy₁ finds v' directly, and "
+            "the Wronskian identifies v' as W/y₁² before any substitution is "
+            "made."
+        ),
+        Display(r"\left(\frac{y_2}{y_1}\right)' = \frac{W}{y_1^{2}} = "
+                r"\frac{e^{-\int p\, dt}}{y_1^{2}}"),
+        Para(
+            "This view also explains why the constants of integration may be "
+            "dropped. Changing the Wronskian's constant rescales y₂; adding a "
+            "constant to the quotient y₂/y₁ adds a multiple of y₁ to y₂. "
+            "Neither changes the pair's usefulness as a fundamental set, "
+            "because the general solution c₁y₁ + c₂y₂ absorbs both."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "The standard-form error has been warned about twice already, "
+            "because it is by far the commonest: p must be read after dividing "
+            "by the coefficient of y''. The second is to forget the square in "
+            "y₁². The formula divides by y₁², not y₁, and the square is what "
+            "makes the Wronskian come out as e^(−∫p); dividing by y₁ alone "
+            "gives a function that, multiplied by y₁, does not solve the "
+            "equation."
+        ),
+        Para(
+            "The third is sloppiness with ln|t| and absolute values. On an "
+            "interval where t > 0, e^(−∫p dt) with p = −1/t is t, not |t|, and "
+            "the method should be carried out on one interval at a time — the "
+            "interval where the coefficients are continuous and y₁ is not "
+            "zero. Where y₁ vanishes the division by y₁² fails, and the "
+            "second solution found on one side of the zero may need a "
+            "different constant on the other. A final substitution of y₂ into "
+            "the original equation settles all of these at once."
+        ),
+    )),
+    Section("A little history", (
+        Para(
+            "The method is usually credited to Jean le Rond d'Alembert, who "
+            "used it in the eighteenth century for equations with constant "
+            "coefficients — "
+            "exactly the repeated-root derivation above. It was one of the "
+            "first systematic tricks in the subject, and the idea behind it, "
+            "writing the unknown as a known function times a new unknown, "
+            "runs through everything that followed: variation of parameters "
+            "is Lagrange's generalisation of it, and the substitution "
+            "y = ue^(kt) used in the undetermined-coefficients lesson is the "
+            "same move again. When an equation is almost solved, factor out "
+            "the part you know and see what equation the rest satisfies."
+        ),
+    )),
+    Section("Reduction of order for forced equations", (
+        Para(
+            "The substitution y = vy₁ works for the nonhomogeneous equation "
+            "y'' + py' + qy = f too. The term multiplying v still vanishes, so "
+            "the equation becomes y₁w' + (2y₁' + py₁)w = f for w = v' — now a "
+            "first-order linear equation with a forcing term, which the "
+            "integrating factor solves. Its solution contains a constant of "
+            "integration that produces the second homogeneous solution, and "
+            "a particular part that produces a particular solution of the "
+            "forced equation."
+        ),
+        Para(
+            "A small example shows both appearing. For y'' − y = 1 with "
+            "y₁ = e^t, the reduced equation is e^t w' + 2e^t w = 1, that is "
+            "w' + 2w = e^(−t). Its solution is w = e^(−t) + Ce^(−2t), so "
+            "v = −e^(−t) − (C/2)e^(−2t) + D and y = ve^t = −1 − (C/2)e^(−t) + De^t. "
+            "The constant −1 is a particular solution (substitute it: "
+            "0 − (−1) = 1), and the arbitrary multiples of e^(−t) and e^t are "
+            "the complete homogeneous solution — all from one known solution "
+            "and two first-order integrations."
+        ),
+        Para(
+            "So with a single known homogeneous solution, reduction of order "
+            "solves the forced equation completely — both the missing "
+            "homogeneous solution and a particular solution come out of the "
+            "same first-order equation. Variation of parameters needs both "
+            "homogeneous solutions first; reduction of order needs only one. "
+            "They are two routes through the same idea."
+        ),
+    )),
+    Section("Reading the second solution", (
+        Para(
+            "The second solution produced by reduction of order is often "
+            "qualitatively different from the first, and the difference "
+            "carries information. Legendre's y₂ blows up at t = ±1 while y₁ = t "
+            "does not; the Cauchy–Euler y₂ = 1/t blows up at 0 while y₁ = t "
+            "does not. In each case the blow-up happens at a point where the "
+            "leading coefficient of the equation vanishes — a *singular point* "
+            "— and it is the second solution that feels the singularity."
+        ),
+        Para(
+            "That pattern is general and important. Near a singular point, "
+            "usually one solution is well behaved and the other is not, and "
+            "a physical problem that requires the solution to stay finite "
+            "there selects the well-behaved one. The temperature in a disc "
+            "must be finite at the centre; the displacement of a drumhead "
+            "must be finite at its middle. Unit 7's series methods are built "
+            "to find the solutions near such points, and reduction of order "
+            "is the tool that recovers the other one once the first is known."
+        ),
+    )),
+    Section("Choosing among the methods of this unit", (
+        Para(
+            "Unit 3 now has four ways of producing solutions of a linear "
+            "second-order equation, and it helps to know which to reach for. "
+            "Constant coefficients and no forcing: characteristic roots, "
+            "always. Constant coefficients with polynomial, exponential or "
+            "sinusoidal forcing: characteristic roots for the complementary "
+            "function and undetermined coefficients for the particular "
+            "solution. Constant coefficients with any other forcing: "
+            "variation of parameters for the particular solution."
+        ),
+        Para(
+            "Variable coefficients: if the equation is Cauchy–Euler, the next "
+            "lesson's trial y = t^r gives both solutions; otherwise, look for "
+            "one solution by inspection or trial and use reduction of order "
+            "for the second, then variation of parameters (or reduction of "
+            "order again) for any forcing. And if no first solution can be "
+            "found, move on to series or to numerical methods. Every one of "
+            "these paths ends in the same place: a fundamental set, a "
+            "particular solution, and constants fitted to the conditions."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "Given one nonzero solution y₁ of y'' + py' + qy = 0, set y = vy₁. "
+            "The terms in v cancel because y₁ is a solution, leaving a "
+            "first-order equation for w = v' whose solution is "
+            "w = e^(−∫p dt)/y₁². Integrate once more for v, and y₂ = vy₁ is a "
+            "second solution, independent of the first because their "
+            "Wronskian is y₁²w = e^(−∫p dt). Divide by the leading coefficient "
+            "before reading off p. The method derives the te^(rt) of the "
+            "repeated root, produces non-elementary second solutions such as "
+            "Legendre's, and, applied to a forced equation, gives the rest of "
+            "the solution from one homogeneous solution. Its only real demand "
+            "is that first solution, which is why the search for one — by "
+            "inspection, by trial, or by series — is where the work usually "
+            "lies."
+        ),
+    )),
+)
 
 
 VARIATION = (

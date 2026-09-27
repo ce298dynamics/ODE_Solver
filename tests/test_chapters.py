@@ -35,6 +35,7 @@ CHAPTERED = (
     "roots",
     "undetermined",
     "variation",
+    "reduction-of-order",
 )
 
 #: About five pages of prose.

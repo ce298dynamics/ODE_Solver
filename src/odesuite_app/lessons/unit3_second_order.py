@@ -2191,6 +2191,7 @@ HIGHER = Lesson(
 
 REDUCTION = Lesson(
     key="reduction-of-order",
+    chapter=chapters.REDUCTION,
     title="Reduction of order: a second solution from the first",
     summary="When one solution is known, the second is a first-order problem "
             "— for any linear second-order equation, constant coefficients "
