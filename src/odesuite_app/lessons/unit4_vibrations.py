@@ -490,6 +490,7 @@ FREE = Lesson(
 
 FORCED = Lesson(
     key="forced-vibration",
+    chapter=chapters.FORCED,
     title="Forced oscillation, beats and resonance",
     summary="What happens when something drives the system, and why matching "
             "its natural frequency is destructive.",

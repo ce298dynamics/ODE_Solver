@@ -39,6 +39,7 @@ CHAPTERED = (
     "cauchy",
     "higher",
     "free-vibration",
+    "forced-vibration",
 )
 
 #: About five pages of prose.

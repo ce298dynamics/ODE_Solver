@@ -4,7 +4,420 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["FREE"]
+__all__ = ["FREE", "FORCED"]
+
+
+FORCED = (
+    Section("Pushing a system that wants to vibrate", (
+        Para(
+            "The last lesson let a spring vibrate on its own. This one pushes "
+            "it. A periodic external force F(t) = F₀cos ωt acts on the mass — "
+            "an unbalanced motor, the bumps of a road, the wind shedding "
+            "vortices off a chimney, the alternating voltage in a circuit — "
+            "and the question is how the system responds. The answer depends "
+            "on a comparison that runs through the whole lesson: the "
+            "frequency ω at which the system is pushed against the natural "
+            "frequency ω₀ at which it would vibrate if left alone."
+        ),
+        Display(r"m x'' + c x' + k x = F_0 \cos\omega t", "1"),
+        Para(
+            "Equation (1) is linear with constant coefficients and a "
+            "sinusoidal forcing, so Unit 3 solves it: the general solution is "
+            "the complementary function, which is the free vibration of the "
+            "last lesson, plus a particular solution found by undetermined "
+            "coefficients. The physics lies in reading the two parts. The "
+            "complementary function depends on the initial conditions; the "
+            "particular solution depends only on the forcing. With damping, "
+            "the first dies away and the second is what remains."
+        ),
+        Box(
+            "definition", "Transient and steady-state response",
+            "For a damped system the complementary function decays and is "
+            "called the *transient*. The particular solution that oscillates "
+            "at the forcing frequency, and persists, is the *steady-state "
+            "response*.",
+            r"x(t) = x_c(t) + x_p(t), \qquad x_c(t) \to 0",
+        ),
+    )),
+    Section("Undamped forcing away from resonance", (
+        Para(
+            "Start with no damping and ω ≠ ω₀. The trial A cos ωt works (the "
+            "equation has no first derivative, so no sine is needed), and "
+            "substituting gives A(k − mω²) = F₀. So the particular solution is "
+            "a cosine at the forcing frequency with amplitude F₀/(k − mω²), "
+            "or F₀/(m(ω₀² − ω²)) — large when ω is close to ω₀, and negative "
+            "when ω > ω₀, meaning the mass moves opposite to the force."
+        ),
+        Display(r"x_p = \frac{F_0/m}{\omega_0^{2} - \omega^{2}}\cos\omega t", "2"),
+        Worked(
+            "Forcing below the natural frequency",
+            "Solve x'' + 9x = 10 cos 2t from rest at equilibrium.",
+            (
+                Step("ω₀ = 3 and ω = 2. The trial A cos 2t gives (9 − 4)A = 10, "
+                     "so A = 2 and x_p = 2 cos 2t.",
+                     r"x = 2\cos 2t + c_1\cos 3t + c_2\sin 3t"),
+                Step("x(0) = 2 + c₁ = 0 gives c₁ = −2; x'(0) = 3c₂ = 0 gives "
+                     "c₂ = 0."),
+            ),
+            equation="y'' + 9*y = 10*cos(2*t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="2*cos(2*t) - 2*cos(3*t)",
+            answer_latex=r"x(t) = 2\cos 2t - 2\cos 3t",
+        ),
+        Para(
+            "Without damping the free vibration −2 cos 3t never dies, and the "
+            "motion is a permanent mixture of the forcing frequency and the "
+            "natural one. Since 2 and 3 are in the ratio 2 : 3 the pattern "
+            "repeats every 2π, but for an irrational ratio it would never "
+            "repeat exactly. Real systems always have some damping, which "
+            "eventually removes the natural-frequency part and leaves the "
+            "steady response alone."
+        ),
+    )),
+    Section("Beats", (
+        Para(
+            "Something striking happens when the forcing frequency is close "
+            "to, but not equal to, the natural one. Take x'' + ω₀²x = "
+            "(F₀/m)cos ωt from rest. The solution is a difference of two "
+            "cosines of nearly equal frequency, and the trigonometric identity "
+            "for cos A − cos B turns it into a product."
+        ),
+        Display(r"x = \frac{2F_0/m}{\omega_0^{2} - \omega^{2}}\, "
+                r"\sin\frac{(\omega_0 - \omega)t}{2}\, "
+                r"\sin\frac{(\omega_0 + \omega)t}{2}", "3"),
+        Para(
+            "Read (3) as a fast oscillation at the average frequency "
+            "(ω₀ + ω)/2 whose amplitude is itself a slow oscillation at half "
+            "the difference frequency. The result swells and fades "
+            "periodically: *beats*. It is what a piano tuner listens for — "
+            "two strings nearly in tune produce a slow throb in loudness that "
+            "vanishes as they come into tune — and it is what a child on a "
+            "swing feels when pushed at not quite the right rhythm."
+        ),
+        Worked(
+            "Beats",
+            "Solve x'' + 100x = cos 9t from rest.",
+            (
+                Step("ω₀ = 10 and ω = 9, so A = 1/(100 − 81) = 1/19, and "
+                     "starting from rest the complementary part is "
+                     "−cos(10t)/19.",
+                     r"x = \frac{\cos 9t - \cos 10t}{19}"),
+                Step("By the identity, x = (2/19) sin(t/2) sin(19t/2): a fast "
+                     "oscillation at 9.5 rad/s inside an envelope that rises "
+                     "and falls with period 4π ≈ 12.6 s."),
+            ),
+            equation="y'' + 100*y = cos(9*t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="(cos(9*t) - cos(10*t))/19",
+            answer_latex=r"x(t) = \frac{\cos 9t - \cos 10t}{19}",
+        ),
+        Plot(
+            "Beats",
+            "x = (cos 9t − cos 10t)/19 with its slow envelope ±(2/19)sin(t/2). "
+            "The fast oscillation builds up as the forcing and the natural "
+            "vibration fall into step, then dies away as they drift out of "
+            "step, over and over.",
+            (Curve("(cos(9*t) - cos(10*t))/19", "x(t)"),
+             Curve("2*sin(t/2)/19", "envelope"),
+             Curve("-2*sin(t/2)/19", "")),
+            t=(0.0, 25.0),
+        ),
+    )),
+    Section("Pure resonance", (
+        Para(
+            "At ω = ω₀ exactly, formula (2) divides by zero, and that is the "
+            "modification rule of Unit 3 speaking: the forcing is itself a "
+            "free vibration, so the trial must be multiplied by t. The "
+            "response then grows linearly without bound. Physically, the "
+            "force is always pushing in the direction the mass is already "
+            "moving, so every cycle adds energy and none is removed."
+        ),
+        Box(
+            "theorem", "Resonance",
+            "For x'' + ω₀²x = (F₀/m) sin ω₀t or cos ω₀t, the particular solution "
+            "is t times a sinusoid at ω₀, with amplitude growing like "
+            "F₀t/(2mω₀).",
+            r"x_p = \frac{F_0}{2 m \omega_0}\, t \sin\omega_0 t "
+            r"\quad\text{for}\quad F_0\cos\omega_0 t",
+        ),
+        Worked(
+            "Resonance from rest",
+            "Solve x'' + 4x = 2 sin 2t from rest.",
+            (
+                Step("ω₀ = ω = 2, so try t(A cos 2t + B sin 2t). The t-terms "
+                     "cancel, leaving −4A sin 2t + 4B cos 2t = 2 sin 2t: A = −1/2 "
+                     "and B = 0.",
+                     r"x_p = -\frac{t}{2}\cos 2t"),
+                Step("Adding c₁cos 2t + c₂sin 2t: x(0) = c₁ = 0, and "
+                     "x'(0) = −1/2 + 2c₂ = 0 gives c₂ = 1/4."),
+            ),
+            equation="y'' + 4*y = 2*sin(2*t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="-t*cos(2*t)/2 + sin(2*t)/4",
+            answer_latex=r"x(t) = -\frac{t}{2}\cos 2t + \frac{1}{4}\sin 2t",
+        ),
+        Plot(
+            "Resonance, and beats as its approach",
+            "The resonant response −(t/2)cos 2t + sin(2t)/4 grows without "
+            "bound. Beats are resonance seen from nearby: as ω → ω₀ the beat "
+            "period grows without limit, and the first swell of the envelope "
+            "becomes this unending linear growth.",
+            (Curve("-t*cos(2*t)/2 + sin(2*t)/4", "x(t)"),
+             Curve("t/2", "envelope t/2"), Curve("-t/2", "")),
+            t=(0.0, 20.0),
+        ),
+    )),
+    Section("Damped forcing and the steady state", (
+        Para(
+            "With damping, the trial must include both cos ωt and sin ωt, "
+            "because the damping term turns one into the other. Substituting "
+            "and matching coefficients gives two linear equations, and the "
+            "steady-state response is a sinusoid at the forcing frequency, "
+            "lagging behind the force by a phase angle α and with an "
+            "amplitude C(ω) that depends on how close ω is to ω₀."
+        ),
+        Box(
+            "theorem", "Steady-state response",
+            "For mx'' + cx' + kx = F₀cos ωt with c > 0, the steady-state "
+            "response is x_p = C cos(ωt − α), with the amplitude below and a "
+            "phase lag α between 0 and π given by tan α = cω/(k − mω²).",
+            r"C(\omega) = \frac{F_0}{\sqrt{(k - m\omega^{2})^{2} + (c\omega)^{2}}}",
+        ),
+        Worked(
+            "Transient and steady state",
+            "Solve x'' + 2x' + 5x = 10 cos t from rest.",
+            (
+                Step("Try A cos t + B sin t. Matching: 4A + 2B = 10 and "
+                     "4B − 2A = 0, so A = 2B, then B = 1 and A = 2. The steady "
+                     "state is 2 cos t + sin t, of amplitude √5.",
+                     r"x_p = 2\cos t + \sin t"),
+                Step("The complementary function is e^(−t)(c₁cos 2t + c₂sin 2t). "
+                     "From rest: 2 + c₁ = 0, so c₁ = −2, and 1 − c₁ + 2c₂ = 0, "
+                     "so c₂ = −3/2."),
+            ),
+            equation="y'' + 2*y' + 5*y = 10*cos(t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="2*cos(t) + sin(t) - exp(-t)*(2*cos(2*t) + 3*sin(2*t)/2)",
+            answer_latex=r"x(t) = 2\cos t + \sin t - e^{-t}\left(2\cos 2t + "
+                         r"\frac{3}{2}\sin 2t\right)",
+        ),
+        Plot(
+            "The transient dies, the steady state remains",
+            "The full solution from rest and the steady state 2 cos t + sin t. "
+            "By t ≈ 4 the transient, which decays like e^(−t), is invisible, "
+            "and the motion is the steady response alone — the same whatever "
+            "the initial conditions were.",
+            (Curve("2*cos(t) + sin(t) - exp(-t)*(2*cos(2*t) + 1.5*sin(2*t))",
+                   "x(t)"),
+             Curve("2*cos(t) + sin(t)", "steady state")),
+            t=(0.0, 15.0),
+        ),
+    )),
+    Section("The frequency response", (
+        Para(
+            "The amplitude formula C(ω) is the most useful single result of "
+            "the unit, because it answers a design question directly: how "
+            "strongly does this system respond to forcing at each frequency? "
+            "Plotted against ω it is the *frequency response*. For small "
+            "damping it has a sharp peak near ω₀; for large damping the peak "
+            "flattens and eventually disappears."
+        ),
+        Plot(
+            "Amplitude against forcing frequency",
+            "C(ω) = 1/√((4 − ω²)² + (cω)²) for a system with m = 1, k = 4 "
+            "(so ω₀ = 2) and F₀ = 1, for damping c = 0.25, 0.5 and 1. The "
+            "lighter the damping, the taller and narrower the peak: at "
+            "c = 0.25 the response at resonance is about eight times the "
+            "static deflection 1/k = 0.25.",
+            (Curve("1/sqrt((4 - t**2)**2 + (0.25*t)**2)", "c = 0.25"),
+             Curve("1/sqrt((4 - t**2)**2 + (0.5*t)**2)", "c = 0.5"),
+             Curve("1/sqrt((4 - t**2)**2 + (1.0*t)**2)", "c = 1")),
+            t=(0.0, 4.0), xlabel="forcing frequency ω", ylabel="amplitude C",
+            ylim=(0.0, 2.2),
+        ),
+        Para(
+            "Setting the derivative of C(ω) to zero shows the peak is at "
+            "ω_max = √(ω₀² − c²/(2m²)), slightly below ω₀, and exists only when "
+            "c² < 2mk. This is *practical resonance*. At the peak, the "
+            "amplitude is roughly Q times the static deflection F₀/k, where Q "
+            "is the quality factor of the last lesson — which is why lightly "
+            "damped structures are so dangerous to force near their natural "
+            "frequency, and why a radio can pick one station out of many."
+        ),
+        Figure("resonance",
+               "Sweep the forcing frequency and watch the response in time "
+               "and the frequency-response curve together, with the damping "
+               "on a slider."),
+        Para(
+            "For quick estimates, three facts about the curve are enough. At "
+            "very low frequency the response is the static deflection F₀/k: "
+            "the spring alone resists, as if the force were constant. At very "
+            "high frequency it falls off like F₀/(mω²): inertia alone "
+            "resists. Near resonance, for light damping, the peak height is "
+            "about Q·F₀/k and its width — the band of frequencies over which "
+            "the response exceeds 1/√2 of its peak — is about ω₀/Q. A system "
+            "with Q = 100 therefore responds a hundred times more strongly at "
+            "resonance than to a steady push, but only within a band 1% of "
+            "its natural frequency wide."
+        ),
+        Para(
+            "Measuring a frequency response is also how natural frequencies "
+            "and damping are found in practice. Shake a structure over a "
+            "range of frequencies, record the amplitude and phase of its "
+            "response, and read ω₀ from where the phase passes π/2 and Q from "
+            "the sharpness of the peak. Engineers do this to aircraft wings, "
+            "bridges and car bodies before they are used, precisely to find "
+            "the frequencies that must never be driven."
+        ),
+    )),
+    Section("Phase", (
+        Para(
+            "The phase lag α says when the response peaks relative to the "
+            "force. At low frequency α ≈ 0: the mass follows the force "
+            "slowly, as if the spring alone were resisting. At resonance "
+            "α = π/2: the displacement lags the force by a quarter cycle, "
+            "which puts the *velocity* exactly in step with the force, and "
+            "that is why energy flows in fastest there. At high frequency "
+            "α → π: the mass moves opposite to the force, its inertia "
+            "dominating."
+        ),
+        Para(
+            "In the worked example, tan α = cω/(k − mω²) = 2/4 = 1/2, so the "
+            "steady state lags the force cos t by arctan(1/2) ≈ 0.46 rad, "
+            "which at ω = 1 is a delay of 0.46 time units. Written as "
+            "C cos(t − α), 2 cos t + sin t has C = √5 and α = arctan(1/2), "
+            "matching. The phase is often more informative experimentally than "
+            "the amplitude, because it passes through π/2 exactly at the "
+            "natural frequency whatever the damping."
+        ),
+    )),
+    Section("Where the energy goes", (
+        Para(
+            "In the steady state the amplitude is constant, so the energy "
+            "stored in the spring and the moving mass is the same at the "
+            "start of every cycle. The energy the force puts in during a "
+            "cycle must therefore equal the energy the damper takes out. The "
+            "damper dissipates power cx'², which averages to (1/2)cω²C² over a "
+            "cycle, so the force must supply exactly that much on average."
+        ),
+        Display(r"\overline{P} = \frac{1}{2} c\, \omega^{2} C^{2}"),
+        Para(
+            "This explains the shape of the frequency response from a "
+            "different angle. A force can put in energy only when it pushes "
+            "in the direction of motion, and it does that most effectively "
+            "when it is in step with the *velocity* — which is what the phase "
+            "lag of π/2 at resonance arranges. Away from resonance the force "
+            "spends part of each cycle pushing against the motion, taking "
+            "back some of what it gave, and the net transfer is smaller. With "
+            "no damping at all there is nowhere for the energy to go at "
+            "resonance, and it accumulates without limit, as the t in the "
+            "resonant solution says."
+        ),
+    )),
+    Section("Resonance in the world", (
+        Para(
+            "Resonance is useful as often as it is dangerous. A radio tuner "
+            "is an electrical oscillator whose natural frequency is adjusted "
+            "to match one station, so that station alone is amplified. A "
+            "microwave oven heats food by driving water molecules near a "
+            "frequency they absorb strongly. A musical instrument's body "
+            "resonates to make a string's vibration audible. In each case a "
+            "high quality factor is the goal, because it makes the response "
+            "both large and selective."
+        ),
+        Para(
+            "The dangers are just as real, though the famous stories need "
+            "telling carefully. London's Millennium Bridge swayed alarmingly "
+            "when it opened in 2000, because the footfalls of a crowd "
+            "synchronised with the bridge's lateral motion and drove it near "
+            "a natural frequency; it was closed and fitted with dampers. The "
+            "Tacoma Narrows Bridge collapse of 1940 is often cited as "
+            "resonance, but the wind that destroyed it was steady, not "
+            "periodic, and the mechanism was aeroelastic flutter, a "
+            "self-excited instability — closer to the negative damping of a "
+            "growing oscillation than to forced resonance. Machines with "
+            "rotating parts, such as a washing machine on its spin cycle, "
+            "pass through resonance as they speed up, which is why they "
+            "shudder briefly and then settle."
+        ),
+    )),
+    Section("Vibration isolation", (
+        Para(
+            "The frequency response also tells an engineer how to *prevent* "
+            "vibration from being transmitted. Mount a machine that shakes at "
+            "frequency ω on springs of natural frequency ω₀. For ω much "
+            "larger than ω₀ the amplitude C(ω) is small, roughly F₀/(mω²), "
+            "because the mass's inertia stops it following fast forcing. "
+            "Working out the force passed through the springs to the floor "
+            "shows that isolation begins only when ω exceeds √2·ω₀; below "
+            "that, the mounting makes things worse."
+        ),
+        Para(
+            "So the design rule is to make the mounting's natural frequency "
+            "low — soft springs, heavy base — well below the frequencies to be "
+            "isolated. The same principle protects buildings in earthquake "
+            "zones, which are set on flexible bearings that give the building "
+            "a natural frequency far below the dominant frequencies of ground "
+            "shaking, and it is why sensitive instruments sit on heavy tables "
+            "floating on air springs."
+        ),
+    )),
+    Section("Forcing that is periodic but not a sinusoid", (
+        Para(
+            "Real forcing is rarely a pure cosine: an engine's impulses, the "
+            "bumps of a road with regularly spaced joints, a square-wave "
+            "voltage. But any reasonable periodic function of period T can be "
+            "written as a sum of sinusoids at frequencies 2π/T, 4π/T, 6π/T, "
+            "… — its Fourier series — and because the equation is linear the "
+            "steady-state response is the sum of the responses to each "
+            "sinusoid, each scaled by C at its own frequency."
+        ),
+        Para(
+            "That has a consequence worth knowing. Even when the fundamental "
+            "frequency of the forcing is far below ω₀, one of its harmonics "
+            "may land close to ω₀, and the system will then respond strongly "
+            "at that harmonic. A forcing with period three times the natural "
+            "period can still excite resonance through its third harmonic. "
+            "The Laplace-transform unit develops tools for forcing that is "
+            "switched on and off, which is the non-periodic version of the "
+            "same idea."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "With damping, the trial must contain both cos ωt and sin ωt even "
+            "when the forcing has only one of them; leaving one out produces "
+            "two equations that cannot both be satisfied. The resonance "
+            "modification applies only without damping: with c > 0 the "
+            "roots have negative real part, iω is never a root, and no factor "
+            "of t is ever needed. And the steady state must not be confused "
+            "with the full solution when initial conditions are asked for — "
+            "the transient carries the initial conditions and must be "
+            "included, even though it dies away."
+        ),
+        Para(
+            "In reading answers, keep the frequency the response oscillates "
+            "at separate from the frequency at which its amplitude peaks. "
+            "The steady state always oscillates at the forcing frequency ω, "
+            "never at ω₀ or ω₁; the natural frequency determines only *how "
+            "large* the response is, through C(ω). The transient oscillates "
+            "at the damped natural frequency ω₁, which is why the early "
+            "motion can look like a mixture of two rhythms."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "A forced oscillator mx'' + cx' + kx = F₀cos ωt responds with the "
+            "free vibration of the last lesson plus a particular solution at "
+            "the forcing frequency. Undamped and off resonance, the two "
+            "coexist for ever, and near resonance they produce beats. At "
+            "resonance, ω = ω₀, the response grows without bound. With "
+            "damping the free part is a transient that dies, leaving the "
+            "steady state C cos(ωt − α) with C = F₀/√((k − mω²)² + (cω)²), "
+            "peaking near ω₀ at about Q times the static deflection, and a "
+            "phase lag that passes π/2 at the natural frequency. Design "
+            "follows from that one curve: keep forcing away from ω₀, add "
+            "damping where it cannot be kept away, and mount on soft springs "
+            "to isolate what must not shake."
+        ),
+    )),
+)
 
 
 FREE = (
