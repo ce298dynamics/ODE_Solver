@@ -1498,6 +1498,7 @@ SLOPEFIELDS = Lesson(
 
 EXACT = Lesson(
     key="exact",
+    chapter=chapters.EXACT,
     title="Exact equations",
     summary="When the left side is already the derivative of something, and "
             "the only work is finding what.",

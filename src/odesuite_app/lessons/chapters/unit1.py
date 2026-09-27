@@ -4,7 +4,375 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["BASICS", "SLOPEFIELDS", "SEPARABLE", "LINEAR"]
+__all__ = ["BASICS", "SLOPEFIELDS", "SEPARABLE", "LINEAR", "EXACT"]
+
+
+EXACT = (
+    Section("Solutions as level curves", (
+        Para(
+            "Some first-order equations are neither separable nor linear and "
+            "yet have solutions that are easy to describe: they lie along the "
+            "level curves of a function of two variables. The equation "
+            "(2t + y) + (t + 2y)y' = 0 is an example. It does not separate — "
+            "t and y are tangled in both brackets — and it is not linear, "
+            "because y multiplies y'. But every one of its solutions satisfies "
+            "t² + ty + y² = C for some constant C, a family of ellipses."
+        ),
+        Para(
+            "To see why, suppose a function F(t, y) is constant along a "
+            "solution y(t): F(t, y(t)) = C. Differentiate that with respect to "
+            "t, using the chain rule for a function of two variables. The "
+            "result is an equation involving y' — a differential equation that "
+            "the curve must satisfy."
+        ),
+        Display(r"\frac{d}{dt} F(t, y(t)) = F_t + F_y\, y' = 0", "1"),
+        Para(
+            "So any equation of the form F_t + F_y y' = 0 has the level curves "
+            "of F as its solutions. For F = t² + ty + y², F_t = 2t + y and "
+            "F_y = t + 2y, and (1) is exactly the equation above. The whole "
+            "difficulty is running this backwards: given an equation "
+            "M + N y' = 0, recognising that M and N are the partial "
+            "derivatives of some F, and finding F."
+        ),
+        Box(
+            "definition", "Exact equation",
+            "The equation M(t, y) + N(t, y) y' = 0 — often written in "
+            "differential form M dt + N dy = 0 — is *exact* on a region if "
+            "there is a function F(t, y), called a potential, with F_t = M and "
+            "F_y = N there. Its solutions are then given implicitly by "
+            "F(t, y) = C.",
+            r"M\, dt + N\, dy = 0, \qquad F_t = M, \;\; F_y = N",
+        ),
+    )),
+    Section("The test for exactness", (
+        Para(
+            "Guessing F is not a method. Fortunately there is a test that "
+            "decides exactness without finding F, and it comes from a fact "
+            "about mixed partial derivatives: if F has continuous second "
+            "derivatives, F_ty = F_yt. If M = F_t and N = F_y, then ∂M/∂y = "
+            "F_ty and ∂N/∂t = F_yt, so an exact equation must have ∂M/∂y = "
+            "∂N/∂t. The remarkable part is that the converse holds too."
+        ),
+        Box(
+            "theorem", "Criterion for exactness",
+            "Let M and N have continuous first partial derivatives on an open "
+            "rectangle. Then M dt + N dy = 0 is exact on that rectangle if and "
+            "only if the cross partial derivatives agree there.",
+            r"\frac{\partial M}{\partial y} = \frac{\partial N}{\partial t}",
+        ),
+        Box(
+            "proof", "",
+            "One direction is the equality of mixed partials, above. For the "
+            "other, define F(t, y) = ∫M dt + g(y), integrating in t with y held "
+            "fixed, so that F_t = M automatically. The unknown g(y) must make "
+            "F_y = N, that is g'(y) = N − ∂/∂y ∫M dt. This can be solved for g "
+            "only if the right side does not depend on t, and its t-derivative "
+            "is ∂N/∂t − ∂M/∂y, which is zero exactly when the test holds. So "
+            "the test is what makes the construction work.",
+        ),
+        Para(
+            "The proof is also the method: integrate M with respect to t, add "
+            "an unknown function of y, and choose that function so that the "
+            "y-derivative comes out as N. Equally, one can integrate N with "
+            "respect to y and add a function of t. Either way the answer is "
+            "the same F, up to a constant that is absorbed into C."
+        ),
+        Box(
+            "warning", "Which variable to integrate in",
+            "M goes with dt, so M is integrated with respect to t; N goes with "
+            "dy and is integrated with respect to y. Integrating M with "
+            "respect to y is a common slip, and it produces a function whose "
+            "derivatives are not M and N at all.",
+        ),
+        Figure("level_curves",
+               "The level curves of a potential F, drawn as the solution "
+               "curves of the exact equation it defines. Each curve is one "
+               "value of C."),
+    )),
+    Section("Worked examples", (
+        Worked(
+            "A family of ellipses",
+            "Solve (2t + y) + (t + 2y)y' = 0 with y(0) = 1.",
+            (
+                Step("Test: M = 2t + y, N = t + 2y, and ∂M/∂y = 1 = ∂N/∂t. "
+                     "Exact.",
+                     r"\frac{\partial M}{\partial y} = 1 = "
+                     r"\frac{\partial N}{\partial t}"),
+                Step("Integrate M in t: F = t² + ty + g(y). Then F_y = t + g'(y) "
+                     "must equal N = t + 2y, so g' = 2y and g = y².",
+                     r"F(t, y) = t^{2} + t y + y^{2}"),
+                Step("The solutions are t² + ty + y² = C. At (0, 1), C = 1. "
+                     "Solving the quadratic for y and taking the root through "
+                     "y(0) = 1 gives the explicit solution, valid while "
+                     "4 − 3t² > 0.",
+                     r"y^{2} + t y + (t^{2} - 1) = 0"),
+            ),
+            equation="y' = -(2*t + y)/(t + 2*y)", conditions="y(0) = 1",
+            answer="(-t + sqrt(4 - 3*t**2))/2",
+            answer_latex=r"y(t) = \frac{-t + \sqrt{4 - 3t^{2}}}{2}",
+        ),
+        Plot(
+            "Solutions of (2t + y) + (t + 2y)y' = 0",
+            "Upper branches of the ellipses t² + ty + y² = C for C = 1, 2 and "
+            "3. Each is a solution on the interval where the square root is "
+            "real, and each ends where the ellipse turns vertical — where "
+            "N = t + 2y = 0 and the equation cannot be solved for y'.",
+            (Curve("(-t + sqrt(4 - 3*t**2))/2", "C = 1"),
+             Curve("(-t + sqrt(8 - 3*t**2))/2", "C = 2"),
+             Curve("(-t + sqrt(12 - 3*t**2))/2", "C = 3")),
+            t=(-2.0, 2.0), ylim=(-1.0, 2.5),
+        ),
+        Para(
+            "The ends of those intervals deserve a word. The implicit solution "
+            "is a whole ellipse, but a solution of a differential equation is "
+            "a *function* of t, and an ellipse is not the graph of one. It "
+            "splits into an upper and a lower function, joined at the two "
+            "points where the tangent is vertical. Those are exactly the "
+            "points where N = 0, where the equation M + Ny' = 0 does not "
+            "determine y'. The theory is telling you where to stop."
+        ),
+        Worked(
+            "A trigonometric term",
+            "Solve (cos t + y) + (t + 2y)y' = 0 with y(0) = 1.",
+            (
+                Step("∂M/∂y = 1 and ∂N/∂t = 1: exact."),
+                Step("Integrate N in y this time: F = ty + y² + h(t). Then "
+                     "F_t = y + h'(t) must equal cos t + y, so h = sin t.",
+                     r"F(t, y) = \sin t + t y + y^{2}"),
+                Step("At (0, 1), F = 0 + 0 + 1, so the solution satisfies "
+                     "sin t + ty + y² = 1. The quadratic formula gives the "
+                     "branch through y = 1.",
+                     r"y^{2} + t y + (\sin t - 1) = 0"),
+            ),
+            equation="y' = -(cos(t) + y)/(t + 2*y)", conditions="y(0) = 1",
+            answer="(-t + sqrt(t**2 + 4 - 4*sin(t)))/2",
+            answer_latex=r"y(t) = \frac{-t + \sqrt{t^{2} + 4 - 4\sin t}}{2}",
+        ),
+        Para(
+            "Integrating N with respect to y was the easier route here, "
+            "because M contains cos t and integrating it in t first gives the "
+            "same result with more bookkeeping. Choosing the easier of the two "
+            "integrations is a small skill worth practising; the potential is "
+            "the same either way."
+        ),
+        Worked(
+            "Higher powers",
+            "Solve (3t² + 2ty²) + (2t²y)y' = 0 with y(1) = 1.",
+            (
+                Step("∂M/∂y = 4ty and ∂N/∂t = 4ty. Exact.",
+                     r"\frac{\partial}{\partial y}(3t^{2} + 2t y^{2}) = 4 t y = "
+                     r"\frac{\partial}{\partial t}(2 t^{2} y)"),
+                Step("Integrate N in y: F = t²y² + h(t), and F_t = 2ty² + h' "
+                     "must equal 3t² + 2ty², so h = t³.",
+                     r"F = t^{3} + t^{2} y^{2}"),
+                Step("At (1, 1), F = 2. So t³ + t²y² = 2, and solving for "
+                     "the positive y gives the solution, valid for "
+                     "0 < t < 2^(1/3).",
+                     r"y^{2} = \frac{2 - t^{3}}{t^{2}}"),
+            ),
+            equation="y' = -(3*t**2 + 2*t*y**2)/(2*t**2*y)", conditions="y(1) = 1",
+            answer="sqrt(2 - t**3)/t", answer_latex=r"y(t) = \frac{\sqrt{2 - t^{3}}}{t}",
+        ),
+    )),
+    Section("When the test fails: integrating factors", (
+        Para(
+            "Most equations are not exact. But just as a linear equation "
+            "becomes a derivative after multiplying by the right function, a "
+            "non-exact equation can sometimes be made exact by multiplying "
+            "through by an *integrating factor* μ. Multiplying M + Ny' = 0 by a "
+            "nonzero function does not change its solutions, only its form, "
+            "so this is always allowed."
+        ),
+        Para(
+            "Asking for μ(t, y) in general leads to a partial differential "
+            "equation harder than the original problem. But if μ is allowed to "
+            "depend on t alone, the exactness condition for μM and μN becomes "
+            "an ordinary equation for μ, and it can be solved whenever a "
+            "certain ratio turns out to depend on t alone."
+        ),
+        Box(
+            "theorem", "Integrating factors depending on one variable",
+            "If (M_y − N_t)/N depends on t only, call it p(t); then μ(t) = "
+            "e^(∫p dt) makes the equation exact. If instead (N_t − M_y)/M "
+            "depends on y only, call it q(y); then μ(y) = e^(∫q dy) does.",
+            r"\mu(t) = e^{\int \frac{M_y - N_t}{N}\, dt}",
+        ),
+        Para(
+            "The proof is one line: the condition (μM)_y = (μN)_t, with μ a "
+            "function of t alone, reads μM_y = μ'N + μN_t, that is "
+            "μ'/μ = (M_y − N_t)/N. That is solvable for μ(t) exactly when the "
+            "right side has no y in it. The linear equation's integrating "
+            "factor is a special case: y' + py = q written as (py − q) + y' = 0 "
+            "has (M_y − N_t)/N = p, and μ = e^(∫p dt) again."
+        ),
+        Worked(
+            "Making an equation exact",
+            "Solve (3ty + y²) + (t² + ty)y' = 0 with y(1) = 1.",
+            (
+                Step("Test: M_y = 3t + 2y, N_t = 2t + y. Not equal, so not "
+                     "exact. Try the ratio:",
+                     r"\frac{M_y - N_t}{N} = \frac{t + y}{t(t + y)} = "
+                     r"\frac{1}{t}"),
+                Step("It depends on t alone, so μ = e^(∫dt/t) = t. Multiplied "
+                     "by t the equation is (3t²y + ty²) + (t³ + t²y)y' = 0, and "
+                     "now both cross partials are 3t² + 2ty."),
+                Step("Integrate the new N in y: F = t³y + t²y²/2 + h(t), and "
+                     "matching F_t gives h = 0. At (1, 1), F = 3/2.",
+                     r"t^{3} y + \frac{t^{2} y^{2}}{2} = \frac{3}{2}"),
+                Step("Solve the quadratic in y for the branch through y = 1.",
+                     r"y = \frac{-t^{3} + \sqrt{t^{6} + 3t^{2}}}{t^{2}}"),
+            ),
+            equation="y' = -(3*t*y + y**2)/(t**2 + t*y)", conditions="y(1) = 1",
+            answer="(-t**3 + sqrt(t**6 + 3*t**2))/t**2",
+            answer_latex=r"y(t) = \frac{-t^{3} + \sqrt{t^{6} + 3t^{2}}}{t^{2}}",
+        ),
+    )),
+    Section("When neither ratio works", (
+        Para(
+            "If both ratios involve both variables, no integrating factor of "
+            "one variable exists, and the honest conclusion is that this "
+            "method does not apply. Integrating factors of the form t^a y^b, "
+            "or depending on t + y or ty, sometimes work and are found in "
+            "longer texts, but guessing among them is not a reliable method. "
+            "The next lesson's substitutions are the better next step: they "
+            "change the variables so that one of the standard methods fits."
+        ),
+    )),
+    Section("An integrating factor in y", (
+        Para(
+            "The second half of the theorem is used exactly like the first, "
+            "with the roles of t and y exchanged. It is needed less often, "
+            "but when M is simple and N complicated it is usually the one "
+            "that works, and it is worth one example to see the bookkeeping."
+        ),
+        Worked(
+            "A factor depending on y, and an answer left implicit",
+            "Solve y + (2t − ye^y)y' = 0.",
+            (
+                Step("M = y, N = 2t − ye^y, so M_y = 1 and N_t = 2: not exact. "
+                     "(M_y − N_t)/N = −1/(2t − ye^y) involves y, so no factor "
+                     "in t alone. Try the other ratio:",
+                     r"\frac{N_t - M_y}{M} = \frac{2 - 1}{y} = \frac{1}{y}"),
+                Step("It depends on y only, so μ = e^(∫dy/y) = y. The new "
+                     "equation y² + (2ty − y²e^y)y' = 0 has both cross partials "
+                     "equal to 2y."),
+                Step("Integrate the new M in t: F = ty² + g(y). Matching "
+                     "F_y = 2ty + g' with 2ty − y²e^y gives g' = −y²e^y, and "
+                     "integrating by parts twice, g = −(y² − 2y + 2)e^y.",
+                     r"t y^{2} - (y^{2} - 2y + 2)\, e^{y} = C"),
+                Step("This cannot be solved for y in elementary functions, so "
+                     "the implicit relation is the answer. It can be checked "
+                     "by differentiating: F_t + F_y y' = y² + (2ty − y²e^y)y', "
+                     "which is y times the original equation."),
+            ),
+        ),
+        Para(
+            "Two remarks about that example. First, multiplying by μ = y can "
+            "*add* a solution: y = 0 makes the multiplied equation true, but "
+            "it may or may not solve the original one, and here it does, "
+            "since y = 0 makes M = 0 and N·y' = 2t·0 = 0. Whenever an "
+            "integrating factor can vanish, check its zeros against the "
+            "original equation. Second, an implicit answer is not a failure. "
+            "It determines y near every point where F_y ≠ 0, a computer can "
+            "draw its level curves, and a numerical method can follow any one "
+            "of them."
+        ),
+    )),
+    Section("The geometry behind exactness", (
+        Para(
+            "There is a picture that makes exactness intuitive. The pair "
+            "(M, N) is a vector field in the plane, and the equation "
+            "M + Ny' = 0 says that the direction (1, y') of a solution curve "
+            "is perpendicular to (M, N): their dot product is zero. So "
+            "solution curves run everywhere at right angles to the field."
+        ),
+        Para(
+            "When the equation is exact, (M, N) = (F_t, F_y) is the *gradient* "
+            "of F, and a curve perpendicular to a gradient is a level curve — "
+            "the contour lines on a map run at right angles to the direction of "
+            "steepest ascent. The test M_y = N_t is the condition for a vector "
+            "field to be a gradient, which in physics is the condition for a "
+            "force to be *conservative*, to have a potential energy. Exact "
+            "equations, conservative forces and path-independent line "
+            "integrals are one idea seen from three sides."
+        ),
+        Display(r"(M, N) = \nabla F \quad\Longleftrightarrow\quad "
+                r"M_y = N_t \;\;\text{(on a rectangle)}"),
+        Para(
+            "The qualifier *on a rectangle* matters in the same way it matters "
+            "in physics. On a region with a hole — the plane with the origin "
+            "removed, say — a field can pass the test and still fail to be a "
+            "gradient, and the potential then exists only on pieces of the "
+            "region. For the equations of a first course this rarely arises, "
+            "but it is why the theorem is stated on a rectangle and not on any "
+            "region at all."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "Most errors with exact equations are errors of bookkeeping, and "
+            "they are easy to catch if you know where to look. Differentiating "
+            "the wrong way round: the test is ∂M/∂y against ∂N/∂t — each "
+            "function is differentiated with respect to the *other* variable. "
+            "Forgetting the unknown function: after integrating M in t, the "
+            "constant of integration can depend on y, and writing + C instead "
+            "of + g(y) loses exactly the part the method needs. Doubling "
+            "terms: when F is built from both integrals, a term that appears "
+            "in both must be counted once."
+        ),
+        Para(
+            "And the equation must be in the form M + Ny' = 0 with everything "
+            "on one side before M and N are read off. y' = −(2t + y)/(t + 2y) "
+            "gives M = 2t + y and N = t + 2y only after it is rearranged; "
+            "reading M as −(2t + y) and N as t + 2y changes a sign and turns an "
+            "exact equation into one that fails the test. Rearrange first, "
+            "then identify M and N, then test."
+        ),
+    )),
+    Section("How exact equations fit with the others", (
+        Para(
+            "Exactness is not an isolated trick; it is a point of view that "
+            "contains the earlier methods. A separable equation y' = f(t)g(y), "
+            "written as f(t) − y'/g(y) = 0, is exact, since M depends on t "
+            "alone and N on y alone, so both cross partials are zero. Its "
+            "potential is ∫f dt − ∫dy/g, and F = C is precisely the implicit "
+            "solution separation produces. A linear equation, as above, "
+            "becomes exact after its integrating factor. So all three methods "
+            "are ways of finding a function that is constant along solutions."
+        ),
+        Para(
+            "That idea — find something that does not change as the solution "
+            "moves — reaches far beyond this lesson. In Unit 8 the energy of a "
+            "frictionless pendulum is exactly such a function, and its level "
+            "curves are the pendulum's orbits in the phase plane. The "
+            "equation for those orbits is exact, and the potential is the "
+            "energy. Conserved quantities in physics and potentials of exact "
+            "equations are the same mathematics."
+        ),
+        Box(
+            "remark", "Why the application tests exactness itself",
+            "The computer-algebra routine behind the Solve Step by Step screen "
+            "does not reliably recognise exact equations — it often classifies "
+            "them under other headings, and on some it searches for a very "
+            "long time. So the narrator checks M_y = N_t directly, as this "
+            "lesson does, and builds F by the construction in the proof.",
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "To solve M + Ny' = 0: compute ∂M/∂y and ∂N/∂t. If they agree the "
+            "equation is exact; integrate M in t (or N in y), add an unknown "
+            "function of the other variable, and fix it by matching the other "
+            "partial derivative. The solutions are the level curves F = C, "
+            "with C fixed by the initial condition, and an explicit solution "
+            "exists on the interval where the curve is the graph of a "
+            "function — it ends where N = 0. If the test fails, compute "
+            "(M_y − N_t)/N; if it depends on t alone, its exponentiated "
+            "integral is an integrating factor. And check the result by "
+            "differentiating F(t, y(t)) — it should give zero."
+        ),
+    )),
+)
 
 
 SLOPEFIELDS = (

@@ -24,6 +24,7 @@ CHAPTERED = (
     "slopefields",
     "separable",
     "linear",
+    "exact",
 )
 
 #: About five pages of prose.
