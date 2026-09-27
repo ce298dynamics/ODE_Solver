@@ -38,6 +38,7 @@ CHAPTERED = (
     "reduction-of-order",
     "cauchy",
     "higher",
+    "free-vibration",
 )
 
 #: About five pages of prose.

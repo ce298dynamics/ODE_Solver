@@ -13,6 +13,7 @@ steady state -- and two figures to move.
 
 from __future__ import annotations
 
+from .chapters import unit4 as chapters
 from .model import (
     Case,
     Choice,
@@ -32,6 +33,7 @@ __all__ = ["FREE", "FORCED", "CIRCUITS", "LESSONS"]
 
 FREE = Lesson(
     key="free-vibration",
+    chapter=chapters.FREE,
     title="Free vibration: under-, critically and over-damped",
     summary="One equation, three behaviours, and a single coefficient that "
             "decides which one you get.",
