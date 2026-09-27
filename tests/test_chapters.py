@@ -36,6 +36,7 @@ CHAPTERED = (
     "undetermined",
     "variation",
     "reduction-of-order",
+    "cauchy",
 )
 
 #: About five pages of prose.

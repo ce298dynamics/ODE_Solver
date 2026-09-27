@@ -5,7 +5,416 @@ from __future__ import annotations
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
 __all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED", "VARIATION",
-           "REDUCTION"]
+           "REDUCTION", "CAUCHY"]
+
+
+CAUCHY = (
+    Section("The one variable-coefficient family with a recipe", (
+        Para(
+            "Equations with variable coefficients are, as a rule, not "
+            "solvable in closed form. There is one important exception, and "
+            "it is the subject of this lesson. When each derivative is "
+            "multiplied by the matching power of t — t² in front of y'', t in "
+            "front of y', a constant in front of y — the equation is called a "
+            "Cauchy–Euler (or equidimensional) equation, and it can be solved "
+            "as completely as a constant-coefficient one, by a method that is "
+            "almost the same."
+        ),
+        Box(
+            "definition", "Cauchy–Euler equation",
+            "A second-order Cauchy–Euler equation has the form below, with a, "
+            "b and c constants. It is usually studied on t > 0, since the "
+            "leading coefficient at² vanishes at t = 0.",
+            r"a t^{2} y'' + b t y' + c y = 0",
+        ),
+        Para(
+            "These equations arise whenever a problem has no preferred scale "
+            "of length. Laplace's equation in polar coordinates, separated in "
+            "the radial variable, is a Cauchy–Euler equation; so are the "
+            "equations for the stress in a thick-walled pipe, the temperature "
+            "in a spherical shell, and the deflection of a circular plate. In "
+            "each case the physics looks the same at every radius, and the "
+            "equation reflects that symmetry."
+        ),
+        Para(
+            "The symmetry is visible in the equation itself. Replace t by λt "
+            "for any constant λ > 0: y'' picks up a factor 1/λ² and t² picks "
+            "up λ², so their product is unchanged, and likewise for ty'. The "
+            "equation cannot tell whether t is measured in metres or "
+            "millimetres. That is the property that makes powers of t — which "
+            "also rescale into constant multiples of themselves — the natural "
+            "trial solutions."
+        ),
+        Para(
+            "Compare the exponential trial of the constant-coefficient case. "
+            "There the equation was unchanged by *shifting* t, and the "
+            "exponentials, which shift into constant multiples of themselves, "
+            "were the natural solutions. Symmetry chooses the trial function "
+            "in both cases, which is a pattern worth noticing well beyond "
+            "this course."
+        ),
+    )),
+    Section("Trying a power of t", (
+        Para(
+            "For constant coefficients the trial e^(rt) worked because every "
+            "derivative was a constant multiple of the function. For "
+            "Cauchy–Euler equations the trial t^r works for the analogous "
+            "reason: t·(t^r)' = rt^r and t²·(t^r)'' = r(r − 1)t^r, so each term "
+            "of the equation becomes a constant multiple of t^r, which can be "
+            "cancelled."
+        ),
+        Display(r"a\, r(r - 1)\, t^{r} + b\, r\, t^{r} + c\, t^{r} = 0 "
+                r"\;\Longrightarrow\; a r(r - 1) + b r + c = 0", "1"),
+        Box(
+            "definition", "Indicial equation",
+            "The quadratic a·r(r − 1) + b·r + c = 0 is the *indicial "
+            "equation* of the Cauchy–Euler equation. The function t^r solves "
+            "the differential equation on t > 0 exactly when r is one of its "
+            "roots.",
+            r"a r^{2} + (b - a) r + c = 0",
+        ),
+        Box(
+            "warning", "It is r(r − 1), not r²",
+            "The coefficient of y'' contributes a·r(r − 1), because t²(t^r)'' = "
+            "r(r − 1)t^r. Reading the indicial equation straight off the "
+            "coefficients as ar² + br + c — as one would for a "
+            "constant-coefficient equation — is the commonest mistake with "
+            "these equations, and it changes every root.",
+        ),
+        Para(
+            "As before, the discriminant sorts the equations into three "
+            "cases, and each has its own form of general solution. The "
+            "pattern is exactly that of characteristic roots, with e^(rt) "
+            "replaced by t^r and t replaced by ln t — and Section 6 explains "
+            "why."
+        ),
+    )),
+    Section("Distinct real roots", (
+        Box(
+            "theorem", "Distinct real indicial roots",
+            "If the indicial equation has distinct real roots r₁ and r₂, the "
+            "general solution on t > 0 is the combination below.",
+            r"y = c_1 t^{r_1} + c_2 t^{r_2}",
+        ),
+        Worked(
+            "Two integer powers",
+            "Solve t²y'' − 2ty' + 2y = 0 with y(1) = 1, y'(1) = 0.",
+            (
+                Step("The indicial equation is r(r − 1) − 2r + 2 = "
+                     "r² − 3r + 2 = (r − 1)(r − 2) = 0, so r = 1 and r = 2.",
+                     r"y = c_1 t + c_2 t^{2}"),
+                Step("At t = 1: c₁ + c₂ = 1 and c₁ + 2c₂ = 0, so c₂ = −1 and "
+                     "c₁ = 2."),
+            ),
+            equation="t**2*y'' - 2*t*y' + 2*y = 0", conditions="y(1) = 1, y'(1) = 0",
+            answer="2*t - t**2", answer_latex=r"y(t) = 2t - t^{2}",
+        ),
+        Worked(
+            "A growing and a decaying power",
+            "Solve t²y'' + ty' − 9y = 0 with y(1) = 2, y'(1) = 0.",
+            (
+                Step("r(r − 1) + r − 9 = r² − 9 = 0 gives r = ±3.",
+                     r"y = c_1 t^{3} + c_2 t^{-3}"),
+                Step("c₁ + c₂ = 2 and 3c₁ − 3c₂ = 0, so c₁ = c₂ = 1."),
+            ),
+            equation="t**2*y'' + t*y' - 9*y = 0", conditions="y(1) = 2, y'(1) = 0",
+            answer="t**3 + t**(-3)", answer_latex=r"y(t) = t^{3} + t^{-3}",
+        ),
+        Para(
+            "The second example shows the typical behaviour near t = 0: t⁻³ "
+            "blows up as t → 0⁺ while t³ vanishes. In applications where the "
+            "domain includes the origin — a solid disc or ball — only the "
+            "bounded solution is physical, and the condition 'finite at the "
+            "centre' removes the other. Where the domain excludes it — an "
+            "annulus, a pipe wall — both are needed, and the two boundary "
+            "conditions fix both constants."
+        ),
+        Para(
+            "The roots need not be integers. For 2t²y'' + 3ty' − y = 0 the "
+            "indicial equation is 2r(r − 1) + 3r − 1 = 2r² + r − 1 = "
+            "(2r − 1)(r + 1) = 0, so the solutions are √t and 1/t. Fractional "
+            "powers are perfectly good solutions on t > 0 — which is one more "
+            "reason the domain is taken to be t > 0, where every real power of "
+            "t is defined and differentiable."
+        ),
+        Plot(
+            "Powers of t as solutions",
+            "t³ + t⁻³, the solution of the second example, and the two powers "
+            "it is built from. The minimum at t = 1 is where the two terms "
+            "balance; the decaying power dominates near zero and the growing "
+            "one far away.",
+            (Curve("t**3 + t**(-3)", "t³ + t⁻³"), Curve("t**3", "t³"),
+             Curve("t**(-3)", "t⁻³")),
+            t=(0.3, 2.0), ylim=(0.0, 10.0),
+        ),
+    )),
+    Section("A repeated root", (
+        Box(
+            "theorem", "Repeated indicial root",
+            "If the indicial equation has a double root r, the general "
+            "solution on t > 0 is below. The logarithm plays the part that "
+            "the factor t played for a repeated characteristic root.",
+            r"y = t^{r}\left(c_1 + c_2 \ln t\right)",
+        ),
+        Para(
+            "The second solution t^r ln t can be checked by substitution, and "
+            "reduction of order derives it: with y₁ = t^r and the standard form "
+            "p = b/(at), the quantity e^(−∫p)/y₁² simplifies to 1/t exactly when "
+            "r is a double root, and the integral of 1/t is ln t. As with the "
+            "constant-coefficient case, the 'extra' factor is the integral of "
+            "the simplest possible v'."
+        ),
+        Worked(
+            "A double root",
+            "Solve t²y'' + 3ty' + y = 0 with y(1) = 1, y'(1) = 0.",
+            (
+                Step("r(r − 1) + 3r + 1 = r² + 2r + 1 = (r + 1)² = 0: a double "
+                     "root r = −1.",
+                     r"y = \frac{c_1 + c_2 \ln t}{t}"),
+                Step("y(1) = c₁ = 1. Differentiating, y' = (c₂ − c₁ − c₂ ln t)/t², "
+                     "so y'(1) = c₂ − c₁ = 0 and c₂ = 1."),
+            ),
+            equation="t**2*y'' + 3*t*y' + y = 0", conditions="y(1) = 1, y'(1) = 0",
+            answer="(1 + log(t))/t", answer_latex=r"y(t) = \frac{1 + \ln t}{t}",
+        ),
+        Worked(
+            "A double root at r = 2",
+            "Solve t²y'' − 3ty' + 4y = 0 with y(1) = 0, y'(1) = 1.",
+            (
+                Step("r² − 4r + 4 = (r − 2)² = 0, so y = t²(c₁ + c₂ ln t).",
+                     r"y = t^{2}(c_1 + c_2\ln t)"),
+                Step("y(1) = c₁ = 0, and y' = 2t(c₁ + c₂ln t) + c₂t gives "
+                     "y'(1) = c₂ = 1."),
+            ),
+            equation="t**2*y'' - 3*t*y' + 4*y = 0", conditions="y(1) = 0, y'(1) = 1",
+            answer="t**2*log(t)", answer_latex=r"y(t) = t^{2}\ln t",
+        ),
+    )),
+    Section("Complex roots", (
+        Para(
+            "When the indicial roots are complex, α ± iβ, the power t^(α + iβ) "
+            "has to be interpreted. Write t = e^(ln t): then "
+            "t^(iβ) = e^(iβ ln t) = cos(β ln t) + i sin(β ln t) by Euler's "
+            "formula. Taking real and imaginary parts, as in the "
+            "characteristic-roots lesson, gives two real solutions."
+        ),
+        Box(
+            "theorem", "Complex indicial roots",
+            "If the indicial roots are α ± iβ with β ≠ 0, the general solution "
+            "on t > 0 is below: oscillations in ln t rather than in t, inside "
+            "an envelope t^α.",
+            r"y = t^{\alpha}\left(c_1\cos(\beta\ln t) + c_2 \sin(\beta\ln t)\right)",
+        ),
+        Worked(
+            "Oscillations in the logarithm",
+            "Solve t²y'' + ty' + 4y = 0 with y(1) = 1, y'(1) = 2.",
+            (
+                Step("r(r − 1) + r + 4 = r² + 4 = 0 gives r = ±2i: α = 0, β = 2.",
+                     r"y = c_1\cos(2\ln t) + c_2\sin(2\ln t)"),
+                Step("y(1) = c₁ = 1, since ln 1 = 0. Differentiating, "
+                     "y' = (−2c₁ sin(2 ln t) + 2c₂ cos(2 ln t))/t, so "
+                     "y'(1) = 2c₂ = 2 and c₂ = 1."),
+            ),
+            equation="t**2*y'' + t*y' + 4*y = 0", conditions="y(1) = 1, y'(1) = 2",
+            answer="cos(2*log(t)) + sin(2*log(t))",
+            answer_latex=r"y(t) = \cos(2\ln t) + \sin(2\ln t)",
+        ),
+        Plot(
+            "Oscillations that crowd towards zero",
+            "y = cos(2 ln t) + sin(2 ln t) on (0.01, 20). Equal steps in ln t "
+            "are equal *ratios* in t, so the oscillation completes one cycle "
+            "between t = 1 and t = e^π ≈ 23, and another between e^(−π) ≈ 0.043 "
+            "and 1 — infinitely many cycles crowd into (0, 1) as t → 0⁺.",
+            (Curve("cos(2*log(t)) + sin(2*log(t))", "solution"),),
+            t=(0.01, 20.0), ylim=(-1.6, 1.6),
+        ),
+        Figure("powers",
+               "Change the coefficients and watch the indicial roots move and "
+               "the solutions change between powers, a power times a "
+               "logarithm, and oscillations in ln t."),
+    )),
+    Section("Why it works: the substitution t = e^s", (
+        Para(
+            "The parallel with constant coefficients is not a coincidence. "
+            "Change the independent variable by t = e^s, that is s = ln t. By "
+            "the chain rule, dy/dt = (dy/ds)/t, so ty' = dy/ds; differentiating "
+            "again, t²y'' = d²y/ds² − dy/ds. Substituting, the Cauchy–Euler "
+            "equation becomes an equation in s with constant coefficients."
+        ),
+        Display(r"t = e^{s}: \quad t\, y' = \frac{dy}{ds}, \quad "
+                r"t^{2} y'' = \frac{d^{2}y}{ds^{2}} - \frac{dy}{ds}", "2"),
+        Display(r"a\,\frac{d^{2}y}{ds^{2}} + (b - a)\,\frac{dy}{ds} + c\,y = 0",
+                "3"),
+        Para(
+            "The characteristic equation of (3) is ar² + (b − a)r + c = 0, "
+            "exactly the indicial equation. Its solutions e^(rs) are t^r; its "
+            "repeated-root solution se^(rs) is t^r ln t; its complex solutions "
+            "e^(αs)cos βs are t^α cos(β ln t). Every formula in this lesson is "
+            "a formula from the characteristic-roots lesson with s = ln t "
+            "substituted, and that is the cleanest way to remember them."
+        ),
+        Box(
+            "remark", "Logarithmic time",
+            "The substitution says a Cauchy–Euler equation is a "
+            "constant-coefficient equation in logarithmic time. Anything that "
+            "happens at a steady rate in s happens at a steady *ratio* in t — "
+            "which is why its oscillations are evenly spaced on a logarithmic "
+            "axis and crowd together on a linear one.",
+        ),
+    )),
+    Section("Negative t, and the point t = 0", (
+        Para(
+            "Everything above was on t > 0. For t < 0, powers like t^(1/2) and "
+            "logarithms are not real, but the equation is unchanged by "
+            "t → −t (both t² and t·(d/dt) are unchanged by that reflection), "
+            "so the solutions on t < 0 are the same formulas with t replaced "
+            "by |t|: |t|^r, |t|^r ln|t|, and |t|^α cos(β ln|t|). The two half-lines "
+            "are separate intervals, and a solution on one need not continue "
+            "onto the other."
+        ),
+        Para(
+            "At t = 0 itself the leading coefficient vanishes, the "
+            "existence-and-uniqueness theorem does not apply, and solutions "
+            "can do almost anything there — blow up like t⁻³, oscillate "
+            "infinitely often like cos(2 ln t), or pass smoothly through like "
+            "t². A point where the leading coefficient vanishes is a *singular "
+            "point*, and the Cauchy–Euler equation is the model for a *regular* "
+            "singular point: bad enough to break the theory, tame enough that "
+            "solutions are powers and logarithms. Unit 7's Frobenius method is "
+            "built on exactly this model."
+        ),
+    )),
+    Section("Forced Cauchy–Euler equations", (
+        Para(
+            "With a forcing term, at²y'' + bty' + cy = g(t), the complementary "
+            "function comes from the indicial roots and a particular solution "
+            "from one of the unit's two methods. Variation of parameters "
+            "always works, after dividing by at² to reach standard form. "
+            "Undetermined coefficients works only in disguise: through t = e^s "
+            "the equation becomes a constant-coefficient one with forcing "
+            "g(e^s), and if that is a polynomial or exponential in s — that "
+            "is, if g is a power of t or a power times a power of ln t — the "
+            "trial can be made in s and translated back."
+        ),
+        Para(
+            "In practice, for g = t^k the trial is simply At^k, unless k is an "
+            "indicial root, in which case it becomes At^k ln t — the modification "
+            "rule, translated. The variation-of-parameters lesson worked the "
+            "example t²y'' − 2ty' + 2y = t³: here k = 3 is not a root (the roots "
+            "are 1 and 2), and the trial At³ gives 6A − 6A + 2A = 1, so A = 1/2 "
+            "and y_p = t³/2, the same answer found there by integration."
+        ),
+        Worked(
+            "Forcing at an indicial root",
+            "Find a particular solution of t²y'' − 2ty' + 2y = t.",
+            (
+                Step("The forcing is t¹ and 1 is an indicial root, so the plain "
+                     "trial At would give zero. Use At ln t instead: "
+                     "y' = A(ln t + 1) and y'' = A/t.",
+                     r"y_p = A\, t \ln t"),
+                Step("Substituting: t²(A/t) − 2t·A(ln t + 1) + 2At ln t = "
+                     "At − 2At = −At. Setting −At = t gives A = −1.",
+                     r"y_p = -t\ln t"),
+            ),
+            equation="t**2*y'' - 2*t*y' + 2*y = t",
+            answer="-t*log(t)", answer_latex=r"y_p = -t\ln t",
+        ),
+        Para(
+            "The ln t in that trial is the translation of the extra factor s "
+            "that the modification rule would demand in the variable s = ln t: "
+            "the forcing e^s is a homogeneous solution of the transformed "
+            "equation, so its trial becomes Ase^s, which is At ln t. The two "
+            "lessons are one piece of theory in two coordinate systems."
+        ),
+    )),
+    Section("An application: heat in a pipe wall", (
+        Para(
+            "Consider the steady temperature u in the wall of a long pipe, "
+            "between an inner radius r = a and an outer radius r = b. If the "
+            "temperature depends only on the distance r from the axis, "
+            "Laplace's equation in polar coordinates reduces to r²u'' + ru' = 0 "
+            "— a Cauchy–Euler equation whose three coefficients are 1, 1 and "
+            "0. Its indicial "
+            "equation r(r − 1) + r = r² = 0 has the double root 0."
+        ),
+        Display(r"r^{2} u'' + r u' = 0 \;\Longrightarrow\; u = c_1 + c_2 \ln r"),
+        Para(
+            "So the temperature varies like the logarithm of the radius, not "
+            "linearly as it would across a flat wall. Given the inner and "
+            "outer temperatures, the two boundary conditions fix c₁ and c₂. "
+            "The logarithm means most of the temperature drop happens near "
+            "the inner surface, where the wall's circumference is smallest "
+            "and the same heat flow is squeezed through the least material — "
+            "a fact every engineer who insulates a pipe relies on."
+        ),
+        Para(
+            "If the temperature also varies around the pipe like cos nθ, the "
+            "radial equation becomes r²R'' + rR' − n²R = 0, with indicial roots "
+            "±n and solutions rⁿ and r⁻ⁿ. For a solid rod the r⁻ⁿ solution is "
+            "excluded, because the temperature at the axis must be finite; for "
+            "a hollow pipe both are needed. This is the separation of "
+            "variables method of a course on partial differential equations, "
+            "and Cauchy–Euler equations are the ordinary differential "
+            "equations it produces."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "The indicial equation is the main source of mistakes: writing "
+            "ar² + br + c instead of ar(r − 1) + br + c, as warned above. The "
+            "second is applying initial conditions at t = 0, where the "
+            "solutions may not even be defined; initial conditions for these "
+            "equations are given at some t₀ > 0, often t = 1 because ln 1 = 0 "
+            "and 1^r = 1 simplify everything. The third is differentiating "
+            "t^r ln t or cos(β ln t) without the chain rule — the derivative of "
+            "cos(β ln t) is −(β/t)sin(β ln t), and forgetting the 1/t spoils "
+            "the second constant."
+        ),
+        Para(
+            "Finally, the equation must genuinely be of Cauchy–Euler type. "
+            "t²y'' + t²y' + y = 0 is not — its middle coefficient has the wrong "
+            "power — and powers of t are not solutions of it. A quick check "
+            "is the scaling test of the first section: replace t by λt and see "
+            "whether the equation is unchanged."
+        ),
+    )),
+    Section("Higher order", (
+        Para(
+            "The same trial works for Cauchy–Euler equations of any order, "
+            "in which each derivative y⁽ᵏ⁾ is multiplied by a constant times "
+            "tᵏ. Substituting t^r turns t^k y⁽ᵏ⁾ into r(r − 1)⋯(r − k + 1)t^r, a "
+            "falling product of k factors, and the indicial equation becomes "
+            "a polynomial of the same degree as the order. Each root "
+            "contributes t^r, repeated roots contribute extra powers of ln t, "
+            "and complex pairs contribute cosines and sines of β ln t — exactly "
+            "the higher-order characteristic-root rules in the variable ln t."
+        ),
+        Para(
+            "For example, t³y''' + 3t²y'' − 2ty' + 2y = 0 has indicial equation "
+            "r(r − 1)(r − 2) + 3r(r − 1) − 2r + 2 = 0. Expanding, the terms "
+            "collect into r³ − 3r + 2 = (r − 1)²(r + 2), so the solutions are t, "
+            "t ln t and t⁻². The only new difficulty at higher order is "
+            "factoring the indicial polynomial, and that is the same "
+            "difficulty the constant-coefficient case has."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "A Cauchy–Euler equation at²y'' + bty' + cy = 0 is solved on t > 0 "
+            "by trying t^r, which gives the indicial equation "
+            "ar(r − 1) + br + c = 0 — note r(r − 1), not r². Distinct real roots "
+            "give c₁t^(r₁) + c₂t^(r₂); a double root r gives t^r(c₁ + c₂ ln t); "
+            "complex roots α ± iβ give t^α(c₁cos(β ln t) + c₂sin(β ln t)). All of "
+            "this is the constant-coefficient theory in the variable s = ln t, "
+            "which is how to remember it. The point t = 0 is a regular "
+            "singular point, where solutions may blow up or oscillate "
+            "infinitely often, and on t < 0 the same formulas hold with |t|. "
+            "Pose initial conditions away from zero — at t = 1 whenever you "
+            "can, where every power is 1 and every logarithm vanishes — and "
+            "the constants fall out with almost no arithmetic."
+        ),
+    )),
+)
 
 
 REDUCTION = (

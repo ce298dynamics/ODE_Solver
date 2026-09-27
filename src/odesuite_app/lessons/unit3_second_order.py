@@ -779,6 +779,7 @@ UNDETERMINED = Lesson(
 
 CAUCHY = Lesson(
     key="cauchy",
+    chapter=chapters.CAUCHY,
     title="Cauchy–Euler equations",
     summary="Variable coefficients that still come out in closed form, because "
             "the powers of t line up.",
