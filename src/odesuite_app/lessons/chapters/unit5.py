@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["TRANSFORM", "LAPLACE", "SHIFTING", "CONVOLUTION", "STEPFORCING"]
+__all__ = ["TRANSFORM", "LAPLACE", "SHIFTING", "CONVOLUTION", "STEPFORCING",
+           "IMPULSES"]
 
 
 LAPLACE = (
@@ -2307,6 +2308,468 @@ STEPFORCING = (
             "coefficient. After the last switch, what the system does is "
             "decided by its own equation alone: a damped system comes to "
             "rest, and an undamped one keeps whatever the forcing left it."
+        ),
+    )),
+)
+
+
+IMPULSES = (
+    Section("Blows too brief to resolve", (
+        Para(
+            "A hammer strikes a bell. A bat meets a ball. A capacitor "
+            "discharges through a coil in a spark. In each case a large "
+            "force acts for so short a time that nobody measures the time, "
+            "and nobody needs to: what matters afterwards is the total effect "
+            "of the force — in mechanics the impulse, the integral of force "
+            "over the contact time — and not the details of how it was "
+            "delivered within that instant."
+        ),
+        Para(
+            "The step functions of the last chapter can already model such a "
+            "blow as a tall, narrow pulse, and the method can already solve "
+            "the resulting equation. But the answer then depends on a contact "
+            "time that is unknown and irrelevant, and it is messier than the "
+            "physics deserves. This chapter takes the limit of shorter and "
+            "taller pulses with the impulse held fixed. The limit is not a "
+            "function, which is a real difficulty and not a technicality, but "
+            "it has a perfectly definite transform, and with that transform "
+            "the method handles blows more easily than it handles anything "
+            "else."
+        ),
+    )),
+    Section("Pulses of unit area", (
+        Para(
+            "Fix a time a ≥ 0 and a width ε > 0, and consider the rectangular "
+            "pulse of height 1/ε on the interval from a to a + ε. Whatever ε "
+            "is, the area under it is one: making the pulse narrower makes it "
+            "taller in exactly the proportion that keeps the total impulse "
+            "fixed. In steps it is a window divided by its width."
+        ),
+        Display(r"p_{\varepsilon}(t-a) = \frac{u(t-a) - u(t-a-\varepsilon)}"
+                r"{\varepsilon}, \qquad \int_{0}^{\infty}p_{\varepsilon}(t-a)\,dt = 1",
+                "5.17"),
+        Para(
+            "Its transform follows from the transform of a step: two delayed "
+            "copies of 1/s, divided by ε. As ε shrinks, (1 − e^(−εs))/ε tends "
+            "to s — it is a difference quotient for the derivative of "
+            "−e^(−εs) at ε = 0 — so the fraction (1 − e^(−εs))/(εs) tends to 1 "
+            "and the transform of the pulse tends to e^(−as). The pulses have no "
+            "limit as functions, since their height grows without bound, but "
+            "their transforms have a perfectly good limit."
+        ),
+        Display(r"\mathcal{L}\{p_{\varepsilon}(t-a)\} = e^{-as}\,"
+                r"\frac{1 - e^{-\varepsilon s}}{\varepsilon s} \;\longrightarrow\; "
+                r"e^{-as} \quad (\varepsilon \to 0)", "5.18"),
+        Plot(
+            "Narrower and taller",
+            "Pulses at a = 1 of width 1, 1/2 and 1/4, each of area one. "
+            "Every one delivers the same total impulse; only the time over "
+            "which it is delivered changes, and in the limit that time is "
+            "zero.",
+            (Curve("Heaviside(t - 1) - Heaviside(t - 2)", "width 1"),
+             Curve("2*(Heaviside(t - 1) - Heaviside(t - 3/2))", "width 1/2"),
+             Curve("4*(Heaviside(t - 1) - Heaviside(t - 5/4))", "width 1/4")),
+            t=(0.0, 3.0), ylim=(-0.2, 4.5),
+        ),
+        Figure("impulse_limit",
+               "Narrow the pulse and watch the response. Long before the "
+               "pulse looks like a spike, the response is indistinguishable "
+               "from the response to an ideal impulse. That, rather than any "
+               "claim that real blows are instantaneous, is why the model is "
+               "used: the system cannot tell the difference."),
+    )),
+    Section("The delta function", (
+        Para(
+            "What does survive the limit is the effect of a pulse on an "
+            "integral. If f is continuous, then over the short interval from "
+            "a to a + ε it is nearly constant, and the integral of p_ε(t − a) "
+            "times f(t) is the average of f over that interval, which tends "
+            "to f(a). This is the property taken as the definition."
+        ),
+        Box(
+            "definition", "The delta function",
+            "The Dirac delta δ(t − a) is defined by what it does inside an "
+            "integral: integrated against any function f continuous at a, it "
+            "returns the value f(a). This is called the sifting property. In "
+            "particular, taking f = 1, its total integral is one, and it "
+            "integrates to zero over any interval that does not contain a.",
+            r"\int_{-\infty}^{\infty}\delta(t-a)\,f(t)\,dt = f(a)",
+        ),
+        Box(
+            "remark", "It is not a function",
+            "No function has the properties just listed. A function that is "
+            "zero except at a single point has integral zero, whatever its "
+            "value at that point. δ is a generalised function, or "
+            "distribution: a rule assigning to each continuous f the number "
+            "f(a). Pictures of an infinitely tall spike are a mnemonic, not a "
+            "definition, and any statement about δ that cannot be read as a "
+            "statement about integrals against it should be distrusted.",
+        ),
+        Para(
+            "The sifting property also makes precise the relation between the "
+            "delta and the step. For t > a, the integral of δ(τ − a) from 0 "
+            "to t is one; for t < a it is zero. So the running integral of "
+            "the delta is the step, and in the same generalised sense the "
+            "derivative of the step is the delta: u'(t − a) = δ(t − a). An "
+            "impulse is the rate of change of a switch."
+        ),
+    )),
+    Section("The transform of an impulse", (
+        Box(
+            "theorem", "Transform of the delta function",
+            "For a ≥ 0 the transform of δ(t − a) is e^(−as). In particular an "
+            "impulse at time zero has transform 1.",
+            r"\mathcal{L}\{\delta(t-a)\} = e^{-as}, \qquad \mathcal{L}\{\delta(t)\} = 1",
+        ),
+        Box(
+            "proof", "Proof",
+            "The transform is an integral against e^(−st), which is continuous "
+            "at a. The sifting property gives its value there. This agrees "
+            "with the limit 5.18 of the pulses, as it must.",
+            r"\mathcal{L}\{\delta(t-a)\} = \int_{0}^{\infty}e^{-st}\,\delta(t-a)\,dt "
+            r"= e^{-as}",
+        ),
+        Para(
+            "Compare the transform of the step, e^(−as)/s. The impulse has no "
+            "factor 1/s, and that is consistent with the delta being the "
+            "derivative of the step: multiplying by s is what differentiation "
+            "does to a transform when the function starts from zero. It is "
+            "also the simplest transform in the whole table. The forcing that "
+            "is hardest to describe as a function is the easiest one for the "
+            "transform method to handle."
+        ),
+    )),
+    Section("Striking an oscillator", (
+        Worked(
+            "A blow at t = 3",
+            "Solve y'' + y = δ(t − 3) with y(0) = 0, y'(0) = 0.",
+            (
+                Step("Transform. The system is at rest, so the only term on the "
+                     "right is the transform of the impulse.",
+                     r"(s^{2}+1)\,Y = e^{-3s}"),
+                Step("Solve for Y, peel off the exponential, and invert what "
+                     "remains: 1/(s² + 1) is the transform of sin t.",
+                     r"Y = \frac{e^{-3s}}{s^{2}+1}"),
+                Step("Delay by 3 and switch on at 3.",
+                     r"y(t) = u(t-3)\,\sin(t-3)"),
+            ),
+            equation="y'' + y = DiracDelta(t - 3)",
+            conditions="y(0) = 0, y'(0) = 0",
+            answer="Heaviside(t - 3)*sin(t - 3)",
+            answer_latex=r"y(t) = u(t-3)\,\sin(t-3)",
+        ),
+        Para(
+            "Read the answer physically. Until t = 3 nothing has touched the "
+            "system and y is identically zero. At t = 3 the blow arrives. "
+            "Immediately afterwards y is still zero — the mass has not had "
+            "time to move — but its velocity is cos 0 = 1. From then on "
+            "nothing drives the system, and it oscillates freely at its "
+            "natural frequency with amplitude 1, for ever, because there is "
+            "no damping. A hammer blow to a perfect bell."
+        ),
+        Para(
+            "Notice also what the answer is not. The tempting slip from the "
+            "last chapter, u(t − 3) sin t, satisfies y'' + y = 0 on both "
+            "sides of t = 3; the checker in this application rejects it "
+            "because at t = 3 it leaves the wrong impulse behind. It jumps "
+            "in position there, by sin 3, which no blow can cause."
+        ),
+    )),
+    Section("What an impulse does", (
+        Para(
+            "The physical reading generalises. Integrate the equation "
+            "my'' + by' + ky = I δ(t − a) over a short interval around a, "
+            "from a − h to a + h, and let h shrink. On the right the sifting "
+            "property gives I. On the left, the y'' term integrates to the "
+            "change in y' across the interval, while the y' and y terms "
+            "contribute terms that tend to zero, because y and y' stay "
+            "bounded. What is left is a statement about the velocity alone."
+        ),
+        Box(
+            "theorem", "The jump produced by an impulse",
+            "If y solves my'' + by' + ky = I δ(t − a) + f(t), with f piecewise "
+            "continuous, then y is continuous at a, and y' jumps there by I/m. "
+            "An impulse changes the momentum my' by exactly I, and leaves the "
+            "position alone.",
+            r"y(a^{+}) = y(a^{-}), \qquad y'(a^{+}) - y'(a^{-}) = \frac{I}{m}",
+        ),
+        Para(
+            "This is Newton's second law in its original form: a force acting "
+            "for a time changes momentum by the impulse, whatever the shape "
+            "of the force within that time. It is also the natural companion "
+            "of the continuity theorem of the last chapter. There, a jump in "
+            "the forcing was absorbed by a jump in the highest derivative y''. "
+            "Here the forcing contains something worse than a jump, so the "
+            "next derivative down must jump instead."
+        ),
+        Worked(
+            "A blow to a moving system",
+            "Solve y'' + 4y = 2δ(t − 1) with y(0) = 1, y'(0) = 0.",
+            (
+                Step("Transform, using L{y''} = s²Y − s.",
+                     r"s^{2}Y - s + 4Y = 2e^{-s}"),
+                Step("Solve for Y. The first group comes from the initial values, "
+                     "the second from the blow.",
+                     r"Y = \frac{s}{s^{2}+4} + e^{-s}\,\frac{2}{s^{2}+4}"),
+                Step("Invert: s/(s² + 4) gives cos 2t, and 2/(s² + 4) gives "
+                     "sin 2t, delayed to t = 1.",
+                     r"y(t) = \cos 2t + u(t-1)\,\sin 2(t-1)"),
+                Step("Check the jump theorem. The added term is zero at t = 1, "
+                     "so y is continuous; its derivative there is 2 cos 0 = 2, "
+                     "which is I/m with I = 2 and m = 1."),
+            ),
+            equation="y'' + 4*y = 2*DiracDelta(t - 1)",
+            conditions="y(0) = 1, y'(0) = 0",
+            answer="cos(2*t) + Heaviside(t - 1)*sin(2*(t - 1))",
+            answer_latex=r"y(t) = \cos 2t + u(t-1)\,\sin 2(t-1)",
+        ),
+        Para(
+            "After the blow the motion is still an oscillation of frequency "
+            "2, but with a new amplitude and phase. The blow did not start a "
+            "separate motion that runs alongside the old one in any physical "
+            "sense; it changed the velocity at one instant, and the system "
+            "has been oscillating from that new state ever since. Linearity is "
+            "what allows the answer to be written as a sum anyway."
+        ),
+    )),
+    Section("Damping", (
+        Worked(
+            "A blow to a damped oscillator",
+            "Solve y'' + 2y' + 2y = δ(t − 1) with y(0) = 0, y'(0) = 0.",
+            (
+                Step("Transform and solve for Y, completing the square in the "
+                     "denominator.",
+                     r"Y = \frac{e^{-s}}{s^{2}+2s+2} = \frac{e^{-s}}{(s+1)^{2}+1}"),
+                Step("The rational part is the transform of e^(−t) sin t, by the "
+                     "first shifting theorem. Delay it by the second.",
+                     r"y(t) = u(t-1)\,e^{-(t-1)}\sin(t-1)"),
+            ),
+            equation="y'' + 2*y' + 2*y = DiracDelta(t - 1)",
+            conditions="y(0) = 0, y'(0) = 0",
+            answer="Heaviside(t - 1)*exp(-(t - 1))*sin(t - 1)",
+            answer_latex=r"y(t) = u(t-1)\,e^{-(t-1)}\sin(t-1)",
+        ),
+        Para(
+            "Both shifting theorems appear in the one answer, and it is worth "
+            "being clear which does what. The exponential e^(−(t − 1)) is the "
+            "damping, and came from the shifted s + 1 in the denominator; the "
+            "delay t − 1 everywhere and the step u(t − 1) came from the factor "
+            "e^(−s). The same blow to the undamped system of the previous "
+            "sections would ring for ever; this one rings and dies away."
+        ),
+        Plot(
+            "The same blow, with and without damping",
+            "The responses of y'' + y and of y'' + 2y' + 2y to a unit impulse "
+            "at t = 1, both from rest. Both leave t = 1 from zero with velocity "
+            "one — the jump theorem does not care about damping — and differ "
+            "only in what the system then does with that velocity.",
+            (Curve("Heaviside(t - 1)*sin(t - 1)", "undamped"),
+             Curve("Heaviside(t - 1)*exp(-(t - 1))*sin(t - 1)", "damped")),
+            t=(0.0, 12.0), ylim=(-1.2, 1.2),
+        ),
+    )),
+    Section("Impulses at first order", (
+        Para(
+            "In a first-order equation y' + ky = I δ(t − a) the highest "
+            "derivative is y' itself, so by the same argument it is y that "
+            "jumps, by I. The answer is genuinely discontinuous. That is "
+            "physically sensible: a first-order model describes a quantity "
+            "such as the amount of a drug in the bloodstream or the charge on "
+            "a capacitor, and an injection or a sudden deposit of charge "
+            "changes it instantly."
+        ),
+        Worked(
+            "Two doses",
+            "A drug is eliminated at rate 1, so y' + y = 0 between doses. A "
+            "unit dose is injected at t = 1 and another at t = 2. Solve "
+            "y' + y = δ(t − 1) + δ(t − 2) with y(0) = 0.",
+            (
+                Step("Transform and solve for Y. Each dose contributes its own "
+                     "exponential factor.",
+                     r"Y = \frac{e^{-s} + e^{-2s}}{s+1}"),
+                Step("Invert each group: 1/(s + 1) gives e^(−t), delayed to the "
+                     "time of its dose.",
+                     r"y(t) = u(t-1)\,e^{-(t-1)} + u(t-2)\,e^{-(t-2)}"),
+                Step("Read it. y jumps from 0 to 1 at t = 1, decays to e^(−1) ≈ "
+                     "0.37 by t = 2, and jumps by 1 again, to about 1.37."),
+            ),
+            equation="y' + y = DiracDelta(t - 1) + DiracDelta(t - 2)",
+            conditions="y(0) = 0",
+            answer="Heaviside(t - 1)*exp(-(t - 1)) + Heaviside(t - 2)*exp(-(t - 2))",
+            answer_latex=r"y(t) = u(t-1)\,e^{-(t-1)} + u(t-2)\,e^{-(t-2)}",
+        ),
+        Para(
+            "Repeated at regular intervals, this is the pharmacology of a "
+            "course of tablets. Each dose adds the same jump, the decay "
+            "between doses removes a fixed fraction, and the level after "
+            "many doses climbs towards a periodic pattern in which the amount "
+            "removed between doses equals one dose. With interval T and "
+            "elimination rate k, the peak level approaches 1/(1 − e^(−kT)), "
+            "the sum of a geometric series of decayed doses."
+        ),
+    )),
+    Section("The impulse response", (
+        Para(
+            "The convolution chapter defined the impulse response w(t) of "
+            "ay'' + by' + cy = f(t) as the inverse transform of the transfer "
+            "function W(s) = 1/(as² + bs + c), and promised to justify the name. "
+            "Here is the justification. With f = δ(t) and the system at rest, "
+            "the transformed equation is (as² + bs + c)Y = 1, so Y = W(s) and "
+            "y = w. The impulse response is, literally, the response to a unit "
+            "impulse at time zero."
+        ),
+        Display(r"a y'' + b y' + c y = \delta(t), \;\; y(0) = y'(0) = 0 "
+                r"\;\Longrightarrow\; y(t) = w(t)", "5.19"),
+        Para(
+            "Duhamel's principle then reads naturally. Any forcing f is a "
+            "continuous succession of small impulses f(τ)dτ, one at each "
+            "earlier time τ. Each produces the response w(t − τ)f(τ)dτ, and "
+            "linearity adds them up into the convolution w * f. The delta is "
+            "also the identity element that convolution was missing: by the "
+            "sifting property, δ * f = f, matching L{δ} = 1 on the transform "
+            "side."
+        ),
+        Display(r"(\delta * f)(t) = \int_{0}^{t}\delta(\tau)\,f(t-\tau)\,d\tau = "
+                r"f(t)", "5.20"),
+        Worked(
+            "Reading off a transfer function",
+            "Find the response of y'' + 3y' + 2y = δ(t − 1) from rest, and "
+            "say when it peaks.",
+            (
+                Step("The transfer function factors, and partial fractions "
+                     "invert it.",
+                     r"W(s) = \frac{1}{(s+1)(s+2)} = \frac{1}{s+1} - \frac{1}{s+2} "
+                     r"\;\longrightarrow\; w(t) = e^{-t} - e^{-2t}"),
+                Step("An impulse at t = 1 gives the impulse response delayed "
+                     "to t = 1.",
+                     r"y(t) = u(t-1)\left(e^{-(t-1)} - e^{-2(t-1)}\right)"),
+                Step("w'(t) = −e^(−t) + 2e^(−2t) vanishes when e^(−t) = 1/2, so w "
+                     "peaks at t = ln 2 with height 1/2 − 1/4 = 1/4. The delayed "
+                     "response peaks at t = 1 + ln 2 ≈ 1.69, with the same "
+                     "height."),
+            ),
+            equation="y'' + 3*y' + 2*y = DiracDelta(t - 1)",
+            conditions="y(0) = 0, y'(0) = 0",
+            answer="Heaviside(t - 1)*(exp(-(t - 1)) - exp(-2*(t - 1)))",
+            answer_latex=r"y(t) = u(t-1)\left(e^{-(t-1)} - e^{-2(t-1)}\right)",
+        ),
+        Para(
+            "This is why engineers strike things. Tapping a structure with an "
+            "instrumented hammer and recording the vibration measures w "
+            "directly, and w determines the response to every other forcing "
+            "by convolution. One experiment characterises the linear system "
+            "completely."
+        ),
+    )),
+    Section("Stopping a motion dead", (
+        Para(
+            "Because an impulse changes the velocity by a chosen amount at a "
+            "chosen instant, a second blow can undo the first. The question "
+            "is only when to strike, and the jump theorem answers it: strike "
+            "when the mass is passing through its rest position, so that "
+            "position is already right, with a blow that exactly cancels the "
+            "velocity it has then."
+        ),
+        Worked(
+            "A second blow half a period later",
+            "Solve y'' + y = δ(t − π) + δ(t − 2π) with y(0) = 0, y'(0) = 0, and "
+            "describe the motion after t = 2π.",
+            (
+                Step("Transform and solve for Y.",
+                     r"Y = \frac{e^{-\pi s} + e^{-2\pi s}}{s^{2}+1}"),
+                Step("Invert each group as a delayed sin t.",
+                     r"y(t) = u(t-\pi)\,\sin(t-\pi) + u(t-2\pi)\,\sin(t-2\pi)"),
+                Step("Simplify with sin(t − π) = −sin t and sin(t − 2π) = sin t. "
+                     "Between π and 2π the motion is −sin t; after 2π the two "
+                     "terms cancel, and y is identically zero.",
+                     r"t \geq 2\pi: \quad y(t) = -\sin t + \sin t = 0"),
+            ),
+            equation="y'' + y = DiracDelta(t - pi) + DiracDelta(t - 2*pi)",
+            conditions="y(0) = 0, y'(0) = 0",
+            answer="Heaviside(t - pi)*sin(t - pi) + Heaviside(t - 2*pi)*sin(t - 2*pi)",
+            answer_latex=r"y(t) = u(t-\pi)\sin(t-\pi) + u(t-2\pi)\sin(t-2\pi)",
+        ),
+        Para(
+            "Check it against the jump theorem. At t = 2π the first motion "
+            "−sin t is at zero displacement with velocity −cos 2π = −1. The "
+            "second blow adds +1 to the velocity, leaving the mass at rest at "
+            "its rest position, and a system at rest with no forcing stays "
+            "there. A blow at 3π, a full period after the first, would have "
+            "doubled the motion instead of cancelling it: timing is "
+            "everything."
+        ),
+        Plot(
+            "Started and stopped",
+            "The response to blows at π and 2π. The first starts a free "
+            "oscillation of amplitude one; the second, arriving as the mass "
+            "passes through zero moving at unit speed the other way, stops it.",
+            (Curve("Heaviside(t - pi)*sin(t - pi) + Heaviside(t - 2*pi)*sin(t - 2*pi)",
+                   "y(t)"),),
+            t=(0.0, 12.0), ylim=(-1.2, 1.2),
+        ),
+    )),
+    Section("An impulse at time zero", (
+        Para(
+            "A blow at the very start raises a question of bookkeeping. "
+            "Solving y'' + y = δ(t) with y(0) = 0, y'(0) = 0 by transform gives "
+            "Y = 1/(s² + 1) and y = sin t. But sin t has y'(0) = 1, not 0. "
+            "Which is right?"
+        ),
+        Box(
+            "remark", "Initial values are taken just before t = 0",
+            "The transform method treats the initial values as the state just "
+            "before the blow, at t = 0⁻, and the delta at t = 0 as acting "
+            "entirely inside the interval of integration. The answer sin t is "
+            "then correct: the system is at rest at 0⁻, and the impulse sets "
+            "its velocity to 1 by 0⁺. Solving y'' + y = δ(t) from rest and "
+            "solving y'' + y = 0 with y'(0) = 1 give the same motion for t > 0.",
+            r"y'' + y = \delta(t),\; y'(0^{-}) = 0 \quad\Longleftrightarrow\quad "
+            r"y'' + y = 0,\; y'(0^{+}) = 1",
+        ),
+        Para(
+            "This equivalence runs in both directions and is useful. An "
+            "initial velocity can always be traded for an impulse at t = 0, "
+            "which is how the transform method sees initial values anyway. "
+            "For y'' + y, the terms sy(0) + y'(0) that the derivative rule "
+            "moves to the right-hand side are the transform of the forcing "
+            "y'(0)δ(t) + y(0)δ'(t): an impulse sets the starting velocity, and "
+            "the derivative of an impulse, a still more singular object, "
+            "sets the starting displacement."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "The first is to give δ(t − a) the transform e^(−as)/s, borrowing "
+            "the step's 1/s. The impulse has no such factor; the step's 1/s is "
+            "the integration that turns an impulse into a switch. The second "
+            "is the old delay error in a new setting: inverting e^(−as)G(s) "
+            "without replacing t by t − a inside g. For an impulse this "
+            "produces a position that jumps at t = a, which the jump theorem "
+            "forbids for any second-order system."
+        ),
+        Para(
+            "The third is to treat δ as a very large number at t = a and "
+            "reason with values: to say that y''(a) is infinite and conclude "
+            "something about y(a). Only integrals against δ have meaning. The "
+            "fourth is forgetting the strength of the blow. An impulse of I "
+            "is I δ(t − a), with transform I e^(−as), and the jump in velocity "
+            "it produces is I divided by the leading coefficient of the "
+            "equation, not I itself."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "The delta δ(t − a) is the limit of pulses of unit area and "
+            "shrinking width. It is not a function but is defined by the "
+            "sifting property, ∫δ(t − a)f(t) dt = f(a), and its transform is "
+            "e^(−as), or 1 for an impulse at time zero. In "
+            "my'' + by' + ky = I δ(t − a) the position is continuous and the "
+            "velocity jumps by I/m; in a first-order equation the solution "
+            "itself jumps. The response to δ(t) from rest is the impulse "
+            "response w, the inverse of the transfer function, and every "
+            "other response is w convolved with the forcing. That completes "
+            "the transform method: steps for switches, deltas for blows, and "
+            "convolution for everything else."
         ),
     )),
 )

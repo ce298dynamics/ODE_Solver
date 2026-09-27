@@ -1694,6 +1694,7 @@ STEPFORCING = Lesson(
 
 IMPULSES = Lesson(
     key="impulses",
+    chapter=chapters.IMPULSES,
     title="Impulses and the delta function",
     summary="A hammer blow: all the forcing delivered at a single instant, "
             "and what that does to a system.",

@@ -46,6 +46,7 @@ CHAPTERED = (
     "shifting",
     "convolution",
     "step-forcing",
+    "impulses",
 )
 
 #: About five pages of prose.
