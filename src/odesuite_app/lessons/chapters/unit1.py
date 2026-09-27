@@ -4,7 +4,423 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["BASICS", "SLOPEFIELDS", "SEPARABLE", "LINEAR", "EXACT"]
+__all__ = ["BASICS", "SLOPEFIELDS", "SEPARABLE", "LINEAR", "EXACT",
+           "SUBSTITUTIONS"]
+
+
+SUBSTITUTIONS = (
+    Section("Changing the unknown", (
+        Para(
+            "The three methods so far each fit one shape of equation: "
+            "products, linear equations, exact differentials. An equation of "
+            "none of those shapes is not necessarily hopeless. Very often it "
+            "becomes one of them after a change of variable, in the same way "
+            "that a hard integral becomes easy after the right substitution. "
+            "This lesson is about the two substitutions a first course treats "
+            "systematically — for homogeneous equations and for Bernoulli "
+            "equations — and about the general habit of looking for a "
+            "substitution when nothing else fits."
+        ),
+        Para(
+            "The mechanics are always the same three steps. Choose a new "
+            "unknown v, related to y by a formula; express y and y' in terms "
+            "of v and v'; substitute, and hope the equation for v has a shape "
+            "you recognise. When it does, solve for v and translate back. The "
+            "art is in the choice, and the equation itself usually suggests "
+            "it: a combination that keeps appearing, such as y/t or t + y, is "
+            "the natural candidate for a new variable."
+        ),
+        Box(
+            "remark", "Differentiating the substitution",
+            "The step that goes wrong most often is the second one. If "
+            "y = tv, then y' is not v' but v + tv', by the product rule. If "
+            "v = y^(−1), then v' = −y^(−2)y', by the chain rule. Write the "
+            "derivative out in full before substituting, every time.",
+            r"y = t v \;\Longrightarrow\; y' = v + t v'",
+        ),
+    )),
+    Section("Homogeneous equations", (
+        Para(
+            "Some equations depend on t and y only through their ratio y/t. "
+            "y' = (t² + y²)/(ty) is one: divide top and bottom by t² and it "
+            "becomes (1 + (y/t)²)/(y/t). The slope field of such an equation "
+            "is constant along every line through the origin, because along "
+            "y = mt the ratio y/t is always m. That symmetry is the clue: the "
+            "natural unknown is the ratio itself."
+        ),
+        Box(
+            "definition", "Homogeneous equation",
+            "A first-order equation is *homogeneous* if it can be written with "
+            "a right-hand side that depends only on the ratio y/t. (This is a "
+            "different use of the word from the homogeneous *linear* "
+            "equations of the last lesson; the clash is unfortunate but "
+            "standard.)",
+            r"\frac{dy}{dt} = F\left(\frac{y}{t}\right)",
+        ),
+        Para(
+            "A quick test: replace t by λt and y by λy everywhere. If the "
+            "right-hand side is unchanged, the equation is homogeneous. For "
+            "(t² + y²)/(ty) the λ² above and below cancel. For (t + y²)/t the "
+            "top becomes λt + λ²y², which does not scale uniformly, so that "
+            "equation is not homogeneous."
+        ),
+        Box(
+            "theorem", "The substitution v = y/t separates a homogeneous equation",
+            "If y' = F(y/t), then v = y/t satisfies a separable equation. Its "
+            "solutions, with v replaced by y/t, are the solutions of the "
+            "original equation.",
+            r"y = t v \;\Longrightarrow\; t\, v' = F(v) - v",
+        ),
+        Box(
+            "proof", "",
+            "With y = tv, y' = v + tv' by the product rule, and F(y/t) = F(v). "
+            "The equation becomes v + tv' = F(v), that is tv' = F(v) − v, "
+            "which separates into dv/(F(v) − v) = dt/t. Every step is "
+            "reversible for t ≠ 0.",
+        ),
+        Worked(
+            "The standard example",
+            "Solve y' = (t² + y²)/(ty) with y(1) = 2.",
+            (
+                Step("Divide top and bottom by t²: y' = (1 + v²)/v with "
+                     "v = y/t. Substitute y' = v + tv':",
+                     r"v + t v' = \frac{1 + v^{2}}{v} \;\Longrightarrow\; "
+                     r"t v' = \frac{1}{v}"),
+                Step("Separate and integrate:",
+                     r"\int v\, dv = \int \frac{dt}{t} \;\Longrightarrow\; "
+                     r"\frac{v^{2}}{2} = \ln t + C"),
+                Step("Return to y: y² = t²(2 ln t + 2C). The condition "
+                     "y(1) = 2 gives 4 = 2C, so 2C = 4, and y is the positive "
+                     "root because y(1) > 0."),
+            ),
+            equation="y' = (t**2 + y**2)/(t*y)", conditions="y(1) = 2",
+            answer="t*sqrt(2*log(t) + 4)",
+            answer_latex=r"y(t) = t\sqrt{2\ln t + 4}",
+        ),
+        Para(
+            "The solution exists while 2 ln t + 4 > 0, that is for "
+            "t > e^(−2) ≈ 0.135. At that point y reaches zero, where the "
+            "original equation divides by y, and the solution cannot be "
+            "continued. As so often, the formula carries its own interval, "
+            "and the equation says where to look for its end."
+        ),
+        Worked(
+            "A homogeneous equation with a partial-fraction integral",
+            "Solve y' = (y² + 2ty)/t² with y(1) = 1.",
+            (
+                Step("The right side is (y/t)² + 2(y/t) = v² + 2v, so the "
+                     "substitution gives tv' = v² + v:",
+                     r"\frac{dv}{v(v + 1)} = \frac{dt}{t}"),
+                Step("Partial fractions: 1/(v(v + 1)) = 1/v − 1/(v + 1). "
+                     "Integrating gives ln|v/(v + 1)| = ln t + C, so "
+                     "v/(v + 1) = At.",
+                     r"\frac{v}{v + 1} = A t"),
+                Step("At t = 1, v = 1, so A = 1/2. Solving v/(v + 1) = t/2 "
+                     "for v gives v = t/(2 − t), and y = tv.",
+                     r"v = \frac{t}{2 - t}"),
+            ),
+            equation="y' = (y**2 + 2*t*y)/t**2", conditions="y(1) = 1",
+            answer="t**2/(2 - t)", answer_latex=r"y(t) = \frac{t^{2}}{2 - t}",
+        ),
+        Plot(
+            "Solutions of y' = (y² + 2ty)/t²",
+            "y = t²/(2 − t), the solution through (1, 1), beside the solutions "
+            "through (1, 1/2) and (1, 2) found the same way, y = t²/(3 − t) "
+            "and y = 2t²/(3 − 2t). Each blows up in finite time — at t = 2, "
+            "3 and 3/2 — and the larger the start, the sooner. The equation "
+            "is nonlinear, and it shows.",
+            (Curve("Piecewise((t**2/(3 - t), t < 2.9), (nan, True))", "y(1) = 1/2"),
+             Curve("Piecewise((t**2/(2 - t), t < 1.9), (nan, True))", "y(1) = 1"),
+             Curve("Piecewise((2*t**2/(3 - 2*t), t < 1.44), (nan, True))", "y(1) = 2")),
+            t=(0.2, 3.0), ylim=(0.0, 20.0),
+        ),
+    )),
+    Section("Bernoulli equations", (
+        Para(
+            "A Bernoulli equation looks like a linear equation that has been "
+            "spoiled by a power of y on the right: y' + p(t)y = q(t)yⁿ. For "
+            "n = 0 it is linear and for n = 1 it is separable (and linear), "
+            "so the interesting cases are the others. The logistic equation "
+            "y' = y − y² is one, with n = 2, and so is the equation for a "
+            "falling body with drag proportional to the square of its speed."
+        ),
+        Box(
+            "definition", "Bernoulli equation",
+            "An equation that can be written y' + p(t)y = q(t)yⁿ, with n a "
+            "real number other than 0 or 1.",
+            r"y' + p(t)\, y = q(t)\, y^{n}",
+        ),
+        Para(
+            "The trouble is the yⁿ, and the cure is to divide it out. "
+            "Dividing the equation by yⁿ gives y^(−n)y' + p·y^(1−n) = q. The "
+            "first term looks like the derivative of y^(1−n), up to a "
+            "constant, and that suggests the substitution."
+        ),
+        Box(
+            "theorem", "The substitution v = y^(1−n) linearises a Bernoulli equation",
+            "If y solves y' + py = qyⁿ, then v = y^(1−n) solves the linear "
+            "equation below, which the integrating factor solves.",
+            r"v' + (1 - n)\, p(t)\, v = (1 - n)\, q(t)",
+        ),
+        Box(
+            "proof", "",
+            "By the chain rule v' = (1 − n)y^(−n)y'. Multiply the Bernoulli "
+            "equation by (1 − n)y^(−n): (1 − n)y^(−n)y' + (1 − n)p·y^(1−n) = "
+            "(1 − n)q. The first term is v' and the second is (1 − n)pv.",
+        ),
+        Worked(
+            "The logistic equation, again",
+            "Solve y' − y = −y² with y(0) = 1/2 as a Bernoulli equation.",
+            (
+                Step("Here p = −1, q = −1 and n = 2, so v = y^(−1) and the "
+                     "linear equation is v' + (−1)(−1)v = (−1)(−1):",
+                     r"v' + v = 1"),
+                Step("Integrating factor e^t: (e^t v)' = e^t, so v = 1 + Ce^(−t). "
+                     "At t = 0, v = 1/y = 2, so C = 1.",
+                     r"v = 1 + e^{-t}"),
+                Step("Return to y = 1/v."),
+            ),
+            equation="y' - y = -y**2", conditions="y(0) = 1/2",
+            answer="1/(1 + exp(-t))", answer_latex=r"y(t) = \frac{1}{1 + e^{-t}}",
+        ),
+        Para(
+            "The separable lesson solved the same problem with partial "
+            "fractions, and the two answers agree, as they must. The "
+            "Bernoulli route is shorter here, and it has a second advantage: "
+            "it is a linear equation for v, so its solutions exist wherever "
+            "the coefficients are continuous, and the only way a solution for "
+            "y can end is for v to pass through zero."
+        ),
+        Worked(
+            "A variable coefficient",
+            "Solve t·y' + y = t²y² with y(1) = 1/2.",
+            (
+                Step("Divide by t for the Bernoulli form: y' + y/t = ty². "
+                     "Then n = 2 and v = 1/y, and the linear equation is",
+                     r"v' - \frac{1}{t}\, v = -t"),
+                Step("Integrating factor 1/t: (v/t)' = −1, so v/t = −t + C and "
+                     "v = −t² + Ct. At t = 1, v = 2, so C = 3.",
+                     r"v = 3t - t^{2}"),
+                Step("So y = 1/(3t − t²), which lives on 0 < t < 3, where v "
+                     "is positive."),
+            ),
+            equation="t*y' + y = t**2*y**2", conditions="y(1) = 1/2",
+            answer="1/(3*t - t**2)", answer_latex=r"y(t) = \frac{1}{3t - t^{2}}",
+        ),
+        Worked(
+            "A cube: n = 3",
+            "Solve y' + y = ty³ with y(0) = 1.",
+            (
+                Step("n = 3, so v = y^(−2), and the linear equation is "
+                     "v' + (1 − 3)v = (1 − 3)t:",
+                     r"v' - 2v = -2t"),
+                Step("Integrating factor e^(−2t): (e^(−2t)v)' = −2te^(−2t). "
+                     "Integrating by parts gives e^(−2t)v = (t + 1/2)e^(−2t) + C.",
+                     r"v = t + \frac{1}{2} + C e^{2t}"),
+                Step("At t = 0, v = 1, so C = 1/2. Then y = v^(−1/2), taking "
+                     "the positive root because y(0) = 1 > 0."),
+            ),
+            equation="y' + y = t*y**3", conditions="y(0) = 1",
+            answer="1/sqrt(t + 1/2 + exp(2*t)/2)",
+            answer_latex=r"y(t) = \frac{1}{\sqrt{t + \frac{1}{2} + \frac{1}{2}e^{2t}}}",
+        ),
+        Box(
+            "warning", "The solution y = 0",
+            "For n > 0 the constant y = 0 solves every Bernoulli equation, and "
+            "the substitution v = y^(1−n) cannot produce it, since v would be "
+            "infinite or undefined. Record y = 0 separately, as with the "
+            "equilibria lost by separation.",
+        ),
+    )),
+    Section("A model: falling with quadratic drag", (
+        Para(
+            "A small stone falling through still air meets a drag force "
+            "roughly proportional to its speed. A skydiver, a raindrop or a "
+            "baseball meets a drag force closer to proportional to the "
+            "*square* of the speed, because at those sizes and speeds the air "
+            "has to be pushed out of the way rather than slid past. With down "
+            "taken as positive, Newton's law for the speed v becomes "
+            "mv' = mg − cv², a Riccati-looking equation that is in fact both "
+            "separable and Bernoulli."
+        ),
+        Display(r"v' = g - k v^{2}, \qquad k = \frac{c}{m}"),
+        Para(
+            "Before solving it, read it. The right-hand side is zero when "
+            "v² = g/k, so the equilibrium V = √(g/k) is the *terminal "
+            "velocity*: the speed at which drag balances weight. Below V the "
+            "right side is positive and the body speeds up; above V it is "
+            "negative and the body slows down. So every fall approaches V, "
+            "from below if it starts slower and from above if it starts "
+            "faster, as for a skydiver opening a parachute."
+        ),
+        Worked(
+            "Speed with quadratic drag",
+            "A body falls from rest with v' = 10 − v²/10 (so g = 10 m/s² and "
+            "k = 0.1 per metre). Find v(t).",
+            (
+                Step("The terminal speed is V = √(10/0.1) = 10 m/s. Separate, "
+                     "writing 10 − v²/10 = (100 − v²)/10:",
+                     r"\int \frac{10\, dv}{100 - v^{2}} = \int dt"),
+                Step("Partial fractions give 10/(100 − v²) = (1/2)(1/(10 − v) "
+                     "+ 1/(10 + v)), so the left side integrates to "
+                     "(1/2)ln((10 + v)/(10 − v)) = t + C, and v(0) = 0 gives "
+                     "C = 0.",
+                     r"\frac{1}{2}\ln\frac{10 + v}{10 - v} = t"),
+                Step("Solving for v: (10 + v)/(10 − v) = e^(2t), which "
+                     "rearranges to v = 10(e^(2t) − 1)/(e^(2t) + 1), the "
+                     "hyperbolic tangent."),
+            ),
+            equation="y' = 10 - y**2/10", conditions="y(0) = 0",
+            answer="10*tanh(t)", answer_latex=r"v(t) = 10 \tanh t",
+        ),
+        Plot(
+            "Approaching terminal velocity",
+            "v(t) = 10 tanh t from rest, and the solution from 16 m/s — a "
+            "body launched downwards faster than terminal speed — which is "
+            "10 coth(t + arccoth 1.6). Both close in on V = 10 m/s within a "
+            "few seconds; linear drag would approach its terminal speed "
+            "exponentially too, but more slowly at first.",
+            (Curve("10*tanh(t)", "from rest"),
+             Curve("10/tanh(t + atanh(1/1.6))", "from 16 m/s"),
+             Curve("10 + 0*t", "terminal, 10 m/s")),
+            t=(0.0, 4.0), ylabel="speed, m/s", ylim=(0.0, 17.0),
+        ),
+        Para(
+            "Seen as a Bernoulli equation, v' + 0·v = g − kv² does not quite "
+            "fit, because of the constant g; the separable route is the right "
+            "one here. But with drag *and* a speed-proportional term, "
+            "v' = g − av − bv², neither route is immediate, and the "
+            "substitution that works is the one for Riccati equations, which "
+            "a longer course treats. The point is not to memorise every case "
+            "but to recognise which shape an equation is close to."
+        ),
+    )),
+    Section("Where the substitutions come from", (
+        Para(
+            "The two standard substitutions are not tricks pulled from a hat. "
+            "Each exploits a symmetry of its equation. A homogeneous equation "
+            "is unchanged when t and y are both multiplied by the same "
+            "constant λ: if y(t) is a solution, so is λy(t/λ), the same curve "
+            "magnified. Quantities unchanged by that scaling, like y/t, are "
+            "the natural variables, and in them the equation loses its "
+            "dependence on scale — which is what makes it separable."
+        ),
+        Para(
+            "The Bernoulli substitution is best understood the other way "
+            "round. The linear equation v' + (1 − n)pv = (1 − n)q is easy; "
+            "substituting v = y^(1−n) into it *produces* the Bernoulli "
+            "equation. So a Bernoulli equation is a linear equation seen "
+            "through a power, and the substitution simply takes the power "
+            "off. The same is true of many named equations: they are simple "
+            "equations in disguise, and the substitution undoes the disguise."
+        ),
+        Para(
+            "This view — look for the symmetry, and let it choose the "
+            "variables — was developed by Sophus Lie into a general theory "
+            "of differential equations, and the computer-algebra systems that "
+            "solve equations symbolically use it. It is beyond this course, "
+            "but it explains why substitution methods work when they do, and "
+            "why no finite list of them could ever cover every equation."
+        ),
+    )),
+    Section("Other substitutions", (
+        Para(
+            "Homogeneous and Bernoulli equations are the two families with a "
+            "guaranteed substitution. Beyond them, the rule of thumb is: if "
+            "an expression in t and y appears as a block, make it the new "
+            "unknown. The commonest case is a right-hand side that depends on "
+            "a linear combination at + by + c, where v = at + by + c turns the "
+            "equation into a separable one."
+        ),
+        Display(r"y' = F(at + by + c) \;\Longrightarrow\; v = at + by + c, "
+                r"\quad v' = a + b\, F(v)"),
+        Worked(
+            "A linear combination inside a square",
+            "Solve y' = (t + y + 1)² with y(0) = −1.",
+            (
+                Step("Let v = t + y + 1. Then v' = 1 + y' = 1 + v², which "
+                     "separates:",
+                     r"\int \frac{dv}{1 + v^{2}} = \int dt \;\Longrightarrow\; "
+                     r"\arctan v = t + C"),
+                Step("At t = 0, v = 0 + (−1) + 1 = 0, so C = 0 and v = tan t. "
+                     "Then y = v − t − 1, on −π/2 < t < π/2."),
+            ),
+            equation="y' = (t + y + 1)**2", conditions="y(0) = -1",
+            answer="tan(t) - t - 1", answer_latex=r"y(t) = \tan t - t - 1",
+        ),
+        Para(
+            "Nothing in the original equation hinted at a tangent, and "
+            "nothing hinted that the solution would end at t = ±π/2. Both "
+            "came from the substitution, which is typical: a good change of "
+            "variable does not just make the algebra possible, it reveals the "
+            "structure the original variables were hiding."
+        ),
+        Para(
+            "One more substitution belongs here because it reduces the "
+            "*order* of an equation. If a second-order equation does not "
+            "contain y itself — only y', y'' and t — then v = y' turns it into "
+            "a first-order equation for v. For example t·y'' + y' = 4t becomes "
+            "t·v' + v = 4t, which is linear: (tv)' = 4t gives v = 2t + C/t, and "
+            "one more integration gives y = t² + C ln t + D. Two constants, as "
+            "a second-order equation should have, and every step was a "
+            "first-order method from this unit. Unit 3's reduction of order "
+            "is the same idea for linear equations that do contain y."
+        ),
+        Display(r"F(t, y', y'') = 0 \;\Longrightarrow\; v = y', \quad "
+                r"F(t, v, v') = 0"),
+        Figure("substitution",
+               "The figure shows a substitution at work: the original "
+               "solutions in y, and the same solutions in the new variable v, "
+               "where the equation has become one of the standard shapes."),
+    )),
+    Section("Choosing a method", (
+        Para(
+            "With four methods in hand, the first question about a new "
+            "first-order equation is which one to use, and there is an order "
+            "that avoids wasted effort. Is it separable — does the right side "
+            "factor into a t-part and a y-part? Is it linear — are y and y' to "
+            "the first power only? Those two cover most of what appears. If "
+            "neither, put it in the form M + Ny' = 0 and test for exactness. "
+            "If that fails, look for y/t (homogeneous) or a power of y "
+            "spoiling a linear equation (Bernoulli), or a repeated block that "
+            "could become a new variable."
+        ),
+        Para(
+            "Some equations fit more than one description, and then the "
+            "choice is a matter of convenience. The logistic equation is "
+            "separable and Bernoulli; Newton's cooling law is separable and "
+            "linear; y' = (y² + ty)/t² is homogeneous and Bernoulli. When two "
+            "methods apply, use whichever makes the integrals easier, and use "
+            "the other as a check. When none applies, the equation may still "
+            "have a solution with no formula at all — and the next unit's "
+            "numerical methods are for exactly that case."
+        ),
+        Box(
+            "remark", "Which method would you reach for first?",
+            "The drill of that name in this lesson's Practice section gives an "
+            "equation and asks only for the method, not the solution. It is "
+            "the question an exam is really asking, and it is worth practising "
+            "on its own.",
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "A substitution replaces the unknown y by a new unknown v chosen "
+            "to turn the equation into a known shape. For a homogeneous "
+            "equation y' = F(y/t), set v = y/t, so y' = v + tv', and the "
+            "equation separates. For a Bernoulli equation y' + py = qyⁿ, set "
+            "v = y^(1−n), and it becomes linear: v' + (1 − n)pv = (1 − n)q. "
+            "For y' = F(at + by + c), set v = at + by + c. For a second-order "
+            "equation with no y in it, set v = y' and the order drops by one. "
+            "In every case, "
+            "differentiate the substitution carefully, solve for v, "
+            "translate back, apply the initial condition, and remember the "
+            "solutions the substitution cannot see — y = 0 for a Bernoulli "
+            "equation. Then check the answer in the original equation, which "
+            "is the only equation that matters."
+        ),
+    )),
+)
 
 
 EXACT = (

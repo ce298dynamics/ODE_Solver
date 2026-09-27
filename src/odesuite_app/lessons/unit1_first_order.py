@@ -1820,6 +1820,7 @@ EXACT = Lesson(
 
 SUBSTITUTIONS = Lesson(
     key="substitutions",
+    chapter=chapters.SUBSTITUTIONS,
     title="Substitutions: homogeneous and Bernoulli",
     summary="Two equations that are not separable or linear, and two changes "
             "of variable that make them so.",

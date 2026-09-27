@@ -25,6 +25,7 @@ CHAPTERED = (
     "separable",
     "linear",
     "exact",
+    "substitutions",
 )
 
 #: About five pages of prose.
