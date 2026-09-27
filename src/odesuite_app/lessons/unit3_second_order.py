@@ -11,6 +11,7 @@ case belong here too, and arrive with the narrator each needs.
 
 from __future__ import annotations
 
+from .chapters import unit3 as chapters
 from .model import (
     Case,
     Choice,
@@ -1059,6 +1060,7 @@ CAUCHY = Lesson(
 
 SUPERPOSITION = Lesson(
     key="superposition",
+    chapter=chapters.SUPERPOSITION,
     title="Superposition, the Wronskian, and the general solution",
     summary="Why two solutions are enough for a second-order equation, and how "
             "to tell whether the two you have will do.",
