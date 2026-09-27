@@ -766,6 +766,11 @@ class Lesson:
     #: driven by the catalogue, and a nonlinear system is the one thing a
     #: lesson's worked examples cannot carry, since no narrator solves one.
     portrait: str = ""
+    #: The lesson written as a textbook section -- see `lessons.chapter`.
+    #: When present it *is* the Learn page, and `motivation`, `derivation`
+    #: and the notes are what it was written from; the formula notes still
+    #: close the page as a summary, and still make the formula sheet.
+    chapter: tuple = ()
 
     @property
     def example(self) -> str:

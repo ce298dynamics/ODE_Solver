@@ -918,7 +918,9 @@ def test_a_card_announces_what_it_is(screen, qapp):
     names itself from its own heading."""
     from PySide6.QtWidgets import QFrame
 
-    lesson = _open(screen, qapp, "separable", "Learn")
+    # A lesson still on the card layout; chaptered ones are checked below.
+    key = next(lesson.key for lesson in LESSONS if not lesson.chapter)
+    lesson = _open(screen, qapp, key, "Learn")
     named = {frame.accessibleName()
              for frame in screen.findChildren(QFrame)
              if frame.accessibleName()}
@@ -926,6 +928,21 @@ def test_a_card_announces_what_it_is(screen, qapp):
     assert any("Where this comes from" in one for one in named)
     for note in lesson.notes:
         assert any(note.heading in one for one in named), note.heading
+
+
+def test_a_chapter_announces_its_sections_boxes_and_examples(screen, qapp):
+    from PySide6.QtWidgets import QWidget
+
+    key = next(lesson.key for lesson in LESSONS if lesson.chapter)
+    lesson = _open(screen, qapp, key, "Learn")
+    named = {widget.accessibleName()
+             for widget in screen.findChildren(QWidget)
+             if widget.accessibleName()}
+    assert any(one.startswith("Chapter:") for one in named)
+    for number, section in enumerate(lesson.chapter, start=1):
+        assert f"Section {number}: {section.title}" in named
+    assert any(one.startswith("Example 1:") for one in named)
+    assert any(one.startswith("Definition 1:") for one in named)
 
 
 def test_each_paragraph_of_prose_is_announced_as_one(screen, qapp):

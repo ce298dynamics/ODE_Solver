@@ -9,6 +9,7 @@ and the four techniques a first course solves them with.
 
 from __future__ import annotations
 
+from .chapters import unit1 as chapters
 from .model import (
     Case,
     Choice,
@@ -32,6 +33,7 @@ __all__ = ["BASICS", "SLOPEFIELDS", "SEPARABLE", "LINEAR",
 
 SEPARABLE = Lesson(
     key="separable",
+    chapter=chapters.SEPARABLE,
     title="Separable equations",
     summary="The first technique, and the one every other first-order method "
             "falls back on when it can.",

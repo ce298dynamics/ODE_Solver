@@ -547,6 +547,9 @@ class LessonsScreen(QWidget):
             self._scroll.ensureWidgetVisible(box, 0, 60)
 
     def _build_learn(self, lesson) -> None:
+        if lesson.chapter:
+            self._build_chapter(lesson)
+            return
         if lesson.objectives:
             self._layout.addWidget(self._objectives_card(lesson))
         # Motivation before anything else that is not a promise about the
@@ -563,6 +566,34 @@ class LessonsScreen(QWidget):
             self._layout.addWidget(self._derivation_card(lesson))
         for note in lesson.notes:
             self._layout.addWidget(self._note_card(note))
+
+    def _build_chapter(self, lesson) -> None:
+        """The textbook version of Learn: aims, the chapter, key formulas."""
+        from ..widgets.chapterview import ChapterView
+
+        if lesson.objectives:
+            self._layout.addWidget(self._objectives_card(lesson))
+        frame, layout = self._panel()
+        layout.setContentsMargins(28, 18, 28, 26)
+        frame.setAccessibleName(f"Chapter: {lesson.title}")
+        layout.addWidget(ChapterView(lesson.chapter, self.palette_obj))
+        self._layout.addWidget(frame)
+
+        formulas = [note for note in lesson.notes if note.kind == "formula"]
+        if formulas:
+            box, inner = self._panel(self.palette_obj.accent_soft)
+            box.setAccessibleName(f"Key formulas: {lesson.title}")
+            heading = QLabel("Key formulas")
+            heading.setProperty("role", "heading")
+            inner.addWidget(heading)
+            for note in formulas:
+                name = QLabel(f"<b>{note.heading}</b>")
+                name.setTextFormat(Qt.RichText)
+                inner.addWidget(name)
+                if note.latex:
+                    inner.addWidget(MathLabel(self.palette_obj, note.latex,
+                                              point_size=14))
+            self._layout.addWidget(box)
 
     def _prose(self, layout, text: str) -> None:
         """Add `text` as one wrapped label per paragraph.
