@@ -197,7 +197,7 @@ class LessonsScreen(QWidget):
         #: Token -> the panel and button waiting on it. Keyed rather than held
         #: singly, so a superseded request can still re-enable its own button
         #: instead of leaving it disabled for good.
-        self._pending: dict[int, tuple[StepsPanel, QPushButton]] = {}
+        self._pending: dict[int, tuple[StepsPanel, QPushButton, object]] = {}
 
         self._signals = _Signals()
         self._signals.done.connect(self._on_worked)
@@ -998,6 +998,14 @@ class LessonsScreen(QWidget):
         hint_button.setEnabled(bool(question.hints))
         row.addWidget(hint_button)
 
+        step = QPushButton("Next step")
+        step.setToolTip(
+            "Show the first step of the real working for this equation, then "
+            "one more each time — never the last, which is the answer."
+        )
+        step.setCursor(Qt.PointingHandCursor)
+        row.addWidget(step)
+
         show = QPushButton("Show me")
         show.setToolTip("Work it through in full, and stop counting this one")
         show.setCursor(Qt.PointingHandCursor)
@@ -1053,8 +1061,46 @@ class LessonsScreen(QWidget):
             lambda: self._work(question.equation, question.conditions,
                                template.narrator, working, show)
         )
+        self._wire_fading(question, template, working, step)
         again.clicked.connect(next_question)
         return frame
+
+    def _wire_fading(self, question, template, working: StepsPanel,
+                     button: QPushButton) -> None:
+        """The worked example, faded: the drawn equation's own working, a step
+        at a time, stopping one short of the end.
+
+        A hint says what kind of move comes next; this shows the move, on
+        these numbers, from the narrator that would solve it -- the bridge
+        between reading a worked example and producing one. The last step is
+        never revealed, because it is the answer, and "Show me" is still there
+        for anyone who wants the whole thing.
+        """
+        state = {"derivation": None, "shown": 0}
+
+        def reveal() -> None:
+            derivation = state["derivation"]
+            limit = max(len(derivation.steps) - 1, 0)
+            state["shown"] = min(state["shown"] + 1, limit)
+            working.setVisible(True)
+            working.show_derivation(derivation, upto=state["shown"])
+            if state["shown"] >= limit:
+                button.setEnabled(False)
+                button.setToolTip("The last step is the answer — yours to "
+                                  "write.")
+
+        def arrived(derivation) -> None:
+            state["derivation"] = derivation
+            reveal()
+
+        def pressed() -> None:
+            if state["derivation"] is None:
+                self._work(question.equation, question.conditions,
+                           template.narrator, working, button, deliver=arrived)
+            else:
+                reveal()
+
+        button.clicked.connect(pressed)
 
     def _build_choice_drill(self, lesson, template, question, run: QLabel,
                             layout, frame) -> None:
@@ -1850,11 +1896,17 @@ class LessonsScreen(QWidget):
         self._pending.clear()
 
     def _work(self, equation: str, conditions: str, narrator: str,
-              panel: StepsPanel, button: QPushButton) -> None:
+              panel: StepsPanel, button: QPushButton, deliver=None) -> None:
+        """Narrate off the interface thread and show it in `panel`.
+
+        `deliver`, when given, receives the derivation instead of the panel
+        rendering all of it -- the step-at-a-time button keeps the derivation
+        and shows it a piece at a time.
+        """
         self._token += 1
         # Whatever else was waiting will never be delivered now, so hand its
         # button back rather than leaving it disabled for the rest of the visit.
-        for stale_panel, stale_button in self._pending.values():
+        for stale_panel, stale_button, _ in self._pending.values():
             stale_button.setEnabled(True)
             stale_panel.clear("superseded")
         self._pending.clear()
@@ -1862,7 +1914,7 @@ class LessonsScreen(QWidget):
         panel.setVisible(True)
         panel.clear("working it through…")
         button.setEnabled(False)
-        self._pending[self._token] = (panel, button)
+        self._pending[self._token] = (panel, button, deliver)
         QThreadPool.globalInstance().start(
             _WorkingJob(self._token, equation, conditions, narrator,
                         self._signals)
@@ -1872,13 +1924,16 @@ class LessonsScreen(QWidget):
         waiting = self._pending.pop(token, None)
         if waiting is None:
             return                                # superseded, or not ours
-        panel, button = waiting
+        panel, button, deliver = waiting
         button.setEnabled(True)
         if isinstance(result, Exception):
             panel.clear(f"{type(result).__name__}: {result}")
             return
         if result is None:
             panel.clear("no working could be produced for this one")
+            return
+        if deliver is not None:
+            deliver(result)
             return
         panel.show_derivation(result)
 

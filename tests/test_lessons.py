@@ -1288,6 +1288,43 @@ def test_a_worked_example_is_produced_on_request(screen, qapp):
     assert button.isEnabled(), "the button was left disabled"
 
 
+@pytest.mark.slow
+def test_a_drill_fades_its_working_one_step_at_a_time(screen, qapp):
+    """"Next step" shows the drawn equation's own working a step per press,
+    and stops one short: the last step is the answer, and revealing it would
+    turn the drill into reading."""
+    import re
+
+    from PySide6.QtCore import QThreadPool
+    from PySide6.QtWidgets import QPushButton
+
+    from odesuite_app.widgets.stepspanel import StepsPanel
+
+    _open(screen, qapp, "separable", "Drill")
+    button = next(b for b in screen._page.findChildren(QPushButton)
+                  if b.text() == "Next step")
+    panel = next(p for p in screen._page.findChildren(StepsPanel)
+                 if not p.isVisibleTo(screen))
+
+    def press():
+        button.click()
+        QThreadPool.globalInstance().waitForDone(90_000)
+        for _ in range(6):
+            qapp.processEvents()
+        shown, total = map(int, re.match(r"(\d+) of (\d+)",
+                                          panel._status.text()).groups())
+        return shown, total
+
+    shown, total = press()
+    assert (shown, panel._body.count()) == (1, 1)
+    assert total >= 3, "a separable derivation has more than two steps"
+    while button.isEnabled():
+        shown, _ = press()
+    assert shown == total - 1, "it stopped too early, or gave the answer away"
+    assert panel._body.count() == total - 1, "no verdict, no final step"
+    assert "yours" in button.toolTip()
+
+
 def test_a_superseded_request_hands_its_button_back(screen, qapp):
     """Two "work it through" presses in a row: only the second is delivered,
     and the first must not leave its button disabled for the rest of the
