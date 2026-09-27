@@ -1765,8 +1765,26 @@ VARIATION = Lesson(
             options=("nth_linear_constant_coeff_homogeneous",
                      "nth_linear_constant_coeff_undetermined_coefficients",
                      "nth_linear_constant_coeff_variation_of_parameters",
-                     "nth_linear_euler_eq_homogeneous"),
+                     "nth_linear_euler_eq_homogeneous",
+                     "reduction_of_order"),
             cases=(
+                Case(
+                    equation="t*y'' - (t + 1)*y' + y = 0",
+                    technique="reduction_of_order",
+                    why="The coefficients change with t and are not the "
+                        "powers Cauchy-Euler needs, so there is no polynomial "
+                        "to solve. But e^t can be spotted as a solution, and "
+                        "one solution is all reduction of order asks for.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="t**2*y'' - t*(t + 2)*y' + (t + 2)*y = 0",
+                    technique="reduction_of_order",
+                    why="t² in front of y'' looks like Cauchy-Euler, but the "
+                        "t² inside the y' coefficient breaks the pattern. "
+                        "y = t works, so reduce the order from there.",
+                    tier="harder",
+                ),
                 Case(
                     equation="y'' + 3*y' + 2*y = 0",
                     technique="nth_linear_constant_coeff_homogeneous",

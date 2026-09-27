@@ -101,3 +101,33 @@ The Leitner boxes (`progress.LEITNER`) and `progress.weakest` already hold
 what a readiness report needs: per unit, how much is mastered, how much is
 due, and which questions keep failing. One page, in words, with the "try
 these again" queue the quiz report already builds.
+
+---
+
+## Round two (2026-09-26, after L1–L8)
+
+| # | Item | Size | Status |
+|---|---|---|---|
+| L9 | "Show me" promises to stop counting the question, and does not | S | open |
+| L10 | Which-portrait drill for *nonlinear* equilibria, via the Jacobian | S–M | open |
+| L11 | Reduction of order in the which-method drill's vocabulary | S | **done** 2026-09-27 |
+| L12 | Glossary terms clickable where they appear in a lesson | M | open |
+
+**L9.** Both "Show me" buttons carry the tooltip "Work it through in full, and
+stop counting this one", and nothing in `_check_solve` knows the button was
+pressed: read the whole worked answer, type it in, and it is marked correct,
+recorded as correct, and advances the mastery streak. Either the promise or
+the behaviour is wrong; the behaviour is, since a streak built by copying is
+not mastery.
+
+**L10.** Unit 8's drills ask for numbers. The skill the unit is about is
+naming an equilibrium of a *nonlinear* system, which means taking the
+Jacobian at the right point first -- the step the pitfall note warns about.
+A `ClassifyTemplate` over (system, equilibrium) cases, checked by
+`jacobian_at` + `classify`, like the linear portrait drill.
+
+**L11.** `vocabulary.METHODS` has no entry for reduction of order, so the
+which-method drill cannot offer it even though the narrator now teaches it.
+
+**L12.** The glossary links a term to its lessons; the lessons do not link
+back. Rich-text anchors on the first use of each term in a lesson's prose.

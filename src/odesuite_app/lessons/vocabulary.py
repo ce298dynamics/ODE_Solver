@@ -113,6 +113,13 @@ METHODS: dict[str, Label] = {
                  "t²·y'' + a·t·y' + b·y. Try y = t^r and it becomes a "
                  "polynomial in r.",
     ),
+    "reduction_of_order": Label(
+        title="Reduction of order",
+        requires="Linear and homogeneous with coefficients that change with "
+                 "t in no pattern a trial fits — but with one solution you "
+                 "can find. Set y = v·y₁ and the equation drops to first "
+                 "order in v'.",
+    ),
 }
 
 
