@@ -4,7 +4,402 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED"]
+__all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED", "VARIATION"]
+
+
+VARIATION = (
+    Section("When there is nothing to guess", (
+        Para(
+            "Undetermined coefficients is fast, but it rests on a lucky "
+            "property of the forcing: that its derivatives stay inside a "
+            "finite family. For y'' + y = sec t they do not, and no trial "
+            "function can be written down. The equation still has solutions — "
+            "the existence theorem guarantees them on (−π/2, π/2), where sec t "
+            "is continuous — and a method that finds a particular solution "
+            "for *any* continuous forcing would close the gap completely. "
+            "Variation of parameters is that method."
+        ),
+        Para(
+            "The idea was met in Unit 1, where the integrating-factor formula "
+            "was derived a second way by taking the homogeneous solution "
+            "Ch(t) and letting the constant C vary. Here the homogeneous "
+            "solution is c₁y₁ + c₂y₂, with two constants, and the idea is the "
+            "same: look for a particular solution of the form u₁(t)y₁ + "
+            "u₂(t)y₂, replacing the constants by unknown functions."
+        ),
+        Display(r"y_p = u_1(t)\, y_1(t) + u_2(t)\, y_2(t)", "1"),
+        Para(
+            "Forcing terms of that awkward kind are not exotic. A driving "
+            "force that switches on smoothly but sharply, a voltage that "
+            "falls off like 1/t, a load that grows like ln t — each is "
+            "outside the closed families, and each is the kind of input a "
+            "real model meets. A method restricted to polynomials, "
+            "exponentials and sinusoids would leave them all unsolved."
+        ),
+    )),
+    Section("Deriving the formula", (
+        Para(
+            "Differentiating (1) gives y_p' = u₁y₁' + u₂y₂' + u₁'y₁ + u₂'y₂. "
+            "Two unknown functions u₁ and u₂ but only one equation to satisfy "
+            "means there is room for one extra condition of our choosing, and "
+            "the convenient one is to make the terms involving u' vanish."
+        ),
+        Display(r"u_1' y_1 + u_2' y_2 = 0", "2"),
+        Para(
+            "With (2), y_p' = u₁y₁' + u₂y₂', and differentiating again, "
+            "y_p'' = u₁y₁'' + u₂y₂'' + u₁'y₁' + u₂'y₂'. Substitute into "
+            "y'' + py' + qy = f. The terms containing u₁ collect into "
+            "u₁(y₁'' + py₁' + qy₁), which is zero because y₁ is a homogeneous "
+            "solution, and the same happens for u₂. All that survives is the "
+            "second condition."
+        ),
+        Display(r"u_1' y_1' + u_2' y_2' = f(t)", "3"),
+        Para(
+            "Equations (2) and (3) are a linear system for u₁' and u₂', and "
+            "its determinant is y₁y₂' − y₁'y₂, the Wronskian — nonzero because "
+            "y₁ and y₂ are independent. Cramer's rule solves it, and "
+            "integration gives u₁ and u₂."
+        ),
+        Box(
+            "theorem", "Variation of parameters",
+            "If y₁, y₂ are independent solutions of y'' + py' + qy = 0 and f is "
+            "continuous, a particular solution of y'' + py' + qy = f is "
+            "y_p = u₁y₁ + u₂y₂ with the u's below, W being the Wronskian.",
+            r"u_1 = -\int \frac{y_2 f}{W}\, dt, \qquad "
+            r"u_2 = \int \frac{y_1 f}{W}\, dt",
+        ),
+        Box(
+            "warning", "f is the right side of the standard form",
+            "The formula assumes the coefficient of y'' is 1. For "
+            "t²y'' + … = g(t), divide first and use f = g/t². Forgetting to "
+            "divide gives a y_p that is off by exactly that factor — it "
+            "solves a different equation.",
+        ),
+        Figure("variation",
+               "Left: sec t against the shapes a trial solution would have to "
+               "be built from, running away from all of them. Right: the "
+               "answer variation of parameters produces, with the homogeneous "
+               "part on sliders."),
+    )),
+    Section("Why the extra condition is allowed", (
+        Para(
+            "Condition (2), u₁'y₁ + u₂'y₂ = 0, can look like a trick pulled "
+            "from nowhere, and it is worth seeing why it is legitimate and why "
+            "it is clever. It is legitimate because the method asks for *one* "
+            "particular solution, and the form u₁y₁ + u₂y₂ has two unknown "
+            "functions — twice as much freedom as needed. Any solution of the "
+            "equation found in that form is good enough, so we are free to "
+            "impose one further condition of our choosing and look for "
+            "solutions that also satisfy it."
+        ),
+        Para(
+            "It is clever because of what it does to the derivatives. Without "
+            "it, y_p'' would contain u₁'' and u₂'', and substituting would give "
+            "a second-order equation for the u's — no simpler than the "
+            "original. With it, y_p' has the same form as the derivative of a "
+            "combination with *constant* coefficients, second derivatives of "
+            "the u's never appear, and the equation for them is first order "
+            "and, in fact, just algebra for u₁' and u₂'. The condition is "
+            "chosen to make y_p behave, for one derivative, exactly as if the "
+            "parameters were not varying at all."
+        ),
+    )),
+    Section("Worked examples", (
+        Worked(
+            "The canonical example",
+            "Solve y'' + y = sec t with y(0) = 0, y'(0) = 0, on (−π/2, π/2).",
+            (
+                Step("y₁ = cos t, y₂ = sin t, W = cos²t + sin²t = 1. The "
+                     "formula gives u₁' = −sin t · sec t = −tan t and "
+                     "u₂' = cos t · sec t = 1.",
+                     r"u_1' = -\tan t, \qquad u_2' = 1"),
+                Step("Integrate: u₁ = ln|cos t| and u₂ = t. So "
+                     "y_p = cos t ln(cos t) + t sin t, since cos t > 0 on the "
+                     "interval.",
+                     r"y_p = \cos t\, \ln(\cos t) + t\sin t"),
+                Step("y_p(0) = 0 and y_p'(0) = 0 already, so the "
+                     "complementary constants are both zero."),
+            ),
+            equation="y'' + y = sec(t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="cos(t)*log(cos(t)) + t*sin(t)",
+            answer_latex=r"y(t) = \cos t\,\ln(\cos t) + t\sin t",
+        ),
+        Plot(
+            "The response to sec t",
+            "y = cos t ln(cos t) + t sin t on (−π/2, π/2), beside the forcing "
+            "sec t. The forcing blows up at ±π/2 and the solution does not: "
+            "near the ends cos t ln(cos t) → 0 and y → π/2. The solution "
+            "exists exactly on the interval where the forcing is continuous, "
+            "as the existence theorem promised.",
+            (Curve("cos(t)*log(cos(t)) + t*sin(t)", "solution"),
+             Curve("1/cos(t)", "forcing sec t")),
+            t=(-1.5, 1.5), ylim=(-0.5, 6.0),
+        ),
+        Worked(
+            "A tangent forcing",
+            "Find a particular solution of y'' + y = tan t on (−π/2, π/2).",
+            (
+                Step("Again W = 1. u₁' = −sin t tan t = −sin²t/cos t = "
+                     "cos t − sec t, and u₂' = cos t tan t = sin t.",
+                     r"u_1' = \cos t - \sec t, \qquad u_2' = \sin t"),
+                Step("Integrate: u₁ = sin t − ln(sec t + tan t) and "
+                     "u₂ = −cos t. Then y_p = u₁cos t + u₂sin t, and the "
+                     "sin t cos t terms cancel.",
+                     r"y_p = -\cos t\, \ln(\sec t + \tan t)"),
+            ),
+            equation="y'' + y = tan(t)",
+            answer="-cos(t)*log(1/cos(t) + tan(t))",
+            answer_latex=r"y_p = -\cos t\,\ln(\sec t + \tan t)",
+        ),
+        Plot(
+            "A particular solution for tan t forcing",
+            "y_p = −cos t ln(sec t + tan t) on (−π/2, π/2), with the forcing "
+            "tan t. The particular solution is odd, like the forcing, and "
+            "stays bounded even though tan t does not: near ±π/2 the factor "
+            "cos t goes to zero faster than the logarithm grows.",
+            (Curve("-cos(t)*log(1/cos(t) + tan(t))", "y_p"),
+             Curve("tan(t)", "forcing tan t")),
+            t=(-1.5, 1.5), ylim=(-4.0, 4.0),
+        ),
+        Worked(
+            "A repeated root and a 1/t forcing",
+            "Find a particular solution of y'' − 2y' + y = e^t/t for t > 0.",
+            (
+                Step("The root 1 is double: y₁ = e^t, y₂ = te^t, and "
+                     "W = e^t(e^t + te^t) − e^t · te^t = e^(2t).",
+                     r"W(e^{t}, te^{t}) = e^{2t}"),
+                Step("u₁' = −te^t(e^t/t)/e^(2t) = −1 and u₂' = e^t(e^t/t)/e^(2t) "
+                     "= 1/t. So u₁ = −t and u₂ = ln t.",
+                     r"u_1 = -t, \qquad u_2 = \ln t"),
+                Step("y_p = −te^t + te^t ln t. The first term is a homogeneous "
+                     "solution and could be dropped; keeping it does no harm."),
+            ),
+            equation="y'' - 2*y' + y = exp(t)/t",
+            answer="-t*exp(t) + t*exp(t)*log(t)",
+            answer_latex=r"y_p = t e^{t}\ln t - t e^{t}",
+        ),
+    )),
+    Section("Agreement with undetermined coefficients", (
+        Para(
+            "Variation of parameters works for every continuous forcing, "
+            "including the ones undetermined coefficients handles, and "
+            "comparing the two on the same equation is a good check that the "
+            "formula has been remembered correctly. The answers need not be "
+            "identical — two particular solutions may differ by a homogeneous "
+            "solution — but their difference must solve the homogeneous "
+            "equation."
+        ),
+        Worked(
+            "The same particular solution, the long way",
+            "Use variation of parameters on y'' − y = e^(2t), and compare with "
+            "undetermined coefficients, which gave e^(2t)/3.",
+            (
+                Step("y₁ = e^t, y₂ = e^(−t), W = −2. Then u₁' = −e^(−t)e^(2t)/(−2) "
+                     "= e^t/2 and u₂' = e^t e^(2t)/(−2) = −e^(3t)/2.",
+                     r"u_1 = \frac{e^{t}}{2}, \qquad u_2 = -\frac{e^{3t}}{6}"),
+                Step("y_p = (e^t/2)e^t − (e^(3t)/6)e^(−t) = e^(2t)/2 − e^(2t)/6 = "
+                     "e^(2t)/3, exactly the undetermined-coefficients answer — "
+                     "found by two integrations instead of one line of algebra."),
+            ),
+            equation="y'' - y = exp(2*t)",
+            answer="exp(2*t)/3", answer_latex=r"y_p = \frac{e^{2t}}{3}",
+        ),
+        Para(
+            "That comparison is also the practical advice. When undetermined "
+            "coefficients applies, use it: it is algebra, and algebra is "
+            "quicker and less error-prone than integration. Reach for "
+            "variation of parameters when the forcing has no finite trial "
+            "family, or when the coefficients are not constant, where "
+            "undetermined coefficients is not available at all."
+        ),
+    )),
+    Section("Variable coefficients", (
+        Para(
+            "Nothing in the derivation used constant coefficients. As long as "
+            "two independent homogeneous solutions are known — from the "
+            "Cauchy–Euler method, from reduction of order, from a table, from "
+            "a series — the formula gives a particular solution. This is the "
+            "one general method for nonhomogeneous linear equations, and it "
+            "reduces the forced problem completely to the homogeneous one."
+        ),
+        Para(
+            "Take t²y'' − 2ty' + 2y = t³ for t > 0, whose homogeneous "
+            "solutions t and t² were found in the superposition lesson. "
+            "Standard form has f = t³/t² = t. With W = t², u₁' = −t² · t/t² = −t "
+            "and u₂' = t · t/t² = 1, so u₁ = −t²/2 and u₂ = t, and "
+            "y_p = −t³/2 + t³ = t³/2. Substituting confirms it: "
+            "t² · 3t − 2t · (3t²/2) + 2 · t³/2 = 3t³ − 3t³ + t³ = t³."
+        ),
+        Display(r"t^{2} y'' - 2t y' + 2y = t^{3} \;\Longrightarrow\; "
+                r"y_p = \frac{t^{3}}{2}"),
+        Worked(
+            "The full initial value problem",
+            "Solve t²y'' − 2ty' + 2y = t³ with y(1) = 1, y'(1) = 0.",
+            (
+                Step("The general solution is y = c₁t + c₂t² + t³/2, so "
+                     "y' = c₁ + 2c₂t + 3t²/2.",
+                     r"y = c_1 t + c_2 t^{2} + \frac{t^{3}}{2}"),
+                Step("At t = 1: c₁ + c₂ + 1/2 = 1 and c₁ + 2c₂ + 3/2 = 0. "
+                     "Subtracting the first from the second, c₂ + 1 = −1/2, so "
+                     "c₂ = −2 and then c₁ = 5/2.",
+                     r"c_1 + c_2 = \frac{1}{2}, \qquad c_1 + 2c_2 = -\frac{3}{2}"),
+                Step("The solution holds on (0, ∞), the interval where the "
+                     "standard-form coefficients are continuous."),
+            ),
+            equation="t**2*y'' - 2*t*y' + 2*y = t**3", conditions="y(1) = 1, y'(1) = 0",
+            answer="5*t/2 - 2*t**2 + t**3/2",
+            answer_latex=r"y(t) = \frac{5t}{2} - 2t^{2} + \frac{t^{3}}{2}",
+        ),
+    )),
+    Section("When the integrals cannot be done", (
+        Para(
+            "The formula always produces a particular solution, but only as "
+            "integrals, and integrals do not always have elementary "
+            "antiderivatives. For y'' − y = 1/t, for instance, u₂' = "
+            "e^t/(2t), whose antiderivative is the exponential integral "
+            "Ei(t), not an elementary function. That is not a failure of the "
+            "method. The particular solution is still perfectly well defined — "
+            "it can be written with a definite integral, evaluated "
+            "numerically to any accuracy, and plotted."
+        ),
+        Para(
+            "In practice this means the answer to a variation-of-parameters "
+            "problem is sometimes left in the form y_p = −y₁∫y₂f/W dt + "
+            "y₂∫y₁f/W dt with the integrals written out, or better, with the "
+            "definite integrals of Section 9. The narrator in this "
+            "application takes the honest line too: when the integrals for u "
+            "have no closed form it says exactly that, rather than pretending "
+            "to a formula."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "Three mistakes account for most wrong answers with this method. "
+            "The first is the one the warning above describes: using the "
+            "forcing of an equation that is not in standard form. The second "
+            "is a sign: u₁ carries the minus sign, u₂ does not, and swapping "
+            "them — or computing the Wronskian as y₁'y₂ − y₁y₂' — flips the sign "
+            "of y_p. A quick check is to substitute y_p and see whether f or −f "
+            "comes back."
+        ),
+        Para(
+            "The third is adding constants of integration to u₁ and u₂ and "
+            "then forgetting them. They are harmless — they add c₁y₁ + c₂y₂, "
+            "which the complementary function already contains — but carrying "
+            "them through the algebra invites confusion when the initial "
+            "conditions are applied. Drop them from the u's, add the "
+            "complementary function once at the end, and fit its constants to "
+            "the whole solution."
+        ),
+    )),
+    Section("The formula as an integral", (
+        Para(
+            "Written with definite integrals from t₀, the particular solution "
+            "is the one with zero initial values at t₀, and the two integrals "
+            "combine into one. The result is a formula that expresses the "
+            "response to any forcing as a weighted accumulation of the "
+            "forcing's past values."
+        ),
+        Display(r"y_p(t) = \int_{t_0}^{t} G(t, s)\, f(s)\, ds, \qquad "
+                r"G(t, s) = \frac{y_1(s) y_2(t) - y_1(t) y_2(s)}{W(s)}", "4"),
+        Para(
+            "The function G is the *Green's function* of the equation. For "
+            "y'' + y it is sin(t − s): the response at time t to a unit kick "
+            "at time s. So (4) says the response to a forcing spread over time "
+            "is the sum of the responses to all the little kicks it is made "
+            "of. That same idea is the convolution of the Laplace-transform "
+            "unit, seen from the other side, and it is one of the most "
+            "important ideas in the whole subject."
+        ),
+        Box(
+            "remark", "Checking the Green's function for y'' + y",
+            "With y₁ = cos, y₂ = sin and W = 1, G(t, s) = cos s sin t − cos t sin s "
+            "= sin(t − s), by the subtraction formula. As a function of t it "
+            "solves y'' + y = 0, is zero at t = s, and has slope 1 there — "
+            "exactly the motion of a spring kicked from rest at time s.",
+        ),
+        Worked(
+            "A constant force, through the Green's function",
+            "Solve y'' + y = 1 with y(0) = 0, y'(0) = 0 using formula (4).",
+            (
+                Step("With G(t, s) = sin(t − s) and f = 1, the particular "
+                     "solution with zero initial values is the integral of "
+                     "sin(t − s) over s from 0 to t:",
+                     r"y(t) = \int_{0}^{t} \sin(t - s)\, ds"),
+                Step("Substituting w = t − s turns it into the integral of sin w "
+                     "from 0 to t, which is 1 − cos t. No constants need "
+                     "fitting: the definite integral starts at rest by "
+                     "construction."),
+            ),
+            equation="y'' + y = 1", conditions="y(0) = 0, y'(0) = 0",
+            answer="1 - cos(t)", answer_latex=r"y(t) = 1 - \cos t",
+        ),
+        Para(
+            "Read the answer physically. A spring at rest is suddenly subject "
+            "to a constant force equal to one unit of stiffness. Its new "
+            "equilibrium is y = 1, and having started at 0 with no velocity it "
+            "overshoots and oscillates about 1 between 0 and 2 for ever. The "
+            "Green's function built that response by adding up the kicks "
+            "delivered at every earlier moment, each one ringing on as a sine "
+            "wave, and the sum of all those rings is the steady oscillation "
+            "about the new rest position. The same computation with any other "
+            "forcing is just a different weighting of the same rings."
+        ),
+    )),
+    Section("The first-order case, seen again", (
+        Para(
+            "It is reassuring to run the method on the smallest possible "
+            "case and watch it reproduce something already known. For the "
+            "first-order equation y' + p(t)y = f(t) there is one homogeneous "
+            "solution, h = e^(−∫p dt), and one parameter to vary. Writing "
+            "y_p = u·h and substituting, the term u(h' + ph) vanishes because h "
+            "is a homogeneous solution, leaving u'h = f."
+        ),
+        Display(r"u' = \frac{f}{h} = f\, e^{\int p\, dt} \;\Longrightarrow\; "
+                r"y_p = e^{-\int p\, dt}\int f\, e^{\int p\, dt}\, dt"),
+        Para(
+            "That is precisely the integrating-factor formula of Unit 1, with "
+            "e^(∫p dt) playing the part of μ. So variation of parameters is not "
+            "a new idea introduced for second-order equations: it is the "
+            "integrating factor, generalised. At first order there is one "
+            "function to vary and no need for an extra condition; at second "
+            "order there are two, one extra condition keeps the algebra "
+            "first order, and the Wronskian appears as the determinant of the "
+            "resulting two-by-two system. At order n there are n functions, "
+            "n − 1 conditions and an n × n Wronskian, and the pattern is the "
+            "same all the way up."
+        ),
+    )),
+    Section("Higher order", (
+        Para(
+            "For an equation of order n the same argument gives n unknown "
+            "functions and n − 1 extra conditions, one for each derivative "
+            "below the highest, chosen to keep the u' terms out. The result is "
+            "an n × n linear system for u₁', …, uₙ' whose matrix has the "
+            "fundamental solutions and their derivatives as rows and whose "
+            "determinant is the n × n Wronskian. It is solved by Cramer's rule "
+            "or by elimination, and each uᵢ' is integrated. The narrator in "
+            "this application does exactly that, for any order."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "To find a particular solution of y'' + py' + qy = f by variation "
+            "of parameters: find two independent homogeneous solutions y₁, y₂ "
+            "and their Wronskian W; make sure f is the right-hand side of the "
+            "standard form; compute u₁ = −∫y₂f/W dt and u₂ = ∫y₁f/W dt, "
+            "dropping constants of integration; and set y_p = u₁y₁ + u₂y₂. It "
+            "works for any continuous forcing and any coefficients, costs two "
+            "integrals, and agrees with undetermined coefficients wherever "
+            "both apply. Written as an integral, it expresses the response to "
+            "any forcing through the Green's function — the response to a "
+            "single kick. And at first order it is nothing but the "
+            "integrating factor, which is the best evidence that it is not a "
+            "trick but the natural general method: whenever the homogeneous "
+            "problem is solved, the forced one follows by integration."
+        ),
+    )),
+)
 
 
 UNDETERMINED = (

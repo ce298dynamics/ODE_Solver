@@ -1436,6 +1436,7 @@ SUPERPOSITION = Lesson(
 
 VARIATION = Lesson(
     key="variation",
+    chapter=chapters.VARIATION,
     title="Variation of parameters",
     summary="What to do when the forcing term is not something you could ever "
             "guess.",

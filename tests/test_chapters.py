@@ -34,6 +34,7 @@ CHAPTERED = (
     "superposition",
     "roots",
     "undetermined",
+    "variation",
 )
 
 #: About five pages of prose.
