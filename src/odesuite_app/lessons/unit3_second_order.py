@@ -428,6 +428,7 @@ ROOTS = Lesson(
 
 UNDETERMINED = Lesson(
     key="undetermined",
+    chapter=chapters.UNDETERMINED,
     title="Forced equations: undetermined coefficients",
     summary="When something is driving the system, and you can guess the shape "
             "of its response.",

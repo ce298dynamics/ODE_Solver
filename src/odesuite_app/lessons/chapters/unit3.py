@@ -4,7 +4,415 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["SUPERPOSITION", "ROOTS"]
+__all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED"]
+
+
+UNDETERMINED = (
+    Section("Guessing, done systematically", (
+        Para(
+            "The general solution of a forced equation ay'' + by' + cy = f(t) "
+            "is the complementary function plus *one* particular solution y_p, "
+            "and the last lesson found the complementary function from the "
+            "characteristic roots. What remains is to find y_p. For a large "
+            "and important class of forcing terms, it can be found by an "
+            "educated guess: write down a function of the right *form* with "
+            "unknown coefficients, substitute it, and solve for the "
+            "coefficients. That is the method of undetermined coefficients."
+        ),
+        Para(
+            "Why should a guess work? Because the left-hand side of the "
+            "equation only ever differentiates y and multiplies by constants. "
+            "If the forcing is a polynomial, an exponential, a sine or cosine, "
+            "or a product of these, then differentiating a function of the "
+            "same kind gives back a function of the same kind. The family is "
+            "*closed* under differentiation, so a trial solution drawn from it "
+            "turns the equation into an identity between members of the "
+            "family, and matching coefficients gives ordinary linear algebra."
+        ),
+        Box(
+            "definition", "Trial solution",
+            "A function of the same form as the forcing term — the same kind "
+            "of polynomial, exponential or sinusoid, with every coefficient "
+            "left unknown — substituted into the equation to find a "
+            "particular solution.",
+        ),
+        Para(
+            "The family must be complete. A forcing term 4t is a polynomial of "
+            "degree one, so the trial is At + B, including the constant term "
+            "even though the forcing has none: differentiating At + B produces "
+            "a constant, and the trial must have room for it. Likewise a "
+            "forcing cos t needs the trial A cos t + B sin t, because "
+            "differentiating a cosine produces a sine."
+        ),
+    )),
+    Section("The trial forms", (
+        Para(
+            "For f(t) a polynomial of degree n, try a general polynomial of "
+            "degree n. For f(t) = e^(kt), try Ae^(kt). For f(t) = cos ωt or "
+            "sin ωt — or any combination — try A cos ωt + B sin ωt. For a "
+            "product such as a polynomial times e^(kt), or e^(αt) times a "
+            "cosine, try the product of the corresponding forms, with a full "
+            "set of unknown coefficients."
+        ),
+        Display(r"f = P_n(t) \;\to\; y_p = A_n t^{n} + \cdots + A_0, \qquad "
+                r"f = e^{kt} \;\to\; y_p = A e^{kt}"),
+        Display(r"f = \cos\omega t \;\text{or}\; \sin\omega t \;\to\; "
+                r"y_p = A\cos\omega t + B\sin\omega t"),
+        Display(r"f = e^{\alpha t}\cos\beta t \;\to\; "
+                r"y_p = e^{\alpha t}(A\cos\beta t + B\sin\beta t)"),
+        Para(
+            "One rule overrides the table, and it is the part of the method "
+            "that needs thought rather than bookkeeping. If any term of the "
+            "trial solution already solves the homogeneous equation, the "
+            "trial must be multiplied by t — or by t² if that is still not "
+            "enough. Section 5 explains why, and it is the source of "
+            "resonance."
+        ),
+    )),
+    Section("Worked examples", (
+        Worked(
+            "A polynomial forcing term",
+            "Solve y'' + 3y' + 2y = 4t with y(0) = 0, y'(0) = 0.",
+            (
+                Step("Complementary function: r² + 3r + 2 = (r + 1)(r + 2), so "
+                     "y_c = c₁e^(−t) + c₂e^(−2t). Neither root is zero, so no "
+                     "polynomial is a homogeneous solution and the plain "
+                     "trial is fine.",
+                     r"y_p = At + B, \quad y_p' = A, \quad y_p'' = 0"),
+                Step("Substitute: 0 + 3A + 2(At + B) = 4t. Match coefficients: "
+                     "t-terms 2A = 4, constants 3A + 2B = 0. So A = 2, B = −3.",
+                     r"y_p = 2t - 3"),
+                Step("Fit the conditions to y = 2t − 3 + c₁e^(−t) + c₂e^(−2t): "
+                     "c₁ + c₂ = 3 and 2 − c₁ − 2c₂ = 0, so c₂ = −1 and c₁ = 4."),
+            ),
+            equation="y'' + 3*y' + 2*y = 4*t", conditions="y(0) = 0, y'(0) = 0",
+            answer="2*t - 3 + 4*exp(-t) - exp(-2*t)",
+            answer_latex=r"y(t) = 2t - 3 + 4e^{-t} - e^{-2t}",
+        ),
+        Worked(
+            "An exponential forcing term",
+            "Solve y'' − y = e^(2t) with y(0) = 0, y'(0) = 0.",
+            (
+                Step("y_c = c₁e^t + c₂e^(−t). The forcing e^(2t) is not among "
+                     "them, so try y_p = Ae^(2t): substituting gives "
+                     "4Ae^(2t) − Ae^(2t) = e^(2t), so A = 1/3.",
+                     r"y_p = \frac{1}{3} e^{2t}"),
+                Step("The conditions on y = e^(2t)/3 + c₁e^t + c₂e^(−t) give "
+                     "c₁ + c₂ = −1/3 and c₁ − c₂ = −2/3, so c₁ = −1/2 and "
+                     "c₂ = 1/6."),
+            ),
+            equation="y'' - y = exp(2*t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="exp(2*t)/3 - exp(t)/2 + exp(-t)/6",
+            answer_latex=r"y(t) = \frac{e^{2t}}{3} - \frac{e^{t}}{2} + "
+                         r"\frac{e^{-t}}{6}",
+        ),
+        Para(
+            "For exponential forcing there is a shortcut worth knowing. "
+            "Substituting Ae^(kt) into ay'' + by' + cy gives A(ak² + bk + c)e^(kt) "
+            "— the characteristic polynomial evaluated at k. So "
+            "y_p = e^(kt)/p(k), where p is the characteristic polynomial, "
+            "provided p(k) ≠ 0. In the example p(2) = 4 − 1 = 3. The proviso "
+            "is exactly the exceptional case of Section 5."
+        ),
+        Worked(
+            "A cosine forcing term",
+            "Solve y'' + 4y = cos t with y(0) = 0, y'(0) = 0.",
+            (
+                Step("y_c = c₁cos 2t + c₂sin 2t, natural frequency 2. The "
+                     "forcing has frequency 1, so try A cos t + B sin t: "
+                     "substituting gives 3A cos t + 3B sin t = cos t, so "
+                     "A = 1/3, B = 0.",
+                     r"y_p = \frac{1}{3}\cos t"),
+                Step("y(0) = 1/3 + c₁ = 0 gives c₁ = −1/3; y'(0) = 2c₂ = 0 "
+                     "gives c₂ = 0."),
+            ),
+            equation="y'' + 4*y = cos(t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="(cos(t) - cos(2*t))/3",
+            answer_latex=r"y(t) = \frac{\cos t - \cos 2t}{3}",
+        ),
+        Plot(
+            "A forced oscillation that never settles",
+            "y = (cos t − cos 2t)/3: the response at the forcing frequency, "
+            "cos t/3, plus the natural oscillation −cos 2t/3 set going by the "
+            "initial conditions. With no damping neither part decays, and "
+            "their sum repeats with period 2π without ever becoming a pure "
+            "cosine.",
+            (Curve("(cos(t) - cos(2*t))/3", "solution"),
+             Curve("cos(t)/3", "particular part")),
+            t=(0.0, 18.0),
+        ),
+        Figure("forced_structure",
+               "Separate the two halves of a forced solution: the particular "
+               "part fixed by the forcing, and the homogeneous part whose "
+               "constants the initial conditions set."),
+    )),
+    Section("When the guess is already a solution", (
+        Para(
+            "Try the method on y'' − y = e^t. The trial Ae^t gives "
+            "Ae^t − Ae^t = 0 on the left, whatever A is — and the right side "
+            "is e^t, not zero. No value of A works. The reason is that e^t "
+            "solves the homogeneous equation, so the operator annihilates it, "
+            "and a trial made only of homogeneous solutions can never produce "
+            "a nonzero right side."
+        ),
+        Box(
+            "theorem", "The modification rule",
+            "If some term of the trial solution solves the homogeneous "
+            "equation, multiply the entire trial by t^s, where s is the "
+            "smallest power of t — 1 or 2 for a second-order equation — that "
+            "leaves no term of the trial a homogeneous solution. Then the "
+            "coefficients can be found.",
+            r"y_p = t^{s} \times (\text{standard trial})",
+        ),
+        Para(
+            "In the language of the last lesson, s is the multiplicity of the "
+            "forcing's exponent as a characteristic root. The rule is the same "
+            "phenomenon as the repeated-root case, where te^(rt) appeared "
+            "because the second solution had to be different from the first; "
+            "and it is the same as the integrating-factor example in Unit 1 "
+            "where forcing that matched the natural behaviour produced a "
+            "factor of t."
+        ),
+        Worked(
+            "Forcing at a characteristic root",
+            "Solve y'' − y = e^t with y(0) = 0, y'(0) = 0.",
+            (
+                Step("1 is a simple root of r² − 1, so s = 1: try y_p = Ate^t. "
+                     "Then y_p' = A(1 + t)e^t and y_p'' = A(2 + t)e^t, and "
+                     "y_p'' − y_p = 2Ae^t = e^t gives A = 1/2.",
+                     r"y_p = \frac{1}{2} t e^{t}"),
+                Step("With y = te^t/2 + c₁e^t + c₂e^(−t): c₁ + c₂ = 0 and "
+                     "1/2 + c₁ − c₂ = 0, so c₁ = −1/4 and c₂ = 1/4."),
+            ),
+            equation="y'' - y = exp(t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="t*exp(t)/2 - exp(t)/4 + exp(-t)/4",
+            answer_latex=r"y(t) = \frac{te^{t}}{2} - \frac{e^{t}}{4} + "
+                         r"\frac{e^{-t}}{4}",
+        ),
+        Worked(
+            "A double root needs t²",
+            "Find a particular solution of y'' + 2y' + y = te^(−t), and the "
+            "solution with y(0) = 0, y'(0) = 0.",
+            (
+                Step("The characteristic roots are −1, −1: a double root. The "
+                     "standard trial (At + B)e^(−t) consists entirely of "
+                     "homogeneous solutions, and so does t(At + B)e^(−t) in "
+                     "part, so s = 2.",
+                     r"y_p = t^{2}(At + B)\, e^{-t}"),
+                Step("Writing y_p = u e^(−t), the operator becomes u'' for this "
+                     "equation, so u'' = t and u = t³/6: A = 1/6, B = 0.",
+                     r"y_p = \frac{t^{3}}{6} e^{-t}"),
+                Step("This y_p already has y(0) = 0 and y'(0) = 0, so the "
+                     "homogeneous constants are both zero."),
+            ),
+            equation="y'' + 2*y' + y = t*exp(-t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="t**3*exp(-t)/6", answer_latex=r"y(t) = \frac{t^{3}}{6} e^{-t}",
+        ),
+    )),
+    Section("Resonance", (
+        Para(
+            "The modification rule has a dramatic physical meaning when the "
+            "forcing is a sinusoid at the natural frequency of an undamped "
+            "system. For y'' + 4y = cos 2t the natural oscillations are cos 2t "
+            "and sin 2t, and the forcing is one of them. The trial must be "
+            "multiplied by t, and the factor t means the response grows "
+            "without bound."
+        ),
+        Worked(
+            "Resonance",
+            "Solve y'' + 4y = cos 2t with y(0) = 0, y'(0) = 0.",
+            (
+                Step("s = 1, so try y_p = t(A cos 2t + B sin 2t). Substituting, "
+                     "all the terms with a factor t cancel (they are "
+                     "homogeneous solutions), leaving −4A sin 2t + 4B cos 2t = "
+                     "cos 2t: A = 0 and B = 1/4.",
+                     r"y_p = \frac{t}{4}\sin 2t"),
+                Step("This y_p is zero at t = 0 and so is its derivative, so "
+                     "the homogeneous part is zero and y = y_p."),
+            ),
+            equation="y'' + 4*y = cos(2*t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="t*sin(2*t)/4", answer_latex=r"y(t) = \frac{t}{4}\sin 2t",
+        ),
+        Plot(
+            "Resonance: an oscillation with a growing amplitude",
+            "y = (t/4) sin 2t between its envelope ±t/4. Forcing at the "
+            "natural frequency pumps energy in on every cycle, in step with "
+            "the motion, and with no damping to remove it the amplitude grows "
+            "linearly for ever. Compare the bounded response to cos t above.",
+            (Curve("t*sin(2*t)/4", "solution"), Curve("t/4", "envelope ±t/4"),
+             Curve("-t/4", "")),
+            t=(0.0, 30.0),
+        ),
+        Box(
+            "warning", "Real systems have damping",
+            "Unbounded growth is a property of the undamped model. With any "
+            "damping at all the characteristic roots have negative real part, "
+            "the forcing frequency is never exactly a root, and the response "
+            "stays bounded — but it can be very large when the damping is "
+            "small, which is what breaks glasses and, occasionally, bridges. "
+            "The vibrations unit measures how large.",
+        ),
+    )),
+    Section("Sums and products of forcing terms", (
+        Para(
+            "Because the equation is linear, a forcing term that is a sum can "
+            "be handled one piece at a time. If y₁ solves L[y] = f₁ and y₂ "
+            "solves L[y] = f₂, then y₁ + y₂ solves L[y] = f₁ + f₂. So for "
+            "y'' + y = t + e^t, find a particular solution for t (it is t "
+            "itself) and one for e^t (it is e^t/2) and add them: "
+            "y_p = t + e^t/2. Each piece gets its own trial and its own check "
+            "for the modification rule."
+        ),
+        Para(
+            "Products are handled by product trials. For f = te^(3t) try "
+            "(At + B)e^(3t); for f = e^(−t)sin 2t try e^(−t)(A cos 2t + "
+            "B sin 2t); for f = t cos t try (At + B)cos t + (Ct + D)sin t. The "
+            "number of unknowns grows, but the algebra is always a linear "
+            "system, and the modification rule still applies to the product "
+            "as a whole: it is the exponent α + iβ of the forcing that is "
+            "compared with the characteristic roots."
+        ),
+        Worked(
+            "A sum of forcing terms",
+            "Solve y'' + y = t + e^t with y(0) = 0, y'(0) = 0.",
+            (
+                Step("For the forcing t, try At + B: then At + B = t, so the "
+                     "particular solution is t. For e^t, the shortcut gives "
+                     "e^t/p(1) with p(r) = r² + 1, so e^t/2.",
+                     r"y_p = t + \frac{e^{t}}{2}"),
+                Step("With y = t + e^t/2 + c₁cos t + c₂sin t: y(0) = 1/2 + c₁ = 0 "
+                     "gives c₁ = −1/2, and y'(0) = 1 + 1/2 + c₂ = 0 gives "
+                     "c₂ = −3/2."),
+            ),
+            equation="y'' + y = t + exp(t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="t + exp(t)/2 - cos(t)/2 - 3*sin(t)/2",
+            answer_latex=r"y(t) = t + \frac{e^{t}}{2} - \frac{\cos t}{2} - "
+                         r"\frac{3\sin t}{2}",
+        ),
+        Worked(
+            "A polynomial times an exponential",
+            "Find a particular solution of y'' − y = te^(2t).",
+            (
+                Step("2 is not a characteristic root (they are ±1), so the "
+                     "trial is (At + B)e^(2t). Writing y = ue^(2t) turns y'' − y "
+                     "into (u'' + 4u' + 3u)e^(2t), which is a convenient way to "
+                     "differentiate a product trial.",
+                     r"u'' + 4u' + 3u = t, \qquad u = At + B"),
+                Step("With u = At + B: 4A + 3At + 3B = t, so 3A = 1 and "
+                     "4A + 3B = 0. Hence A = 1/3 and B = −4/9.",
+                     r"y_p = \left(\frac{t}{3} - \frac{4}{9}\right) e^{2t}"),
+            ),
+            equation="y'' - y = t*exp(2*t)",
+            answer="(t/3 - 4/9)*exp(2*t)",
+            answer_latex=r"y_p = \left(\frac{t}{3} - \frac{4}{9}\right) e^{2t}",
+        ),
+        Para(
+            "The substitution y = ue^(kt) used there is worth remembering on "
+            "its own. It turns a forcing of the form (polynomial)·e^(kt) into "
+            "a pure polynomial forcing for u, with a new constant-coefficient "
+            "operator whose coefficients come from shifting the "
+            "characteristic polynomial by k. It also explains the modification "
+            "rule: if k is a root, the shifted operator has no u term, and u "
+            "must be a polynomial of higher degree than the forcing — the "
+            "extra factor of t."
+        ),
+    )),
+    Section("Why matching coefficients is legitimate", (
+        Para(
+            "Every example ended with a step like 'match the coefficients of "
+            "t and of the constants', and it is worth knowing why that is "
+            "allowed. An identity 2At + (3A + 2B) = 4t must hold for every t. "
+            "Two polynomials that agree at every point have the same "
+            "coefficients — their difference is a polynomial with infinitely "
+            "many roots, which must be zero. So the t-coefficients agree and "
+            "the constants agree, and there are exactly as many equations as "
+            "unknowns."
+        ),
+        Para(
+            "The same holds for cosines and sines, and for exponentials with "
+            "different exponents: the functions 1, t, t², …, cos ωt, sin ωt, "
+            "e^(kt) with distinct k are linearly independent, so an identity "
+            "among combinations of them can only hold coefficient by "
+            "coefficient. That is the independence of the last lesson doing "
+            "quiet work. And it is exactly why the modification rule is "
+            "needed: when a trial term is a homogeneous solution, it "
+            "contributes nothing to the left side, the corresponding equation "
+            "reads 0 = something, and the linear system has no solution."
+        ),
+        Box(
+            "remark", "Checking a particular solution",
+            "A particular solution can be checked on its own, before any "
+            "initial condition is applied: substitute it and see whether the "
+            "forcing comes back exactly. The drill in this lesson grades the "
+            "final answer by substitution, and a wrong y_p shows up there as "
+            "a leftover that is usually recognisable — the forcing term, or "
+            "part of it, surviving the substitution.",
+        ),
+    )),
+    Section("Choosing the trial: six quick cases", (
+        Para(
+            "Choosing the trial is the part of the method that exams test "
+            "most, and it can be practised without solving anything. Take "
+            "y'' + 4y (roots ±2i) with six different forcing terms. For "
+            "f = 3t², try At² + Bt + C: a full quadratic. For f = 5e^(−t), try "
+            "Ae^(−t). For f = sin 3t, try A cos 3t + B sin 3t, since 3 is not "
+            "the natural frequency 2."
+        ),
+        Para(
+            "For f = sin 2t, the standard trial A cos 2t + B sin 2t is made of "
+            "homogeneous solutions, so multiply by t: t(A cos 2t + B sin 2t). "
+            "For f = te^t, try (At + B)e^t. For f = e^t cos 2t, the exponent is "
+            "1 ± 2i, not a root, so try e^t(A cos 2t + B sin 2t) — the factor "
+            "e^t moves the exponent off the imaginary axis and the "
+            "modification rule does not apply, even though cos 2t by itself "
+            "would have triggered it."
+        ),
+        Para(
+            "Now change the operator to y'' − 2y' + 5y, whose roots are "
+            "1 ± 2i. The forcing sin 2t is now harmless and needs no factor "
+            "of t, while e^t cos 2t has become resonant and needs "
+            "te^t(A cos 2t + B sin 2t). The lesson of the six cases is that "
+            "the trial depends on the forcing *and* on the characteristic "
+            "roots together, and the only reliable way to decide is to "
+            "compare the forcing's exponent with the roots every time."
+        ),
+    )),
+    Section("Where the method stops", (
+        Para(
+            "Undetermined coefficients works only when the forcing belongs to "
+            "a family closed under differentiation. For f(t) = sec t, the "
+            "derivatives are sec t tan t, sec t tan² t + sec³ t, and so on — "
+            "an endless list with no finite trial able to contain it. The same "
+            "is true of ln t, 1/t, tan t and most other functions. The method "
+            "also needs constant coefficients, since for variable "
+            "coefficients the derivatives of the trial are multiplied by "
+            "functions of t and leave the family."
+        ),
+        Para(
+            "For everything outside its reach there is variation of "
+            "parameters, the next lesson, which always works when the "
+            "complementary function is known, at the price of two integrals "
+            "that may be hard. The practical rule is: undetermined "
+            "coefficients when it applies, because it is algebra rather than "
+            "integration; variation of parameters otherwise."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "To find a particular solution of ay'' + by' + cy = f by "
+            "undetermined coefficients: find the complementary function first; "
+            "choose the trial of the same form as f, with every coefficient "
+            "unknown and the full family included (a cosine needs a sine, a "
+            "polynomial all lower powers); multiply by t or t² if any term of "
+            "the trial solves the homogeneous equation; substitute and match "
+            "coefficients; then add the complementary function and fit the "
+            "initial conditions to the sum. For sums of forcing terms, add the "
+            "particular solutions. Forcing at a natural frequency of an "
+            "undamped system produces resonance, a response that grows "
+            "without bound."
+        ),
+    )),
+)
 
 
 ROOTS = (
