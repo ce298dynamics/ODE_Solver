@@ -1066,6 +1066,7 @@ SHIFTING = Lesson(
 
 CONVOLUTION = Lesson(
     key="convolution",
+    chapter=chapters.CONVOLUTION,
     title="Convolution",
     summary="What to do when Y(s) is a product that refuses to split.",
     tool="laplace",

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["TRANSFORM", "LAPLACE", "SHIFTING"]
+__all__ = ["TRANSFORM", "LAPLACE", "SHIFTING", "CONVOLUTION"]
 
 
 LAPLACE = (
@@ -1325,6 +1325,478 @@ SHIFTING = (
             "shifted variable. The poles of Y(s) predict the behaviour: real "
             "part for growth or decay, imaginary part for frequency, "
             "multiplicity for powers of t."
+        ),
+    )),
+)
+
+
+CONVOLUTION = (
+    Section("When Y(s) is a product", (
+        Para(
+            "Every example so far ended with a Y(s) that partial fractions could "
+            "split into rows of the table. That relied on two things: the "
+            "forcing had a transform on the table, and the product of that "
+            "transform with 1/P(s), where P is the characteristic polynomial, "
+            "was a rational function. Neither is guaranteed. A forcing such as "
+            "1/(1 + t) has no elementary transform at all, and a forcing given "
+            "as measured data has no formula to transform."
+        ),
+        Para(
+            "There is also a structural point that the partial-fraction "
+            "calculations hide. For a system starting at rest, the transform of "
+            "the answer is always a product, Y(s) = F(s)/P(s): one factor belongs "
+            "to the forcing and the other to the system alone. It would be "
+            "useful to know what a product of transforms means back in time, "
+            "because then the system's contribution could be worked out once "
+            "and reused for every forcing."
+        ),
+        Para(
+            "The obvious guess is that a product of transforms is the transform "
+            "of the product of the functions. It is wrong, and it is worth "
+            "seeing how badly. With f = g = t, the product fg = t² has transform "
+            "2/s³, while F(s)G(s) = (1/s²)(1/s²) = 1/s⁴. The correct answer is a "
+            "new operation on functions, the convolution, and it is the subject "
+            "of this chapter."
+        ),
+        Display(r"\mathcal{L}\{f g\} \neq F(s)\,G(s)", "5.4"),
+    )),
+    Section("The convolution of two functions", (
+        Box(
+            "definition", "Convolution",
+            "For functions f and g that are piecewise continuous on t ≥ 0, the "
+            "convolution f * g is the function of t defined by the integral "
+            "below. One function is evaluated at the earlier time τ and the "
+            "other at the remaining time t − τ, and the two arguments always add "
+            "up to the current time t.",
+            r"(f * g)(t) = \int_{0}^{t} f(\tau)\,g(t - \tau)\,d\tau",
+        ),
+        Para(
+            "The simplest examples show that convolution is a genuinely "
+            "different operation from multiplication. Convolving with the "
+            "constant 1 integrates: (1 * g)(t) = ∫₀ᵗ g(t − τ) dτ = ∫₀ᵗ g(u) du. So "
+            "1 * 1 = t, 1 * t = t²/2, and 1 * cos t = sin t. In particular 1 is "
+            "not an identity for convolution — convolving with 1 changes a "
+            "function into its running integral."
+        ),
+        Worked(
+            "Convolving two exponentials",
+            "Compute e^t * e^(2t).",
+            (
+                Step("Put f(τ) = e^τ and g(t − τ) = e^(2(t − τ)), and take the "
+                     "factor e^(2t), which does not depend on τ, outside.",
+                     r"e^{t} * e^{2t} = \int_{0}^{t} e^{\tau}e^{2(t-\tau)}\,d\tau = "
+                     r"e^{2t}\int_{0}^{t} e^{-\tau}\,d\tau"),
+                Step("Integrate: the inner integral is 1 − e^(−t).",
+                     r"= e^{2t}\left(1 - e^{-t}\right) = e^{2t} - e^{t}"),
+                Step("Check against partial fractions: 1/((s − 1)(s − 2)) = "
+                     "1/(s − 2) − 1/(s − 1), which inverts to the same function.",
+                     r"\frac{1}{s-1}\cdot\frac{1}{s-2} = \frac{1}{s-2} - \frac{1}{s-1}"),
+            ),
+            answer="e^(2t) − e^t",
+            answer_latex=r"e^{t} * e^{2t} = e^{2t} - e^{t}",
+        ),
+        Para(
+            "The check in the last step is not a coincidence: it is the "
+            "convolution theorem, which is stated and proved next."
+        ),
+    )),
+    Section("The convolution theorem", (
+        Box(
+            "theorem", "Convolution theorem",
+            "If f and g are piecewise continuous and of exponential order, then "
+            "the transform of their convolution is the product of their "
+            "transforms, for all s large enough that both transforms exist.",
+            r"\mathcal{L}\{f * g\} = F(s)\,G(s)",
+        ),
+        Box(
+            "proof", "Proof",
+            "Write each transform as its own integral, using different "
+            "variables of integration, and multiply. The product is a double "
+            "integral over the quarter-plane τ ≥ 0, σ ≥ 0, and the exponent "
+            "depends only on τ + σ. Substitute t = τ + σ for σ: for fixed τ, t "
+            "runs from τ to ∞. The region τ ≥ 0, t ≥ τ is the wedge "
+            "0 ≤ τ ≤ t, and reversing the order of integration over it gives "
+            "an outer integral in t whose inner integral is exactly (f * g)(t). "
+            "Exponential order justifies the reversal.",
+            r"F(s)G(s) = \int_{0}^{\infty}\!\!\int_{0}^{\infty}e^{-s(\tau+\sigma)}"
+            r"f(\tau)g(\sigma)\,d\sigma\,d\tau = \int_{0}^{\infty}e^{-st}"
+            r"\left(\int_{0}^{t}f(\tau)g(t-\tau)\,d\tau\right)dt",
+        ),
+        Para(
+            "Read the theorem in both directions. Forwards, it transforms a "
+            "convolution without evaluating it. Backwards — the direction that "
+            "matters for differential equations — it inverts a product of two "
+            "recognisable transforms without partial fractions: the inverse of "
+            "F(s)G(s) is f * g, whatever F and G are."
+        ),
+        Figure("convolution",
+               "The convolution integral pictured: a pulse f is held still "
+               "while a decaying exponential g is reversed and slid across it. "
+               "The area of their overlap at each moment is the value of f * g "
+               "there, and the right pane plots that area against t."),
+    )),
+    Section("Properties", (
+        Para(
+            "Because transforms are unique, every algebraic property of the "
+            "product F(s)G(s) is inherited by the convolution. Products commute, "
+            "associate and distribute over sums, so convolution does too. The "
+            "commutative law can also be seen directly from the integral by "
+            "substituting u = t − τ."
+        ),
+        Display(r"f * g = g * f, \qquad f * (g * h) = (f * g) * h, \qquad "
+                r"f * (g + h) = f * g + f * h", "5.5"),
+        Para(
+            "Commutativity is useful in practice because it lets you choose "
+            "which function to shift. Putting t − τ into the simpler function "
+            "usually makes the integral easier. But the choice must be made "
+            "consistently: f(τ)g(t − τ) and g(τ)f(t − τ) are both correct, "
+            "while f(t − τ)g(t − τ) or f(τ)g(τ) are not convolutions at all."
+        ),
+        Para(
+            "Convolving with 1 is integration, so the theorem gives at once the "
+            "transform of a running integral. Dividing a transform by s "
+            "integrates the function from 0 to t — the counterpart of the rule "
+            "that multiplying by s differentiates it."
+        ),
+        Display(r"\mathcal{L}\left\{\int_{0}^{t} f(u)\,du\right\} = \frac{F(s)}{s}",
+                "5.6"),
+        Worked(
+            "Dividing by s",
+            "Find the inverse transform of 1/(s(s² + 4)).",
+            (
+                Step("1/(s² + 4) is the transform of (1/2) sin 2t, and the extra "
+                     "factor 1/s integrates it from 0 to t, by 5.6.",
+                     r"\mathcal{L}^{-1}\left\{\frac{1}{s(s^{2}+4)}\right\} = "
+                     r"\int_{0}^{t}\frac{1}{2}\sin 2u\,du"),
+                Step("Integrate.",
+                     r"= \frac{1}{4}\left(1 - \cos 2t\right)"),
+            ),
+            answer="(1 − cos 2t)/4",
+            answer_latex=r"\frac{1}{4}\left(1 - \cos 2t\right)",
+        ),
+    )),
+    Section("Inverting products", (
+        Para(
+            "The theorem gives an alternative to partial fractions whenever "
+            "Y(s) is a product of two table entries. Sometimes it is quicker, "
+            "and sometimes it is the only practical route — a repeated "
+            "quadratic factor such as 1/(s² + 1)² is tedious by partial "
+            "fractions but straightforward by convolution."
+        ),
+        Worked(
+            "A product of two table entries",
+            "Find the inverse transform of 1/(s²(s² + 1)).",
+            (
+                Step("Write the transform as (1/s²)·(1/(s² + 1)), the transforms "
+                     "of t and sin t. Put the shift into t, the simpler function.",
+                     r"\mathcal{L}^{-1} = \int_{0}^{t} (t - \tau)\sin\tau\,d\tau"),
+                Step("Integrate by parts, or split the integrand: "
+                     "t∫sin τ dτ − ∫τ sin τ dτ = t(1 − cos t) − (sin t − t cos t).",
+                     r"= t - \sin t"),
+                Step("Check by partial fractions in s²: 1/(s²(s² + 1)) = "
+                     "1/s² − 1/(s² + 1), which inverts to t − sin t."),
+            ),
+            answer="t − sin t",
+            answer_latex=r"t - \sin t",
+        ),
+        Worked(
+            "A repeated quadratic",
+            "Find the inverse transform of 1/(s² + 1)².",
+            (
+                Step("This is (1/(s² + 1))², so the answer is sin t * sin t.",
+                     r"\sin t * \sin t = \int_{0}^{t}\sin\tau\,\sin(t-\tau)\,d\tau"),
+                Step("Use sin A sin B = (1/2)(cos(A − B) − cos(A + B)); here "
+                     "A + B = t is constant in τ.",
+                     r"= \frac{1}{2}\int_{0}^{t}\left(\cos(2\tau - t) - \cos t\right)d\tau"),
+                Step("The first term integrates to (1/2) sin t, the second to "
+                     "−(t/2) cos t.",
+                     r"= \frac{1}{2}\left(\sin t - t\cos t\right)"),
+            ),
+            answer="(sin t − t cos t)/2",
+            answer_latex=r"\frac{1}{2}\left(\sin t - t\cos t\right)",
+        ),
+        Para(
+            "The second result has a factor t cos t that grows without bound, "
+            "and that is exactly the resonant response of the vibrations unit: "
+            "1/(s² + 1)² is what a spring with natural frequency 1 produces when "
+            "it is forced at frequency 1."
+        ),
+    )),
+    Section("The transfer function and the impulse response", (
+        Para(
+            "Now apply the theorem to a differential equation. Take a linear "
+            "equation with constant coefficients, ay'' + by' + cy = f(t), and "
+            "start it at rest, y(0) = y'(0) = 0. The transform is "
+            "(as² + bs + c)Y = F, so Y is a product of the forcing's transform "
+            "and a function of s that depends only on the equation."
+        ),
+        Box(
+            "definition", "Transfer function and impulse response",
+            "The transfer function of the equation is W(s) = 1/(as² + bs + c). "
+            "Its inverse transform w(t) is the impulse response (also called "
+            "the weight function) of the system — the name will be justified in "
+            "the impulses lesson, where w turns out to be the response to a "
+            "single sharp blow.",
+            r"W(s) = \frac{1}{as^{2}+bs+c}, \qquad w(t) = \mathcal{L}^{-1}\{W(s)\}",
+        ),
+        Box(
+            "theorem", "Duhamel's principle",
+            "The solution of ay'' + by' + cy = f(t) with y(0) = y'(0) = 0 is the "
+            "convolution of the impulse response with the forcing. It holds for "
+            "every piecewise continuous forcing of exponential order, whether or "
+            "not the forcing has a transform in closed form.",
+            r"y(t) = (w * f)(t) = \int_{0}^{t} w(t - \tau)\,f(\tau)\,d\tau",
+        ),
+        Para(
+            "The integral has a physical reading. At time τ the forcing delivers "
+            "a small input f(τ)dτ; by time t that input has been evolving for "
+            "t − τ units and contributes w(t − τ)f(τ)dτ to the response. The "
+            "output now is the sum of everything the forcing did earlier, each "
+            "part weighted by how long ago it happened. The system is described "
+            "completely by one function w, found once."
+        ),
+    )),
+    Section("First order: the integrating factor, rediscovered", (
+        Para(
+            "The simplest case is worth doing because its answer is already "
+            "familiar. For y' + ky = f(t) with y(0) = 0, the transform gives "
+            "(s + k)Y = F, so the transfer function is 1/(s + k) and the impulse "
+            "response is e^(−kt). Duhamel's principle then says the solution is "
+            "the integral below — which is exactly the formula the integrating "
+            "factor e^(kt) produced in the first unit, written in a different "
+            "order."
+        ),
+        Display(r"y(t) = \int_{0}^{t} e^{-k(t-\tau)}\,f(\tau)\,d\tau", "5.7"),
+        Para(
+            "The weight e^(−k(t − τ)) makes the idea of memory precise. An input "
+            "delivered at time τ still counts at time t, but discounted by the "
+            "factor e^(−k(t − τ)), so the system forgets its past at the rate k. "
+            "A large k means a short memory and a response that follows the "
+            "forcing closely; a small k means a long memory and a response that "
+            "averages the forcing over a long stretch of its history. The "
+            "undamped oscillator of the next section, whose impulse response sin t "
+            "never decays, never forgets anything at all: an input delivered long ago "
+            "still rings through the response with its full original strength."
+        ),
+        Worked(
+            "A ramp through a first-order system",
+            "Solve y' + y = t with y(0) = 0 using 5.7.",
+            (
+                Step("With k = 1 and f(τ) = τ, the convolution is the integral "
+                     "below; take the factor e^(−t) outside.",
+                     r"y(t) = \int_{0}^{t} e^{-(t-\tau)}\,\tau\,d\tau = "
+                     r"e^{-t}\int_{0}^{t}\tau e^{\tau}\,d\tau"),
+                Step("Integrate by parts: ∫₀ᵗ τe^τ dτ = (t − 1)e^t + 1.",
+                     r"y(t) = e^{-t}\left((t-1)e^{t} + 1\right)"),
+                Step("Simplify. The response lags the ramp by exactly one unit "
+                     "of time, the memory length 1/k, once the transient e^(−t) "
+                     "has died away."),
+            ),
+            equation="y' + y = t", conditions="y(0) = 0",
+            answer="t - 1 + exp(-t)",
+            answer_latex=r"y(t) = t - 1 + e^{-t}",
+        ),
+    )),
+    Section("Solving with an arbitrary forcing", (
+        Para(
+            "For the undamped oscillator y'' + y = f(t), the transfer function is "
+            "1/(s² + 1) and the impulse response is sin t. Every forced motion "
+            "from rest is therefore given by one formula."
+        ),
+        Display(r"y'' + y = f(t),\; y(0)=y'(0)=0 \;\Longrightarrow\; "
+                r"y(t) = \int_{0}^{t}\sin(t-\tau)\,f(\tau)\,d\tau", "5.8"),
+        Worked(
+            "A ramp forcing",
+            "Solve y'' + y = t with y(0) = 0, y'(0) = 0 using 5.8.",
+            (
+                Step("Substitute f(τ) = τ. By commutativity this is the same "
+                     "integral as in the product example above.",
+                     r"y(t) = \int_{0}^{t}\tau\,\sin(t-\tau)\,d\tau"),
+                Step("Evaluate: it equals t − sin t.",
+                     r"y(t) = t - \sin t"),
+            ),
+            equation="y'' + y = t", conditions="y(0) = 0, y'(0) = 0",
+            answer="t - sin(t)",
+            answer_latex=r"y(t) = t - \sin t",
+        ),
+        Worked(
+            "Forcing at the natural frequency",
+            "Solve y'' + 4y = cos 2t with y(0) = 0, y'(0) = 0.",
+            (
+                Step("The transfer function is 1/(s² + 4), so the impulse "
+                     "response is (1/2) sin 2t.",
+                     r"y(t) = \frac{1}{2}\int_{0}^{t}\sin 2(t-\tau)\,\cos 2\tau\,d\tau"),
+                Step("Use sin A cos B = (1/2)(sin(A + B) + sin(A − B)): the first "
+                     "term is sin 2t, constant in τ, and the second integrates to "
+                     "zero over [0, t].",
+                     r"= \frac{1}{4}\int_{0}^{t}\left(\sin 2t + \sin(2t - 4\tau)"
+                     r"\right)d\tau = \frac{t}{4}\sin 2t"),
+            ),
+            equation="y'' + 4*y = cos(2*t)", conditions="y(0) = 0, y'(0) = 0",
+            answer="t*sin(2*t)/4",
+            answer_latex=r"y(t) = \frac{t}{4}\sin 2t",
+        ),
+        Plot(
+            "Resonance from a convolution",
+            "y = (t/4) sin 2t between the lines ±t/4. Every past moment of the "
+            "forcing cos 2τ arrives in phase with the system's own oscillation, "
+            "so the contributions add rather than cancel and the amplitude grows "
+            "linearly.",
+            (Curve("t*sin(2*t)/4", "y(t)"), Curve("t/4", "±t/4"),
+             Curve("-t/4", "")),
+            t=(0.0, 20.0),
+        ),
+    )),
+    Section("Impulse response and step response", (
+        Para(
+            "The response to a constant forcing of size 1, starting from rest, is "
+            "called the step response. By Duhamel's principle it is w * 1, the "
+            "running integral of the impulse response; equivalently, the impulse "
+            "response is the derivative of the step response. Knowing either "
+            "one determines the system."
+        ),
+        Worked(
+            "An underdamped system",
+            "Find the step response of y'' + 2y' + 2y = f(t) and check that its "
+            "derivative is the impulse response.",
+            (
+                Step("W(s) = 1/((s + 1)² + 1), so the impulse response is "
+                     "w(t) = e^(−t) sin t by the first shifting theorem.",
+                     r"w(t) = e^{-t}\sin t"),
+                Step("The step response has transform W(s)/s. The shifting "
+                     "chapter found this for a forcing of 2; halve it.",
+                     r"y(t) = \frac{1}{2}\left(1 - e^{-t}\left(\cos t + \sin t\right)\right)"),
+                Step("Differentiate: the cosine terms cancel and y' = e^(−t) sin t, "
+                     "which is w, as promised."),
+            ),
+            equation="y'' + 2*y' + 2*y = 1", conditions="y(0) = 0, y'(0) = 0",
+            answer="(1 - exp(-t)*(cos(t) + sin(t)))/2",
+            answer_latex=r"y(t) = \frac{1}{2}\left(1 - e^{-t}\left(\cos t + "
+                         r"\sin t\right)\right)",
+        ),
+        Plot(
+            "Impulse response and step response",
+            "The impulse response w = e^(−t) sin t and the step response, its "
+            "running integral. The step response rises fastest where w is "
+            "largest and levels off at 1/2 = W(0) as w dies away.",
+            (Curve("exp(-t)*sin(t)", "impulse response w(t)"),
+             Curve("(1 - exp(-t)*(cos(t) + sin(t)))/2", "step response")),
+            t=(0.0, 8.0),
+        ),
+    )),
+    Section("Nonzero initial values", (
+        Para(
+            "When the system does not start at rest, the transformed equation "
+            "has extra terms from the initial values, and Y splits into two "
+            "parts: one from the initial values alone and one from the forcing "
+            "alone. The first is the free response, which the table inverts as "
+            "usual; the second is still w * f."
+        ),
+        Display(r"y(t) = y_{h}(t) + \int_{0}^{t} w(t-\tau)\,f(\tau)\,d\tau", "5.9"),
+        Worked(
+            "Starting displaced",
+            "Solve y'' + y = t with y(0) = 1, y'(0) = 0.",
+            (
+                Step("The free response with y(0) = 1, y'(0) = 0 is cos t.",
+                     r"y_{h}(t) = \cos t"),
+                Step("The forced part from rest was found above: t − sin t. Add.",
+                     r"y(t) = \cos t + t - \sin t"),
+            ),
+            equation="y'' + y = t", conditions="y(0) = 1, y'(0) = 0",
+            answer="cos(t) + t - sin(t)",
+            answer_latex=r"y(t) = \cos t + t - \sin t",
+        ),
+        Para(
+            "This split — free response plus a zero-state response — is how "
+            "engineers usually describe a linear system. It is the same "
+            "decomposition as complementary function plus particular solution, "
+            "but with a specific choice of particular solution: the one that "
+            "starts at rest."
+        ),
+    )),
+    Section("When the integral will not simplify", (
+        Para(
+            "Duhamel's principle gives an answer even when no closed form "
+            "exists. For y'' + y = 1/(1 + t) from rest, 5.8 gives the solution "
+            "below, and that integral is the answer. It can be evaluated "
+            "numerically to any accuracy, differentiated under the integral "
+            "sign, and bounded: since |sin| ≤ 1, |y(t)| ≤ ln(1 + t) for all t."
+        ),
+        Display(r"y(t) = \int_{0}^{t}\frac{\sin(t-\tau)}{1+\tau}\,d\tau", "5.10"),
+        Para(
+            "This particular integral can in fact be written with the special "
+            "functions Si and Ci, the sine and cosine integrals, which is what "
+            "the Laplace screen reports for the lesson's first example. But the "
+            "special functions add nothing that 5.10 does not already say; they "
+            "are names for integrals of exactly this kind. An unevaluated "
+            "convolution is a finished answer, not an unfinished one."
+        ),
+        Para(
+            "The same idea handles forcing known only as data. If f has been "
+            "measured at a sequence of times, the convolution integral can be "
+            "approximated by a sum over those times, and the response computed "
+            "without ever writing down a formula for f. This is how linear "
+            "systems are simulated in signal processing and control, where the "
+            "impulse response is often measured directly by striking the system "
+            "once and recording what it does."
+        ),
+    )),
+    Section("Integral equations", (
+        Para(
+            "An equation in which the unknown function appears inside a "
+            "convolution is called a Volterra integral equation. The convolution "
+            "theorem turns it into algebra in exactly the way the derivative "
+            "rule does for differential equations."
+        ),
+        Worked(
+            "A Volterra equation",
+            "Solve y(t) = t + ∫₀ᵗ (t − τ) y(τ) dτ.",
+            (
+                Step("The integral is t * y, so transforming gives an algebraic "
+                     "equation for Y.",
+                     r"Y = \frac{1}{s^{2}} + \frac{1}{s^{2}}Y"),
+                Step("Solve: Y(1 − 1/s²) = 1/s², so Y = 1/(s² − 1).",
+                     r"Y = \frac{1}{s^{2}-1}"),
+                Step("Invert: 1/(s² − 1) = (1/2)(1/(s − 1) − 1/(s + 1)), the "
+                     "transform of sinh t. Substituting back confirms it: "
+                     "∫₀ᵗ (t − τ) sinh τ dτ = sinh t − t."),
+            ),
+            answer="sinh t",
+            answer_latex=r"y(t) = \sinh t",
+        ),
+        Para(
+            "Such equations arise when the rate of change of a quantity depends "
+            "on its whole history rather than its present value — materials "
+            "with memory, populations with delayed effects, and the renewal "
+            "equations of probability."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "The first error is the one this chapter began with: treating "
+            "L{fg} as FG. The second is misplacing the shift — both functions "
+            "evaluated at τ, or both at t − τ. The third is forgetting that the "
+            "limits are 0 and t, not 0 and ∞: the transform only ever describes "
+            "t ≥ 0, and both functions are taken to be zero before time 0, which "
+            "is why the integral stops at t."
+        ),
+        Para(
+            "Finally, 1 is not the identity for convolution: 1 * f is the running "
+            "integral of f, not f. The function that does act as an identity is "
+            "not a function at all — it is the delta impulse of the impulses "
+            "lesson, whose transform is 1."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "The convolution f * g = ∫₀ᵗ f(τ)g(t − τ) dτ is the operation whose "
+            "transform is the product F(s)G(s). It is commutative, associative "
+            "and distributive, and convolving with 1 integrates. For a linear "
+            "system at rest, Y = W(s)F(s), so the solution is w * f, where the "
+            "impulse response w is the inverse of the transfer function "
+            "W = 1/P(s). That formula works for any forcing, including ones "
+            "with no closed-form transform, and an unevaluated convolution "
+            "integral is a complete answer."
         ),
     )),
 )
