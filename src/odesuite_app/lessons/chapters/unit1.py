@@ -417,7 +417,8 @@ SUBSTITUTIONS = (
             "translate back, apply the initial condition, and remember the "
             "solutions the substitution cannot see — y = 0 for a Bernoulli "
             "equation. Then check the answer in the original equation, which "
-            "is the only equation that matters."
+            "is the only equation that matters — the new one was only ever a "
+            "means to it."
         ),
     )),
 )
