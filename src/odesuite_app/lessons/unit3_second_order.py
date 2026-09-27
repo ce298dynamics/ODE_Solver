@@ -33,6 +33,7 @@ __all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED", "VARIATION",
 
 ROOTS = Lesson(
     key="roots",
+    chapter=chapters.ROOTS,
     title="Second order: characteristic roots",
     summary="Constant coefficients, no forcing — where a differential equation "
             "becomes a quadratic.",

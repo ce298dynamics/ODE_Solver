@@ -4,7 +4,442 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["SUPERPOSITION"]
+__all__ = ["SUPERPOSITION", "ROOTS"]
+
+
+ROOTS = (
+    Section("Trying an exponential", (
+        Para(
+            "The last lesson reduced solving y'' + py' + qy = 0 to finding two "
+            "independent solutions. When p and q are constants there is a "
+            "way to find them that never fails, and it rests on one "
+            "observation: the derivative of e^(rt) is a constant multiple of "
+            "e^(rt). Substitute y = e^(rt) into ay'' + by' + cy = 0 and every "
+            "term carries the same factor e^(rt), which is never zero and can "
+            "be cancelled. What is left is an equation for the number r "
+            "alone."
+        ),
+        Display(r"a r^{2} e^{rt} + b r e^{rt} + c\, e^{rt} = 0 "
+                r"\;\Longrightarrow\; a r^{2} + b r + c = 0", "1"),
+        Box(
+            "definition", "Characteristic equation",
+            "For ay'' + by' + cy = 0 with constant coefficients, the "
+            "*characteristic equation* is the quadratic ar² + br + c = 0, "
+            "read straight off the coefficients. Its roots are the "
+            "*characteristic roots*, and e^(rt) solves the differential "
+            "equation exactly when r is one of them.",
+            r"a r^{2} + b r + c = 0",
+        ),
+        Para(
+            "So a differential equation has become an algebra problem, "
+            "which is the whole point. A quadratic has two roots, and the "
+            "three kinds of pair it can have — two distinct real numbers, one "
+            "repeated real number, or a complex conjugate pair — give three "
+            "forms of the general solution. The discriminant b² − 4ac decides "
+            "which, and in the vibrations unit it will turn out to decide "
+            "whether a spring oscillates."
+        ),
+        Figure("root_cases",
+               "Move the coefficients and watch the roots move in the complex "
+               "plane, and the solution change shape as they pass from two "
+               "real roots through a double root to a complex pair."),
+    )),
+    Section("Distinct real roots", (
+        Box(
+            "theorem", "Distinct real roots",
+            "If the characteristic equation has two different real roots r₁ "
+            "and r₂, then e^(r₁t) and e^(r₂t) are independent solutions, and "
+            "the general solution is their combination.",
+            r"y = c_1 e^{r_1 t} + c_2 e^{r_2 t}",
+        ),
+        Para(
+            "Independence follows from the Wronskian: W = (r₂ − r₁)e^((r₁+r₂)t), "
+            "which is never zero when r₁ ≠ r₂. The long-run behaviour is read "
+            "off the signs of the roots: if both are negative every solution "
+            "decays to zero; if either is positive, almost every solution "
+            "grows; the slower-decaying or faster-growing exponential "
+            "eventually dominates."
+        ),
+        Worked(
+            "Two decaying exponentials",
+            "Solve y'' + 5y' + 6y = 0 with y(0) = 1, y'(0) = 0.",
+            (
+                Step("The characteristic equation r² + 5r + 6 = 0 factors as "
+                     "(r + 2)(r + 3) = 0, so r = −2 and r = −3.",
+                     r"y = c_1 e^{-2t} + c_2 e^{-3t}"),
+                Step("The conditions give c₁ + c₂ = 1 and −2c₁ − 3c₂ = 0. From "
+                     "the second c₁ = −3c₂/2, and then c₂ = −2, c₁ = 3.",
+                     r"c_1 + c_2 = 1, \qquad -2c_1 - 3c_2 = 0"),
+            ),
+            equation="y'' + 5*y' + 6*y = 0", conditions="y(0) = 1, y'(0) = 0",
+            answer="3*exp(-2*t) - 2*exp(-3*t)",
+            answer_latex=r"y(t) = 3e^{-2t} - 2e^{-3t}",
+        ),
+        Worked(
+            "One growing, one decaying",
+            "Solve y'' − 4y = 0 with y(0) = 0, y'(0) = 4.",
+            (
+                Step("r² − 4 = 0 gives r = ±2, so y = c₁e^(2t) + c₂e^(−2t)."),
+                Step("c₁ + c₂ = 0 and 2c₁ − 2c₂ = 4 give c₁ = 1, c₂ = −1 — "
+                     "that is, 2 sinh 2t.",
+                     r"y = e^{2t} - e^{-2t} = 2\sinh 2t"),
+            ),
+            equation="y'' - 4*y = 0", conditions="y(0) = 0, y'(0) = 4",
+            answer="exp(2*t) - exp(-2*t)", answer_latex=r"y(t) = e^{2t} - e^{-2t}",
+        ),
+        Para(
+            "The two examples show the two physical faces of real roots. In "
+            "the first, both roots are negative: the system returns to rest "
+            "without oscillating, the faster exponential dying first and the "
+            "slower one, e^(−2t), setting the pace of the final approach. A "
+            "heavily damped door-closer behaves this way. In the second, a "
+            "positive root makes the zero solution unstable: a small push "
+            "grows exponentially, as for a pencil balanced on its tip, whose "
+            "linearised equation is exactly θ'' − (g/L)θ = 0. Both are "
+            "predictable from the signs of the roots before any constant is "
+            "fitted, and on an exam that sign reading is often worth doing "
+            "first as a check on the final answer."
+        ),
+    )),
+    Section("A repeated root", (
+        Para(
+            "When b² − 4ac = 0 the quadratic has only one root, r = −b/(2a), "
+            "and the method produces only one exponential, e^(rt). A second, "
+            "independent solution is still needed, and it cannot be another "
+            "multiple of e^(rt). The surprise is that te^(rt) works."
+        ),
+        Box(
+            "theorem", "Repeated root",
+            "If r is a double root of the characteristic equation, then e^(rt) "
+            "and te^(rt) are independent solutions, and the general solution "
+            "is below.",
+            r"y = (c_1 + c_2 t)\, e^{r t}",
+        ),
+        Box(
+            "proof", "",
+            "Write the characteristic polynomial as a(r − r₀)², so b = −2ar₀ "
+            "and c = ar₀². For y = te^(r₀t), y' = (1 + r₀t)e^(r₀t) and "
+            "y'' = (2r₀ + r₀²t)e^(r₀t). Substituting, the t-terms give "
+            "a(r₀² − 2r₀² + r₀²)t = 0 and the rest give a(2r₀ − 2r₀) = 0. "
+            "The Wronskian of e^(r₀t) and te^(r₀t) is e^(2r₀t), never zero.",
+        ),
+        Para(
+            "Where does the t come from? One way to see it: when two roots r₁ "
+            "and r₂ are close, (e^(r₂t) − e^(r₁t))/(r₂ − r₁) is a solution, and "
+            "as r₂ → r₁ it becomes the derivative of e^(rt) with respect to r, "
+            "which is te^(rt). The second solution of the repeated case is the "
+            "limit of the two solutions of the distinct case as they merge. "
+            "Reduction of order, later in this unit, derives it a third way."
+        ),
+        Worked(
+            "A double root",
+            "Solve y'' + 4y' + 4y = 0 with y(0) = 1, y'(0) = 1.",
+            (
+                Step("r² + 4r + 4 = (r + 2)² = 0, a double root r = −2.",
+                     r"y = (c_1 + c_2 t)\, e^{-2t}"),
+                Step("y(0) = c₁ = 1. y' = (c₂ − 2c₁ − 2c₂t)e^(−2t), so "
+                     "y'(0) = c₂ − 2 = 1 and c₂ = 3."),
+            ),
+            equation="y'' + 4*y' + 4*y = 0", conditions="y(0) = 1, y'(0) = 1",
+            answer="(1 + 3*t)*exp(-2*t)", answer_latex=r"y(t) = (1 + 3t)\, e^{-2t}",
+        ),
+        Box(
+            "warning", "Two copies of one root are one solution",
+            "Writing c₁e^(rt) + c₂e^(rt) for a double root is the commonest "
+            "error in this unit. It is (c₁ + c₂)e^(rt), a single solution with "
+            "a single effective constant, and it cannot satisfy two arbitrary "
+            "initial conditions. The second solution needs the factor t.",
+        ),
+    )),
+    Section("Complex roots", (
+        Para(
+            "When b² − 4ac < 0 the roots are complex: r = α ± iβ with "
+            "α = −b/(2a) and β = √(4ac − b²)/(2a). The exponential e^(rt) is "
+            "then complex-valued, and making sense of it needs Euler's "
+            "formula, which says that the exponential of an imaginary number "
+            "is a point on the unit circle."
+        ),
+        Display(r"e^{i\theta} = \cos\theta + i \sin\theta", "2"),
+        Para(
+            "With it, e^((α + iβ)t) = e^(αt)(cos βt + i sin βt). A complex "
+            "solution of an equation with real coefficients has real and "
+            "imaginary parts that are each real solutions — take the real "
+            "and imaginary parts of L[y] = 0 separately. So the conjugate "
+            "pair of roots yields two real solutions, e^(αt)cos βt and "
+            "e^(αt)sin βt, and they are independent."
+        ),
+        Box(
+            "theorem", "Complex roots",
+            "If the characteristic roots are α ± iβ with β ≠ 0, the general "
+            "real solution is an oscillation of angular frequency β inside an "
+            "envelope e^(αt).",
+            r"y = e^{\alpha t}\left(c_1 \cos\beta t + c_2 \sin\beta t\right)",
+        ),
+        Worked(
+            "A decaying oscillation",
+            "Solve y'' + 2y' + 5y = 0 with y(0) = 1, y'(0) = 1.",
+            (
+                Step("r² + 2r + 5 = 0 gives r = −1 ± 2i, so α = −1, β = 2.",
+                     r"y = e^{-t}\left(c_1 \cos 2t + c_2 \sin 2t\right)"),
+                Step("y(0) = c₁ = 1. Differentiating, y'(0) = −c₁ + 2c₂ = 1, "
+                     "so c₂ = 1."),
+            ),
+            equation="y'' + 2*y' + 5*y = 0", conditions="y(0) = 1, y'(0) = 1",
+            answer="exp(-t)*(cos(2*t) + sin(2*t))",
+            answer_latex=r"y(t) = e^{-t}(\cos 2t + \sin 2t)",
+        ),
+        Plot(
+            "An oscillation inside its envelope",
+            "y = e^(−t)(cos 2t + sin 2t) between the curves ±√2·e^(−t). The "
+            "imaginary part of the roots, 2, sets the frequency; the real "
+            "part, −1, sets how fast the envelope shrinks.",
+            (Curve("exp(-t)*(cos(2*t) + sin(2*t))", "solution"),
+             Curve("sqrt(2)*exp(-t)", "envelope"),
+             Curve("-sqrt(2)*exp(-t)", "")),
+            t=(0.0, 5.0),
+        ),
+        Worked(
+            "Pure oscillation",
+            "Solve y'' + 9y = 0 with y(0) = 0, y'(0) = 6.",
+            (
+                Step("r² + 9 = 0 gives r = ±3i: α = 0, β = 3. With no real "
+                     "part there is no envelope, and the solution oscillates "
+                     "for ever.",
+                     r"y = c_1 \cos 3t + c_2 \sin 3t"),
+                Step("y(0) = c₁ = 0 and y'(0) = 3c₂ = 6, so c₂ = 2."),
+            ),
+            equation="y'' + 9*y = 0", conditions="y(0) = 0, y'(0) = 6",
+            answer="2*sin(3*t)", answer_latex=r"y(t) = 2\sin 3t",
+        ),
+    )),
+    Section("A reminder about complex numbers", (
+        Para(
+            "Complex roots are unavoidable here, so it is worth being "
+            "comfortable with the few facts about complex numbers the course "
+            "uses. A complex number is α + iβ with i² = −1; α is its real part "
+            "and β its imaginary part. Complex numbers add and multiply like "
+            "polynomials in i, with i² replaced by −1 wherever it appears. The "
+            "*conjugate* of α + iβ is α − iβ, and the product of a number with "
+            "its conjugate is the real number α² + β², the square of its "
+            "*modulus*."
+        ),
+        Para(
+            "Two facts do most of the work. First, a polynomial with real "
+            "coefficients has complex roots in conjugate pairs: if α + iβ is a "
+            "root, so is α − iβ, because conjugating the equation p(r) = 0 "
+            "changes nothing but r. That is why complex roots of a "
+            "characteristic equation always arrive two at a time, and why "
+            "they produce two real solutions. Second, Euler's formula (2), "
+            "which follows by comparing the Taylor series of e^(iθ), cos θ and "
+            "sin θ term by term: the even powers of iθ are real and alternate "
+            "in sign like cos θ, and the odd powers are imaginary and "
+            "alternate like sin θ."
+        ),
+        Display(r"e^{(\alpha + i\beta)t} = e^{\alpha t}\left(\cos\beta t + "
+                r"i \sin\beta t\right)"),
+        Para(
+            "The practical upshot is that in the final answer i never "
+            "appears. Complex numbers are used on the way — to find the roots "
+            "and to see why cosines and sines come out — and then the real "
+            "solutions e^(αt)cos βt and e^(αt)sin βt are all that is written "
+            "down."
+        ),
+    )),
+    Section("A growing oscillation", (
+        Para(
+            "Complex roots with a positive real part give oscillations that "
+            "grow. Physically this needs a source of energy — negative "
+            "damping, like a child pumping a swing in time with its motion, or "
+            "an electronic amplifier feeding its output back — and it is the "
+            "start of the instability that the nonlinear unit will show being "
+            "tamed into a limit cycle."
+        ),
+        Worked(
+            "Roots with positive real part",
+            "Solve y'' − 2y' + 5y = 0 with y(0) = 0, y'(0) = 2.",
+            (
+                Step("r² − 2r + 5 = 0 gives r = 1 ± 2i: α = 1, β = 2.",
+                     r"y = e^{t}\left(c_1\cos 2t + c_2 \sin 2t\right)"),
+                Step("y(0) = c₁ = 0. Then y = c₂e^t sin 2t, so y'(0) = 2c₂ = 2 "
+                     "and c₂ = 1. The oscillation's amplitude grows by a factor "
+                     "e every unit of time."),
+            ),
+            equation="y'' - 2*y' + 5*y = 0", conditions="y(0) = 0, y'(0) = 2",
+            answer="exp(t)*sin(2*t)", answer_latex=r"y(t) = e^{t}\sin 2t",
+        ),
+        Plot(
+            "Decaying, steady and growing oscillations",
+            "e^(−t/2) sin 2t, sin 2t and e^(t/2) sin 2t: the same imaginary part "
+            "2 of the roots, and real parts −1/2, 0 and +1/2. The real part "
+            "alone decides whether the oscillation dies, persists or grows.",
+            (Curve("exp(-t/2)*sin(2*t)", "α = −1/2"),
+             Curve("sin(2*t)", "α = 0"),
+             Curve("exp(t/2)*sin(2*t)", "α = +1/2")),
+            t=(0.0, 6.0), ylim=(-6.0, 6.0),
+        ),
+    )),
+    Section("The operator view, and where t·e^(rt) comes from", (
+        Para(
+            "There is a way of seeing the whole method that also explains "
+            "the repeated root without guessing. Write D for differentiation, "
+            "so Dy = y'. Then y'' − (r₁ + r₂)y' + r₁r₂y can be written "
+            "(D − r₁)(D − r₂)y: applying D − r₂ first and then D − r₁ gives "
+            "exactly those terms. A constant-coefficient operator factors "
+            "exactly as its characteristic polynomial does."
+        ),
+        Display(r"a r^{2} + b r + c = a(r - r_1)(r - r_2) \;\Longrightarrow\; "
+                r"L = a(D - r_1)(D - r_2)"),
+        Para(
+            "So L[y] = 0 can be solved as two first-order equations in turn. "
+            "Put u = (D − r₂)y. Then (D − r₁)u = 0 says u' = r₁u, so "
+            "u = Ae^(r₁t). What remains is the first-order linear equation "
+            "y' − r₂y = Ae^(r₁t), which the integrating factor of Unit 1 "
+            "solves. When r₁ ≠ r₂ it produces the two exponentials. When "
+            "r₁ = r₂ = r, the forcing Ae^(rt) matches the natural behaviour, "
+            "and — exactly as in the linear-equations lesson's example — the "
+            "answer picks up a factor of t."
+        ),
+        Worked(
+            "The second step of the factored equation",
+            "For a double root r = 3, the second step is y' − 3y = e^(3t). "
+            "Solve it with y(0) = 1.",
+            (
+                Step("Integrating factor e^(−3t): (e^(−3t)y)' = 1, so "
+                     "e^(−3t)y = t + C and y = (t + C)e^(3t).",
+                     r"y = (t + C)\, e^{3t}"),
+                Step("y(0) = 1 gives C = 1. The factor t has appeared by itself, "
+                     "which is where te^(rt) in the repeated-root theorem comes "
+                     "from."),
+            ),
+            equation="y' - 3*y = exp(3*t)", conditions="y(0) = 1",
+            answer="(t + 1)*exp(3*t)", answer_latex=r"y(t) = (t + 1)\, e^{3t}",
+        ),
+    )),
+    Section("Amplitude and phase", (
+        Para(
+            "A combination c₁cos βt + c₂sin βt is a single cosine in disguise, "
+            "and writing it that way shows the amplitude directly. Any such "
+            "combination equals A cos(βt − φ) with A = √(c₁² + c₂²) and the "
+            "angle φ chosen so that cos φ = c₁/A and sin φ = c₂/A."
+        ),
+        Display(r"c_1\cos\beta t + c_2\sin\beta t = A\cos(\beta t - \varphi), "
+                r"\quad A = \sqrt{c_1^{2} + c_2^{2}}", "3"),
+        Para(
+            "For the decaying oscillation above, c₁ = c₂ = 1, so A = √2 and "
+            "φ = π/4: y = √2 e^(−t) cos(2t − π/4), which is why the envelope in "
+            "the graph was ±√2 e^(−t). The amplitude-phase form is the natural "
+            "one in physics, where A is how far the spring stretches and φ "
+            "says when in the cycle it started."
+        ),
+        Para(
+            "Going the other way is just the addition formula for cosine: "
+            "A cos(βt − φ) = A cos φ cos βt + A sin φ sin βt, so c₁ = A cos φ "
+            "and c₂ = A sin φ. Either form is a correct general solution, and "
+            "they carry the same two arbitrary constants, just packaged "
+            "differently — (c₁, c₂) as Cartesian coordinates, (A, φ) as polar "
+            "ones. Use whichever the question needs: fitting initial "
+            "conditions is easier with c₁ and c₂, and questions about how far "
+            "or when are easier with A and φ."
+        ),
+        Box(
+            "warning", "The quadrant of the phase",
+            "tan φ = c₂/c₁ has two solutions in [0, 2π). Choose the one that "
+            "puts (cos φ, sin φ) in the same quadrant as (c₁, c₂). For "
+            "c₁ = −1, c₂ = 1 the angle is 3π/4, not −π/4.",
+        ),
+    )),
+    Section("The three cases together", (
+        Para(
+            "The discriminant sorts every constant-coefficient second-order "
+            "equation into one of three shapes, and it is worth holding them "
+            "side by side. Positive discriminant: two real exponentials, no "
+            "oscillation. Zero: one exponential times a linear factor, the "
+            "boundary case. Negative: an oscillation, growing, steady or "
+            "decaying according to the sign of the real part."
+        ),
+        Display(r"b^{2} - 4ac > 0: \; c_1 e^{r_1 t} + c_2 e^{r_2 t}, \qquad "
+                r"= 0: \; (c_1 + c_2 t)e^{rt}"),
+        Display(r"b^{2} - 4ac < 0: \; e^{\alpha t}(c_1\cos\beta t + "
+                r"c_2\sin\beta t)"),
+        Plot(
+            "The three cases, from the same start",
+            "Solutions from y(0) = 1, y'(0) = 0 of y'' + by' + y = 0 for "
+            "b = 3 (distinct roots, slow return), b = 2 (double root, the "
+            "fastest return without overshoot) and b = 0.5 (complex roots, "
+            "oscillation). This is the damping picture of the next unit, "
+            "seen first as algebra.",
+            (Curve("((3 + sqrt(5))/(2*sqrt(5)))*exp((-3 + sqrt(5))*t/2) + "
+                   "((sqrt(5) - 3)/(2*sqrt(5)))*exp((-3 - sqrt(5))*t/2)",
+                   "b = 3"),
+             Curve("(1 + t)*exp(-t)", "b = 2"),
+             Curve("exp(-t/4)*(cos(sqrt(15)*t/4) + sin(sqrt(15)*t/4)/sqrt(15))",
+                   "b = 0.5")),
+            t=(0.0, 12.0), ylim=(-0.6, 1.05),
+        ),
+        Para(
+            "Stability can be read off the roots without solving anything: "
+            "every solution decays to zero exactly when both roots have "
+            "negative real part, which for a quadratic with a > 0 happens "
+            "exactly when b > 0 and c > 0. That test — every coefficient "
+            "positive — is the simplest case of the Routh–Hurwitz criterion "
+            "that control engineers use for equations of any order."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "Most mistakes with this method are small and predictable. "
+            "Reading the characteristic equation off an equation that is not "
+            "written with every term on one side: y'' = 4y has characteristic "
+            "equation r² − 4 = 0, not r² + 4 = 0, and the difference is between "
+            "exponentials and oscillations. Using the coefficient of y' "
+            "instead of the coefficient of y as the constant term. Forgetting "
+            "the factor t for a double root. Writing the complex case as "
+            "c₁e^(αt)cos βt + c₂e^(βt)sin αt, with α and β crossed."
+        ),
+        Para(
+            "And in the initial conditions: differentiating the general "
+            "solution carelessly, particularly the product rule in the "
+            "repeated and complex cases, where y' has two terms for each "
+            "constant. The derivative of (c₁ + c₂t)e^(rt) is "
+            "(c₂ + rc₁ + rc₂t)e^(rt), and dropping the c₂ gives a wrong "
+            "second constant. Checking the final answer against both "
+            "conditions takes a minute and catches every one of these."
+        ),
+    )),
+    Section("Higher-order equations", (
+        Para(
+            "The method carries over to any order. Substituting e^(rt) into a "
+            "constant-coefficient equation of order n gives a polynomial of "
+            "degree n, with n roots counted with multiplicity. Each simple "
+            "real root r gives e^(rt); a root of multiplicity k gives e^(rt), "
+            "te^(rt), …, t^(k−1)e^(rt); each complex pair gives a cosine and a "
+            "sine, multiplied by powers of t if the pair is repeated. "
+            "Altogether that is exactly n independent solutions."
+        ),
+        Para(
+            "For y''' − y' = 0 the characteristic equation r³ − r = "
+            "r(r − 1)(r + 1) = 0 gives 1, e^t and e^(−t). For y⁗ + 2y'' + y = 0 "
+            "it is (r² + 1)² = 0, a repeated pair ±i, and the solutions are "
+            "cos t, sin t, t cos t and t sin t. The only hard part is finding "
+            "the roots of a polynomial of high degree, which for degree five "
+            "and above cannot be done by a formula in general — so in practice "
+            "the roots are found numerically."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "For ay'' + by' + cy = 0, substitute e^(rt) to get the "
+            "characteristic equation ar² + br + c = 0. Two distinct real roots "
+            "give c₁e^(r₁t) + c₂e^(r₂t); a double root r gives (c₁ + c₂t)e^(rt); "
+            "complex roots α ± iβ give e^(αt)(c₁cos βt + c₂sin βt), which can be "
+            "rewritten as Ae^(αt)cos(βt − φ). Fit the constants with the "
+            "initial conditions, and read the long-run behaviour from the "
+            "roots: negative real parts mean decay, a nonzero imaginary part "
+            "means oscillation. The same recipe, with multiplicities, handles "
+            "equations of any order."
+        ),
+    )),
+)
 
 
 SUPERPOSITION = (

@@ -32,6 +32,7 @@ CHAPTERED = (
     "numerical",
     "rungekutta",
     "superposition",
+    "roots",
 )
 
 #: About five pages of prose.
