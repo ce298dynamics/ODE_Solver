@@ -1292,6 +1292,7 @@ NUMERICAL = Lesson(
 
 RUNGEKUTTA = Lesson(
     key="rungekutta",
+    chapter=chapters.RUNGEKUTTA,
     title="Runge–Kutta, and what order buys",
     summary="Four slopes instead of one, and why that is cheaper rather than "
             "dearer.",

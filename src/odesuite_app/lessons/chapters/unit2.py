@@ -4,7 +4,402 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["POPULATION", "EQUILIBRIA", "MOTION", "NUMERICAL"]
+__all__ = ["POPULATION", "EQUILIBRIA", "MOTION", "NUMERICAL", "RUNGEKUTTA"]
+
+
+RUNGEKUTTA = (
+    Section("Sampling the slope more than twice", (
+        Para(
+            "The improved Euler method gained an order of accuracy by sampling "
+            "the slope twice per step — at the start, and at a predicted end — "
+            "and averaging. The natural question is whether more samples, "
+            "cleverly placed and weighted, buy more orders. They do, and the "
+            "family of methods built this way carries the names of Carl Runge "
+            "and Wilhelm Kutta, who worked them out around 1900. One member "
+            "of the family, the *classical fourth-order Runge–Kutta method*, "
+            "has been the workhorse of scientific computing for a century."
+        ),
+        Para(
+            "The idea is to estimate the average slope over a step from "
+            "several trial slopes. Each trial slope is evaluated at a point "
+            "reached by a provisional step using the previous trial slope, "
+            "so later samples benefit from what the earlier ones learned. "
+            "The weights are chosen so that the combination agrees with the "
+            "Taylor series of the true solution to as many terms as possible."
+        ),
+        Para(
+            "Why not simply use the Taylor series itself? Because it needs the "
+            "higher derivatives of the solution, and computing y″, y‴ and "
+            "y⁗ from y' = f(t, y) means differentiating f repeatedly by the "
+            "chain rule — easy for y' = y, laborious for a real model, and "
+            "impossible when f is only available as a computer program. "
+            "Runge–Kutta methods reach the same accuracy using only values of "
+            "f, which is exactly what any program that computes f can supply."
+        ),
+    )),
+    Section("The classical Runge–Kutta method", (
+        Box(
+            "definition", "RK4",
+            "For y' = f(t, y), each step computes four slopes — at the start, "
+            "twice at the midpoint, and at the end — and advances y by h times "
+            "their weighted average, the two midpoint slopes counting double.",
+            r"y_{n+1} = y_n + \frac{h}{6}\left(k_1 + 2k_2 + 2k_3 + k_4\right)",
+        ),
+        Display(r"k_1 = f(t_n, y_n), \qquad k_2 = f\left(t_n + \frac{h}{2},\, "
+                r"y_n + \frac{h}{2} k_1\right)", "1"),
+        Display(r"k_3 = f\left(t_n + \frac{h}{2},\, y_n + \frac{h}{2} k_2\right), "
+                r"\qquad k_4 = f(t_n + h,\, y_n + h k_3)", "2"),
+        Para(
+            "Read the four slopes as a sequence of better and better guesses. "
+            "k₁ is Euler's slope at the start. k₂ is the slope at the "
+            "midpoint of the step, reached by half an Euler step. k₃ is the "
+            "slope at the midpoint again, but reached using k₂, a better "
+            "estimate of the slope over the first half. k₄ is the slope at "
+            "the end, reached using k₃. The final weighting 1 : 2 : 2 : 1 "
+            "trusts the midpoint most, as it should."
+        ),
+        Worked(
+            "One RK4 step by hand",
+            "Take one RK4 step with h = 0.25 on y' = y − t, y(0) = 2, whose "
+            "exact solution is t + 1 + e^t.",
+            (
+                Step("k₁ = f(0, 2) = 2. Half a step with it reaches "
+                     "(0.125, 2.25), where k₂ = 2.25 − 0.125 = 2.125.",
+                     r"k_1 = 2, \qquad k_2 = 2.125"),
+                Step("Half a step with k₂ reaches (0.125, 2.265625), where "
+                     "k₃ = 2.140625. A full step with k₃ reaches (0.25, "
+                     "2.53515625), where k₄ = 2.28515625.",
+                     r"k_3 = 2.140625, \qquad k_4 = 2.28515625"),
+                Step("Combine: y₁ = 2 + (0.25/6)(2 + 4.25 + 4.28125 + "
+                     "2.28515625) = 2.5340169. The exact value is 2.5340254, "
+                     "so the error is 8.5 × 10⁻⁶ — four thousand times smaller "
+                     "than Euler's error on the same step, for four times the "
+                     "work.",
+                     r"y_1 \approx 2.5340169"),
+            ),
+            answer_latex=r"y(0.25) \approx 2.5340169",
+        ),
+    )),
+    Section("The midpoint method: Runge–Kutta of order two", (
+        Para(
+            "The improved Euler method is itself a Runge–Kutta method, of "
+            "order two with two stages, and it is not the only one. A second "
+            "natural choice uses the slope at the *midpoint* of the step, "
+            "reached by half an Euler step, and nothing else. It is called "
+            "the midpoint method, and it too is second order."
+        ),
+        Box(
+            "definition", "Midpoint method",
+            "Take half an Euler step, evaluate the slope there, and use that "
+            "slope for the whole step.",
+            r"k_1 = f(t_n, y_n), \quad k_2 = f\left(t_n + \frac{h}{2},\, "
+            r"y_n + \frac{h}{2} k_1\right), \quad y_{n+1} = y_n + h k_2",
+        ),
+        Para(
+            "On y' = y − t with h = 0.25 from y(0) = 2, the midpoint method "
+            "gives k₁ = 2, then k₂ = f(0.125, 2.25) = 2.125 and y₁ = 2 + "
+            "0.25 × 2.125 = 2.53125 — exactly the same as improved Euler. "
+            "That is no accident: for a linear equation all two-stage "
+            "second-order methods produce the same numbers, because each "
+            "reproduces the first three terms of the Taylor series and there "
+            "is nothing else for them to disagree about. On nonlinear "
+            "equations they differ slightly, in the h³ terms."
+        ),
+        Para(
+            "The midpoint method is also the first two stages of RK4. Read "
+            "RK4 as a refinement of it: k₂ is the midpoint method's slope, k₃ "
+            "improves it by re-evaluating the midpoint with a better estimate, "
+            "and k₄ and k₁ add the ends so that the average becomes Simpson's "
+            "rule. Each of the classical methods is a small, sensible step "
+            "beyond the one before."
+        ),
+    )),
+    Section("Why the weights are 1, 2, 2, 1", (
+        Para(
+            "There is a quick way to see where the weights come from. Suppose "
+            "f depends on t alone, so the equation is y' = f(t) and the exact "
+            "step is the integral of f over [tₙ, tₙ + h]. Then k₂ = k₃ = "
+            "f(tₙ + h/2), and the RK4 formula becomes h/6 times f at the "
+            "left end, plus four times f at the midpoint, plus f at the right "
+            "end. That is *Simpson's rule*."
+        ),
+        Box(
+            "theorem", "RK4 reduces to Simpson's rule",
+            "If f(t, y) does not depend on y, one step of RK4 is exactly "
+            "Simpson's rule for the integral of f over the step, whose error "
+            "is proportional to h⁵ times the fourth derivative of f.",
+            r"\int_{t_n}^{t_n + h} f\, dt \approx \frac{h}{6}\left(f_n + "
+            r"4 f_{n+1/2} + f_{n+1}\right)",
+        ),
+        Para(
+            "So RK4 is to Simpson's rule what Euler's method is to the "
+            "left-endpoint rule and improved Euler is to the trapezoidal "
+            "rule. When f does depend on y, the two midpoint slopes differ, "
+            "and the proof that the method is still fourth order is a long "
+            "exercise in matching Taylor series in two variables: the "
+            "expansion of the RK4 step and the expansion of the true solution "
+            "agree through the h⁴ term, leaving a local error of order h⁵. "
+            "Kutta found all the combinations of four stages with that "
+            "property; the classical one is the most symmetric."
+        ),
+        Box(
+            "remark", "Order conditions",
+            "Fourth order imposes eight equations on the ten free coefficients "
+            "of a four-stage method, so there is a two-parameter family of "
+            "fourth-order methods. No five-stage method reaches order five; "
+            "it takes six stages. Beyond fourth order, the number of stages "
+            "grows faster than the order, which is one reason RK4 remains the "
+            "sweet spot.",
+        ),
+    )),
+    Section("Accuracy, measured", (
+        Box(
+            "theorem", "RK4 is fourth order",
+            "If f is smooth enough, the global error of RK4 at a fixed time is "
+            "bounded by a constant times h⁴: halving the step divides the "
+            "error by about sixteen.",
+            r"|y(T) - y_N| \leq C\, h^{4}",
+        ),
+        Para(
+            "The theorem can be watched in action on y' = y − t, y(0) = 2, at "
+            "t = 1. With h = 0.25 the three methods of this unit have errors "
+            "0.277 (Euler), 0.0234 (improved Euler) and 0.0000719 (RK4). With "
+            "h = 0.125 they are 0.152, 0.00644 and 0.00000498. With h = 0.0625 "
+            "they are 0.0804, 0.00169 and 0.000000328. Each halving divides "
+            "Euler's error by about 2, improved Euler's by about 4, and RK4's "
+            "by 14.4 and then 15.2 — approaching the asymptotic 16 as h "
+            "shrinks."
+        ),
+        Para(
+            "The same happens on y' = y up to t = 0.5, where the last lesson "
+            "measured Euler's error at 0.038 with h = 0.1. RK4 with the same "
+            "step makes an error of 6.3 × 10⁻⁷, and with h = 0.05 an error of "
+            "4.1 × 10⁻⁸, a ratio of 15.3. For this equation each RK4 step "
+            "multiplies y by 1 + h + h²/2 + h³/6 + h⁴/24, the Taylor "
+            "polynomial of e^h, so the error per step is the next term, "
+            "h⁵/120, and the fourth-order behaviour can be seen in the "
+            "formula itself as well as in the numbers. That is the pattern "
+            "worth remembering: a method of order p reproduces the Taylor "
+            "series of the solution through the hᵖ term, and its error begins "
+            "with the next one."
+        ),
+        Plot(
+            "Error against step size, on logarithmic scales",
+            "log₁₀ of the error at t = 1 against log₁₀ h, with each method's "
+            "constant fitted at h = 1/16. On these scales an error proportional "
+            "to hᵖ is a straight line of slope p: 1 for Euler, 2 for improved "
+            "Euler, 4 for RK4. A line twice as steep gains twice as many "
+            "digits for each halving of the step.",
+            (Curve("t + log(1.286)/log(10)", "Euler, slope 1"),
+             Curve("2*t + log(0.432)/log(10)", "improved Euler, slope 2"),
+             Curve("4*t + log(0.0215)/log(10)", "RK4, slope 4")),
+            t=(-3.0, -0.5), xlabel="log10 h", ylabel="log10 error",
+        ),
+        Figure("order_slope",
+               "The same measurement done live: the figure runs each method at "
+               "a sequence of step sizes and fits the slope of the error, "
+               "printing the order it measures rather than the one it expects."),
+    )),
+    Section("What order buys", (
+        Para(
+            "Order matters most when it is converted into cost. The expensive "
+            "part of any of these methods is evaluating f, which in a real "
+            "problem may be a large simulation in its own right. Per step, "
+            "Euler evaluates f once, improved Euler twice and RK4 four times. "
+            "The question is how many evaluations each needs to reach a given "
+            "accuracy."
+        ),
+        Para(
+            "For y' = y − t on [0, 1], reaching an error below one millionth "
+            "takes Euler's method about two million steps and two million "
+            "evaluations. Improved Euler needs 1,024 steps, 2,048 "
+            "evaluations. RK4 needs 16 steps — 64 evaluations. The factor "
+            "between first and fourth order is not a few percent; it is a "
+            "factor of thirty thousand, and it grows as the required accuracy "
+            "does. That is why nobody uses Euler's method for real work, and "
+            "why RK4 or its adaptive descendants sit inside almost every "
+            "general-purpose solver."
+        ),
+        Worked(
+            "A second equation",
+            "Take one RK4 step with h = 0.5 on y' = −2ty, y(0) = 1, and "
+            "compare with the exact solution.",
+            (
+                Step("k₁ = f(0, 1) = 0. At the midpoint t = 0.25 with y = 1, "
+                     "k₂ = −2(0.25)(1) = −0.5. Using k₂, y = 1 − 0.125 = 0.875 "
+                     "and k₃ = −0.4375. A full step with k₃ gives y = 0.78125 "
+                     "at t = 0.5, where k₄ = −0.78125.",
+                     r"k_1 = 0,\; k_2 = -0.5,\; k_3 = -0.4375,\; k_4 = -0.78125"),
+                Step("y₁ = 1 + (0.5/6)(0 − 1 − 0.875 − 0.78125) ≈ 0.778646. The "
+                     "exact value e^(−0.25) = 0.778801, so a single step of half "
+                     "a unit is already accurate to about 1.5 × 10⁻⁴."),
+            ),
+            answer_latex=r"y(0.5) \approx 0.778646",
+        ),
+        Worked(
+            "The exact solution used for comparison",
+            "Solve y' = −2ty with y(0) = 1.",
+            (
+                Step("Separable: dy/y = −2t dt, so ln|y| = −t² + C and y = "
+                     "Ae^(−t²). The condition gives A = 1.",
+                     r"y = e^{-t^{2}}"),
+            ),
+            equation="y' = -2*t*y", conditions="y(0) = 1",
+            answer="exp(-t**2)", answer_latex=r"y(t) = e^{-t^{2}}",
+        ),
+    )),
+    Section("Systems, and the methods in the Solver Lab", (
+        Para(
+            "RK4 applies to systems exactly as Euler's method does: y and each "
+            "kᵢ become vectors, and every stage is evaluated for all "
+            "components at once. The pendulum, the Lorenz equations and "
+            "planetary orbits are all integrated this way. A second-order "
+            "equation is first rewritten as a first-order system, and RK4 "
+            "advances position and velocity together."
+        ),
+        Worked(
+            "One RK4 step for a pendulum",
+            "The pendulum θ'' = −sin θ is the system x' = v, v' = −sin x. "
+            "Released from rest at x = 1 radian, take one RK4 step with "
+            "h = 0.1.",
+            (
+                Step("Each slope is a pair (x', v'). At the start, "
+                     "k₁ = (0, −sin 1) = (0, −0.84147).",
+                     r"\mathbf{k}_1 = (0,\; -0.84147)"),
+                Step("Half a step with k₁ reaches (1, −0.04207), where "
+                     "k₂ = (−0.04207, −0.84147). Half a step with k₂ reaches "
+                     "(0.99790, −0.04207), where k₃ = (−0.04207, −0.84033). A "
+                     "full step with k₃ reaches (0.99579, −0.08403), where "
+                     "k₄ = (−0.08403, −0.83919)."),
+                Step("Combining with weights 1, 2, 2, 1 gives the new state: "
+                     "the angle has fallen slightly and the pendulum has begun "
+                     "to swing back with angular velocity about −0.0841.",
+                     r"(x_1, v_1) \approx (0.995795,\; -0.084071)"),
+            ),
+            answer_latex=r"(x, v)(0.1) \approx (0.995795,\, -0.084071)",
+        ),
+        Para(
+            "Notice that the velocity after one step, −0.0841, is almost "
+            "exactly −sin(1) × 0.1: over so short a time the restoring force "
+            "has barely changed, and the pendulum's first tenth of a second is "
+            "nearly uniform acceleration. RK4's corrections live in the fifth "
+            "and sixth decimal places here, and they are what keep a "
+            "simulation over thousands of swings on course."
+        ),
+        Para(
+            "The solvers in this application's Solver Lab are Runge–Kutta "
+            "methods with one refinement: two estimates per step. The default, "
+            "Dormand–Prince, computes a fifth-order and a fourth-order answer "
+            "from the same six evaluations, treats their difference as an "
+            "estimate of the local error, and adjusts h to keep that estimate "
+            "at the tolerance you set. The result is accuracy where it is "
+            "needed and speed where it is not, without anybody choosing h."
+        ),
+        Box(
+            "remark", "Embedded pairs",
+            "A pair of Runge–Kutta formulas that share their stages is called "
+            "*embedded*. The cheaper, lower-order one exists only to estimate "
+            "the error of the other, and the saving over running two separate "
+            "methods is the whole reason adaptive step control is affordable.",
+        ),
+    )),
+    Section("Where Runge–Kutta methods struggle", (
+        Para(
+            "Higher order is not a free lunch. The error bound C h⁴ contains "
+            "the fourth and fifth derivatives of the solution, and where those "
+            "are huge — near a sharp corner, a discontinuity in the forcing or "
+            "a near-collision in an orbit — the bound is useless unless h is "
+            "tiny there. Adaptive step control handles this automatically; a "
+            "fixed step does not, and a discontinuity inside a step quietly "
+            "drops RK4 to first order on that step."
+        ),
+        Para(
+            "The deeper limitation is stiffness. Like Euler's method, every "
+            "explicit Runge–Kutta method has a stability limit: on y' = λy "
+            "with λ large and negative, RK4 is stable only for h|λ| below "
+            "about 2.8. A stiff problem, with some very fast decaying component, "
+            "therefore forces a tiny step for stability long after accuracy "
+            "is satisfied. Implicit methods — Radau and Rosenbrock methods in "
+            "the Lab — solve an equation at each step to escape that limit, "
+            "and they are the right choice for chemical kinetics, circuits "
+            "and any problem with widely separated time scales."
+        ),
+        Box(
+            "warning", "Order is about small h",
+            "The statement 'error ∝ h⁴' describes the limit h → 0. At large "
+            "steps the observed ratio can be far from 16, and a higher-order "
+            "method can even be *less* accurate than a lower-order one. Always "
+            "judge a method by measured errors at the steps you actually use.",
+        ),
+        Worked(
+            "Checking RK4's stability limit",
+            "For y' = −2y, one RK4 step multiplies y by a fixed factor. Find "
+            "it, and the largest stable step.",
+            (
+                Step("With f = λy and z = hλ, the four stages give "
+                     "y₁ = (1 + z + z²/2 + z³/6 + z⁴/24)y₀ — the first five "
+                     "terms of e^z, as a fourth-order method must.",
+                     r"R(z) = 1 + z + \frac{z^{2}}{2} + \frac{z^{3}}{6} + "
+                     r"\frac{z^{4}}{24}"),
+                Step("Stability needs |R(z)| ≤ 1. For real negative z this "
+                     "holds down to z ≈ −2.785, so for λ = −2 the step must "
+                     "satisfy h < 1.39 — compared with h < 1 for Euler's "
+                     "method. Better, but still a limit."),
+            ),
+            answer_latex=r"h < \frac{2.785}{|\lambda|}",
+        ),
+    )),
+    Section("Choosing a method in practice", (
+        Para(
+            "For a smooth, non-stiff problem the practical choice is an "
+            "adaptive Runge–Kutta method of moderate order — Dormand–Prince "
+            "5(4), the Solver Lab's default, or something like it — with a "
+            "tolerance a little tighter than the accuracy actually needed. "
+            "Fixed-step RK4 is excellent for learning and for problems where "
+            "a regular grid of output times is wanted, but it cannot notice "
+            "when it is being inaccurate, and an adaptive method can."
+        ),
+        Para(
+            "For stiff problems, choose an implicit method; the symptom that "
+            "you need one is an explicit solver taking steps far smaller than "
+            "the solution's visible time scale, or giving up. For long "
+            "integrations of mechanical systems where energy should be "
+            "conserved, choose a symplectic method, which keeps the energy "
+            "error bounded for all time where RK4's drifts slowly. And for "
+            "very high accuracy on smooth problems, higher-order methods "
+            "(orders 8 and above) or Taylor-series methods pay off. The Method "
+            "Race screen lets you run several of these on one problem and "
+            "compare work against accuracy directly."
+        ),
+        Box(
+            "remark", "Tolerances are not accuracies",
+            "An adaptive solver controls the error it makes on each step, not "
+            "the error in the final answer. Errors made early can grow, "
+            "especially in chaotic systems, so the global error can be much "
+            "larger than the tolerance. Checking an answer by tightening the "
+            "tolerance tenfold is the adaptive version of halving the step.",
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "Runge–Kutta methods estimate the average slope over a step from "
+            "several trial slopes, each evaluated at a point reached with the "
+            "previous one. The classical RK4 method samples the start, the "
+            "midpoint twice and the end, weights them 1 : 2 : 2 : 1, and is "
+            "fourth order: halving h divides the error by about 16, and for "
+            "an equation depending on t alone it is Simpson's rule. Measured "
+            "against the cost in evaluations of f, fourth order beats first "
+            "order by orders of magnitude, which is why Runge–Kutta methods, "
+            "in adaptive embedded pairs, are the standard general-purpose "
+            "solvers. They share the stability limits of all explicit "
+            "methods, and stiff problems need implicit ones. Whatever method "
+            "is used, the check is the one this unit has repeated from the "
+            "start: halve the step, or tighten the tolerance, and see whether "
+            "the answer moves. If it does, the first answer was not yet an "
+            "answer."
+        ),
+    )),
+)
 
 
 NUMERICAL = (

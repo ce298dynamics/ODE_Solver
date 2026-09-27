@@ -30,6 +30,7 @@ CHAPTERED = (
     "equilibria",
     "motion",
     "numerical",
+    "rungekutta",
 )
 
 #: About five pages of prose.
