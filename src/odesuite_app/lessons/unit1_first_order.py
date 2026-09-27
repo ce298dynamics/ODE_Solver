@@ -357,6 +357,7 @@ SEPARABLE = Lesson(
 
 LINEAR = Lesson(
     key="linear",
+    chapter=chapters.LINEAR,
     title="First-order linear, and the integrating factor",
     summary="What to do when the equation is linear in y but refuses to "
             "separate.",

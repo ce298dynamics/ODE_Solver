@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["SEPARABLE"]
+__all__ = ["SEPARABLE", "LINEAR"]
 
 
 SEPARABLE = (
@@ -432,6 +432,422 @@ SEPARABLE = (
             "cannot touch; exact equations and substitutions handle others. "
             "All of them end, one way or another, with an integration like "
             "the ones in this lesson, which is why this technique comes first."
+        ),
+    )),
+)
+
+
+LINEAR = (
+    Section("Linear equations, and why separation fails on them", (
+        Para(
+            "Separation asks the right-hand side of y' = F(t, y) to be a "
+            "product. The plainest equations that break that rule are the ones "
+            "where two influences on the rate are *added*: y' = −2y + t says "
+            "the quantity decays at a rate proportional to itself and is "
+            "topped up at a rate that grows with time. The two contributions "
+            "are summed, and no rearrangement turns a sum into a product. Yet "
+            "this is the shape of a huge number of models — a tank with an "
+            "inflow, a circuit with a source, a population with immigration — "
+            "because physical influences on a rate usually add."
+        ),
+        Box(
+            "definition", "First-order linear equation",
+            "An equation is *linear* in y if y and y' appear only to the first "
+            "power, are not multiplied together, and are not inside any other "
+            "function. Dividing by the coefficient of y' puts it in standard "
+            "form, and p and q may be any functions of t.",
+            r"y' + p(t)\, y = q(t)",
+        ),
+        Para(
+            "The word linear refers to y alone. The coefficients may be as "
+            "nonlinear in t as they like: t² y' + (sin t) y = e^t is linear, and "
+            "so is y' = y/t + ln t. What is forbidden is y², √y, sin y, "
+            "e^y, or a product y·y'. So y' = y² + t is not linear (and not "
+            "separable either — it is a Riccati equation, for which there is "
+            "no general method), while y' = 3y + t is linear."
+        ),
+        Para(
+            "When q(t) = 0 the equation is called *homogeneous*, and then it is "
+            "separable after all: y' = −p(t)y separates into dy/y = −p dt. "
+            "It is the forcing term q that spoils separation. The method of "
+            "this lesson handles the forcing, and as a by-product it recovers "
+            "the homogeneous solution too."
+        ),
+        Display(r"y' + 2y = t \;\;\text{(linear)}, \qquad "
+                r"y' + 2y = y^{2} \;\;\text{(not linear)}"),
+    )),
+    Section("The integrating factor", (
+        Para(
+            "The idea comes from staring at the product rule. The derivative "
+            "of a product μ(t)y(t) is μy' + μ'y. The left-hand side of a "
+            "linear equation, multiplied by μ, is μy' + μpy. These two agree "
+            "exactly when μ' = μp — and when they agree, the whole left side "
+            "is the derivative of a single thing, μy, and one integration "
+            "finishes the job."
+        ),
+        Display(r"\mu y' + \mu p\, y = (\mu y)' \quad\Longleftrightarrow\quad "
+                r"\mu' = p\, \mu", "1"),
+        Para(
+            "Equation (1) for μ is itself separable, and its simplest solution "
+            "is an exponential of the integral of p. That function is the "
+            "*integrating factor*. Any constant multiple would do as well, so "
+            "the constant of integration in ∫p dt is simply dropped."
+        ),
+        Display(r"\mu(t) = e^{\int p(t)\, dt}", "2"),
+        Box(
+            "theorem", "Solution of a linear first-order equation",
+            "If p and q are continuous on an open interval I, then for every "
+            "t₀ in I and every y₀ the problem y' + py = q, y(t₀) = y₀ has "
+            "exactly one solution, it exists on the whole of I, and every "
+            "solution of the equation is given by the formula below for some "
+            "constant C.",
+            r"y(t) = \frac{1}{\mu(t)}\left(\int \mu(t)\, q(t)\, dt + C\right)",
+        ),
+        Box(
+            "proof", "",
+            "Multiply the equation by μ = e^(∫p dt), which is never zero. By "
+            "(1) the left side becomes (μy)', so (μy)' = μq. Integrating, "
+            "μy = ∫μq dt + C, and dividing by μ gives the formula. Conversely, "
+            "differentiating the formula shows that it satisfies the "
+            "equation. On I the integrals exist because p and q are "
+            "continuous, which is why the solution lives on all of I, and the "
+            "initial condition fixes C uniquely.",
+        ),
+        Para(
+            "Two parts of that theorem are unusually strong, and worth "
+            "noticing because nonlinear equations lack them. The solution "
+            "exists on the *whole* interval where the coefficients are "
+            "continuous — there is no blow-up of the kind y' = y² showed in "
+            "the last lesson. And it is unique, with no exceptional initial "
+            "values. Linear equations are the well-behaved ones, and knowing "
+            "that an equation is linear tells you a great deal about it "
+            "before you solve it."
+        ),
+        Box(
+            "warning", "Standard form first",
+            "p is the coefficient of y *after* dividing by the coefficient of "
+            "y'. For t·y' + 2y = t the integrating factor comes from p = 2/t, "
+            "not from 2. Reading p off an equation that is not in standard "
+            "form is the most common error with this method, and it produces "
+            "a wrong μ that still looks reasonable.",
+        ),
+        Figure("integrating_factor",
+               "The figure shows the method at work on one equation: the "
+               "solution, the integrating factor, and the product μy whose "
+               "derivative is the right-hand side μq."),
+    )),
+    Section("Worked examples", (
+        Worked(
+            "Constant coefficients",
+            "Solve y' + 2y = t with y(0) = 1.",
+            (
+                Step("Here p = 2, so μ = e^(2t). Multiply through and recognise "
+                     "the left side as a derivative:",
+                     r"(e^{2t} y)' = t\, e^{2t}"),
+                Step("Integrate by parts, with u = t and dv = e^(2t) dt:",
+                     r"e^{2t} y = \frac{t}{2} e^{2t} - \frac{1}{4} e^{2t} + C"),
+                Step("Divide by e^(2t), then apply y(0) = 1: 1 = 0 − 1/4 + C, "
+                     "so C = 5/4.",
+                     r"y = \frac{t}{2} - \frac{1}{4} + C e^{-2t}"),
+            ),
+            equation="y' + 2*y = t", conditions="y(0) = 1",
+            answer="t/2 - 1/4 + 5*exp(-2*t)/4",
+            answer_latex=r"y(t) = \frac{t}{2} - \frac{1}{4} + \frac{5}{4} e^{-2t}",
+        ),
+        Para(
+            "Look at the shape of that answer. The term (5/4)e^(−2t) dies "
+            "away, and what remains, t/2 − 1/4, does not depend on the initial "
+            "value at all. The first part is called the *transient*, the "
+            "second the *steady state*. Every solution, whatever its start, "
+            "ends up following the same line — a property of the equation, "
+            "not of any one solution, and Section 4 returns to it."
+        ),
+        Worked(
+            "A variable coefficient",
+            "Solve t·y' + y = t for t > 0, with y(1) = 1.",
+            (
+                Step("Divide by t for standard form: y' + y/t = 1. So p = 1/t, "
+                     "and μ = e^(ln t) = t for t > 0.",
+                     r"y' + \frac{1}{t}\, y = 1, \qquad \mu = t"),
+                Step("The left side of the original equation was already "
+                     "(ty)' — this equation came with its integrating factor "
+                     "built in. Integrate:",
+                     r"(t y)' = t \;\Longrightarrow\; t y = \frac{t^{2}}{2} + C"),
+                Step("So y = t/2 + C/t, and y(1) = 1 gives 1/2 + C = 1, "
+                     "so C = 1/2."),
+            ),
+            equation="t*y' + y = t", conditions="y(1) = 1",
+            answer="t/2 + 1/(2*t)",
+            answer_latex=r"y(t) = \frac{t}{2} + \frac{1}{2t}",
+        ),
+        Para(
+            "The theorem promises a solution on the whole interval where p "
+            "and q are continuous. Here p = 1/t is continuous on (0, ∞) but "
+            "not at 0, so the solution through t = 1 lives on (0, ∞) — and "
+            "indeed 1/(2t) blows up at t = 0. The interval was predictable "
+            "from the equation before it was solved, which is never true of a "
+            "nonlinear equation."
+        ),
+        Worked(
+            "An integrating factor that is a negative power",
+            "Solve y' = y/t + t for t > 0, with y(1) = 0.",
+            (
+                Step("Move the y term across: y' − y/t = t. Now p = −1/t, "
+                     "with its minus sign, so ∫p dt = −ln t and μ = "
+                     "e^(−ln t) = 1/t.",
+                     r"y' - \frac{1}{t}\, y = t, \qquad \mu = \frac{1}{t}"),
+                Step("Multiply through by 1/t. The left side is (y/t)', and "
+                     "the right side is t · (1/t) = 1:",
+                     r"\left(\frac{y}{t}\right)' = 1 \;\Longrightarrow\; "
+                     r"\frac{y}{t} = t + C"),
+                Step("So y = t² + Ct, and y(1) = 0 gives C = −1."),
+            ),
+            equation="y' = y/t + t", conditions="y(1) = 0",
+            answer="t**2 - t", answer_latex=r"y(t) = t^{2} - t",
+        ),
+        Para(
+            "The sign of p is where this example is usually lost. Moving y/t "
+            "to the left changes its sign, and forgetting to do so gives "
+            "μ = t instead of 1/t — after which the left side is not a "
+            "derivative of anything, and the working quietly goes wrong. "
+            "Writing the equation out in standard form, sign included, before "
+            "computing μ costs one line and prevents it."
+        ),
+        Worked(
+            "Forcing that matches the natural behaviour",
+            "Solve y' − y = e^t with y(0) = 2.",
+            (
+                Step("p = −1, so μ = e^(−t), and the right-hand side becomes "
+                     "e^(−t)·e^t = 1:",
+                     r"(e^{-t} y)' = 1"),
+                Step("Integrate: e^(−t)y = t + C, so y = (t + C)e^t. The "
+                     "condition gives C = 2."),
+            ),
+            equation="y' - y = exp(t)", conditions="y(0) = 2",
+            answer="(t + 2)*exp(t)", answer_latex=r"y(t) = (t + 2)\, e^{t}",
+        ),
+        Para(
+            "The factor t in front of e^t appeared because the forcing e^t is "
+            "itself a solution of the homogeneous equation y' − y = 0. The "
+            "system is being pushed exactly the way it already wants to move, "
+            "and the response grows faster than either alone. The same "
+            "phenomenon returns at second order as *resonance*, where it "
+            "breaks bridges."
+        ),
+        Worked(
+            "A periodic forcing",
+            "Solve y' + y = sin t with y(0) = 0.",
+            (
+                Step("μ = e^t, so (e^t y)' = e^t sin t. The integral of "
+                     "e^t sin t is found by integrating by parts twice:",
+                     r"\int e^{t} \sin t\, dt = \frac{e^{t}}{2}(\sin t - \cos t)"),
+                Step("So e^t y = e^t(sin t − cos t)/2 + C, that is",
+                     r"y = \frac{\sin t - \cos t}{2} + C e^{-t}"),
+                Step("y(0) = 0 gives −1/2 + C = 0, so C = 1/2."),
+            ),
+            equation="y' + y = sin(t)", conditions="y(0) = 0",
+            answer="(sin(t) - cos(t))/2 + exp(-t)/2",
+            answer_latex=r"y(t) = \frac{\sin t - \cos t}{2} + \frac{1}{2} e^{-t}",
+        ),
+        Plot(
+            "Every solution settles onto the same oscillation",
+            "Solutions of y' + y = sin t from y(0) = −2, 0 and 2, with the "
+            "forcing sin t for comparison. The terms Ce^(−t) die away within "
+            "a few time units, and all three follow the steady state "
+            "(sin t − cos t)/2: an oscillation with the forcing's period, a "
+            "smaller amplitude 1/√2, and lagging behind the forcing by an "
+            "eighth of a cycle.",
+            (Curve("(sin(t) - cos(t))/2 - 1.5*exp(-t)", "y(0) = −2"),
+             Curve("(sin(t) - cos(t))/2 + 0.5*exp(-t)", "y(0) = 0"),
+             Curve("(sin(t) - cos(t))/2 + 2.5*exp(-t)", "y(0) = 2"),
+             Curve("sin(t)", "forcing sin t")),
+            t=(0.0, 15.0),
+        ),
+    )),
+    Section("Transients, steady states, and the structure of the answer", (
+        Para(
+            "Every example has produced an answer of the same form: a function "
+            "with no arbitrary constant, plus C times e^(−∫p dt). That is not "
+            "a coincidence. It is what the formula of Theorem 2 says when it "
+            "is split in two."
+        ),
+        Display(r"y(t) = y_p(t) + C\, e^{-\int p\, dt}", "3"),
+        Para(
+            "The first part, y_p, is one particular solution of the full "
+            "equation — any one will do. The second is the general solution "
+            "of the homogeneous equation y' + py = 0. So *every* solution of a "
+            "linear equation is one particular solution plus a solution of the "
+            "homogeneous equation. That sentence is the organising principle "
+            "of Unit 3, where second-order linear equations are solved in "
+            "exactly this two-part way."
+        ),
+        Box(
+            "remark", "Why the answer comes in two parts",
+            "If y₁ and y₂ both solve y' + py = q, their difference solves "
+            "y' + py = 0, because the q's cancel. So any two solutions differ "
+            "by a homogeneous solution — and once one particular solution is "
+            "fixed, all the others are found by adding homogeneous ones.",
+        ),
+        Para(
+            "When p is a positive constant the homogeneous part Ce^(−pt) "
+            "decays, and every solution approaches the particular one. The "
+            "initial condition then affects only the *transient*; the "
+            "long-run behaviour, the steady state, is fixed by the forcing "
+            "alone. This is why an engineer describing a circuit or a "
+            "thermostat asks for the steady-state response to an input: after "
+            "the transient has died, it is all that remains."
+        ),
+    )),
+    Section("A second derivation: varying the constant", (
+        Para(
+            "The integrating factor is not the only way to reach Theorem 2, "
+            "and a second derivation is worth seeing because it is the one "
+            "that generalises. Start from the homogeneous equation y' + py = "
+            "0, whose solutions are C·h(t) with h(t) = e^(−∫p dt). A constant "
+            "multiple of h cannot solve the forced equation — plug it in and "
+            "the left side is zero, not q. So let the constant vary: look for "
+            "a solution of the form y = u(t)·h(t)."
+        ),
+        Display(r"y = u\, h \;\Longrightarrow\; y' + p\, y = u' h + "
+                r"u\,(h' + p\, h) = u' h", "5"),
+        Para(
+            "The bracket h' + ph is zero because h solves the homogeneous "
+            "equation, and that cancellation is the whole trick. What remains "
+            "is u'h = q, so u' = q/h = qμ, since 1/h is exactly the integrating "
+            "factor. Integrating gives u = ∫μq dt + C, and y = uh is the "
+            "formula of Theorem 2 again."
+        ),
+        Para(
+            "This route is called *variation of parameters*, and it returns in "
+            "Unit 3 for second-order equations, where no integrating factor "
+            "exists but the same idea — take the homogeneous solutions and let "
+            "their constants vary — still produces a particular solution. "
+            "Seeing it first here, where the algebra is one line, makes the "
+            "second-order version much less mysterious."
+        ),
+    )),
+    Section("Two methods, one equation", (
+        Para(
+            "Some equations are both separable and linear, and then either "
+            "method works. Newton's law of cooling, y' = −k(y − A), is one: "
+            "separable because the right side is a constant times a function "
+            "of y, linear because it reads y' + ky = kA. Whichever method is "
+            "used, the answer must be the same function, and comparing the two "
+            "is a good check on both."
+        ),
+        Worked(
+            "Solved as a linear equation",
+            "Solve y' + 2ty = t with y(0) = 1.",
+            (
+                Step("p = 2t, so μ = e^(t²), and (e^(t²) y)' = t e^(t²). The "
+                     "right side integrates by the substitution w = t²:",
+                     r"e^{t^{2}} y = \frac{1}{2} e^{t^{2}} + C"),
+                Step("So y = 1/2 + Ce^(−t²), and y(0) = 1 gives C = 1/2."),
+                Step("As a check, the equation is also separable: "
+                     "y' = t(1 − 2y), so dy/(1 − 2y) = t dt, and "
+                     "−ln|1 − 2y|/2 = t²/2 + c leads to the same function.",
+                     r"1 - 2y = -e^{-t^{2}}"),
+            ),
+            equation="y' + 2*t*y = t", conditions="y(0) = 1",
+            answer="1/2 + exp(-t**2)/2",
+            answer_latex=r"y(t) = \frac{1}{2} + \frac{1}{2} e^{-t^{2}}",
+        ),
+        Para(
+            "When both apply, the linear method is usually the safer choice. "
+            "Separation divides by g(y) and can lose an equilibrium solution; "
+            "the integrating factor divides only by μ, which is never zero, so "
+            "it cannot lose anything. Here separation divided by 1 − 2y and "
+            "would have lost y = 1/2, which the linear method produced as the "
+            "C = 0 member of the family without any special care."
+        ),
+        Para(
+            "Knowing where a solution lives is the other place the theory "
+            "pays. For y' + y/(t − 3) = 1 the coefficient p = 1/(t − 3) is "
+            "continuous on (−∞, 3) and on (3, ∞) but not at 3. A solution with "
+            "y(0) = 1 is guaranteed on (−∞, 3) and on no interval crossing 3; "
+            "one with y(5) = 1 lives on (3, ∞). The equation is saying that t = "
+            "3 is a wall, and it says so before anything is integrated."
+        ),
+        Box(
+            "remark", "The interval comes from the coefficients",
+            "For a linear equation the interval of existence is read off the "
+            "standard form: the largest open interval containing t₀ on which "
+            "p and q are both continuous. For a nonlinear equation there is no "
+            "such rule, and the interval has to be found from the solution.",
+        ),
+    )),
+    Section("Mixing problems", (
+        Para(
+            "The classic application of linear equations is a tank. Brine of "
+            "concentration c_in flows in at rate r, the tank is kept stirred so "
+            "that its concentration is uniform, and the mixture flows out at "
+            "the same rate r, so the volume V stays constant. Let x(t) be the "
+            "mass of salt in the tank. Its rate of change is the rate at which "
+            "salt comes in minus the rate at which it goes out."
+        ),
+        Display(r"\frac{dx}{dt} = r\, c_{in} - \frac{r}{V}\, x", "4"),
+        Para(
+            "The outflow term needs a moment's thought. The concentration in "
+            "the tank is x/V, and liquid leaves at rate r, so salt leaves at "
+            "rate r·x/V. The equation is linear with constant coefficients, "
+            "and its steady state is the salt the tank would hold if its "
+            "concentration matched the inflow: x = V·c_in."
+        ),
+        Worked(
+            "A stirred tank",
+            "A 100-litre tank holds 5 kg of salt dissolved in water. Brine "
+            "with 0.4 kg of salt per litre flows in at 5 L/min, and the "
+            "mixture flows out at 5 L/min. Find the salt x(t) after t minutes.",
+            (
+                Step("Salt enters at 5 × 0.4 = 2 kg/min and leaves at "
+                     "5·x/100 = x/20 kg/min:",
+                     r"x' = 2 - \frac{x}{20}, \qquad x(0) = 5"),
+                Step("In standard form x' + x/20 = 2, so μ = e^(t/20) and "
+                     "(e^(t/20) x)' = 2e^(t/20). Integrating gives "
+                     "e^(t/20) x = 40e^(t/20) + C.",
+                     r"x = 40 + C e^{-t/20}"),
+                Step("x(0) = 5 gives C = −35."),
+            ),
+            equation="y' = 2 - y/20", conditions="y(0) = 5",
+            answer="40 - 35*exp(-t/20)",
+            answer_latex=r"x(t) = 40 - 35\, e^{-t/20}",
+        ),
+        Plot(
+            "Salt in the tank",
+            "x(t) = 40 − 35e^(−t/20): it rises from 5 kg towards the 40 kg "
+            "that 100 L at the inflow concentration of 0.4 kg/L would hold. "
+            "The time constant is V/r = 20 minutes: after 20 minutes about 63% "
+            "of the gap has closed, and after an hour 95%.",
+            (Curve("40 - 35*exp(-t/20)", "salt, kg"),
+             Curve("40 + 0*t", "steady state")),
+            t=(0.0, 120.0), ylabel="salt, kg", ylim=(0.0, 45.0),
+        ),
+        Para(
+            "If the inflow and outflow rates differ the volume changes, "
+            "V(t) = V₀ + (r_in − r_out)t, and the coefficient of x becomes "
+            "r_out/V(t), which depends on t. The equation is still linear and "
+            "the integrating factor still works — it is simply a power of "
+            "V(t) rather than an exponential. Linear equations with variable "
+            "coefficients are exactly as solvable as constant ones, provided "
+            "the integrals can be done."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "To solve a linear first-order equation: divide by the coefficient "
+            "of y' to reach standard form y' + py = q; compute μ = e^(∫p dt), "
+            "dropping the constant; multiply through and write the left side "
+            "as (μy)'; integrate, remembering the constant this time; divide "
+            "by μ; apply the initial condition. The solution lives on the "
+            "largest interval containing t₀ on which p and q are continuous."
+        ),
+        Para(
+            "The answer always splits into a particular solution plus C times "
+            "the homogeneous solution, and when the homogeneous solution "
+            "decays, the particular part is the steady state that every "
+            "solution approaches. That split — particular plus homogeneous — "
+            "is the idea from this lesson that the rest of the course uses "
+            "most."
         ),
     )),
 )
