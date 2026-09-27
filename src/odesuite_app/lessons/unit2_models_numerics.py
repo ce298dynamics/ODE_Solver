@@ -345,6 +345,7 @@ POPULATION = Lesson(
 
 EQUILIBRIA = Lesson(
     key="equilibria",
+    chapter=chapters.EQUILIBRIA,
     title="Equilibria, stability and the phase line",
     summary="For an autonomous equation, the sign of the right-hand side tells "
             "you everything about the long run.",

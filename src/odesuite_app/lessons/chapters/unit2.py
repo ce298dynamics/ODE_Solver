@@ -4,7 +4,410 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["POPULATION"]
+__all__ = ["POPULATION", "EQUILIBRIA"]
+
+
+EQUILIBRIA = (
+    Section("Autonomous equations", (
+        Para(
+            "Every population model of the last lesson had a right-hand side "
+            "that depended on P but not on t. The law of growth was the same "
+            "on every day: only the population changed. Equations of that "
+            "kind are called autonomous, and they are important enough — "
+            "most physical laws are autonomous — to deserve a theory of their "
+            "own. The theory is the phase line, and it answers the most "
+            "useful questions about an autonomous equation without solving it."
+        ),
+        Box(
+            "definition", "Autonomous equation",
+            "A first-order equation is *autonomous* if its right-hand side "
+            "depends on y alone.",
+            r"\frac{dy}{dt} = f(y)",
+        ),
+        Para(
+            "The defining property is that shifting a solution in time gives "
+            "another solution. If y(t) solves y' = f(y), then so does y(t − c) "
+            "for any constant c, because both sides of the equation are "
+            "evaluated at the same shifted time and nothing in the equation "
+            "notices. So the question 'what happens to a solution that starts "
+            "at y₀?' has the same answer whenever it starts. Only the value "
+            "matters, not the date."
+        ),
+        Box(
+            "theorem", "Time-shift invariance",
+            "If y(t) is a solution of y' = f(y) on an interval I, then for "
+            "every constant c the function y(t − c) is a solution on the "
+            "shifted interval I + c.",
+        ),
+        Para(
+            "Geometrically, the slope field of an autonomous equation is the "
+            "same along every horizontal line, since the slope depends only on "
+            "the height. Every horizontal translate of a solution curve is "
+            "another solution curve. That redundancy is what lets the whole "
+            "picture be compressed onto a single vertical line."
+        ),
+    )),
+    Section("Equilibrium solutions", (
+        Box(
+            "definition", "Equilibrium (critical point)",
+            "A number c with f(c) = 0. The constant function y(t) ≡ c is then "
+            "a solution — an *equilibrium solution* — because its derivative, "
+            "zero, equals f(c).",
+            r"f(c) = 0 \;\Longrightarrow\; y(t) \equiv c",
+        ),
+        Para(
+            "Finding equilibria is algebra: solve f(y) = 0. For the logistic "
+            "equation f(P) = kP(M − P), they are P = 0 and P = M. For "
+            "y' = (y − 1)(y − 3) they are 1 and 3. For y' = sin y there are "
+            "infinitely many, at every multiple of π. An autonomous equation "
+            "may also have none, like y' = 1 + y², whose solutions all run off "
+            "to infinity."
+        ),
+        Para(
+            "Between two consecutive equilibria f has no zero, so, if f is "
+            "continuous, it has a single sign there. Every solution starting "
+            "in that interval therefore moves monotonically — always up if "
+            "f > 0, always down if f < 0. And by uniqueness it can never reach "
+            "either equilibrium, since that would mean two solution curves "
+            "meeting. A solution trapped between two equilibria must "
+            "therefore approach one of them: the one it is moving towards."
+        ),
+        Box(
+            "theorem", "Solutions between equilibria",
+            "Let f and f′ be continuous, and let a < b be consecutive "
+            "equilibria of y' = f(y). A solution with a < y(0) < b stays in "
+            "(a, b) for all t. If f > 0 on (a, b) it increases to b as t → ∞ "
+            "and decreases to a as t → −∞; if f < 0 the roles swap.",
+        ),
+    )),
+    Section("The phase line", (
+        Para(
+            "All of that can be drawn on one vertical line. Mark the "
+            "equilibria as points. In each interval between them, draw an "
+            "arrow up if f > 0 and down if f < 0. That picture — the *phase "
+            "line* — is a complete qualitative description of every solution: "
+            "start anywhere, follow the arrow, and you arrive at the "
+            "equilibrium it points to, or run off to ±∞ if there is none in "
+            "that direction."
+        ),
+        Para(
+            "The quickest way to find the arrows is to sketch the graph of "
+            "f(y) against y. Where the graph is above the axis, f > 0 and "
+            "solutions increase; where it is below, they decrease. The "
+            "equilibria are where the graph crosses the axis. The phase line "
+            "is just the y-axis of that graph with arrows on it."
+        ),
+        Figure("phase_line",
+               "The graph of f(y) for harvested logistic growth, with the "
+               "phase line along its axis. Raise the harvest h and watch the "
+               "two equilibria slide together and vanish."),
+        Worked(
+            "Reading, then confirming",
+            "For y' = (y − 1)(y − 3), draw the phase line, predict the solution "
+            "from y(0) = 2, and confirm by solving.",
+            (
+                Step("Equilibria 1 and 3. For y < 1 both factors are negative "
+                     "and f > 0: arrows up. For 1 < y < 3, f < 0: arrows down. "
+                     "For y > 3, f > 0: arrows up. So 1 attracts from both "
+                     "sides and 3 repels.",
+                     r"f(y) = (y - 1)(y - 3)"),
+                Step("From y(0) = 2 the phase line predicts a decrease towards "
+                     "1. To confirm, separate with partial fractions: "
+                     "1/((y − 1)(y − 3)) = (1/2)(1/(y − 3) − 1/(y − 1)), so "
+                     "(1/2)ln|(y − 3)/(y − 1)| = t + C.",
+                     r"\frac{y - 3}{y - 1} = A e^{2t}"),
+                Step("At t = 0 the left side is −1, so A = −1. Solving for y:"
+                     " y − 3 = −(y − 1)e^(2t), so y(1 + e^(2t)) = 3 + e^(2t). As "
+                     "t → ∞ the e^(2t) terms dominate and y → 1, as predicted."),
+            ),
+            equation="y' = (y - 1)*(y - 3)", conditions="y(0) = 2",
+            answer="(3 + exp(2*t))/(1 + exp(2*t))",
+            answer_latex=r"y(t) = \frac{3 + e^{2t}}{1 + e^{2t}}",
+        ),
+        Plot(
+            "Solutions of y' = (y − 1)(y − 3)",
+            "Starting values 0, 2 and 2.9 all end at y = 1, the stable "
+            "equilibrium, approached from both sides. The solution from 3.1 "
+            "leaves y = 3 upwards and blows up, as does every solution that "
+            "starts above 3. The equilibria are the straight lines; nothing "
+            "crosses them.",
+            (Curve("(3 - 3*exp(2*t))/(1 - 3*exp(2*t))", "y(0) = 0"),
+             Curve("(3 + exp(2*t))/(1 + exp(2*t))", "y(0) = 2"),
+             Curve("(3 + 0.0526*exp(2*t))/(1 + 0.0526*exp(2*t))", "y(0) = 2.9"),
+             Curve("Piecewise(((3 - 0.0476*exp(2*t))/(1 - 0.0476*exp(2*t)), "
+                   "t < 1.3), (nan, True))", "y(0) = 3.1"),
+             Curve("1 + 0*t", "y = 1"), Curve("3 + 0*t", "y = 3")),
+            t=(0.0, 3.0), ylim=(-0.5, 5.0),
+        ),
+    )),
+    Section("What happens beyond the last equilibrium", (
+        Para(
+            "Above y = 3 the phase line of y' = (y − 1)(y − 3) has an arrow "
+            "pointing up and no equilibrium to stop at. The theorem between "
+            "equilibria does not apply, and the phase line alone cannot say "
+            "whether the solution grows for ever, levels off at infinity, or "
+            "reaches infinity in finite time. Here f grows like y², and that "
+            "is fast enough to escape in finite time, as y' = y² did."
+        ),
+        Worked(
+            "Escape above an unstable equilibrium",
+            "Solve y' = (y − 1)(y − 3) with y(0) = 4, and find when the "
+            "solution blows up.",
+            (
+                Step("The same separation gives (y − 3)/(y − 1) = Ae^(2t), and "
+                     "at t = 0 the left side is 1/3, so A = 1/3.",
+                     r"\frac{y - 3}{y - 1} = \frac{1}{3}e^{2t}"),
+                Step("Solving for y, y(1 − e^(2t)/3) = 3 − e^(2t)/3. The "
+                     "denominator reaches zero when e^(2t) = 3, that is at "
+                     "t = (ln 3)/2 ≈ 0.55, and the solution blows up there.",
+                     r"t^{*} = \frac{\ln 3}{2} \approx 0.55"),
+            ),
+            equation="y' = (y - 1)*(y - 3)", conditions="y(0) = 4",
+            answer="(3 - exp(2*t)/3)/(1 - exp(2*t)/3)",
+            answer_latex=r"y(t) = \frac{3 - \frac{1}{3}e^{2t}}{1 - \frac{1}{3}e^{2t}}",
+        ),
+        Para(
+            "Running time backwards is just as informative. As t → −∞ the "
+            "exponential vanishes and y → 3: the solution came out of the "
+            "unstable equilibrium in the infinite past. That is what "
+            "'unstable' looks like from the solution's point of view — every "
+            "solution near 3 either came from it or is leaving it, and none "
+            "stays."
+        ),
+    )),
+    Section("Phase lines of familiar models", (
+        Para(
+            "Most of the models met so far are autonomous, and each has a "
+            "phase line that says, in a picture, what the model predicts. "
+            "Newton's cooling law T' = −k(T − A) has one equilibrium, the "
+            "room temperature A, with f′ = −k < 0: stable, and approached with "
+            "time constant 1/k. Every cup of coffee ends at room temperature, "
+            "and the phase line says so in one arrow on each side of A."
+        ),
+        Para(
+            "A body falling with linear drag, v' = g − (c/m)v, has a single "
+            "stable equilibrium at the terminal velocity mg/c. With quadratic "
+            "drag, v' = g − kv², the equilibria are ±√(g/k), and only the "
+            "positive one is physical for a falling body; it is stable, since "
+            "f′ = −2kv < 0 there. The logistic equation has 0 unstable and M "
+            "stable. The Allee model P' = kP(P − M) reverses them: 0 stable, "
+            "M unstable, a threshold between extinction and explosion."
+        ),
+        Para(
+            "In each case the stable equilibria are the states the system "
+            "will be found in, the unstable ones are thresholds separating "
+            "different fates, and the derivative f′ at each equilibrium is a "
+            "rate that experiment can measure. Much of applied modelling "
+            "consists of exactly these three questions, asked of equations "
+            "far too complicated to solve."
+        ),
+    )),
+    Section("Stability", (
+        Para(
+            "Equilibria differ in how they treat nearby solutions, and the "
+            "difference is the whole practical content of the phase line. An "
+            "equilibrium where nearby solutions stay nearby — and in fact move "
+            "closer — is one the system can actually be observed in, because "
+            "small disturbances die away. One that nearby solutions leave is "
+            "unobservable in practice: like a pencil balanced on its point, it "
+            "exists as a solution but never persists."
+        ),
+        Box(
+            "definition", "Stable, unstable, semi-stable",
+            "An equilibrium c is *stable* (an attractor, or sink) if solutions "
+            "starting close enough to c approach c as t → ∞. It is *unstable* "
+            "(a repeller, or source) if solutions starting arbitrarily close "
+            "move away. It is *semi-stable* if it attracts from one side and "
+            "repels from the other.",
+        ),
+        Para(
+            "On the phase line these are read off the arrows: a stable "
+            "equilibrium has arrows pointing towards it on both sides, an "
+            "unstable one arrows pointing away on both sides, and a "
+            "semi-stable one an arrow in on one side and out on the other. "
+            "For y' = (y − 1)(y − 3), 1 is stable and 3 is unstable. For the "
+            "logistic equation, 0 is unstable and M is stable, which is the "
+            "whole story of logistic growth in one sentence."
+        ),
+        Worked(
+            "A semi-stable equilibrium",
+            "Analyse y' = (y − 1)² and solve it with y(0) = 0.",
+            (
+                Step("The only equilibrium is 1, and f = (y − 1)² ≥ 0 on both "
+                     "sides of it: arrows up below 1 and up above 1. So 1 "
+                     "attracts from below and repels above — semi-stable."),
+                Step("Separate: dy/(y − 1)² = dt, so −1/(y − 1) = t + C. At "
+                     "t = 0, y = 0 gives 1 = C, so y − 1 = −1/(t + 1).",
+                     r"y = 1 - \frac{1}{t + 1}"),
+                Step("The solution creeps up to 1 but only like 1/t, far more "
+                     "slowly than the exponential approach to a stable "
+                     "equilibrium. Started just above 1, it would instead "
+                     "blow up in finite time."),
+            ),
+            equation="y' = (y - 1)**2", conditions="y(0) = 0",
+            answer="t/(t + 1)", answer_latex=r"y(t) = \frac{t}{t + 1}",
+        ),
+        Box(
+            "warning", "Semi-stable is not stable",
+            "An equilibrium that attracts from one side is sometimes "
+            "carelessly called stable. It is not: a disturbance on the wrong "
+            "side, however small, sends the solution away. In applications a "
+            "semi-stable equilibrium is usually a sign that a parameter is "
+            "sitting exactly at a bifurcation, and the smallest change of it "
+            "will destroy the equilibrium or split it in two.",
+        ),
+    )),
+    Section("The derivative test", (
+        Para(
+            "Reading arrows is reliable, but there is a quicker test that "
+            "needs only one derivative. Near an equilibrium c, write "
+            "y = c + u with u small. Taylor's theorem gives f(c + u) ≈ "
+            "f(c) + f′(c)u = f′(c)u, since f(c) = 0. So the small deviation "
+            "u obeys u' ≈ f′(c)u, the natural growth equation, whose "
+            "solutions grow if f′(c) > 0 and decay if f′(c) < 0."
+        ),
+        Box(
+            "theorem", "Linearised stability",
+            "Let c be an equilibrium of y' = f(y), with f′ continuous. If "
+            "f′(c) < 0, c is stable and nearby solutions approach it "
+            "exponentially, like e^(f′(c)t). If f′(c) > 0, c is unstable. If "
+            "f′(c) = 0, the test decides nothing.",
+            r"u' \approx f'(c)\, u \;\Longrightarrow\; u \approx u_0\, "
+            r"e^{f'(c)\, t}",
+        ),
+        Para(
+            "For y' = (y − 1)(y − 3), f′(y) = 2y − 4, so f′(1) = −2 < 0 "
+            "(stable) and f′(3) = 2 > 0 (unstable), agreeing with the arrows. "
+            "The number itself carries information too: near y = 1 the "
+            "deviation shrinks like e^(−2t), so each time unit it falls by a "
+            "factor of about 7.4. For the logistic equation f′(M) = −kM, so "
+            "a population disturbed from its capacity returns with time "
+            "constant 1/(kM)."
+        ),
+        Para(
+            "The inconclusive case is exactly the semi-stable one above: for "
+            "f(y) = (y − 1)², f′(1) = 0. And it is not only semi-stable "
+            "equilibria that give f′(c) = 0. For y' = −y³, f′(0) = 0 and yet 0 "
+            "is stable, attracting from both sides; for y' = y³ it is "
+            "unstable. When the derivative vanishes, go back to the signs of f "
+            "on either side, which always decide."
+        ),
+        Worked(
+            "Three equilibria",
+            "Classify the equilibria of y' = y³ − y and solve it from "
+            "y(0) = 1/2.",
+            (
+                Step("f(y) = y(y − 1)(y + 1) vanishes at −1, 0 and 1. "
+                     "f′(y) = 3y² − 1 gives f′(−1) = 2, f′(0) = −1 and "
+                     "f′(1) = 2: the outer two are unstable, 0 is stable.",
+                     r"f'(y) = 3y^{2} - 1"),
+                Step("Between 0 and 1, f < 0, so y decreases towards 0. The "
+                     "equation is Bernoulli with n = 3: v = y^(−2) satisfies "
+                     "v' − 2v = −2, so v = 1 + Ce^(2t), and v(0) = 4 gives C = 3.",
+                     r"v = 1 + 3e^{2t}"),
+                Step("So y = 1/√(1 + 3e^(2t)), which decays to 0 like e^(−t) — "
+                     "the rate f′(0) = −1 predicted."),
+            ),
+            equation="y' = y**3 - y", conditions="y(0) = 1/2",
+            answer="1/sqrt(1 + 3*exp(2*t))",
+            answer_latex=r"y(t) = \frac{1}{\sqrt{1 + 3e^{2t}}}",
+        ),
+    )),
+    Section("A stable equilibrium in practice", (
+        Para(
+            "Stable equilibria are what systems settle into, and many "
+            "practical questions are simply: where is the stable equilibrium, "
+            "and how fast is it approached? The phase line answers both "
+            "without solving, and solving confirms it."
+        ),
+        Worked(
+            "Continuous infusion",
+            "A drug is infused at 5 mg per hour and eliminated at a rate "
+            "proportional to the amount present, 20% per hour: "
+            "y' = 5 − y/5, y(0) = 0. Where does the amount settle, and how "
+            "fast?",
+            (
+                Step("The equilibrium is y = 25 mg, and f′ = −1/5 < 0, so it "
+                     "is stable, approached like e^(−t/5): a time constant of "
+                     "5 hours."),
+                Step("Solving (linear, integrating factor e^(t/5)) confirms "
+                     "it: y = 25 + Ce^(−t/5), and y(0) = 0 gives C = −25.",
+                     r"y = 25\left(1 - e^{-t/5}\right)"),
+            ),
+            equation="y' = 5 - y/5", conditions="y(0) = 0",
+            answer="25 - 25*exp(-t/5)", answer_latex=r"y(t) = 25 - 25e^{-t/5}",
+        ),
+        Para(
+            "The equilibrium level 25 mg is the infusion rate divided by the "
+            "elimination rate, a formula a pharmacologist uses daily. The "
+            "time constant says the level is within 5% of it after three time "
+            "constants, fifteen hours, which is why a continuously infused "
+            "drug takes most of a day to reach its steady effect. Neither "
+            "number needed the solution; both are properties of the "
+            "equilibrium."
+        ),
+    )),
+    Section("When equilibria collide: bifurcation", (
+        Para(
+            "If the equation contains a parameter, the equilibria move as the "
+            "parameter changes, and occasionally something qualitative "
+            "happens: two equilibria meet and vanish, or one splits into "
+            "three. Such a parameter value is a *bifurcation*. The harvested "
+            "logistic equation of the last lesson is the standard example, "
+            "and the phase line shows it plainly."
+        ),
+        Display(r"y' = y(1 - y) - h, \qquad y^{*} = \frac{1 \pm \sqrt{1 - 4h}}{2}"),
+        Para(
+            "For h < 1/4 there are two equilibria, the upper stable and the "
+            "lower unstable. As h increases they move together; at h = 1/4 "
+            "they coincide at y = 1/2, where f′ = 0 and the equilibrium is "
+            "semi-stable; for h > 1/4 there are none, the graph of f lies "
+            "wholly below the axis, and every solution decreases to −∞ — the "
+            "population collapses. Plotting the equilibria against h gives a "
+            "*bifurcation diagram*, the picture Unit 8 builds for systems."
+        ),
+        Plot(
+            "Bifurcation diagram for y' = y(1 − y) − h",
+            "The equilibria (1 ± √(1 − 4h))/2 against the harvest h. The upper "
+            "branch is stable and the lower unstable; they meet at h = 1/4 and "
+            "vanish. To the right of the fold there is no equilibrium at all — "
+            "the phase line has one downward arrow.",
+            (Curve("(1 + sqrt(1 - 4*t))/2", "stable"),
+             Curve("(1 - sqrt(1 - 4*t))/2", "unstable")),
+            t=(0.0, 0.3), xlabel="harvest h", ylabel="equilibrium y*",
+            ylim=(-0.05, 1.05),
+        ),
+        Para(
+            "Folds are not the only way equilibria can change. For "
+            "y' = ry − y³ the origin is the only equilibrium when r < 0, and it "
+            "is stable. As r passes 0 it becomes unstable, and two new stable "
+            "equilibria ±√r appear on either side of it. One equilibrium has "
+            "become three: a *pitchfork*. Physically it is a beam that buckles "
+            "under a load — straight while the load is small, and bent to one "
+            "side or the other once the load passes a critical value. Unit 8 "
+            "gathers these patterns together and shows that, near any "
+            "bifurcation, almost every equation looks like one of a handful "
+            "of simple forms."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "An autonomous equation y' = f(y) is unchanged by shifting time, "
+            "so its solutions are organised by their values alone. The "
+            "equilibria are the zeros of f; between them f has one sign, and "
+            "solutions move monotonically towards one equilibrium or off to "
+            "infinity, never crossing another. The phase line records this "
+            "with arrows. An equilibrium is stable if the arrows point in on "
+            "both sides, unstable if out, semi-stable if mixed; the derivative "
+            "test f′(c) < 0 or > 0 decides quickly and gives the rate, and "
+            "f′(c) = 0 sends you back to the arrows. When a parameter moves "
+            "two equilibria together, they can meet and vanish — a "
+            "bifurcation — and the system's long-run behaviour changes all "
+            "at once. None of this required solving the equation, which is "
+            "the point: it works just as well when no solution formula exists."
+        ),
+    )),
+)
 
 
 POPULATION = (

@@ -27,6 +27,7 @@ CHAPTERED = (
     "exact",
     "substitutions",
     "population",
+    "equilibria",
 )
 
 #: About five pages of prose.
