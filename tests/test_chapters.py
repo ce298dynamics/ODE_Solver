@@ -41,6 +41,7 @@ CHAPTERED = (
     "free-vibration",
     "forced-vibration",
     "circuits",
+    "transform",
 )
 
 #: About five pages of prose.

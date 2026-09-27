@@ -23,6 +23,7 @@ exhaustive sweep runs every draw of every template.
 
 from __future__ import annotations
 
+from .chapters import unit5 as chapters
 from .model import (
     Choice,
     ChoiceTemplate,
@@ -372,6 +373,7 @@ LAPLACE = Lesson(
 
 TRANSFORM = Lesson(
     key="transform",
+    chapter=chapters.TRANSFORM,
     title="The transform, and reading the table",
     summary="What the transform does to a function, and why the table is the "
             "only part you need to memorise.",
