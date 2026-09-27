@@ -5,7 +5,415 @@ from __future__ import annotations
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
 __all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED", "VARIATION",
-           "REDUCTION", "CAUCHY"]
+           "REDUCTION", "CAUCHY", "HIGHER"]
+
+
+HIGHER = (
+    Section("Beyond second order", (
+        Para(
+            "Second-order equations dominate a first course because Newton's "
+            "law is second order, but equations of higher order arise "
+            "naturally too. The deflection of a loaded beam obeys a "
+            "fourth-order equation, EIy⁗ = w(x). Two coupled springs, "
+            "written as one equation for one of the masses, give a "
+            "fourth-order equation. A third-order equation describes the "
+            "jerk-limited motion of a lift or a machine tool. And any system "
+            "of first-order equations can be rewritten as a single "
+            "higher-order equation for one of its unknowns."
+        ),
+        Para(
+            "The good news of this lesson is that nothing essentially new is "
+            "needed. Every idea of the unit — superposition, the Wronskian, "
+            "the general solution as a combination of a fundamental set, "
+            "characteristic roots, undetermined coefficients, variation of "
+            "parameters — carries over from order 2 to order n with the "
+            "obvious changes. The difficulties that do appear are practical "
+            "ones: finding the roots of a polynomial of higher degree, and "
+            "solving larger linear systems for the constants."
+        ),
+        Box(
+            "definition", "Linear equation of order n",
+            "An equation in which y and its first n derivatives appear "
+            "linearly, with coefficients that are functions of t. In "
+            "standard form the leading coefficient is 1.",
+            r"y^{(n)} + p_{n-1}(t)\, y^{(n-1)} + \cdots + p_1(t)\, y' + "
+            r"p_0(t)\, y = f(t)",
+        ),
+    )),
+    Section("The general theory at order n", (
+        Box(
+            "theorem", "Existence, uniqueness and the general solution",
+            "If the coefficients and f are continuous on an open interval I "
+            "containing t₀, then y and its first n − 1 derivatives may be "
+            "prescribed at t₀ and exactly one solution exists on all of I. The "
+            "homogeneous equation has n independent solutions, and every "
+            "solution is a combination of them.",
+            r"y = c_1 y_1 + c_2 y_2 + \cdots + c_n y_n",
+        ),
+        Para(
+            "Independence is tested by the n × n Wronskian, the determinant "
+            "whose first row is y₁, …, yₙ, whose second row is their first "
+            "derivatives, and so on down to the (n − 1)st derivatives. For "
+            "solutions of the homogeneous equation it is, by Abel's formula, "
+            "either zero everywhere on I or zero nowhere, so evaluating it at "
+            "one convenient point settles the question. Its value at t₀ is "
+            "the determinant of the linear system the initial conditions "
+            "produce, and a nonzero Wronskian is exactly the statement that "
+            "every set of initial values can be met."
+        ),
+        Para(
+            "For the forced equation, the structure is also unchanged: every "
+            "solution is one particular solution plus the complementary "
+            "function c₁y₁ + ⋯ + cₙyₙ, and the n constants are fitted to the n "
+            "initial conditions after the particular solution has been added."
+        ),
+    )),
+    Section("Constant coefficients: the characteristic polynomial", (
+        Para(
+            "For an equation with constant coefficients, the trial e^(rt) "
+            "works exactly as before: every derivative is a multiple of the "
+            "function, and substituting gives the characteristic polynomial "
+            "of degree n, whose roots decide everything."
+        ),
+        Display(r"a_n r^{n} + a_{n-1} r^{n-1} + \cdots + a_1 r + a_0 = 0", "1"),
+        Box(
+            "theorem", "Solutions from the roots",
+            "Each real root r of multiplicity k contributes e^(rt), te^(rt), …, "
+            "t^(k−1)e^(rt). Each pair of complex roots α ± iβ of multiplicity k "
+            "contributes t^j e^(αt)cos βt and t^j e^(αt)sin βt for j = 0, …, k − 1. "
+            "Altogether these are exactly n independent solutions.",
+        ),
+        Worked(
+            "Three distinct roots",
+            "Solve y''' − 6y'' + 11y' − 6y = 0 with y(0) = 0, y'(0) = 0, "
+            "y''(0) = 2.",
+            (
+                Step("The characteristic polynomial r³ − 6r² + 11r − 6 has "
+                     "r = 1 as a root (1 − 6 + 11 − 6 = 0). Dividing by r − 1 "
+                     "leaves r² − 5r + 6 = (r − 2)(r − 3).",
+                     r"y = c_1 e^{t} + c_2 e^{2t} + c_3 e^{3t}"),
+                Step("The conditions give c₁ + c₂ + c₃ = 0, c₁ + 2c₂ + 3c₃ = 0 "
+                     "and c₁ + 4c₂ + 9c₃ = 2. Subtracting the first from the "
+                     "others: c₂ + 2c₃ = 0 and 3c₂ + 8c₃ = 2, so c₃ = 1, c₂ = −2 "
+                     "and c₁ = 1.",
+                     r"c_1 + c_2 + c_3 = 0, \quad c_2 + 2c_3 = 0, \quad "
+                     r"3c_2 + 8c_3 = 2"),
+            ),
+            equation="y''' - 6*y'' + 11*y' - 6*y = 0",
+            conditions="y(0) = 0, y'(0) = 0, y''(0) = 2",
+            answer="exp(t) - 2*exp(2*t) + exp(3*t)",
+            answer_latex=r"y(t) = e^{t} - 2e^{2t} + e^{3t}",
+        ),
+        Figure("higher_order",
+               "The roots of a higher-order characteristic polynomial in the "
+               "complex plane, and the solution shapes they produce — each "
+               "root a mode, and the solution a mixture of the modes."),
+    )),
+    Section("Finding the roots", (
+        Para(
+            "The quadratic formula has analogues for degrees three and four, "
+            "but they are unwieldy, and for degree five and higher no formula "
+            "in radicals exists at all — a theorem of Abel and Galois. So "
+            "finding the roots of a characteristic polynomial is the real "
+            "obstacle at higher order. For textbook problems the roots are "
+            "chosen to be findable, and three techniques find them."
+        ),
+        Para(
+            "First, the *rational root test*: any rational root p/q of a "
+            "polynomial with integer coefficients has p dividing the constant "
+            "term and q dividing the leading coefficient. For r³ − 6r² + 11r − 6 "
+            "the candidates are ±1, ±2, ±3 and ±6, and trying them finds 1 "
+            "quickly. Second, once a root r₀ is found, divide by r − r₀ — by "
+            "long division or synthetic division — to reduce the degree by "
+            "one, and repeat. Third, look for structure: r⁴ − 1 is a "
+            "difference of squares, (r² − 1)(r² + 1); r⁴ + 2r² + 1 is the square "
+            "(r² + 1)²; r³ − 1 has the obvious root 1."
+        ),
+        Worked(
+            "A difference of squares",
+            "Solve y⁗ − y = 0 with y(0) = 1 and y'(0) = y''(0) = y'''(0) = 0.",
+            (
+                Step("r⁴ − 1 = (r − 1)(r + 1)(r² + 1), with roots 1, −1 and ±i. "
+                     "Using cosh and sinh for the real pair makes conditions at "
+                     "0 easy:",
+                     r"y = c_1\cosh t + c_2\sinh t + c_3\cos t + c_4\sin t"),
+                Step("At t = 0: y = c₁ + c₃ = 1; y' = c₂ + c₄ = 0; "
+                     "y'' = c₁ − c₃ = 0; y''' = c₂ − c₄ = 0. So c₁ = c₃ = 1/2 and "
+                     "c₂ = c₄ = 0."),
+            ),
+            equation="y'''' - y = 0",
+            conditions="y(0) = 1, y'(0) = 0, y''(0) = 0, y'''(0) = 0",
+            answer="(cosh(t) + cos(t))/2",
+            answer_latex=r"y(t) = \frac{\cosh t + \cos t}{2}",
+        ),
+        Plot(
+            "An oscillating mode and an exponential mode",
+            "y = (cosh t + cos t)/2, with its two halves. The cos t/2 mode "
+            "oscillates for ever; the cosh t/2 mode grows exponentially and "
+            "soon dominates. A fourth-order equation can mix growing, "
+            "decaying and oscillating behaviour in a single solution.",
+            (Curve("(cosh(t) + cos(t))/2", "solution"),
+             Curve("cosh(t)/2", "cosh t / 2"), Curve("cos(t)/2", "cos t / 2")),
+            t=(0.0, 4.0), ylim=(-1.0, 8.0),
+        ),
+        Para(
+            "The roots of r³ − 1 = 0 show the complex case at third order. "
+            "Factoring out r − 1 leaves r² + r + 1, with roots −1/2 ± i√3/2. So "
+            "y''' − y = 0 has the real solutions e^t, e^(−t/2)cos(√3t/2) and "
+            "e^(−t/2)sin(√3t/2): one growing exponential and a decaying "
+            "oscillation. The three cube roots of 1 are evenly spaced around "
+            "the unit circle, and so are the exponents of the three solutions."
+        ),
+        Para(
+            "Outside the textbook, characteristic polynomials rarely have "
+            "roots that tests and tricks can find. The practical answer is to "
+            "find them numerically — every scientific computing environment "
+            "has a polynomial root finder, and it works by computing the "
+            "eigenvalues of a matrix built from the coefficients, which "
+            "connects this lesson to Unit 6 again. Once the roots are known "
+            "to good accuracy, the general solution is written down exactly "
+            "as above, with decimal exponents instead of neat ones. Nothing in "
+            "the theory required the roots to be nice; only hand calculation "
+            "does. And when the roots are known only approximately, the "
+            "qualitative conclusions — which modes grow, which decay, which "
+            "oscillate and at what frequency — are usually what matters, and "
+            "those are robust to small errors in the roots."
+        ),
+    )),
+    Section("Repeated roots at higher order", (
+        Para(
+            "Multiplicity can now exceed two, and complex roots can repeat. "
+            "The rule is uniform: a root of multiplicity k contributes the "
+            "basic solution multiplied by 1, t, …, t^(k−1). For y''' − 3y'' + "
+            "3y' − y = 0 the polynomial is (r − 1)³, and the solutions are e^t, "
+            "te^t and t²e^t. For y⁗ + 2y'' + y = 0 it is (r² + 1)², a repeated "
+            "pair ±i, and the solutions are cos t, sin t, t cos t and t sin t."
+        ),
+        Worked(
+            "A repeated complex pair",
+            "Verify that t sin t solves y⁗ + 2y'' + y = 0.",
+            (
+                Step("Differentiate: (t sin t)'' = 2cos t − t sin t, and "
+                     "differentiating twice more gives (t sin t)⁗ = "
+                     "−4cos t + t sin t.",
+                     r"(t\sin t)'''' = -4\cos t + t\sin t"),
+                Step("Then y⁗ + 2y'' + y = (−4cos t + t sin t) + "
+                     "2(2cos t − t sin t) + t sin t = 0. A solution that grows "
+                     "linearly in amplitude — resonance built into the "
+                     "equation itself."),
+            ),
+            equation="y'''' + 2*y'' + y = 0",
+            answer="t*sin(t)", answer_latex=r"y = t\sin t",
+        ),
+        Para(
+            "That example has a physical reading. Let one undamped oscillator "
+            "x'' + x = z be driven by the motion z of a second, identical one, "
+            "z'' + z = 0, with no coupling back. Then z is a combination of "
+            "cos t and sin t, the first oscillator is forced at exactly its "
+            "natural frequency, and applying (D² + 1) once more shows that x "
+            "satisfies (D² + 1)²x = 0 — this equation. The growing t sin t mode "
+            "is the resonance of the Unit 3 forcing lesson, built into a "
+            "single higher-order equation."
+        ),
+    )),
+    Section("Forced higher-order equations", (
+        Para(
+            "Undetermined coefficients works exactly as before, with the "
+            "modification rule now allowing powers of t up to the multiplicity "
+            "of the relevant root. Variation of parameters works too, with an "
+            "n × n system for the derivatives u₁', …, uₙ', solved by Cramer's "
+            "rule with the Wronskian as its determinant."
+        ),
+        Worked(
+            "A double root at zero",
+            "Solve y''' + y'' = t with y(0) = y'(0) = y''(0) = 0.",
+            (
+                Step("r³ + r² = r²(r + 1): 0 is a double root and −1 a simple "
+                     "one, so y_c = c₁ + c₂t + c₃e^(−t). The forcing t has "
+                     "exponent 0, a root of multiplicity 2, so the polynomial "
+                     "trial At + B must be multiplied by t².",
+                     r"y_p = t^{2}(At + B) = At^{3} + Bt^{2}"),
+                Step("Then y_p'' = 6At + 2B and y_p''' = 6A, so "
+                     "6A + 6At + 2B = t: A = 1/6 and B = −1/2.",
+                     r"y_p = \frac{t^{3}}{6} - \frac{t^{2}}{2}"),
+                Step("The conditions on y_c + y_p give c₁ + c₃ = 0, c₂ − c₃ = 0 "
+                     "and −1 + c₃ = 0, so c₃ = c₂ = 1 and c₁ = −1."),
+            ),
+            equation="y''' + y'' = t", conditions="y(0) = 0, y'(0) = 0, y''(0) = 0",
+            answer="t**3/6 - t**2/2 + t - 1 + exp(-t)",
+            answer_latex=r"y(t) = \frac{t^{3}}{6} - \frac{t^{2}}{2} + t - 1 + e^{-t}",
+        ),
+    )),
+    Section("Systems and single equations", (
+        Para(
+            "Higher-order equations and systems of first-order equations are "
+            "two descriptions of the same thing, and moving between them is a "
+            "skill used constantly. In one direction, an equation of order n "
+            "becomes a system of n first-order equations by naming the "
+            "derivatives: for y''' − 6y'' + 11y' − 6y = 0 set x₁ = y, x₂ = y', "
+            "x₃ = y''. Then x₁' = x₂, x₂' = x₃ and x₃' = 6x₃ − 11x₂ + 6x₁, three "
+            "equations each involving only a first derivative."
+        ),
+        Para(
+            "This is how every numerical solver handles higher-order "
+            "equations, since the methods of Unit 2 are written for "
+            "first-order systems. It is also the starting point of Unit 6, "
+            "where the system is written x' = Ax with a matrix A, and the "
+            "characteristic polynomial of this lesson reappears as the "
+            "characteristic polynomial of the matrix — the eigenvalues of A "
+            "are exactly the roots found here."
+        ),
+        Para(
+            "In the other direction, a system can often be reduced to one "
+            "equation by *elimination*. From x' = y and y' = −x − y, "
+            "differentiating the first and substituting the second gives "
+            "x'' = −x − x', that is x'' + x' + x = 0: a damped oscillator. "
+            "Two first-order equations became one second-order equation, and "
+            "the solution method of this unit applies. For larger systems "
+            "elimination becomes laborious, which is why Unit 6 develops "
+            "matrix methods instead, but for two or three equations it is "
+            "often the quickest route."
+        ),
+        Worked(
+            "Solving a system by elimination",
+            "Solve x' = y, y' = −x − y with x(0) = 1, y(0) = 0.",
+            (
+                Step("Eliminating y gives x'' + x' + x = 0, with x(0) = 1 and "
+                     "x'(0) = y(0) = 0. The characteristic roots are "
+                     "−1/2 ± i√3/2.",
+                     r"x = e^{-t/2}\left(c_1\cos\frac{\sqrt{3}}{2}t + "
+                     r"c_2\sin\frac{\sqrt{3}}{2}t\right)"),
+                Step("x(0) = c₁ = 1; x'(0) = −c₁/2 + (√3/2)c₂ = 0 gives "
+                     "c₂ = 1/√3. Then y = x' can be read off by differentiating, "
+                     "without solving anything more."),
+            ),
+            equation="y'' + y' + y = 0", conditions="y(0) = 1, y'(0) = 0",
+            answer="exp(-t/2)*(cos(sqrt(3)*t/2) + sin(sqrt(3)*t/2)/sqrt(3))",
+            answer_latex=r"x(t) = e^{-t/2}\left(\cos\frac{\sqrt{3}t}{2} + "
+                         r"\frac{1}{\sqrt{3}}\sin\frac{\sqrt{3}t}{2}\right)",
+        ),
+    )),
+    Section("Stability without the roots", (
+        Para(
+            "For a second-order equation with a > 0, every solution decays "
+            "exactly when b > 0 and c > 0. At higher order positive "
+            "coefficients are still necessary for decay, but they are no "
+            "longer enough, and the full condition — the Routh–Hurwitz "
+            "criterion — adds inequalities between the coefficients. For a "
+            "cubic r³ + a₂r² + a₁r + a₀ it is short enough to remember."
+        ),
+        Box(
+            "theorem", "Stability of a cubic",
+            "Every root of r³ + a₂r² + a₁r + a₀ has negative real part — so "
+            "every solution of the corresponding equation decays — exactly "
+            "when all three coefficients are positive and a₂a₁ > a₀.",
+            r"a_2 > 0,\;\; a_1 > 0,\;\; a_0 > 0, \qquad a_2 a_1 > a_0",
+        ),
+        Para(
+            "The extra inequality has teeth. For r³ + 3r² + 3r + 1 = (r + 1)³ "
+            "it reads 9 > 1, and the triple root −1 is stable. For "
+            "r³ + r² + 2r + 8 every coefficient is positive but 1 × 2 = 2 is "
+            "less than 8, and indeed the roots are −2 and 0.5 ± 1.94i: a "
+            "growing oscillation hides behind positive coefficients. Control "
+            "engineers use criteria like this to decide whether a feedback "
+            "system is stable without ever solving for its roots."
+        ),
+    )),
+    Section("Common errors", (
+        Para(
+            "At higher order the errors of the second-order case multiply. "
+            "Missing a root when factoring is the commonest: a cubic always "
+            "has three roots counted with multiplicity, a quartic four, and a "
+            "solution with fewer independent terms than the order cannot meet "
+            "all the initial conditions. Counting the terms against the order "
+            "is a quick check. Forgetting the extra powers of t for repeated "
+            "roots — or using t only once for a triple root — is the second."
+        ),
+        Para(
+            "The third is arithmetic in the linear system for the constants, "
+            "which is now three or four equations rather than two. Organised "
+            "elimination, subtracting one equation from the others as in "
+            "Example 1, keeps it manageable. And as always, a final "
+            "substitution into the equation and the conditions is the one "
+            "check that catches everything, including errors in the roots."
+        ),
+    )),
+    Section("An application: the bending of a beam", (
+        Para(
+            "A horizontal beam of stiffness EI carrying a load w per unit "
+            "length bends so that its downward deflection y(x) satisfies "
+            "EIy⁗ = w. The four derivatives have physical meanings: y is the "
+            "deflection, y' the slope, EIy'' the bending moment and EIy''' the "
+            "shear force. The four conditions needed come from how the ends "
+            "are supported, and — unlike every problem so far — two of them "
+            "are usually at the far end of the beam."
+        ),
+        Para(
+            "A *cantilever* is clamped at x = 0 and free at x = L. Clamped "
+            "means no deflection and no slope: y(0) = y'(0) = 0. Free means no "
+            "bending moment and no shear force: y''(L) = y'''(L) = 0. With a "
+            "uniform load the equation integrates four times to a quartic, and "
+            "the four conditions pick out the constants."
+        ),
+        Worked(
+            "A uniformly loaded cantilever",
+            "In units with L = 1 and w/EI = 24, solve y⁗ = 24 with "
+            "y(0) = y'(0) = 0 and y''(1) = y'''(1) = 0.",
+            (
+                Step("Integrate four times: y = t⁴ + at³ + bt² + ct + d (writing "
+                     "t for x). Clamping gives d = 0 and c = 0.",
+                     r"y = t^{4} + a t^{3} + b t^{2}"),
+                Step("y''' = 24t + 6a vanishes at t = 1, so a = −4. "
+                     "y'' = 12t² + 6at + 2b vanishes at t = 1, so "
+                     "12 − 24 + 2b = 0 and b = 6.",
+                     r"y = t^{4} - 4t^{3} + 6t^{2}"),
+                Step("The tip deflection is y(1) = 1 − 4 + 6 = 3, which in "
+                     "physical units is the textbook wL⁴/(8EI)."),
+            ),
+            equation="y'''' = 24", conditions="y(0) = 0, y'(0) = 0, y''(1) = 0, y'''(1) = 0",
+            answer="t**4 - 4*t**3 + 6*t**2",
+            answer_latex=r"y(x) = x^{4} - 4x^{3} + 6x^{2}",
+        ),
+        Plot(
+            "Deflection of a loaded cantilever",
+            "y = x⁴ − 4x³ + 6x² on the beam 0 ≤ x ≤ 1: flat at the clamped end, "
+            "with no curvature and no shear at the free end, and deflecting "
+            "most at the tip. The shape is the same for every uniformly "
+            "loaded cantilever; only the scale depends on w, E, I and L.",
+            (Curve("t**4 - 4*t**3 + 6*t**2", "deflection"),),
+            t=(0.0, 1.0), xlabel="position along the beam", ylabel="deflection",
+        ),
+        Box(
+            "remark", "Conditions at two ends",
+            "The beam problem is a *boundary value problem*: its conditions "
+            "are at both ends. The existence-and-uniqueness theorem for "
+            "initial value problems does not cover it, and in general such "
+            "problems can have no solution or many. For the loaded beam the "
+            "physics guarantees exactly one, and the four integrations find "
+            "it.",
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "Linear equations of order n behave like second-order ones: n "
+            "initial conditions determine a unique solution on any interval "
+            "where the coefficients are continuous, the homogeneous equation "
+            "has n independent solutions tested by an n × n Wronskian, and "
+            "forced solutions are a particular solution plus the complementary "
+            "function. With constant coefficients the characteristic "
+            "polynomial of degree n gives the solutions: each root of "
+            "multiplicity k contributes its exponential times 1, t, …, "
+            "t^(k−1), and complex pairs contribute cosines and sines. Finding "
+            "the roots — by the rational root test, division and structure — "
+            "is the main practical work. Undetermined coefficients and "
+            "variation of parameters extend unchanged, and physical problems "
+            "such as beams add conditions at more than one point. Higher-order "
+            "equations and first-order systems are interchangeable, and the "
+            "next units move freely between the two descriptions, choosing "
+            "whichever makes the problem at hand easier to see."
+        ),
+    )),
+)
 
 
 CAUCHY = (

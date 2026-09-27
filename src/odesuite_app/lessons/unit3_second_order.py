@@ -1914,6 +1914,7 @@ VARIATION = Lesson(
 
 HIGHER = Lesson(
     key="higher",
+    chapter=chapters.HIGHER,
     title="Higher-order linear equations",
     summary="Everything from second order, with more roots to keep track of "
             "and multiplicity to respect.",
