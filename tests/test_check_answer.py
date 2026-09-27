@@ -398,6 +398,11 @@ def _switched(equation: str, ics: str = ""):
         ("y'' + y = DiracDelta(t - 1)", "Heaviside(t - 1)*sin(t - 1)", "y(0) = 0, y'(0) = 0"),
         ("y' + y = DiracDelta(t - 1) + DiracDelta(t - 2)",
          "Heaviside(t - 1)*exp(-(t - 1)) + Heaviside(t - 2)*exp(-(t - 2))", "y(0) = 0"),
+        # sympy turns δ(t - 1 - π) round to δ(-t + 1 + π); the sign must follow.
+        ("y'' + 4*y = Heaviside(t - 1) - Heaviside(t - 1 - pi)",
+         "(Heaviside(t - 1)*(1 - cos(2*(t - 1)))"
+         " - Heaviside(t - 1 - pi)*(1 - cos(2*(t - 1 - pi))))/4",
+         "y(0) = 0, y'(0) = 0"),
     ],
 )
 def test_a_correct_switched_answer_verifies(equation, answer, ics):
@@ -419,6 +424,9 @@ def test_a_correct_switched_answer_verifies(equation, answer, ics):
         # One blow answered, the other forgotten.
         ("y' + y = DiracDelta(t - 1) + DiracDelta(t - 2)",
          "Heaviside(t - 1)*exp(-(t - 1))", "t = 2"),
+        # The same when sympy has turned the delta's argument round.
+        ("y'' + y = DiracDelta(t - 1 - pi)",
+         "Heaviside(t - 1 - pi)*cos(t - 1 - pi)", "t = 1 + pi"),
     ],
 )
 def test_a_wrong_jump_is_caught_and_located(equation, answer, where):

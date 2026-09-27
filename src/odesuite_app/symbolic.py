@@ -1217,11 +1217,15 @@ def _sift_impulses(expression) -> tuple[sp.Expr, list]:
         coefficient = term / delta
         argument = delta.args[0]
         order = int(delta.args[1]) if len(delta.args) > 1 else 0
+        slope = sp.diff(argument, _T)
         if (coefficient.has(delta)
                 or not sp.Poly(argument, _T).degree() == 1
-                or sp.diff(argument, _T) != 1):
+                or slope not in (1, -1)):
             smooth += term
             continue
+        # sympy writes δ(t - 1 - π) as δ(-t + 1 + π); δ⁽ᵏ⁾ is even or odd as k is.
+        if slope == -1:
+            coefficient *= (-1) ** order
         point = sp.solve(argument, _T)[0]
         for j in range(order + 1):
             key = (point, order - j)
