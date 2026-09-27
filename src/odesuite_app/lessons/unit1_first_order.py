@@ -764,6 +764,7 @@ LINEAR = Lesson(
 
 BASICS = Lesson(
     key="basics",
+    chapter=chapters.BASICS,
     title="What a differential equation is",
     summary="An equation whose unknown is a function, and what it means to "
             "have solved one.",

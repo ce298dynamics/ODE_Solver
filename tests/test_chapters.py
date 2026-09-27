@@ -20,6 +20,7 @@ from odesuite_app.lessons.chapter import BOX_KINDS, blocks_of, words
 #: `FULL_DEPTH` in test_lessons: a chapter is not finished until it is listed,
 #: and a lesson that grows a chapter without being listed fails below.
 CHAPTERED = (
+    "basics",
     "separable",
     "linear",
 )

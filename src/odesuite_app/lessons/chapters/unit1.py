@@ -4,7 +4,408 @@ from __future__ import annotations
 
 from ..chapter import Box, Curve, Display, Figure, Para, Plot, Section, Step, Worked
 
-__all__ = ["SEPARABLE", "LINEAR"]
+__all__ = ["BASICS", "SEPARABLE", "LINEAR"]
+
+
+BASICS = (
+    Section("Equations whose unknown is a function", (
+        Para(
+            "Algebra asks which *number* satisfies a condition: x² = 4 is "
+            "solved by 2 and by −2. A differential equation asks which "
+            "*function* satisfies a condition, and the condition involves the "
+            "function's derivatives. The equation y' = 3y says: find a function "
+            "whose rate of change, at every moment, is three times its value. "
+            "No single number answers that. The answers are functions — here "
+            "y = e^(3t), 5e^(3t), −2e^(3t), and every other constant multiple "
+            "of e^(3t)."
+        ),
+        Para(
+            "The reason to care is that the laws of science are almost all "
+            "stated this way. Newton's second law does not say where a planet "
+            "is; it says how its velocity changes, given where it is. The law "
+            "of radioactive decay does not say how many atoms are left; it "
+            "says how fast they disappear, given how many there are. Knowing "
+            "how something changes is usually far easier than knowing what it "
+            "is, and a differential equation is the bridge from one to the "
+            "other."
+        ),
+        Box(
+            "definition", "Differential equation, and its order",
+            "A *differential equation* is an equation relating an unknown "
+            "function to one or more of its derivatives. When the function "
+            "depends on a single variable it is an *ordinary* differential "
+            "equation. Its *order* is the order of the highest derivative "
+            "that appears.",
+            r"F\left(t, y, y', \ldots, y^{(n)}\right) = 0",
+        ),
+        Para(
+            "So y' = 3y is first order, y'' + 4y = 0 is second order, and "
+            "y''' = y'y is third order however the lower derivatives are "
+            "arranged. The order matters a great deal. It is, as the course "
+            "will show, the number of arbitrary constants in the general "
+            "solution, and so the number of conditions needed to pick out one "
+            "solution. A falling stone obeys a second-order law, and that is "
+            "why you need both its starting height and its starting speed to "
+            "say where it will be."
+        ),
+        Para(
+            "An equation involving partial derivatives, like the heat equation "
+            "u_t = u_xx, is a *partial* differential equation. Those describe "
+            "quantities that vary in space as well as time, and they are a "
+            "later course. Everything here is ordinary: one independent "
+            "variable, usually time t, and one unknown function y(t) — or, in "
+            "Units 6 and 8, a few unknown functions at once."
+        ),
+    )),
+    Section("What it means to be a solution", (
+        Box(
+            "definition", "Solution",
+            "A function y(t) is a *solution* of a differential equation on an "
+            "interval I if it has the derivatives the equation uses, on I, "
+            "and substituting it into the equation gives an identity that "
+            "holds for every t in I.",
+        ),
+        Para(
+            "The definition contains the most useful check in the whole "
+            "subject. To test a proposed solution you do not need to know how "
+            "it was found: differentiate it, substitute, and see whether both "
+            "sides agree for every t. That check is mechanical, it cannot be "
+            "fooled, and every worked answer in these chapters has been put "
+            "through it. It is also what the application does when it marks "
+            "your answer: it substitutes rather than compares."
+        ),
+        Worked(
+            "Checking an exponential",
+            "Show that y = 2e^(3t) solves y' = 3y and satisfies y(0) = 2.",
+            (
+                Step("Differentiate: y' = 6e^(3t). Substitute both sides:",
+                     r"y' = 6e^{3t}, \qquad 3y = 3 \cdot 2e^{3t} = 6e^{3t}"),
+                Step("The two agree for every t, so y is a solution on the "
+                     "whole real line. At t = 0, y = 2e⁰ = 2, so the "
+                     "condition holds as well."),
+            ),
+            equation="y' = 3*y", conditions="y(0) = 2",
+            answer="2*exp(3*t)", answer_latex=r"y(t) = 2e^{3t}",
+        ),
+        Worked(
+            "Checking a second-order solution",
+            "Show that y = sin 2t + cos 2t solves y'' + 4y = 0.",
+            (
+                Step("Differentiate twice:",
+                     r"y' = 2\cos 2t - 2\sin 2t, \qquad "
+                     r"y'' = -4\sin 2t - 4\cos 2t"),
+                Step("Then y'' + 4y = (−4 sin 2t − 4 cos 2t) + 4(sin 2t + "
+                     "cos 2t) = 0 for every t. It is a solution."),
+            ),
+            equation="y'' + 4*y = 0",
+            answer="sin(2*t) + cos(2*t)",
+            answer_latex=r"y(t) = \sin 2t + \cos 2t",
+        ),
+        Para(
+            "A check can also say no, which is just as informative. Try y = "
+            "e^(2t) in y'' + 4y = 0: y'' + 4y = 4e^(2t) + 4e^(2t) = 8e^(2t), "
+            "which is never zero. So e^(2t) is not a solution, and the "
+            "leftover 8e^(2t) says by how much it misses. Later lessons turn "
+            "that leftover — the *residual* — into a diagnosis of what went "
+            "wrong."
+        ),
+    )),
+    Section("Solutions live on intervals", (
+        Para(
+            "The definition of a solution mentions an interval, and the "
+            "interval is not a technicality. The function y = 1/t solves "
+            "y' = −y², since y' = −1/t² and −y² = −1/t². But 1/t is not defined at t = 0, so it cannot be a "
+            "solution on any interval containing 0. It is a solution on "
+            "(0, ∞), and separately on (−∞, 0), and those are two different "
+            "solutions that happen to share a formula."
+        ),
+        Para(
+            "Why insist on intervals? Because a differential equation is a "
+            "statement about how a function changes from one moment to the "
+            "next, and across a gap in the domain nothing connects the two "
+            "sides. A solution of an initial value problem is always taken on "
+            "one interval containing the starting time — a solution that "
+            "starts at t = 1 lives on (0, ∞) and has nothing to say about "
+            "negative times. When a formula blows up, the solution ends "
+            "there."
+        ),
+        Para(
+            "Solutions can also be given *implicitly*, by an equation that y "
+            "satisfies rather than a formula for it. The relation t² + y² = 4 "
+            "describes the solutions of y' = −t/y: differentiating it gives "
+            "2t + 2yy' = 0, which is the equation. Solved for y it splits "
+            "into two functions, the upper and lower semicircles, each a "
+            "solution on (−2, 2). Implicit solutions are common — separation "
+            "of variables produces them routinely — and they count as "
+            "answers, as long as the relation really does determine y near "
+            "the point of interest."
+        ),
+        Box(
+            "remark", "Checking an implicit solution",
+            "Differentiate the relation implicitly, with y treated as a "
+            "function of t, and solve for y'. If the result is the right-hand "
+            "side of the equation, the relation defines solutions. This is "
+            "the implicit version of substituting a formula.",
+            r"t^{2} + y^{2} = 4 \;\Longrightarrow\; 2t + 2y\,y' = 0 "
+            r"\;\Longrightarrow\; y' = -\frac{t}{y}",
+        ),
+    )),
+    Section("Families of solutions and initial value problems", (
+        Para(
+            "A differential equation almost never has just one solution. y' = "
+            "3y is solved by Ce^(3t) for every constant C, and y'' + 4y = 0 by "
+            "C₁ sin 2t + C₂ cos 2t for every pair of constants. A formula "
+            "containing arbitrary constants that produces every solution is "
+            "called the *general solution*; a solution with the constants "
+            "fixed is a *particular solution*. Geometrically the general "
+            "solution is a whole family of curves filling the plane, and the "
+            "question is which one you are on."
+        ),
+        Box(
+            "definition", "Initial value problem",
+            "An *initial value problem* is a differential equation together "
+            "with the value of the unknown — and, for higher order, of its "
+            "first n − 1 derivatives — at one instant t₀. For a first-order "
+            "equation, one condition; for second order, two.",
+            r"y' = f(t, y), \qquad y(t_0) = y_0",
+        ),
+        Para(
+            "The conditions select a single curve from the family. Physically "
+            "this is exactly how prediction works: the law says how things "
+            "change, the present state says where they are, and together they "
+            "determine the future. Whether they always determine it — whether "
+            "there is exactly one solution through each starting point — is "
+            "a real question with a real answer, and it is the subject of the "
+            "next lesson."
+        ),
+        Figure("solution_family",
+               "The general solution of one equation, drawn as a family: one "
+               "curve for each value of the constant. An initial condition "
+               "picks out the curve through a chosen point."),
+    )),
+    Section("The simplest case: y' = f(t)", (
+        Para(
+            "If the right-hand side does not involve y at all, the equation "
+            "y' = f(t) is solved by integration and nothing else. Every "
+            "antiderivative of f is a solution, and they differ by constants — "
+            "which is the family structure in its plainest form. The "
+            "fundamental theorem of calculus is, from this point of view, the "
+            "first theorem about differential equations."
+        ),
+        Box(
+            "theorem", "Direct integration",
+            "If f is continuous on an interval containing t₀, the problem y' = "
+            "f(t), y(t₀) = y₀ has exactly one solution there, given by the "
+            "definite integral below.",
+            r"y(t) = y_0 + \int_{t_0}^{t} f(s)\, ds",
+        ),
+        Worked(
+            "Integrating once",
+            "Solve y' = 4t + 1 with y(1) = 5.",
+            (
+                Step("Integrate: y = 2t² + t + C."),
+                Step("Apply the condition: 5 = 2 + 1 + C, so C = 2.",
+                     r"y = 2t^{2} + t + C, \quad 5 = 3 + C"),
+            ),
+            equation="y' = 4*t + 1", conditions="y(1) = 5",
+            answer="2*t**2 + t + 2", answer_latex=r"y(t) = 2t^{2} + t + 2",
+        ),
+        Plot(
+            "The family y = 2t² + t + C",
+            "Solutions of y' = 4t + 1 for C = −2, 0, 2 and 4. Each is the one "
+            "above it shifted vertically: adding a constant does not change a "
+            "derivative, so vertical shifts of one solution are all "
+            "solutions, and they are all of them. The curve through (1, 5) is "
+            "the one with C = 2.",
+            (Curve("2*t**2 + t - 2", "C = −2"), Curve("2*t**2 + t", "C = 0"),
+             Curve("2*t**2 + t + 2", "C = 2"), Curve("2*t**2 + t + 4", "C = 4")),
+            t=(-2.0, 2.0),
+        ),
+        Worked(
+            "Integrating twice",
+            "Solve y'' = 6t with y(0) = 1 and y'(0) = 2.",
+            (
+                Step("Integrate once for y', using y'(0) = 2 to fix the first "
+                     "constant: y' = 3t² + C₁ and C₁ = 2.",
+                     r"y' = 3t^{2} + 2"),
+                Step("Integrate again, and use y(0) = 1: y = t³ + 2t + C₂, "
+                     "C₂ = 1. Two integrations, two constants, two "
+                     "conditions."),
+            ),
+            equation="y'' = 6*t", conditions="y(0) = 1, y'(0) = 2",
+            answer="t**3 + 2*t + 1", answer_latex=r"y(t) = t^{3} + 2t + 1",
+        ),
+    )),
+    Section("Models: where the equations come from", (
+        Para(
+            "A mathematical model turns a description in words into an "
+            "equation. The skill is to identify the quantity that changes, "
+            "the rate at which it changes, and what that rate depends on, and "
+            "then to write the dependence down. Three examples cover most of "
+            "what a first course meets."
+        ),
+        Para(
+            "*Natural growth.* A population with plenty of food grows at a "
+            "rate proportional to its size: P' = kP. The constant k is the "
+            "growth rate per individual. *Cooling.* A body in a room at "
+            "temperature A changes temperature at a rate proportional to the "
+            "difference: T' = −k(T − A), with the minus sign because a hotter "
+            "body cools. *Motion.* A falling body has acceleration −g, so its "
+            "height satisfies y'' = −g; with air resistance proportional to "
+            "speed, v' = −g − (c/m)v."
+        ),
+        Display(r"P' = kP, \qquad T' = -k(T - A), \qquad y'' = -g"),
+        Para(
+            "Writing a model down is a translation, and it pays to do it "
+            "slowly. Take cooling. The quantity that changes is the "
+            "temperature T(t). Its rate of change is T'. The law says that "
+            "rate is proportional to the difference T − A, so T' = (constant) "
+            "× (T − A). The sign of the constant comes from thinking about "
+            "one case: when the body is hotter than the room, T − A > 0 and "
+            "the body must cool, so T' < 0 — the constant is negative, and "
+            "writing it as −k with k > 0 makes that visible. Every step is "
+            "small, and skipping any of them is how sign errors get in."
+        ),
+        Worked(
+            "Checking a model's solution",
+            "A cup of tea at 80 °C cools in a 20 °C room according to "
+            "T' = −0.1(T − 20), with t in minutes. Verify that "
+            "T = 20 + 60e^(−0.1t) is the solution with T(0) = 80.",
+            (
+                Step("Differentiate: T' = −6e^(−0.1t). The right side is "
+                     "−0.1(20 + 60e^(−0.1t) − 20) = −6e^(−0.1t). They agree.",
+                     r"T' = -6e^{-0.1t} = -0.1\,(T - 20)"),
+                Step("At t = 0, T = 20 + 60 = 80. So this is the solution of "
+                     "the initial value problem — and, by the uniqueness "
+                     "result of the next lesson, the only one."),
+            ),
+            equation="y' = -0.1*(y - 20)", conditions="y(0) = 80",
+            answer="20 + 60*exp(-0.1*t)",
+            answer_latex=r"T(t) = 20 + 60e^{-0.1t}",
+        ),
+        Para(
+            "Notice what the check did and did not require. It did not "
+            "require knowing how the formula was found; that is the next "
+            "lesson's business and the separable lesson's. It required only "
+            "differentiation, which is always possible. A student who "
+            "remembers nothing else from this lesson should remember that a "
+            "proposed solution can always be tested, and that a test which "
+            "fails says exactly how far off the proposal is."
+        ),
+        Worked(
+            "A ball thrown upwards",
+            "A ball is thrown straight up at 12 m/s from a height of 1.5 m. "
+            "Ignoring air resistance (g = 9.8 m/s²), find its height, and the "
+            "moment it reaches the top.",
+            (
+                Step("The model is y'' = −9.8 with y(0) = 1.5 and y'(0) = 12. "
+                     "Integrate twice, as in Example 5:",
+                     r"y' = -9.8t + 12, \qquad y = -4.9t^{2} + 12t + 1.5"),
+                Step("The top is where the velocity is zero: −9.8t + 12 = 0, "
+                     "so t ≈ 1.22 s, at a height of about 8.8 m.",
+                     r"t = \frac{12}{9.8} \approx 1.22\text{ s}"),
+            ),
+            equation="y'' = -9.8", conditions="y(0) = 1.5, y'(0) = 12",
+            answer="-4.9*t**2 + 12*t + 1.5",
+            answer_latex=r"y(t) = -4.9t^{2} + 12t + 1.5",
+        ),
+        Plot(
+            "Height of the ball",
+            "y(t) = −4.9t² + 12t + 1.5, from the throw until it lands at "
+            "t ≈ 2.57 s. The parabola is the solution of y'' = −9.8 that the "
+            "two initial conditions picked out; a faster throw or a higher "
+            "start picks out a different parabola from the same family.",
+            (Curve("-4.9*t**2 + 12*t + 1.5", "height, m"),),
+            t=(0.0, 2.57), ylabel="height, m",
+        ),
+        Para(
+            "Every model is a simplification, and part of modelling is "
+            "knowing what was left out. The ball's parabola ignores air, "
+            "which is fine for a ball and useless for a feather. Natural "
+            "growth ignores crowding, which is fine for bacteria in a fresh "
+            "dish for an hour and wrong a day later. Later lessons add those "
+            "effects back — drag in Unit 2, the logistic equation for "
+            "crowding — and each addition changes the equation, not just the "
+            "numbers."
+        ),
+    )),
+    Section("Classifying equations", (
+        Para(
+            "Before solving an equation it helps to classify it, because the "
+            "classification decides which methods can work. Three questions "
+            "come first. What is its *order*? Is it *linear* — does the "
+            "unknown and each of its derivatives appear only to the first "
+            "power, not multiplied together or inside another function? And "
+            "for a linear equation, is it *homogeneous* — is every term "
+            "multiplied by the unknown or a derivative of it, with nothing "
+            "left over?"
+        ),
+        Display(r"t^{2} y'' + t y' + y = \sin t \;\;\text{(2nd order, linear)}, "
+                r"\qquad y' = y^{2} \;\;\text{(1st order, nonlinear)}"),
+        Para(
+            "Linear equations are the ones with a complete theory. They have "
+            "general solutions of a known structure, their solutions exist as "
+            "long as their coefficients are defined, and most of Units 1 to 7 "
+            "are about solving them. Nonlinear equations are where the "
+            "surprises are: solutions that blow up in finite time, "
+            "equilibria, limit cycles, chaos. Unit 8 is about those, and "
+            "mostly about what can be learned from them without a formula."
+        ),
+        Box(
+            "warning", "Linear means linear in y",
+            "t² y'' + (sin t) y = e^t is linear: the coefficients can be any "
+            "functions of t. y'' + sin y = 0 is not linear, because y is "
+            "inside the sine — that is the pendulum, and the difference "
+            "between sin y and y is the whole difficulty of the pendulum.",
+        ),
+    )),
+    Section("How the course proceeds from here", (
+        Para(
+            "There is no single method for solving differential equations, "
+            "and there never will be. What the course builds instead is a "
+            "toolkit, organised by the shape of the equation. The rest of Unit "
+            "1 treats first-order equations: first what can be learned "
+            "without solving at all (slope fields, and when solutions exist "
+            "and are unique), then the techniques for particular shapes — "
+            "separable, linear, exact, and those that a substitution turns "
+            "into one of these."
+        ),
+        Para(
+            "Unit 2 builds models from first-order equations and meets the "
+            "equations no technique solves, where numerical methods take "
+            "over. Units 3 and 4 treat second-order linear equations and the "
+            "vibrations they describe; Unit 5 the Laplace transform, which "
+            "handles forcing that switches on and off; Unit 6 systems of "
+            "linear equations; Unit 7 series solutions. Unit 8 returns to "
+            "nonlinear equations, now armed with the linear theory, and asks "
+            "what their solutions do when no formula exists."
+        ),
+        Para(
+            "Two habits make the whole journey easier, and both start now. "
+            "Classify an equation before touching it, because the "
+            "classification chooses the method. And check every answer by "
+            "substituting it back, because the check is always available and "
+            "never lies. The application does both of these for you on every "
+            "screen, which is useful — but the point is to be able to do them "
+            "yourself, on paper, in an exam."
+        ),
+    )),
+    Section("Summary", (
+        Para(
+            "A differential equation relates an unknown function to its "
+            "derivatives; its order is the highest derivative. A solution is "
+            "a function that turns the equation into an identity, and you "
+            "check one by substituting it — always possible, and always "
+            "worth the minute it takes. Solutions come in families, with as "
+            "many arbitrary constants as the order, and initial conditions "
+            "pick one member. Equations come from models that say how "
+            "something changes, and classifying an equation — order, linear "
+            "or not, homogeneous or not — is the first step towards solving "
+            "it. The next lesson asks what can be said about the solutions "
+            "before any are found."
+        ),
+    )),
+)
 
 
 SEPARABLE = (
