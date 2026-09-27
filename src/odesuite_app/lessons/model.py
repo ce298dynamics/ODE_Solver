@@ -308,6 +308,10 @@ class Numeric:
     #: can be asked about without being written twice, and moving its sliders
     #: while answering is the intended way to answer.
     figure: str = ""
+    #: Wrong numbers with a known cause, as ``(value, cause)``. A typed
+    #: number that lands on one is told the cause instead of only "not
+    #: quite" -- see `NumericTemplate.mistakes`.
+    mistakes: tuple[tuple[float, str], ...] = ()
 
     kind: str = field(default="numeric", init=False)
 
@@ -552,6 +556,18 @@ class NumericTemplate:
     #: Which tier a draw belongs to, as a predicate over the drawn
     #: values, or None where the family has no honest spread.
     level: Callable[[Mapping[str, object]], str] | None = None
+    #: The wrong answers worth recognising, as ``(expression, cause)``, the
+    #: expression over the slots like `answer`.
+    #:
+    #: A wrong formula already gets a diagnosis -- `Fault` names it, and the
+    #: residual shows it. A wrong *number* got "not quite", which is the least
+    #: a verdict can say. But the usual wrong numbers are computable: an Euler
+    #: step answered with a backward-Euler step, the Jacobian taken at the
+    #: origin instead of the equilibrium, r² given for r. Each is an
+    #: expression here, evaluated per draw, so the diagnosis is exact rather
+    #: than guessed -- and a draw where a mistake happens to coincide with the
+    #: right answer drops that mistake, so a right answer is never "diagnosed".
+    mistakes: tuple[tuple[str, str], ...] = ()
 
     kind: str = field(default="numeric-template", init=False)
 

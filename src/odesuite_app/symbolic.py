@@ -1413,6 +1413,11 @@ def grade_numeric(question, text: str) -> tuple[bool | None, str]:
     allowed = question.tolerance * max(1.0, abs(wanted))
     if abs(got.real - wanted) <= allowed:
         return True, f"correct: {_tidy_number(wanted)}"
+    for value, cause in getattr(question, "mistakes", ()):
+        if abs(got.real - value) <= question.tolerance * max(1.0, abs(value)):
+            return False, (f"not quite -- {_tidy_number(value)} is what you "
+                           f"get if {cause}. The answer is "
+                           f"{_tidy_number(wanted)}")
     return False, f"not quite -- the answer is {_tidy_number(wanted)}"
 
 

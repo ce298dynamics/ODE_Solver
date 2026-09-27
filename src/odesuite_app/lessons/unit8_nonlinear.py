@@ -305,6 +305,11 @@ EQUILIBRIA = Lesson(
         NumericTemplate(
             key="coexistence-determinant",
             title="The Jacobian at a coexistence point",
+            mistakes=(
+                ("-{a}*{c}",
+                 "the Jacobian is taken at the origin, (0, 0), rather than "
+                 "at the coexistence point"),
+            ),
             prompt="Linearise x' = {a}*x - x*y, y' = x*y - {c}*y at its "
                    "equilibrium ({c}, {a}), where both populations are positive. "
                    "What is the determinant of the Jacobian there?",
@@ -885,6 +890,11 @@ ECOLOGY = Lesson(
         NumericTemplate(
             key="nullcline-crossing",
             title="Where the nullclines cross",
+            mistakes=(
+                ("{r} - {p}",
+                 "the y-coordinate of the crossing is given; the question "
+                 "asks for x"),
+            ),
             prompt="Two species compete: x' = x*({p} - x - y), "
                    "y' = y*({r} - x - 2*y). Their non-trivial nullclines "
                    "x + y = {p} and x + 2y = {r} cross at the coexistence "
@@ -1172,6 +1182,13 @@ MECHANICS = Lesson(
         NumericTemplate(
             key="peak-speed",
             title="Top speed from the energy",
+            mistakes=(
+                ("{A}**2*sqrt({k})/2",
+                 "the kinetic energy is written y² rather than y²/2"),
+                ("{A}**2*sqrt({k})",
+                 "the potential k·x⁴/4 loses its 1/4 and the kinetic energy "
+                 "its 1/2"),
+            ),
             prompt="The hardening spring x'' + {k}*x**3 = 0 is released from rest "
                    "at x = {A}. Using its conserved energy, what is its greatest "
                    "speed |x'|?",
@@ -1446,6 +1463,11 @@ CYCLES = Lesson(
         NumericTemplate(
             key="cycle-radius",
             title="The radius of a limit cycle",
+            mistakes=(
+                ("{mu}",
+                 "r² = μ is solved for r² rather than r — the radius is its "
+                 "square root"),
+            ),
             prompt="x' = {mu}*x - y - x*(x**2 + y**2), y' = x + {mu}*y - "
                    "y*(x**2 + y**2). In polar form r' = r({mu} − r²). What is the "
                    "radius of its limit cycle?",
@@ -1738,6 +1760,10 @@ BIFURCATIONS = Lesson(
         NumericTemplate(
             key="hopf-value",
             title="Where the oscillation switches on",
+            mistakes=(
+                ("{a}**2",
+                 "the trace b − 1 − a² loses its −1"),
+            ),
             prompt="The Brusselator x' = {a} - (b + 1)*x + x**2*y, "
                    "y' = b*x - x**2*y has one equilibrium, ({a}, b/{a}). For "
                    "which value of b does it undergo a Hopf bifurcation?",

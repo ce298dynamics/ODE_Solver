@@ -1342,6 +1342,13 @@ CONVOLUTION = Lesson(
         NumericTemplate(
             key="step-response",
             title="A convolution evaluated",
+            mistakes=(
+                ("exp(-{a}*{t0})",
+                 "the impulse response g({t0}) is given instead of its "
+                 "running integral"),
+                ("1 - exp(-{a}*{t0})",
+                 "the integral of e^(−{a}t) loses its factor 1/{a}"),
+            ),
             prompt="A system at rest has impulse response g(t) = e^(-{a}t). "
                    "Driven by a constant 1, its response is (1 * g)(t). What "
                    "is that at t = {t0}? Give four decimal places.",

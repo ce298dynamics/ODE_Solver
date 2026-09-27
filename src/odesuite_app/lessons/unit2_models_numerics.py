@@ -646,6 +646,11 @@ EQUILIBRIA = Lesson(
         NumericTemplate(
             key="find-the-equilibrium",
             title="Where the right-hand side vanishes",
+            mistakes=(
+                ("{b}/{a}",
+                 "the division is turned upside down: {b}y = {a} gives y = "
+                 "{a}/{b}"),
+            ),
             prompt="The equation y' = {a}*y - {b}*y**2 has an equilibrium at "
                    "y = 0. What is the other one?",
             answer="{a}/{b}",
@@ -942,6 +947,13 @@ MOTION = Lesson(
         NumericTemplate(
             key="terminal-velocity",
             title="Terminal velocity, without solving",
+            mistakes=(
+                ("{m}*9.8/{k}",
+                 "the sign is dropped — with up positive, a falling body's "
+                 "velocity is negative"),
+                ("-9.8/{k}",
+                 "the mass is left out of the weight, m·g"),
+            ),
             # The mass appears as data and never inside the equation: writing
             # it there would substitute to "-2*9.8", which nothing tidies.
             prompt="A body of mass {m} kg falls under m*v' = -m*9.8 - {k}*v, "
@@ -1241,6 +1253,16 @@ NUMERICAL = Lesson(
         NumericTemplate(
             key="one-euler-step",
             title="One step of Euler's method",
+            mistakes=(
+                ("{h}*({a}*{y0})",
+                 "only the rise h·f is given — it is added to the starting "
+                 "value {y0}"),
+                ("{y0}/(1 - {h}*{a})",
+                 "the step is taken backwards (implicit Euler), with the "
+                 "slope at the end rather than the start"),
+                ("{y0}*exp({a}*{h})",
+                 "the exact solution is evaluated instead of taking the step"),
+            ),
             prompt="For y' = {a}*y with y(0) = {y0}, take one Euler step of "
                    "size h = {h}. What is the value it lands on?",
             answer="{y0} + {h}*({a}*{y0})",
@@ -1548,6 +1570,12 @@ RUNGEKUTTA = Lesson(
         NumericTemplate(
             key="one-rk4-step",
             title="One step of RK4, to four decimal places",
+            mistakes=(
+                ("1 + {a}*{h}",
+                 "only the first stage is used — that is an Euler step"),
+                ("1 + ({a}*{h}) + ({a}*{h})**2/2",
+                 "the stages are combined as a second-order method would"),
+            ),
             prompt="For y' = {a}*y with y(0) = 1, take one RK4 step of size "
                    "h = {h}. Give the value to four decimal places.",
             answer="1 + ({a}*{h}) + ({a}*{h})**2/2 + ({a}*{h})**3/6 "

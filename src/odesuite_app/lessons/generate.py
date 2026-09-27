@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import functools
 import itertools
+import math
 import random
 import re
 from collections.abc import Iterator
@@ -290,6 +291,28 @@ def draw_numeric(template: NumericTemplate, seed: int,
             f"template {template.key!r} draw {index} has a complex answer: "
             f"{value}"
         )
+    def apart(first: float, second: float) -> bool:
+        return abs(first - second) > 10 * template.tolerance * max(
+            1.0, abs(first), abs(second))
+
+    mistakes = []
+    for expression, cause in template.mistakes:
+        try:
+            wrong = complex(sp.sympify(expression.format(**slots)).evalf())
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+        if abs(wrong.imag) > 1e-12 or not math.isfinite(wrong.real):
+            continue                      # a backward step with h·a = 1
+        # Dropped where it coincides with the answer: with mu = 1, "gave r²
+        # for r" is the right number, and saying so would mark it a mistake.
+        if not apart(wrong.real, number.real):
+            continue
+        mistakes.append((wrong.real, cause.format(**slots)))
+    # And where two causes give the same number, naming either would be a
+    # guess: a d + b c and a + d are both -1 for (1, -2; 1, -2).
+    mistakes = [(value, cause) for value, cause in mistakes
+                if all(apart(value, other) for other, _ in mistakes
+                       if other is not value)]
     return Numeric(
         key=f"{template.key}#{index}",
         # Tidied, because a numeric prompt states its equation inline and a
@@ -303,6 +326,7 @@ def draw_numeric(template: NumericTemplate, seed: int,
         because=template.because.format(**slots),
         latex=template.latex.format(**slots) if template.latex else "",
         hints=tuple(hint.format(**slots) for hint in template.hints),
+        mistakes=tuple(mistakes),
     )
 
 

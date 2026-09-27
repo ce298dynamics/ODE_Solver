@@ -1463,6 +1463,11 @@ SLOPEFIELDS = Lesson(
         NumericTemplate(
             key="slope-at-a-point",
             title="Read the slope straight off the equation",
+            mistakes=(
+                ("{a}*{t0} + {b}*{y0}",
+                 "t and y are swapped when substituting — the point is (t, "
+                 "y), time first"),
+            ),
             prompt="For y' = {a}*y + {b}*t, what slope does the field have "
                    "at the point (t, y) = ({t0}, {y0})?",
             answer="{a}*{y0} + {b}*{t0}",

@@ -1613,6 +1613,13 @@ PORTRAITS = Lesson(
         NumericTemplate(
             key="determinant-decides",
             title="The determinant, and what it settles",
+            mistakes=(
+                ("{a}*{d} + {b}*{c}",
+                 "the off-diagonal product is added instead of subtracted"),
+                ("{a} + {d}",
+                 "the trace is computed — the sum of the diagonal — rather "
+                 "than the determinant"),
+            ),
             prompt="For the system x' = {a}*x + {b}*y, y' = {c}*x + {d}*y, "
                    "what is the determinant of its matrix?",
             answer="{a}*{d} - {b}*{c}",
