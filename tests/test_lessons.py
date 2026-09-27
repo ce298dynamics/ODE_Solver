@@ -235,6 +235,7 @@ FULL_DEPTH = (
     "roots",
     "undetermined",
     "variation",
+    "reduction-of-order",
     "cauchy",
     "higher",
     "free-vibration",
@@ -645,7 +646,7 @@ def test_lessons_needs_no_interface_toolkit():
 
     code = (
         "import sys; sys.modules['PySide6'] = None\n"
-        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 41\n"
+        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 42\n"
     )
     done = subprocess.run([sys.executable, "-c", code], capture_output=True,
                           text=True)

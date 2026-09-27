@@ -27,7 +27,7 @@ from .model import (
 )
 
 __all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED", "VARIATION",
-           "CAUCHY", "HIGHER", "LESSONS"]
+           "REDUCTION", "CAUCHY", "HIGHER", "LESSONS"]
 
 
 ROOTS = Lesson(
@@ -2166,5 +2166,251 @@ HIGHER = Lesson(
 )
 
 
-LESSONS = (SUPERPOSITION, ROOTS, UNDETERMINED, VARIATION, CAUCHY,
+REDUCTION = Lesson(
+    key="reduction-of-order",
+    title="Reduction of order: a second solution from the first",
+    summary="When one solution is known, the second is a first-order problem "
+            "— for any linear second-order equation, constant coefficients "
+            "or not.",
+    tool="steps",
+    reference="Edwards 3.2 (problems)",
+    figure="reduction",
+    prerequisites=("superposition",),
+    motivation=(
+        "Everything the course can do with a second-order equation so far "
+        "depends on constant coefficients, or on the one variable-coefficient "
+        "family, Cauchy–Euler, that turns into constant coefficients under a "
+        "change of variable. Most equations with coefficients that change "
+        "with t are neither, and for them there is no characteristic "
+        "polynomial to write down and no trial form to guess.\n\n"
+        "Often, though, one solution is visible. It may be given, it may be "
+        "a power or an exponential that happens to fit, or it may come from "
+        "the physics. And superposition says a second-order equation needs "
+        "exactly two independent solutions — so having one is half the "
+        "answer, and the question becomes how to turn one into two.\n\n"
+        "The idea is to look for the second solution as a multiple of the "
+        "first by a function, y₂ = v(t)·y₁. Substituting that in, the known "
+        "solution cancels every term containing v itself, and what remains is "
+        "a first-order equation for v′. First-order equations are what Unit 1 "
+        "solves. The order has been reduced by one, which is where the name "
+        "comes from — and the same substitution, run on a forced equation, is "
+        "where variation of parameters comes from too."
+    ),
+    derivation=(
+        Passage(
+            prose="Put the equation in standard form, with nothing in front of y''. "
+                  "Everything the method needs is read off P, so this step is not "
+                  "cosmetic.",
+            latex=r"y'' + P(t)\, y' + Q(t)\, y = 0",
+        ),
+        Passage(
+            prose="Try y = v y₁ and differentiate twice. The product rule makes "
+                  "three groups of terms, and grouping them by v, v' and v'' shows "
+                  "what happens.",
+            latex=r"v\left(y_1'' + P y_1' + Q y_1\right) + v'\left(2y_1' + "
+                  r"P y_1\right) + v'' y_1 = 0",
+        ),
+        Passage(
+            prose="The bracket multiplying v is the equation applied to y₁, and y₁ "
+                  "is a solution, so the bracket is zero. The v term vanishes "
+                  "entirely — that single cancellation is the whole method.",
+            latex=r"y_1 v'' + \left(2y_1' + P y_1\right) v' = 0",
+        ),
+        Passage(
+            prose="Call w = v'. The equation is first order in w, and separable: "
+                  "divide by y₁ w and integrate. The two logarithms combine into "
+                  "a formula that needs no further thought.",
+            latex=r"w = v' = \frac{e^{-\int P\, dt}}{y_1^{2}}",
+        ),
+        Passage(
+            prose="Integrate once more to get v, and multiply by y₁. The constants "
+                  "of integration can be dropped at both stages: one would scale "
+                  "y₂ and the other would add a multiple of y₁, and the general "
+                  "solution has room for both already.",
+            latex=r"y_2 = y_1 \int \frac{e^{-\int P\, dt}}{y_1^{2}}\, dt",
+        ),
+        Passage(
+            prose="Independence is automatic. The Wronskian of y₁ and v y₁ is "
+                  "y₁² v', which is y₁² w, and that is an exponential — never "
+                  "zero. So y₁ and y₂ are a fundamental set wherever y₁ is not "
+                  "zero, and the general solution follows.",
+            latex=r"W(y_1, y_2) = y_1^{2} v' = e^{-\int P\, dt} \neq 0",
+        ),
+    ),
+    objectives=(
+        "Put a second-order linear equation in standard form and read off P.",
+        "Check that a proposed first solution really is one, by substituting.",
+        "Derive the first-order equation for v′ and solve it.",
+        "Build the second solution and confirm the pair is independent.",
+    ),
+    examples=(
+        Example(
+            equation="t*y'' - (t + 1)*y' + y = 0",
+            why="A variable-coefficient equation with no characteristic "
+                "polynomial, where e^t can be spotted as a solution. The "
+                "second solution comes out a polynomial.",
+            commentary=(
+                "Divide by t first: P = −(t + 1)/t = −1 − 1/t. Getting P wrong "
+                "is the usual way this goes astray, and it goes astray "
+                "quietly, because every later step still produces something "
+                "that looks like an answer.\n\n"
+                "Then e^(−∫P) = e^(t + ln t) = t e^t, and dividing by "
+                "y₁² = e^(2t) leaves t e^(−t) to integrate. By parts that is "
+                "−(t + 1)e^(−t), and multiplying by e^t gives y₂ = −(t + 1): a "
+                "second solution with no exponential in it at all, which is "
+                "easy to check by substituting."
+            ),
+        ),
+        Example(
+            equation="t**2*y'' - t*(t + 2)*y' + (t + 2)*y = 0",
+            why="Here y₁ = t, and the method produces y₂ = t e^t — the "
+                "exponential appears from the reduction, not from any guess "
+                "about the equation.",
+            commentary=(
+                "In standard form P = −(t + 2)/t = −1 − 2/t, so e^(−∫P) = "
+                "t² e^t. Divided by y₁² = t² that leaves simply e^t — the "
+                "powers of t cancel exactly, which is the sign the "
+                "arithmetic has gone right.\n\n"
+                "Integrating gives v = e^t and y₂ = t e^t. Nothing about the "
+                "original equation suggested an exponential solution; it "
+                "came out of the integral. That is the practical value of "
+                "the method: it finds solutions nobody would have thought to "
+                "try."
+            ),
+        ),
+    ),
+    notes=(
+        Note(
+            "The formula",
+            "With y₁ known, a second solution of y'' + Py' + Qy = 0 is y₁ "
+            "times the integral of e^(−∫P) / y₁². Both constants of "
+            "integration may be dropped.",
+            r"y_2 = y_1 \int \frac{e^{-\int P\, dt}}{y_1^{2}}\, dt",
+            "formula",
+        ),
+        Note(
+            "Why the v term disappears",
+            "Substituting y = v y₁ collects y₁'' + P y₁' + Q y₁ as the "
+            "coefficient of v, and that is zero because y₁ is a solution. "
+            "Only v' and v'' survive, so the equation is first order in v'.",
+            r"v\,(y_1'' + P y_1' + Q y_1) = 0",
+            "idea",
+        ),
+        Note(
+            "Standard form first",
+            "P is the coefficient of y' after dividing by the coefficient of "
+            "y''. Reading it straight off t y'' − (t + 1)y' + y = 0 as "
+            "−(t + 1) instead of −(t + 1)/t gives a wrong v and a y₂ that "
+            "fails when substituted.",
+            r"P = \frac{b(t)}{a(t)}",
+            "pitfall",
+        ),
+        Note(
+            "It is where variation of parameters comes from",
+            "Run the same substitution on a forced equation, allowing both "
+            "solutions' coefficients to vary, and the result is variation of "
+            "parameters. Reduction of order is the one-solution version of "
+            "the same idea.",
+            r"y = u_1 y_1 + u_2 y_2",
+            "aside",
+        ),
+        Note(
+            "Constant coefficients, seen again",
+            "Applied to y'' − 2y' + y = 0 with y₁ = e^t, the method gives "
+            "y₂ = t e^t — which is where the factor of t for a repeated "
+            "characteristic root really comes from.",
+            r"r = 1 \text{ twice} \;\Longrightarrow\; y_2 = t e^{t}",
+            "idea",
+        ),
+    ),
+    questions=(
+        Choice(
+            key="q1",
+            prompt="In reduction of order, why does the substitution y = v y₁ "
+                   "lead to a first-order equation?",
+            options=(
+                "The coefficient of v is the equation applied to y₁, which is "
+                "zero",
+                "v is assumed to be a constant",
+                "The v'' term cancels against the v' term",
+                "y₁ is assumed to be an exponential",
+            ),
+            answer=0,
+            becauses=(
+                "Grouping by v, v' and v'' puts y₁'' + P y₁' + Q y₁ in front "
+                "of v, and y₁ solves the equation — so only v' and v'' remain, "
+                "and w = v' satisfies a first-order equation.",
+                "If v were constant, y₂ would be a multiple of y₁ and not a "
+                "new solution. The whole point is that v varies.",
+                "v'' survives; it is v itself that disappears. The equation "
+                "left is first order in v', not in v.",
+                "y₁ can be any solution — a power of t, a polynomial, "
+                "anything. The cancellation needs only that it solves the "
+                "equation.",
+            ),
+        ),
+        Choice(
+            key="q2",
+            prompt="For t² y'' + t y' − y = 0 with y₁ = t, what is P in the "
+                   "formula?",
+            options=("1/t", "t", "−1/t²", "1"),
+            answer=0,
+            becauses=(
+                "Divide by t²: y'' + (1/t) y' − (1/t²) y = 0, so P = 1/t.",
+                "That is the coefficient of y' before dividing by t². The "
+                "formula needs the standard form.",
+                "That is Q, the coefficient of y in standard form, not P.",
+                "P is a function of t here; only after dividing does the "
+                "coefficient of y' become clear, and it is 1/t.",
+            ),
+        ),
+        Solve(
+            key="q3",
+            prompt="One solution is y₁ = t. Find the general solution.",
+            equation="t**2*y'' - t*(t + 3)*y' + (t + 3)*y = 0",
+            hints=(
+                "Standard form: P = −(t + 3)/t = −1 − 3/t, so e^(−∫P) = "
+                "t³ e^t.",
+                "Divide by y₁² = t²: v' = t e^t. Integrate by parts.",
+                "v = (t − 1)e^t, so y₂ = t(t − 1)e^t, and the general "
+                "solution is C₁ t + C₂ t(t − 1)e^t.",
+            ),
+        ),
+        Solve(
+            key="q4",
+            prompt="The first worked example with conditions: e^t is one "
+                   "solution. Find the solution through y(1) = 0, y'(1) = 1.",
+            equation="t*y'' - (t + 1)*y' + y = 0",
+            conditions="y(1) = 0, y'(1) = 1",
+            hints=(
+                "The general solution is C₁ e^t + C₂(t + 1), from the worked "
+                "example.",
+                "At t = 1: C₁ e + 2C₂ = 0 and C₁ e + C₂ = 1.",
+                "Subtracting gives C₂ = −1, then C₁ = 2/e.",
+            ),
+        ),
+    ),
+    templates=(
+        Template(
+            key="second-from-first",
+            title="A second solution from y₁ = t",
+            prompt="y₁ = t is one solution. Reduce the order and give the "
+                   "general solution.",
+            equation="t**2*y'' - t*({b}*t + {a})*y' + ({b}*t + {a})*y = 0",
+            technique="reduction_of_order",
+            hints=(
+                "Divide by t² to get the standard form, and read off P as "
+                "the coefficient of y'.",
+                "Work out e^(−∫P) and divide by y₁² = t² — what is left is "
+                "v', a power of t times an exponential.",
+                "Integrate v' (by parts if a power of t is left), multiply "
+                "by t for y₂, and combine C₁ y₁ + C₂ y₂.",
+            ),
+            slots=(("a", (2, 3)), ("b", (1, 2, 3))),
+        ),
+    ),
+)
+
+
+LESSONS = (SUPERPOSITION, ROOTS, UNDETERMINED, VARIATION, REDUCTION, CAUCHY,
            HIGHER)

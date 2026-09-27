@@ -1296,6 +1296,14 @@ PINNED_TECHNIQUES = {
     "y'' + 4*y = cos(2*t)": 'nth_linear_constant_coeff_undetermined_coefficients',
     "y'' + 4*y' + 3*y = 0": 'nth_linear_constant_coeff_homogeneous',
     "y'' + 2*y' + 26*y = 0": 'nth_linear_constant_coeff_homogeneous',
+    "y' = -sin(t)/y": 'separable',
+    "y' = -4*t/y": 'separable',
+    "y' = y*(1 - y**2)": 'separable',
+    "y' = y*(y**2 - 1)": 'separable',
+    "y' = 4 - y**2": 'separable',
+    "y' = y - y**3": 'separable',
+    "t*y'' - (t + 1)*y' + y = 0": 'reduction_of_order',
+    "t**2*y'' - t*(t + 2)*y' + (t + 2)*y = 0": 'reduction_of_order',
 }
 
 
@@ -1314,7 +1322,8 @@ def test_the_technique_chosen_has_not_drifted(equation, technique):
 
 
 def test_the_pinned_table_covers_every_technique():
-    assert set(PINNED_TECHNIQUES.values()) == set(TECHNIQUES) | {"1st_exact"}
+    assert set(PINNED_TECHNIQUES.values()) == (set(TECHNIQUES)
+                                               | {"1st_exact", "reduction_of_order"})
 
 
 def test_every_worked_example_is_pinned():

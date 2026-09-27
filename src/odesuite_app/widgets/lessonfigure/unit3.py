@@ -595,3 +595,86 @@ class HigherOrderFigure(LessonFigure):
             f"{sum(r * r * w for r, w in zip(self._ROOTS, weights)):.2f} — "
             f"three numbers, which is what three constants cost. {reached}."
         )
+
+
+# ---------------------------------------------------------------------------
+# Reduction of order: a second solution built out of the first
+# ---------------------------------------------------------------------------
+
+
+class ReductionFigure(LessonFigure):
+    """``t²y″ − t(t + a)y′ + (t + a)y = 0``, whose one easy solution is y₁ = t.
+
+    The second solution comes from the narrator -- the same derivation the
+    lesson's examples show, run on the equation the slider chooses and cached,
+    since it takes a few tenths of a second -- so the figure cannot draw a y₂
+    the working would not produce. What it shows is the claim the method rests
+    on: v = y₂/y₁ is not constant, so the two are independent, and the whole
+    family C₁y₁ + C₂y₂ is there to fit two conditions.
+    """
+
+    title = "A second solution from the first"
+    caption = ("y₁ = t solves every equation in this family. Reduction of order "
+               "builds y₂ = v·t, and the dashed curve is v itself — not "
+               "constant, which is why y₂ is a new solution rather than a "
+               "multiple of the old one. Slide C₂ to move through the family.")
+
+    _T = (0.2, 2.2)
+
+    def __init__(self, palette, parent=None) -> None:
+        self._solutions: dict[int, tuple] = {}
+        super().__init__(palette, parent)
+
+    def build_sliders(self) -> None:
+        self.add_slider("a", "a  (2, 3 or 4)", 2.0, 4.0, 2.0)
+        self.add_slider("c2", "C₂  (with C₁ = 1)", -2.0, 2.0, 0.5)
+
+    def a(self) -> int:
+        return int(round(self.value("a")))
+
+    def equation(self) -> str:
+        a = self.a()
+        return f"t**2*y'' - t*(t + {a})*y' + (t + {a})*y = 0"
+
+    def solutions(self):
+        """``(y1, y2)`` as sympy expressions, from the narrator's answer."""
+        a = self.a()
+        if a not in self._solutions:
+            from ... import steps
+            from ...laplace import EXTRA_FUNCTIONS
+            from ...symbolic import parse_equation, spec_for
+
+            parsed = parse_equation(spec_for(self.equation()),
+                                    extra_functions=EXTRA_FUNCTIONS)
+            derivation = steps.derive(parsed.equation, parsed.function)
+            c1, c2 = sp.Symbol("C1"), sp.Symbol("C2")
+            general = sp.expand(derivation.result)
+            self._solutions[a] = (general.coeff(c1), general.coeff(c2))
+        return self._solutions[a]
+
+    def draw(self) -> None:
+        self.plot.clear()
+        self.plot.setLabel("bottom", "t")
+        self.plot.setLabel("left", "y")
+        t = sp.Symbol("t", real=True)
+        y1, y2 = self.solutions()
+        grid = np.linspace(*self._T, 300)
+        first = sp.lambdify(t, y1, "numpy")(grid) * np.ones_like(grid)
+        second = sp.lambdify(t, y2, "numpy")(grid) * np.ones_like(grid)
+        ratio = second / first
+        mix = first + self.value("c2") * second
+
+        self.plot.plot(grid, first, pen=pg.mkPen(self.colour(0), width=2))
+        self.plot.plot(grid, second, pen=pg.mkPen(self.colour(1), width=2))
+        self.plot.plot(grid, ratio, pen=pg.mkPen(self.palette_obj.text_muted,
+                                                 width=1.6, style=Qt.DashLine))
+        self.plot.plot(grid, mix, pen=pg.mkPen(self.colour(3), width=2.6))
+        self.plot.setYRange(-6.0, 12.0, padding=0.02)
+
+        wronskian = sp.simplify(y1 * sp.diff(y2, t) - sp.diff(y1, t) * y2)
+        at_one = float(wronskian.subs(t, 1))
+        self.readout.setText(
+            f"a = {self.a()}:  y₁ = {sp.sstr(y1)},  y₂ = {sp.sstr(y2)}.  "
+            f"v = y₂/y₁ runs from {ratio[0]:.3g} to {ratio[-1]:.3g} — not "
+            f"constant.  W(y₁, y₂) at t = 1 is {at_one:.4g}, not zero."
+        )

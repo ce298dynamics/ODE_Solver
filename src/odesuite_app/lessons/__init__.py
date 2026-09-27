@@ -44,7 +44,7 @@ An example that drifted out of step with the tool that explains it would be
 worse than none.
 
 Content only -- no PySide6, no Qt -- so the curriculum can be read, counted and
-tested without an interface. One module per unit, because forty-one lessons
+tested without an interface. One module per unit, because forty-two lessons
 is not something one file should carry.
 """
 

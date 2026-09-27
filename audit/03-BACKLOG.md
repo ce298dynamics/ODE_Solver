@@ -111,7 +111,8 @@ Three of these needed their design changed by measurement rather than reasoning:
 | **PED-06** when each method fails | **done** | 13 method lessons, one "Where it stops" pitfall each, asserted |
 | **PED-05** y' = y^(1/3) as a lesson | **done** | a worked example; building it found the grader marking the correct answer wrong, and the narrator choosing a non-solution branch |
 | **REL-04** diagnostics log | **done** | `diagnostics.py`, recorded by `SolveRunner`, sidebar "Copy diagnostics", disclosed in the README |
-| PED-01, SYM-02 | open | |
+| **PED-01** Unit 8, nonlinear systems | **done** | `ca0ba69`: six lessons, six figures, drills checked in `tests/test_unit8.py` |
+| **SYM-02** Reduction of order | **done** | narrator, lesson and drill; `t y'' - (t+1) y' + y = 0` gives `C1 e^t + C2 (t+1)`, every step verified |
 
 **DYN-03's error bar is the part worth reading.** The obvious one is wrong by a
 factor of 8.5, and the measurement that shows it is in the docstring: over 12

@@ -1286,8 +1286,8 @@ CYCLES = Lesson(
                 "with the narrator's y standing for r. A trajectory starting "
                 "inside the cycle at radius 1/2 grows onto it.",
             commentary=(
-                "This is a Bernoulli equation and the narrator treats it as "
-                "one, but the answer to look at is its limit: "
+                "It is separable as well as Bernoulli, and the narrator "
+                "separates it, but the answer to look at is its limit: "
                 "e^t/√(e^(2t) + 3) tends to 1 as t grows. The radius goes to "
                 "the cycle and stops there.\n\n"
                 "Try the other side in your head: start at r = 2 and r' = "

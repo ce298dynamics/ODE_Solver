@@ -12,7 +12,7 @@ Status is kept in this table as work lands.
 |---|---|---|---|
 | L1 | Unit 8, nonlinear systems (the audit's PED-01) | XL | **done** 2026-09-26 |
 | L2 | One helper for what an `EquivalenceCheck` means | S | **done** 2026-09-26 |
-| L3 | Reduction of order: narrator, lesson, drill (SYM-02) | M | open |
+| L3 | Reduction of order: narrator, lesson, drill (SYM-02) | M | **done** 2026-09-26 |
 | L4 | Faded worked examples: the reader writes the next step | M | open |
 | L5 | Diagnose a wrong *number*, not only a wrong formula | S–M | open |
 | L6 | Glossary, with every term linked to where it is taught | M | open |

@@ -103,6 +103,7 @@ TITLES = {
     "nth_linear_constant_coeff_variation_of_parameters":
         "Variation of parameters",
     "nth_linear_euler_eq_homogeneous": "Cauchy-Euler equation",
+    "reduction_of_order": "Reduction of order",
 }
 
 
@@ -1393,7 +1394,14 @@ def _is_exact(equation: sp.Eq, function: sp.Function) -> bool:
     """Whether ``M dt + N dy = 0`` has ∂M/∂y = ∂N/∂t.
 
     Never raises: it is asked about every equation no named technique fits.
+
+    First order only. It used to be asked about second-order equations too,
+    and ``y'' + t y' + y = 0`` passed: the split treated y' as the unknown's
+    rate and found an "exact" first-order equation that is not this one, so
+    the narrator printed a solution, C/t, that fails its own check.
     """
+    if _order_of(equation, function) != 1:
+        return False
     try:
         M, N, Y = _split_exact(equation, function)
     except Exception:
@@ -1686,6 +1694,159 @@ def _homogeneous_substitution(equation: sp.Eq, function: sp.Function,
     _apply_conditions(general, ics, derivation, _constants_in(general))
 
 
+# ---------------------------------------------------------------------------
+# Reduction of order
+# ---------------------------------------------------------------------------
+
+
+def _standard_second_order(equation: sp.Eq, function: sp.Function):
+    """``(P, Q)`` for ``y'' + P y' + Q y = 0``, or None.
+
+    None unless the equation is second order, linear, homogeneous, and has a
+    coefficient that is not constant -- the constant case has characteristic
+    roots and a technique of its own, which a course meets first.
+    """
+    if _order_of(equation, function) != 2:
+        return None
+    y = function(_T)
+    second, first, zeroth = sp.symbols("_Y2 _Y1 _Y0")
+    expr = sp.expand((equation.lhs - equation.rhs)
+                     .subs(y.diff(_T, 2), second)
+                     .subs(y.diff(_T), first)
+                     .subs(y, zeroth))
+    if expr.has(function):
+        return None
+    try:
+        poly = sp.Poly(expr, second, first, zeroth)
+    except sp.PolynomialError:
+        return None
+    if poly.total_degree() != 1 or poly.coeff_monomial(1) != 0:
+        return None
+    a = poly.coeff_monomial(second)
+    b = poly.coeff_monomial(first)
+    c = poly.coeff_monomial(zeroth)
+    if a == 0:
+        return None
+    p, q = sp.simplify(b / a), sp.simplify(c / a)
+    if not (p.has(_T) or q.has(_T)):
+        return None
+    return p, q
+
+
+#: What a first solution is looked for among, in the order a course would try
+#: them. A textbook *gives* y1 for this technique; the narrator has no box to
+#: be given it in, so it does what a student does on seeing none -- try the
+#: obvious forms and keep the first that substitutes to zero. Each candidate
+#: is checked, never assumed, so a lucky guess cannot produce a wrong answer.
+_TRIAL_SOLUTIONS = (
+    _T, _T**2, sp.exp(_T), sp.exp(-_T), 1 / _T, _T**3, sp.exp(2 * _T),
+    sp.exp(-2 * _T), 1 + _T, _T**-2, sp.exp(3 * _T), sp.Integer(1),
+)
+
+
+def _first_solution(p, q):
+    for candidate in _TRIAL_SOLUTIONS:
+        residual = (candidate.diff(_T, 2) + p * candidate.diff(_T)
+                    + q * candidate)
+        if _is_zero(residual) or _is_zero(residual.subs(_T, _T_POSITIVE)):
+            return candidate
+    return None
+
+
+def _reducible(equation: sp.Eq, function: sp.Function) -> bool:
+    coefficients = _standard_second_order(equation, function)
+    return coefficients is not None and _first_solution(*coefficients) is not None
+
+
+def _reduction_of_order(equation: sp.Eq, function: sp.Function, ics: dict,
+                        derivation: Derivation) -> None:
+    coefficients = _standard_second_order(equation, function)
+    if coefficients is None:
+        derivation.message = "this is not a second-order linear homogeneous equation"
+        return
+    p, q = coefficients
+    derivation.steps.append(Step(
+        title="Divide through by the leading coefficient",
+        latex=_eq(sp.Symbol("y''") + p * sp.Symbol("y'") + q * sp.Symbol("y"), 0),
+        note="The method is stated for y'' + P(t)y' + Q(t)y = 0, and P is "
+             "read off this form. Reading it off the equation as written, with "
+             "a coefficient still in front of y'', gives the wrong P.",
+    ))
+
+    y1 = _first_solution(p, q)
+    if y1 is None:
+        derivation.message = ("no first solution could be found by trying "
+                              "powers and exponentials")
+        return
+    derivation.steps.append(Step(
+        title="Find one solution",
+        latex=_eq("y_1(t)", y1),
+        note="Reduction of order needs one solution to start from. A textbook "
+             "usually supplies it; here it was found by trying powers of t and "
+             "exponentials, and substituting this one gives zero.",
+        verified=_satisfies(equation, function, y1),
+    ))
+
+    v = sp.Function("v")
+    w_symbol = sp.Symbol("w")
+    reduced = sp.simplify(2 * y1.diff(_T) / y1 + p)
+    derivation.steps.append(Step(
+        title="Look for the second as y = v·y₁",
+        latex=(r"y_1 v'' + \left(2y_1' + P y_1\right) v' = 0"
+               r"\quad\Longrightarrow\quad " + _eq(sp.Symbol("w'"),
+                                                   -reduced * w_symbol)),
+        note="Substituting y = v·y₁ gives three groups of terms, and the one "
+             "multiplying v is y₁'' + P y₁' + Q y₁, which is zero because y₁ is "
+             "a solution. What is left has no v in it, only v' and v'' — so "
+             "w = v' satisfies a first-order equation. That is the reduction.",
+    ))
+
+    exponent = sp.integrate(p, _T)
+    w = sp.simplify(sp.exp(-exponent) / y1**2)
+    derivation.steps.append(Step(
+        title="Solve for w = v'",
+        latex=_eq("w(t)", w),
+        note="The equation for w is separable: w = e^(−∫P dt) / y₁². The "
+             "constant of integration is dropped here — any nonzero multiple "
+             "of w gives a second solution just as good.",
+        verified=_is_zero(w.diff(_T) + reduced * w)
+        or _is_zero((w.diff(_T) + reduced * w).subs(_T, _T_POSITIVE)),
+    ))
+
+    v_of_t = sp.integrate(w, _T)
+    if v_of_t.has(sp.Integral):
+        derivation.message = ("the integral for v has no elementary form, so "
+                              "the second solution stays an integral")
+        return
+    y2 = sp.simplify(v_of_t * y1)
+    derivation.steps.append(Step(
+        title="Integrate for v, and multiply by y₁",
+        latex=_eq("v(t)", v_of_t) + r",\qquad " + _eq("y_2(t)", y2),
+        note="Again the constant of integration is left out: it would only add "
+             "a multiple of y₁ to y₂, which the general solution already has.",
+        verified=_satisfies(equation, function, y2),
+    ))
+
+    wronskian = sp.simplify(y1 * y2.diff(_T) - y1.diff(_T) * y2)
+    derivation.steps.append(Step(
+        title="The two are independent",
+        latex=_eq("W(y_1, y_2)", wronskian),
+        note="The Wronskian is y₁² v' = y₁² w, which is never zero where y₁ is "
+             "not — so y₂ is not a multiple of y₁, and the pair is a "
+             "fundamental set.",
+        verified=None if wronskian == 0 else True,
+    ))
+
+    constants = [sp.Symbol("C1"), sp.Symbol("C2")]
+    general = constants[0] * y1 + constants[1] * y2
+    derivation.steps.append(Step(
+        title="The general solution",
+        latex=_eq("y(t)", general),
+        verified=_satisfies(equation, function, general),
+    ))
+    _apply_conditions(general, ics, derivation, constants)
+
+
 _BUILDERS = {
     "separable": _separable,
     "1st_linear": _integrating_factor,
@@ -1696,6 +1857,7 @@ _BUILDERS = {
     "nth_linear_constant_coeff_undetermined_coefficients": _undetermined,
     "nth_linear_constant_coeff_variation_of_parameters": _variation,
     "nth_linear_euler_eq_homogeneous": _cauchy_euler,
+    "reduction_of_order": _reduction_of_order,
 }
 
 #: Techniques `classify_ode` cannot be relied on to name, and how to recognise
@@ -1704,4 +1866,5 @@ _BUILDERS = {
 #: still gets the method it is met by first.
 _DETECTORS = (
     ("1st_exact", _is_exact),
+    ("reduction_of_order", _reducible),
 )
