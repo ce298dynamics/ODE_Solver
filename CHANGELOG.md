@@ -43,6 +43,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **An asterisk in mathematics was read as emphasis.** The equilibrium
+  "(x*, y*)" rendered as "(x<i>, y</i>)", and a drill prompt such as
+  "Linearise x' = 2*x - x*y" set "x - x" in italics. A marker now has to be
+  free of letters and digits on its outer side, so only `*emphasis*` between
+  spaces or punctuation is italicised.
+
+- **Three Unit 8 readouts misreported.** The almost-linear figure said
+  "after t = 18" about a trajectory the solver had abandoned at t = 6, and it
+  and the normal-forms figure printed a rounding error as "−0.000". The
+  limit-cycles quiz also justified Poincaré–Bendixson with a large circle that
+  Van der Pol's flow in fact leaves near its top and bottom.
+
 - **The eigenlines figure called a centre an unstable spiral.** numpy's
   eigenvalues for a centre carry a real part of about 1e-16, which
   `systems.classify` rightly reads as positive. The figure now sets parts

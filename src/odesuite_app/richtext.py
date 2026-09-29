@@ -23,7 +23,12 @@ __all__ = ["emphasise", "plain"]
 #: being read as emphasis running across the middle of a sentence. Nothing
 #: inside may be another asterisk, so an unbalanced marker is simply left
 #: alone rather than swallowing the rest of the paragraph.
-_EMPHASIS = re.compile(r"\*(\S|\S[^*]*\S)\*")
+#:
+#: Nor may a marker touch a letter or digit on its outer side. An asterisk
+#: glued to a word is not punctuation but mathematics: the equilibrium
+#: ``(x*, y*)`` of the nonlinear unit, or ``{a}*x - x*y`` in a drill prompt,
+#: each of which used to come out with the middle set in italics.
+_EMPHASIS = re.compile(r"(?<![\w*])\*(\S|\S[^*]*\S)\*(?![\w*])")
 
 
 def _escaped(text: str) -> str:

@@ -8,6 +8,8 @@ all come from doing more than the content needs.
 
 from __future__ import annotations
 
+import pytest
+
 from odesuite_app.richtext import emphasise, plain
 
 
@@ -37,6 +39,23 @@ def test_a_lone_marker_is_left_where_it_is():
     rest of the paragraph into italics."""
     assert emphasise("2 * 3 = 6") == "2 * 3 = 6"
     assert emphasise("a *stray marker") == "a *stray marker"
+
+
+@pytest.mark.parametrize("text", [
+    "the equilibrium (x*, y*) moves",
+    "Linearise x' = 2*x - x*y at the origin",
+    "x* = 2/3 and y* = 1/3",
+])
+def test_an_asterisk_glued_to_a_symbol_is_mathematics(text):
+    """An equilibrium x* or a product 2*x is not a marker: both used to come
+    out with the text between two of them set in italics."""
+    assert emphasise(text) == text
+    assert plain(text) == text
+
+
+def test_emphasis_still_sits_against_punctuation():
+    assert emphasise("(*not* this)") == "(<i>not</i> this)"
+    assert emphasise("is *exactly*, and") == "is <i>exactly</i>, and"
 
 
 def test_markup_in_the_content_cannot_become_markup_on_the_screen():
