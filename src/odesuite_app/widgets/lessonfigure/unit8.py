@@ -66,12 +66,14 @@ def _dashes(plot, problem: ODEProblem, xlim, ylim, colour: str, *,
 
 
 def _trajectory(f, start, t_end: float, *, rtol: float = 1e-7,
-                bound: float | None = None) -> np.ndarray:
+                bound: float | None = None, reached: list | None = None) -> np.ndarray:
     """``(2, m)`` points of the trajectory from `start`, cut where it leaves.
 
     Integrated in short pieces so a trajectory that runs away -- the
     almost-linear spiral blows up in finite time -- is stopped at `bound`
-    rather than handed to the solver to fail on.
+    rather than handed to the solver to fail on. The time it got to is
+    appended to `reached`, when given: a readout that says "after t = 18"
+    about a path the solver abandoned at t = 6 is reporting the wrong time.
     """
     pieces, t, y = [], 0.0, np.asarray(start, dtype=float)
     piece = 1.0 if bound is not None else t_end
@@ -92,6 +94,8 @@ def _trajectory(f, start, t_end: float, *, rtol: float = 1e-7,
         t += span
         if bound is not None and float(np.hypot(*y)) > bound:
             break
+    if reached is not None:
+        reached.append(t)
     if not pieces:
         return np.empty((2, 0))
     return np.concatenate(pieces, axis=1)
@@ -111,11 +115,21 @@ def _a(noun: str) -> str:
     return ("an " if noun[:1].lower() in "aeiou" else "a ") + noun
 
 
+def _signed(value: float) -> str:
+    """``+0.250``, ``-1.000`` -- and ``0.000`` for zero, never ``-0.000``.
+
+    Rounding leaves a zero eigenvalue or equilibrium at ±1e-17, and a printed
+    sign on it claims a side the number is not on.
+    """
+    rounded = round(float(value), 3)
+    return "0.000" if rounded == 0 else f"{rounded:+.3f}"
+
+
 def _eigen_words(values) -> str:
     values = np.asarray(values)
     if np.all(np.abs(values.imag) < 1e-9):
-        return ", ".join(f"{v.real:+.3f}" for v in values)
-    return f"{values[0].real:+.3f} ± {abs(values[0].imag):.3f}i"
+        return ", ".join(_signed(v.real) for v in values)
+    return f"{_signed(values[0].real)} ± {abs(values[0].imag):.3f}i"
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +282,8 @@ class AlmostLinearFigure(LessonFigure):
         _dashes(self.plot, problem, (-lim, lim), (-lim, lim),
                 self.palette_obj.text_muted)
 
-        path = _trajectory(f, self._START, self._TIME, bound=3.0)
+        reached: list = []
+        path = _trajectory(f, self._START, self._TIME, bound=3.0, reached=reached)
         inside = np.all(np.abs(path) <= lim * 1.2, axis=0)
         if inside.any():
             self.plot.plot(path[0, inside], path[1, inside],
@@ -288,7 +303,7 @@ class AlmostLinearFigure(LessonFigure):
         self.readout.setText(
             f"a = {self.a():+.3f}.  Linearisation: eigenvalues "
             f"{_eigen_words(values)}, {_a(kind)}.  The trajectory from r = "
-            f"{start:.2f}: r = {end:.3f} after t = {self._TIME:g} — it {real}."
+            f"{start:.2f}: r = {end:.3f} after t = {reached[0]:g} — it {real}."
         )
 
 
@@ -678,5 +693,5 @@ class NormalFormsFigure(LessonFigure):
         right.setXRange(-1.0, 1.0, padding=0.02)
         right.setYRange(*self._XLIM, padding=0.02)
 
-        where = ", ".join(f"{p.value:+.3f} ({p.stability})" for p in points) or "none"
+        where = ", ".join(f"{_signed(p.value)} ({p.stability})" for p in points) or "none"
         self.readout.setText(f"{name}, {formula}, at r = {r:+.3f}: equilibria {where}.")
