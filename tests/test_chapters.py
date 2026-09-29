@@ -53,6 +53,12 @@ CHAPTERED = (
     "repeated-eigenvalues",
     "forced-systems",
     "phase-portraits",
+    "nonlinear-equilibria",
+    "almost-linear",
+    "ecological-models",
+    "nonlinear-mechanics",
+    "limit-cycles",
+    "bifurcations-chaos",
 )
 
 #: About five pages of prose.

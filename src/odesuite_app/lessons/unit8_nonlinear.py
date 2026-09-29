@@ -27,6 +27,7 @@ why it waited for them.
 
 from __future__ import annotations
 
+from .chapters import unit8 as chapters
 from .model import (
     Choice,
     ChoiceTemplate,
@@ -44,6 +45,7 @@ __all__ = ["EQUILIBRIA", "ALMOST_LINEAR", "ECOLOGY", "MECHANICS",
 
 EQUILIBRIA = Lesson(
     key="nonlinear-equilibria",
+    chapter=chapters.EQUILIBRIA,
     title="Equilibria of a nonlinear system, and linearising at each",
     summary="Where a nonlinear system rests, and the linear system that "
             "describes it near each resting place.",
@@ -332,6 +334,7 @@ EQUILIBRIA = Lesson(
 
 ALMOST_LINEAR = Lesson(
     key="almost-linear",
+    chapter=chapters.ALMOST_LINEAR,
     title="Almost linear systems: when the linearisation tells the truth",
     summary="The cases where the linear picture is guaranteed to be the real "
             "one, and the one case where it guarantees nothing.",
@@ -640,6 +643,7 @@ ALMOST_LINEAR = Lesson(
 
 ECOLOGY = Lesson(
     key="ecological-models",
+    chapter=chapters.ECOLOGY,
     title="Predators, competitors, and reading the nullclines",
     summary="Two populations that affect each other, and how the curves "
             "where each stops changing organise the whole picture.",
@@ -919,6 +923,7 @@ ECOLOGY = Lesson(
 
 MECHANICS = Lesson(
     key="nonlinear-mechanics",
+    chapter=chapters.MECHANICS,
     title="Conservative systems: the pendulum, energy and the separatrix",
     summary="How a conserved energy turns a system you cannot solve into "
             "curves you can draw.",
@@ -1211,6 +1216,7 @@ MECHANICS = Lesson(
 
 CYCLES = Lesson(
     key="limit-cycles",
+    chapter=chapters.CYCLES,
     title="Limit cycles, and why the plane forbids chaos",
     summary="Isolated closed orbits that trajectories are drawn onto, and "
             "the theorem that limits what a planar system can do.",
@@ -1434,10 +1440,12 @@ CYCLES = Lesson(
             ),
             answer=0,
             becauses=(
-                "Take an annulus between a small circle (flow leaving the "
-                "origin) and a large one (flow bounded inwards). It traps "
-                "trajectories and holds no equilibrium, so Poincaré–Bendixson "
-                "gives a closed orbit inside.",
+                "Take the region between a small circle round the origin, "
+                "which trajectories leave, and a large closed curve that the "
+                "flow crosses inwards (not a circle: near the top and bottom "
+                "of any circle, where |x| < 1, the flow crosses outwards). It "
+                "traps trajectories and holds no equilibrium, so "
+                "Poincaré–Bendixson gives a closed orbit inside.",
                 "Van der Pol has only the one equilibrium, at the origin.",
                 "Separatrices come from saddles, and there is no saddle here.",
                 "Wandering forever without settling is exactly what the "
@@ -1490,6 +1498,7 @@ CYCLES = Lesson(
 
 BIFURCATIONS = Lesson(
     key="bifurcations-chaos",
+    chapter=chapters.BIFURCATIONS,
     title="Bifurcations, and the road to chaos",
     summary="How the picture changes suddenly as a parameter moves, and what "
             "happens when a third dimension frees the flow.",
