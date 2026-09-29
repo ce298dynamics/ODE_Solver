@@ -1557,7 +1557,7 @@ EQUILIBRIA = (
             "semi-stable; for h > 1/4 there are none, the graph of f lies "
             "wholly below the axis, and every solution decreases to −∞ — the "
             "population collapses. Plotting the equilibria against h gives a "
-            "*bifurcation diagram*, the picture Unit 8 builds for systems."
+            "*bifurcation diagram*, the picture the nonlinear-systems unit builds for systems."
         ),
         Plot(
             "Bifurcation diagram for y' = y(1 − y) − h",
@@ -1577,7 +1577,7 @@ EQUILIBRIA = (
             "equilibria ±√r appear on either side of it. One equilibrium has "
             "become three: a *pitchfork*. Physically it is a beam that buckles "
             "under a load — straight while the load is small, and bent to one "
-            "side or the other once the load passes a critical value. Unit 8 "
+            "side or the other once the load passes a critical value. The nonlinear-systems unit "
             "gathers these patterns together and shows that, near any "
             "bifurcation, almost every equation looks like one of a handful "
             "of simple forms."
@@ -1966,7 +1966,7 @@ POPULATION = (
             "two equilibria merge at P = M/2 — where, as noted earlier, "
             "logistic growth is fastest. This is the simplest example of a "
             "*bifurcation*, a qualitative change as a parameter crosses a "
-            "value, and the next lesson and Unit 8 return to it."
+            "value, and the next lesson and the nonlinear-systems unit return to it."
         ),
         Worked(
             "How much can the lake yield?",

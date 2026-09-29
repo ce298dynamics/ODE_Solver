@@ -759,7 +759,7 @@ EXACT = (
         ),
         Para(
             "That idea — find something that does not change as the solution "
-            "moves — reaches far beyond this lesson. In Unit 8 the energy of a "
+            "moves — reaches far beyond this lesson. In the nonlinear-systems unit the energy of a "
             "frictionless pendulum is exactly such a function, and its level "
             "curves are the pendulum's orbits in the phase plane. The "
             "equation for those orbits is exact, and the potential is the "
@@ -1531,7 +1531,7 @@ BASICS = (
             "long as their coefficients are defined, and most of Units 1 to 7 "
             "are about solving them. Nonlinear equations are where the "
             "surprises are: solutions that blow up in finite time, "
-            "equilibria, limit cycles, chaos. Unit 8 is about those, and "
+            "equilibria, limit cycles, chaos. The nonlinear-systems unit is about those, and "
             "mostly about what can be learned from them without a formula."
         ),
         Box(
@@ -1559,9 +1559,10 @@ BASICS = (
             "over. Units 3 and 4 treat second-order linear equations and the "
             "vibrations they describe; Unit 5 the Laplace transform, which "
             "handles forcing that switches on and off; Unit 6 systems of "
-            "linear equations; Unit 7 series solutions. Unit 8 returns to "
-            "nonlinear equations, now armed with the linear theory, and asks "
-            "what their solutions do when no formula exists."
+            "linear equations. Unit 7 returns to nonlinear equations, now "
+            "armed with the linear theory, and asks what their solutions do "
+            "when no formula exists; Unit 8 closes the course with series "
+            "solutions."
         ),
         Para(
             "Two habits make the whole journey easier, and both start now. "

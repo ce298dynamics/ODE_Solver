@@ -1484,7 +1484,7 @@ DISTINCT = (
             "eigenvalue shortcut. A nonlinear system can only be linearised "
             "about an equilibrium; the eigenvalues of the linearisation then "
             "describe it near that point and say nothing far from it. That is "
-            "the subject of Unit 8.",
+            "the subject of the next unit, on nonlinear systems.",
             r"\mathbf{x}' = A\mathbf{x}, \quad A \text{ constant}",
         ),
         Para(
@@ -2182,7 +2182,7 @@ COMPLEX = (
             "The undamped spring of Unit 4 is a centre, and any friction at all "
             "gives the trace a non-zero value and turns its closed orbits into "
             "spirals. The phase-portraits chapter explains why a centre is "
-            "fragile in this way, and Unit 8 why that matters."
+            "fragile in this way, and the next unit why that matters."
         ),
     )),
     Section("Beyond two dimensions", (
@@ -4012,7 +4012,7 @@ PORTRAITS = (
             "near it, which by the scaling of a linear system is also what "
             "happens far from it. That is the first thing to stop being true "
             "for nonlinear systems, which can have several equilibria, each "
-            "with its own local picture. Unit 8 takes up that case, and its "
+            "with its own local picture. The next unit takes up that case, and its "
             "first move is to borrow the pictures of this chapter."
         ),
     )),
@@ -4398,7 +4398,7 @@ PORTRAITS = (
             "boundary τ = 0 between two open regions, inward spirals and "
             "outward spirals, and the smallest change to the matrix that "
             "makes τ nonzero turns every closed orbit into a spiral. When "
-            "Unit 8 approximates nonlinear systems by linear ones, that "
+            "the next unit approximates nonlinear systems by linear ones, that "
             "fragility is exactly why a linearisation that predicts a centre "
             "decides nothing."
         ),
@@ -4713,7 +4713,7 @@ PORTRAITS = (
         Para(
             "The portraits sort themselves into those in which solutions "
             "stay near the origin and those in which some run away. The "
-            "words for this are worth making precise, because Unit 8 uses "
+            "words for this are worth making precise, because the next unit uses "
             "them for systems that cannot be solved at all."
         ),
         Box(

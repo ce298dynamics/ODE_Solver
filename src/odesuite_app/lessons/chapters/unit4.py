@@ -374,7 +374,7 @@ CIRCUITS = (
             "produces a self-sustaining oscillation whose amplitude is set by "
             "the nonlinearity of the amplifier rather than by any initial "
             "condition. It is exactly Van der Pol's oscillator, which "
-            "reappears in Unit 8 as the standard example of a limit cycle."
+            "reappears in the nonlinear-systems unit as the standard example of a limit cycle."
         ),
     )),
     Section("Common errors", (
@@ -956,7 +956,7 @@ FREE = (
                      "ω₀ = 2 rad/s.",
                      r"\theta'' + 4\theta = 0"),
                 Step("Released from rest: θ = 0.1 cos 2t, with period π ≈ 3.14 s. "
-                     "The approximation is good while θ stays small; Unit 8 "
+                     "The approximation is good while θ stays small; the nonlinear-systems unit "
                      "shows what happens when it does not."),
             ),
             equation="y'' + 4*y = 0", conditions="y(0) = 1/10, y'(0) = 0",
@@ -1001,7 +1001,7 @@ FREE = (
             "picture becomes geometry. Undamped motion traces an ellipse, a "
             "level curve of E; damped motion crosses the ellipses inwards, "
             "spiralling to the origin. Unit 6 draws these portraits for "
-            "linear systems in general, and Unit 8 uses the same energy "
+            "linear systems in general, and the nonlinear-systems unit uses the same energy "
             "argument to study the pendulum at large amplitudes."
         ),
     )),

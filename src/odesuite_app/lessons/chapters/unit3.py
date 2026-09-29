@@ -688,7 +688,7 @@ CAUCHY = (
             "t². A point where the leading coefficient vanishes is a *singular "
             "point*, and the Cauchy–Euler equation is the model for a *regular* "
             "singular point: bad enough to break the theory, tame enough that "
-            "solutions are powers and logarithms. Unit 7's Frobenius method is "
+            "solutions are powers and logarithms. The series unit's Frobenius method is "
             "built on exactly this model."
         ),
     )),
@@ -1060,7 +1060,7 @@ REDUCTION = (
         Box(
             "remark", "If no first solution can be found",
             "Then reduction of order cannot start, and the next resources are "
-            "power series (Unit 7), which produce solutions near ordinary and "
+            "power series (the series unit), which produce solutions near ordinary and "
             "regular singular points, and numerical methods, which always "
             "work. A second-order linear equation with variable coefficients "
             "is, in general, not solvable in closed form.",
@@ -1177,7 +1177,7 @@ REDUCTION = (
             "a physical problem that requires the solution to stay finite "
             "there selects the well-behaved one. The temperature in a disc "
             "must be finite at the centre; the displacement of a drumhead "
-            "must be finite at its middle. Unit 7's series methods are built "
+            "must be finite at its middle. The series unit's methods are built "
             "to find the solutions near such points, and reduction of order "
             "is the tool that recovers the other one once the first is known."
         ),
@@ -2523,7 +2523,7 @@ SUPERPOSITION = (
             "solution. For nonlinear equations this fails completely — the "
             "sum of two solutions of y' = y² is not a solution — and that "
             "failure is why nonlinear equations need the entirely different "
-            "tools of Unit 8."
+            "tools of the nonlinear-systems unit."
         ),
         Worked(
             "Building solutions from solutions",
