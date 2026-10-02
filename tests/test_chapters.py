@@ -59,6 +59,9 @@ CHAPTERED = (
     "nonlinear-mechanics",
     "limit-cycles",
     "bifurcations-chaos",
+    "power-series",
+    "recurrence",
+    "frobenius",
 )
 
 #: About five pages of prose.
