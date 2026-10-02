@@ -43,6 +43,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A factor common to every term was taken for a singular point.** Series
+  analysis read (1 − t²)(y'' + y) = 0 as having singular points at ±1 and a
+  radius of 1; `series.split` now cancels a polynomial factor shared by all
+  three coefficients, so it is y'' + y = 0 with an infinite radius.
+
+- **Series-unit figures and lesson text.** The partial-sums readout put the
+  1% reach a grid step short (0.397 for 0.01^(1/5) = 0.398) and now closes
+  the bracket by bisection; the recurrence figure's fixed ±2.5 pane cut off
+  the first even coefficients (a₂ = −6 at ℓ = 3) and now fits them. Three
+  lesson statements were wrong: a truncation's residual starts at t^(N−1),
+  not t^N; writing initial conditions straight in is shared with the Laplace
+  transform; and complex indicial roots do arise (t²y'' + ty' + y = 0).
+
 - **An asterisk in mathematics was read as emphasis.** The equilibrium
   "(x*, y*)" rendered as "(x<i>, y</i>)", and a drill prompt such as
   "Linearise x' = 2*x - x*y" set "x - x" in italics. A marker now has to be

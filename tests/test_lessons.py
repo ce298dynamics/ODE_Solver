@@ -918,12 +918,19 @@ def test_a_card_announces_what_it_is(screen, qapp):
     names itself from its own heading."""
     from PySide6.QtWidgets import QFrame
 
-    # A lesson still on the card layout; chaptered ones are checked below.
-    key = next(lesson.key for lesson in LESSONS if not lesson.chapter)
-    lesson = _open(screen, qapp, key, "Learn")
-    named = {frame.accessibleName()
-             for frame in screen.findChildren(QFrame)
-             if frame.accessibleName()}
+    # Every lesson now has a chapter, but the card layout is still what a
+    # lesson without one gets -- so take one lesson's chapter away for the
+    # length of the test. Lesson is frozen, hence object.__setattr__.
+    lesson = LESSONS[0]
+    chapter = lesson.chapter
+    object.__setattr__(lesson, "chapter", ())
+    try:
+        _open(screen, qapp, lesson.key, "Learn")
+        named = {frame.accessibleName()
+                 for frame in screen.findChildren(QFrame)
+                 if frame.accessibleName()}
+    finally:
+        object.__setattr__(lesson, "chapter", chapter)
     assert any("Why this topic exists" in one for one in named)
     assert any("Where this comes from" in one for one in named)
     for note in lesson.notes:
@@ -2076,6 +2083,10 @@ def test_the_partial_sums_figure_reaches_further_with_more_terms(qapp):
         reaches.append(float(found.group(1)))
     assert reaches[0] < reaches[1] < reaches[2], reaches
     assert reaches[-1] < 1.0, "the radius is 1 and nothing may reach past it"
+    # The relative error of 1 + t + ... + t^(N-1) is exactly t^N, so the
+    # reach is 0.01^(1/N); the readout once printed a grid step short of it.
+    for terms, reach in zip((2, 6, 14), reaches):
+        assert reach == pytest.approx(0.01 ** (1 / terms), abs=5e-4), (terms, reach)
     made.deleteLater()
 
 

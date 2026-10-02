@@ -92,13 +92,26 @@ class PartialSumsFigure(LessonFigure):
     def _describe(self, terms: int) -> None:
         # Where the truncation is still within a percent of the truth, found
         # by walking out from the origin rather than asserted.
+        # The walk only brackets the crossing -- its last point inside lies up
+        # to a grid step short of it, which printed 0.397 for the 0.398 the
+        # chapter computes -- so the bracket is then closed by bisection.
+        def miss(t):
+            partial = sum(t ** power for power in range(terms))
+            exact = 1.0 / (1.0 - t)
+            return np.abs(partial - exact) - 0.01 * np.abs(exact)
+
         grid = np.linspace(0.0, 0.995, 800)
-        partial = np.zeros_like(grid)
-        for power in range(terms):
-            partial = partial + grid ** power
-        exact = 1.0 / (1.0 - grid)
-        close = np.abs(partial - exact) <= 0.01 * np.abs(exact)
-        reach = float(grid[close][-1]) if close.any() else 0.0
+        close = miss(grid) <= 0
+        reach = 0.0
+        if close.any():
+            last = int(np.nonzero(close)[0][-1])
+            low = float(grid[last])
+            if last + 1 < len(grid):
+                high = float(grid[last + 1])
+                for _ in range(50):
+                    middle = 0.5 * (low + high)
+                    low, high = (middle, high) if miss(middle) <= 0 else (low, middle)
+            reach = low
         self.readout.setText(
             f"{terms} term{'' if terms == 1 else 's'}: within 1% of the "
             f"answer out to t = {reach:.3f}. The radius is 1 whatever the "
@@ -203,7 +216,10 @@ class RecurrenceFigure(LessonFigure):
             pane.addLine(x=nearest,
                          pen=pg.mkPen(self.palette_obj.warning, width=2,
                                       style=Qt.DashLine))
-        pane.setYRange(-2.5, 2.5, padding=0.02)
+        # Tall enough for every stem: a fixed ±2.5 cut off the first even
+        # coefficients (a₂ = −6 at ℓ = 3), the ones the recurrence starts from.
+        top = max(2.5, 1.1 * float(np.max(np.abs(terms)))) if len(terms) else 2.5
+        pane.setYRange(-top, top, padding=0.02)
 
     def _draw_sum(self, terms: np.ndarray) -> None:
         pane = self.panes[1]

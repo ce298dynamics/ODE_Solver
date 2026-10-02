@@ -96,6 +96,20 @@ def test_the_radius_reaches_the_nearest_singularity():
     assert radius(sp.Integer(1)) is sp.oo
 
 
+def test_a_factor_common_to_every_term_is_not_a_singularity():
+    """(1 - t²)(y'' + y) = 0 is y'' + y = 0 written badly. Kept as typed, the
+    factor looked like a leading coefficient vanishing at ±1, and the radius
+    came out as 1 instead of infinite."""
+    equation = sp.Eq((1 - T**2) * Y(T).diff(T, 2) + (1 - T**2) * Y(T), 0)
+    P, Q, R_ = split(equation, Y)
+    assert radius(P) is sp.oo
+    assert point_kind(P, Q, R_, 1) == ORDINARY
+    # A factor that is not common stays: Legendre's (1 - t²) is real.
+    legendre = sp.Eq((1 - T**2) * Y(T).diff(T, 2) - 2 * T * Y(T).diff(T)
+                     + 6 * Y(T), 0)
+    assert radius(split(legendre, Y)[0]) == 1
+
+
 def test_a_complex_singularity_limits_a_real_series():
     """1 + t² never vanishes for real t, and the series still stops at 1.
     Looking only at the real axis gives the wrong radius, which is the mistake

@@ -90,6 +90,13 @@ def split(equation: sp.Eq, function: sp.Function):
         return None
     if any(part.has(y) for part in (P, Q, R)):
         return None
+    # A factor common to all three is not a singular point, only a way of
+    # writing the equation: (1 - t²)(y'' + y) = 0 is y'' + y = 0, whose
+    # radius is infinite, not 1. Cancel it before anything is classified.
+    if all(part.is_polynomial(_T) for part in (P, Q, R)):
+        common = sp.gcd(sp.gcd(P, Q), R)
+        if common.has(_T):
+            P, Q, R = (sp.cancel(part / common) for part in (P, Q, R))
     return P, Q, R
 
 

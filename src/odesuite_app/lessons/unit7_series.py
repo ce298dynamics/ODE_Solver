@@ -40,6 +40,7 @@ generalises, and that one can be worked end to end.
 
 from __future__ import annotations
 
+from .chapters import unit7 as chapters
 from .model import (
     Choice,
     ChoiceTemplate,
@@ -55,6 +56,7 @@ __all__ = ["POWERSERIES", "RECURRENCE", "FROBENIUS", "LESSONS"]
 
 POWERSERIES = Lesson(
     key="power-series",
+    chapter=chapters.POWERSERIES,
     title="Power series and ordinary points",
     summary="What to do when there is no closed form — which is most of the "
             "time.",
@@ -222,8 +224,9 @@ POWERSERIES = Lesson(
             "a₀ and a₁ are the initial conditions",
             "They are never determined by the recurrence — they are the two "
             "arbitrary constants, and they are exactly y(0) and y′(0). No "
-            "system to solve at the end, which is a genuine convenience this "
-            "method has and the others do not.",
+            "system to solve at the end, a convenience this method shares "
+            "with the Laplace transform and not with characteristic roots "
+            "or variation of parameters.",
             r"a_0 = y(0), \qquad a_1 = y'(0)",
             "idea",
         ),
@@ -233,8 +236,10 @@ POWERSERIES = Lesson(
             "gives the terms that were never written down. That residual is "
             "the truncation error, and expecting it to vanish is expecting "
             "the series to be finite. What is claimed is correctness up to a "
-            "given power, and that is what can be checked.",
-            r"y'' + y \;\longrightarrow\; O(t^{N})",
+            "given power, and that is what can be checked: a series correct "
+            "through tᴺ leaves a residual that starts at tᴺ⁻¹, because "
+            "differentiating twice lowers every power by two.",
+            r"y'' + y \;\longrightarrow\; O(t^{N-1})",
             "pitfall",
         ),
         # PED-06: where the method itself stops, not a mistake a student makes.
@@ -389,6 +394,7 @@ POWERSERIES = Lesson(
 
 RECURRENCE = Lesson(
     key="recurrence",
+    chapter=chapters.RECURRENCE,
     title="Recurrence relations and the radius of convergence",
     summary="The rule that generates every coefficient, and how far the "
             "answer it builds can be trusted.",
@@ -727,6 +733,7 @@ RECURRENCE = Lesson(
 
 FROBENIUS = Lesson(
     key="frobenius",
+    chapter=chapters.FROBENIUS,
     title="Regular singular points, and what Frobenius is for",
     summary="Where a plain power series is not enough, and the smallest change "
             "that rescues it.",
@@ -1004,8 +1011,10 @@ FROBENIUS = Lesson(
                 "form and a logarithm has to be brought in.",
                 "Differing by 1/3, not an integer, so both Frobenius "
                 "solutions exist in the ordinary form. No trouble.",
-                "A real equation gives real indicial roots here; complex ones "
-                "do not arise from this construction in a first course.",
+                "Complex exponents do arise — t²y″ + ty′ + y = 0 gives ±i — "
+                "but they differ by 2i, which is not a whole number, so both "
+                "Frobenius solutions exist and their real and imaginary parts "
+                "are real solutions. Not the awkward case.",
             ),
         ),
         Solve(
