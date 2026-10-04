@@ -194,10 +194,25 @@ class LessonsScreen(QWidget):
         #: once the page has been rebuilt. Cleared as soon as it is honoured:
         #: it describes one rebuild, not a preference.
         self._focus_drill: str = ""
-        #: Token -> the panel and button waiting on it. Keyed rather than held
-        #: singly, so a superseded request can still re-enable its own button
-        #: instead of leaving it disabled for good.
-        self._pending: dict[int, tuple[StepsPanel, QPushButton, object]] = {}
+        #: The equations "Show me" has shown worked in full, so that an answer
+        #: checked afterwards is marked but not counted: copying the last line
+        #: of the working is reading, not recall. Named by the equation and
+        #: its conditions (see `_seen`), not by the card: a drill's pool is
+        #: small and New question walks round it, so a draw read in full comes
+        #: back under another seed, and two lessons can ask the very same
+        #: question. Added on delivery, not on the press -- a working that
+        #: failed or was superseded showed nothing -- while one still on its
+        #: way counts through `_pending`. Held here rather than by the card,
+        #: because the page is rebuilt whenever another drill on it advances,
+        #: and not on disk, because it describes one sitting.
+        self._worked: set[tuple[str, str]] = set()
+        #: Token -> the panel and button waiting on it, what to hand the
+        #: derivation to instead of the panel, and the `_seen` name of an
+        #: equation being shown in full. Keyed rather than held singly, so a
+        #: superseded request can still re-enable its own button instead of
+        #: leaving it disabled for good.
+        self._pending: dict[int, tuple[StepsPanel, QPushButton, object,
+                                       tuple[str, str] | None]] = {}
 
         self._signals = _Signals()
         self._signals.done.connect(self._on_worked)
@@ -1038,7 +1053,11 @@ class LessonsScreen(QWidget):
         row.addWidget(step)
 
         show = QPushButton("Show me")
-        show.setToolTip("Work it through in full, and stop counting this one")
+        show.setToolTip(
+            "Work it through in full. A right answer to this question is "
+            "still marked afterwards, but not counted: the streak neither "
+            "grows nor starts again."
+        )
         show.setCursor(Qt.PointingHandCursor)
         row.addWidget(show)
 
@@ -1073,7 +1092,8 @@ class LessonsScreen(QWidget):
         def graded() -> bool:
             marked = self._check_solve(lesson, question, answer, verdict,
                                        bucket=progress.drill_key(lesson.key),
-                                       key=template.key)
+                                       key=template.key,
+                                       fresh="Try a fresh one.")
             now, done = self._streak_of(lesson, template)
             run.setText(self._streak_text(now, done))
             run.setStyleSheet(
@@ -1090,7 +1110,8 @@ class LessonsScreen(QWidget):
         self._keyboard_loop(frame, template, answer, graded, next_question)
         show.clicked.connect(
             lambda: self._work(question.equation, question.conditions,
-                               template.narrator, working, show)
+                               template.narrator, working, show,
+                               shows=self._seen(question))
         )
         self._wire_fading(question, template, working, step)
         again.clicked.connect(next_question)
@@ -1663,7 +1684,11 @@ class LessonsScreen(QWidget):
         row.addWidget(hint_button)
 
         show = QPushButton("Show me")
-        show.setToolTip("Work it through in full, and stop counting this one")
+        show.setToolTip(
+            "Work it through in full. A right answer to this question is "
+            "still marked afterwards, but not counted until the app is next "
+            "opened. A tick it already has is kept."
+        )
         show.setCursor(Qt.PointingHandCursor)
         row.addWidget(show)
         layout.addLayout(row)
@@ -1697,7 +1722,8 @@ class LessonsScreen(QWidget):
         )
         show.clicked.connect(
             lambda: self._work(question.equation, question.conditions,
-                               lesson.narrator, working, show)
+                               lesson.narrator, working, show,
+                               shows=self._seen(question))
         )
         self._restore(lesson, question, verdict)
 
@@ -1803,7 +1829,22 @@ class LessonsScreen(QWidget):
 
     def _check_solve(self, lesson, question, answer: QLineEdit,
                      verdict: QLabel, *, bucket: str = "",
-                     key: str = "") -> bool:
+                     key: str = "",
+                     fresh: str = "It counts again the next time the app is "
+                                  "opened.") -> bool:
+        """Mark a typed solution, and record it.
+
+        Where "Show me" has shown this equation worked in full (see
+        `_was_worked`), a right answer is still *marked* -- whether the copy
+        is right is worth knowing -- but not recorded at all. Seeing the
+        answer is not recalling it, and a streak built by copying would make
+        "mastered" mean nothing; but recording it as a miss would be worse
+        than saying nothing. It would reset the streak and the review box of
+        a question somebody opened only to read the method again, and it
+        would charge the reader who checks their copy while the one who
+        presses New question instead goes free. `fresh` says when it counts
+        again.
+        """
         from ..laplace import EXTRA_FUNCTIONS
         from ..symbolic import check_answer, parse_equation, spec_for
 
@@ -1823,7 +1864,21 @@ class LessonsScreen(QWidget):
             return False
 
         result = check_answer(parsed, answer.text())
-        if result.correct is True and result.matches_conditions is not False:
+        right = result.correct is True and result.matches_conditions is not False
+        if right and self._was_worked(question):
+            # A drill's bucket is not shown as ticks, so only practice says so.
+            before = progress.load().get(lesson.key, {}).get(question.key)
+            if not bucket and before is not None and before.correct:
+                fresh = "The tick from before still stands."
+            # Muted, and no tick: at a glance it must not read as one.
+            verdict.setStyleSheet("")
+            verdict.setText(
+                f'<span style="color:{palette.text_muted};">Right — but it '
+                f"was worked for you, so this answer is not counted. "
+                f"{fresh}</span>"
+            )
+            return True
+        if right:
             colour, text = palette.success, "✓ " + result.message
             state = progress.State.CORRECT
         elif result.correct is False or result.matches_conditions is False:
@@ -1926,18 +1981,45 @@ class LessonsScreen(QWidget):
         self._token += 1
         self._pending.clear()
 
+    @staticmethod
+    def _seen(question) -> tuple[str, str]:
+        """The name `_worked` knows a question by: what it asks, not where.
+
+        Tidied as a drill's draws are, and with the spaces dropped, so that a
+        practice question written "y' - 2*y = 0" and a draw that came out as
+        "y'+-2*y = 0" are recognisably the same equation.
+        """
+        from ..lessons.generate import tidy
+
+        return ("".join(tidy(question.equation).split()),
+                "".join(question.conditions.split()))
+
+    def _was_worked(self, question) -> bool:
+        """Whether this equation has been shown worked in full, or is about
+        to be: one asked for and still on its way counts as asked, or the
+        answer could be checked in the moment before it appears."""
+        seen = self._seen(question)
+        return seen in self._worked or any(
+            waiting[3] == seen for waiting in self._pending.values()
+        )
+
     def _work(self, equation: str, conditions: str, narrator: str,
-              panel: StepsPanel, button: QPushButton, deliver=None) -> None:
+              panel: StepsPanel, button: QPushButton, deliver=None,
+              shows: tuple[str, str] | None = None) -> None:
         """Narrate off the interface thread and show it in `panel`.
 
         `deliver`, when given, receives the derivation instead of the panel
         rendering all of it -- the step-at-a-time button keeps the derivation
-        and shows it a piece at a time.
+        and shows it a piece at a time. `shows` is the `_seen` name of a
+        question this request works in full, for "Show me" to note once it
+        has arrived; the worked examples and the faded working pass none.
         """
         self._token += 1
         # Whatever else was waiting will never be delivered now, so hand its
-        # button back rather than leaving it disabled for the rest of the visit.
-        for stale_panel, stale_button, _ in self._pending.values():
+        # button back rather than leaving it disabled for the rest of the
+        # visit. Dropping it also drops what it would have shown from
+        # `_was_worked`: nothing was shown.
+        for stale_panel, stale_button, _, _ in self._pending.values():
             stale_button.setEnabled(True)
             stale_panel.clear("superseded")
         self._pending.clear()
@@ -1945,17 +2027,22 @@ class LessonsScreen(QWidget):
         panel.setVisible(True)
         panel.clear("working it through…")
         button.setEnabled(False)
-        self._pending[self._token] = (panel, button, deliver)
+        self._pending[self._token] = (panel, button, deliver, shows)
+        # Ahead of the queue: the pool is shared with every equation's
+        # typesetting, much of it for pages the reader has already left, and
+        # at equal priority it is first come, first served. A long visit
+        # could leave the working they just asked for a minute behind that.
         QThreadPool.globalInstance().start(
             _WorkingJob(self._token, equation, conditions, narrator,
-                        self._signals)
+                        self._signals),
+            1,
         )
 
     def _on_worked(self, token: int, result) -> None:
         waiting = self._pending.pop(token, None)
         if waiting is None:
             return                                # superseded, or not ours
-        panel, button, deliver = waiting
+        panel, button, deliver, shows = waiting
         button.setEnabled(True)
         if isinstance(result, Exception):
             panel.clear(f"{type(result).__name__}: {result}")
@@ -1966,6 +2053,8 @@ class LessonsScreen(QWidget):
         if deliver is not None:
             deliver(result)
             return
+        if shows is not None:
+            self._worked.add(shows)
         panel.show_derivation(result)
 
     # -- the rest --------------------------------------------------------

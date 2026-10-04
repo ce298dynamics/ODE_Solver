@@ -108,7 +108,7 @@ these again" queue the quiz report already builds.
 
 | # | Item | Size | Status |
 |---|---|---|---|
-| L9 | "Show me" promises to stop counting the question, and does not | S | open |
+| L9 | "Show me" promises to stop counting the question, and does not | S | **done** 2026-10-04 |
 | L10 | Which-portrait drill for *nonlinear* equilibria, via the Jacobian | S–M | open |
 | L11 | Reduction of order in the which-method drill's vocabulary | S | **done** 2026-09-27 |
 | L12 | Glossary terms clickable where they appear in a lesson | M | open |
@@ -118,7 +118,15 @@ stop counting this one", and nothing in `_check_solve` knows the button was
 pressed: read the whole worked answer, type it in, and it is marked correct,
 recorded as correct, and advances the mastery streak. Either the promise or
 the behaviour is wrong; the behaviour is, since a streak built by copying is
-not mastery.
+not mastery. *Done:* a right answer to an equation "Show me" has shown in full
+is marked but not recorded at all -- neither a tick nor a miss, so the streak
+and review box stay where they were -- until the app is next opened. It is
+keyed on the equation, so a drill draw that comes round again and the same
+question in another lesson are covered; a working that failed or was
+superseded does not count as shown. Left open: about 70 practice questions
+and drill draws repeat one of their lesson's own worked examples, which
+"Work it through" shows without disqualifying anything (a content question,
+not a Show me one).
 
 **L10.** Unit 8's drills ask for numbers. The skill the unit is about is
 naming an equilibrium of a *nonlinear* system, which means taking the

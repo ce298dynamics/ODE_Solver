@@ -43,6 +43,25 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **"Show me" said it stopped counting the question, and did not.** Reading
+  the full working and typing its last line in was marked correct, recorded
+  and advanced the mastery streak. A right answer to an equation that "Show
+  me" has shown is now still marked, in a muted "Right — but it was worked
+  for you" with no tick, and recorded not at all: no tick, no streak, and no
+  miss either, so an earlier tick, streak and review box are untouched. The
+  equation is what is remembered, not the card, so a drill draw that comes
+  round again, or the same question in another lesson, is not counted
+  either; it lasts until the app is next opened. Only a working that
+  actually arrived (or is still on its way) counts: one that failed or was
+  superseded showed nothing. The faded "Next step" working never shows the
+  answer and disqualifies nothing.
+
+- **A worked example could wait a minute behind typesetting.** The narrator
+  shares the thread pool with every equation's typesetting, much of it for
+  pages already left, and queued at equal priority behind it. It now goes
+  ahead of that queue. This was also the cause of an intermittently failing
+  screen test, which waited on the whole pool and ignored the timeout.
+
 - **A factor common to every term was taken for a singular point.** Series
   analysis read (1 − t²)(y'' + y) = 0 as having singular points at ±1 and a
   radius of 1; `series.split` now cancels a polynomial factor shared by all
