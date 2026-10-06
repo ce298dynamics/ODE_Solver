@@ -334,6 +334,66 @@ def test_mathlabel_retyping_discards_the_stale_render(qapp):
     assert label.is_typeset
 
 
+def test_a_render_nobody_wants_is_skipped(qapp, monkeypatch):
+    """Jobs for labels re-typed or destroyed while still queued do not render.
+
+    Every page typesets on the shared pool, and those jobs used to run even
+    after their page had gone: thousands of them over a long visit, enough to
+    keep a worked example waiting a minute. The pool is held busy here so the
+    jobs are still queued when their labels are superseded or deleted, which
+    is the case that matters -- a job already running cannot be recalled.
+    """
+    import threading
+
+    from PySide6.QtCore import QRunnable, QThreadPool
+
+    from odesuite_app import mathrender
+    from odesuite_app.theme import DARK
+    from odesuite_app.widgets.mathlabel import MathLabel
+
+    rendered: list[str] = []
+    real = mathrender.render_bytes
+
+    def counting(latex, *args, **kwargs):
+        rendered.append(latex)
+        return real(latex, *args, **kwargs)
+
+    monkeypatch.setattr(mathrender, "render_bytes", counting)
+
+    class _Hold(QRunnable):
+        def __init__(self, gate):
+            super().__init__()
+            self.gate = gate
+
+        def run(self):
+            self.gate.wait(30)
+
+    pool = QThreadPool.globalInstance()
+    gate = threading.Event()
+    for _ in range(pool.maxThreadCount()):
+        pool.start(_Hold(gate), 5)              # every thread busy, first
+    try:
+        # Exponents no other test uses, so nothing is answered from the cache.
+        kept = MathLabel(DARK, T ** 9101)
+        retyped = MathLabel(DARK, T ** 9102)
+        retyped.set_expression(T ** 9103)        # 9102 is now unwanted
+        gone = [MathLabel(DARK, T ** (9200 + n)) for n in range(20)]
+        for label in gone:
+            label.deleteLater()
+        qapp.processEvents()
+        from PySide6.QtCore import QCoreApplication, QEvent
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    finally:
+        gate.set()
+    _settle(qapp, kept)
+    _settle(qapp, retyped)
+
+    wanted = {sp.latex(T ** 9101), sp.latex(T ** 9103)}
+    assert wanted <= set(rendered), rendered
+    assert not set(rendered) - wanted, (
+        f"rendered for nobody: {sorted(set(rendered) - wanted)}")
+
+
 def test_mathlabel_retypesets_for_a_new_theme(qapp):
     from odesuite_app.theme import DARK, LIGHT
     from odesuite_app.widgets.mathlabel import MathLabel

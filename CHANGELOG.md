@@ -56,6 +56,13 @@ All notable changes to this project are documented here. The format follows
   superseded showed nothing. The faded "Next step" working never shows the
   answer and disqualifies nothing.
 
+- **Typesetting rendered equations nobody could see.** A queued render ran
+  even after its label had been re-typed or its page closed, and over a long
+  visit those jobs filled the shared thread pool ahead of whatever was asked
+  for next -- on every screen, not only the lessons. A job now checks, when
+  it is reached, whether its label still wants it, and returns at once if
+  not.
+
 - **A worked example could wait a minute behind typesetting.** The narrator
   shares the thread pool with every equation's typesetting, much of it for
   pages already left, and queued at equal priority behind it. It now goes

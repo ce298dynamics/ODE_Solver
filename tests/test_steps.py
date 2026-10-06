@@ -673,15 +673,22 @@ def _screen(palette_name="dark"):
 
 
 def _submit(screen, qapp, equation, ics=""):
-    from PySide6.QtCore import QThreadPool
+    import time
 
     from odesuite_app.symbolic import EquationSpec
 
     screen._on_submitted(
         EquationSpec(equations=[equation], initial_conditions=ics)
     )
-    QThreadPool.globalInstance().waitForDone(60_000)
-    qapp.processEvents()
+    # Wait for the derivation, not for the pool to go idle: `waitForDone`
+    # waits on everything on the shared pool, typesetting included, and its
+    # result was ignored. See the matching helper in test_laplace.py.
+    status = screen.steps._status
+    deadline = time.monotonic() + 90
+    while status.text() == "working out how this one is solved…":
+        assert time.monotonic() < deadline, "the derivation never arrived"
+        qapp.processEvents()
+        time.sleep(0.02)
     qapp.processEvents()
 
 
