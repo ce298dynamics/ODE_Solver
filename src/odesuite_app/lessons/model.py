@@ -429,6 +429,12 @@ class Case:
     latex: str = ""
     #: One of `TIERS`.
     tier: str = "typical"
+    #: The point the question is about, as typed -- ``"(pi, 0)"`` -- for a
+    #: question about one equilibrium of a nonlinear system. Empty for every
+    #: other kind. A linear system has one equilibrium and its matrix is the
+    #: whole story; a nonlinear one has several, each with its own Jacobian,
+    #: and naming the right point is half of what is being practised.
+    at: str = ""
 
 
 @dataclass(frozen=True)

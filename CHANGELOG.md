@@ -379,6 +379,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **A drill that names an equilibrium of a nonlinear system.** Seventeen
+  (system, point) questions in the nonlinear-equilibria lesson: linearise
+  at the point given and name what the Jacobian says -- or that it cannot,
+  for the non-hyperbolic cases. Several systems appear at two points on
+  purpose. Every answer is checked with `analysis.jacobian_at` and
+  `analysis.classify`, and the point is checked to be an equilibrium.
+
 - **Unit 8, nonlinear systems and phenomena** (Edwards ch. 6): six lessons —
   equilibria and linearisation, almost linear systems, ecological models,
   conservative mechanics, limit cycles and Poincaré–Bendixson, bifurcations and

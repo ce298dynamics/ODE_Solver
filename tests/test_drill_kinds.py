@@ -155,18 +155,47 @@ def _regime_of(equation: str) -> str:
     return "critically damped" if discriminant == 0 else "underdamped"
 
 
+def _equilibrium_of(case) -> str:
+    """What linearising says at `case.at`, through the Phase Portrait's own
+    routines: `analysis.jacobian_at` on the system, then `analysis.classify`.
+
+    A linear centre and every other non-hyperbolic answer are "undecided" --
+    for a nonlinear system the Jacobian cannot settle them. And the point has
+    to *be* an equilibrium, or the question is about nothing.
+    """
+    from odesuite import ODEProblem
+    from odesuite_app import analysis
+
+    x, y = sp.symbols("x y")
+    sides = [part.split("=", 1)[1] for part in case.equation.split(";")]
+    f = sp.lambdify((x, y), [sp.sympify(side, locals={"x": x, "y": y})
+                             for side in sides], "numpy")
+    point = np.array([float(sp.sympify(value))
+                      for value in case.at.strip("()").split(",")])
+    if np.max(np.abs(f(*point))) > 1e-9:
+        return f"not an equilibrium: f{case.at} = {f(*point)}"
+    problem = ODEProblem(f=lambda t, z: np.array(f(z[0], z[1]), dtype=float),
+                         t_span=(0.0, 1.0), y0=point)
+    kind, _ = analysis.classify(
+        np.linalg.eigvals(analysis.jacobian_at(problem, point)))
+    return "undecided" if kind in ("centre", "non-hyperbolic") else kind
+
+
 #: How each vocabulary's answers are checked. A `ClassifyTemplate` naming a
 #: table with no oracle here fails `test_every_vocabulary_has_an_oracle`,
 #: which is the point: the table is what makes the drill honest, and a table
-#: nothing checks is a stored answer key with extra steps.
+#: nothing checks is a stored answer key with extra steps. Each takes the whole
+#: `Case`, because an equilibrium question needs its point as well.
 ORACLES = {
-    "methods": _technique_of,
-    "portraits": lambda equation: __import__(
+    "methods": lambda case: _technique_of(case.equation),
+    "portraits": lambda case: __import__(
         "odesuite_app.analysis", fromlist=["classify"]
     ).classify(
-        np.linalg.eigvals(np.array(_matrix_of(equation).tolist(), dtype=float))
+        np.linalg.eigvals(np.array(_matrix_of(case.equation).tolist(),
+                                   dtype=float))
     )[0],
-    "damping": _regime_of,
+    "damping": lambda case: _regime_of(case.equation),
+    "equilibria": _equilibrium_of,
 }
 
 
@@ -193,8 +222,11 @@ def test_a_classify_drill_is_well_formed(lesson, template):
         )
         assert len(case.why) > 40, f"{where}: {case.equation} says too little"
         assert case.tier in TIERS
-        assert case.equation not in seen, f"{where}: {case.equation} twice"
-        seen.add(case.equation)
+        # The same system at two different points is two questions, and the
+        # equilibrium drill asks exactly that on purpose.
+        asked = (case.equation, case.at)
+        assert asked not in seen, f"{where}: {case.equation} {case.at} twice"
+        seen.add(asked)
 
 
 @pytest.mark.parametrize("lesson,template", CLASSIFY, ids=CLASSIFY_IDS)
@@ -219,10 +251,10 @@ def test_the_application_agrees_with_every_case(lesson, template):
     """
     oracle = ORACLES[template.table]
     for case in template.cases:
-        assert oracle(case.equation) == case.technique, (
-            f"{lesson.key}/{template.key}: {case.equation} is claimed to be "
-            f"{case.technique}, and the application says "
-            f"{oracle(case.equation)}"
+        assert oracle(case) == case.technique, (
+            f"{lesson.key}/{template.key}: {case.equation} {case.at} is "
+            f"claimed to be {case.technique}, and the application says "
+            f"{oracle(case)}"
         )
 
 
@@ -233,7 +265,9 @@ def test_the_shuffle_keeps_the_answer_with_its_case(lesson, template):
         question = generate.draw(template, seed)
         assert question.options[question.answer] == table[case.technique].title
         assert question.becauses[question.answer] == case.why
-        assert question.shown == case.equation
+        assert question.shown == generate.case_shown(case)
+        if case.at:
+            assert case.at in question.shown, "the point must be shown"
 
 
 def test_the_answer_does_not_sit_still():

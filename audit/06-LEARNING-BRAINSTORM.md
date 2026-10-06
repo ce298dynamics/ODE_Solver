@@ -109,7 +109,7 @@ these again" queue the quiz report already builds.
 | # | Item | Size | Status |
 |---|---|---|---|
 | L9 | "Show me" promises to stop counting the question, and does not | S | **done** 2026-10-04 |
-| L10 | Which-portrait drill for *nonlinear* equilibria, via the Jacobian | S–M | open |
+| L10 | Which-portrait drill for *nonlinear* equilibria, via the Jacobian | S–M | **done** 2026-10-06 |
 | L11 | Reduction of order in the which-method drill's vocabulary | S | **done** 2026-09-27 |
 | L12 | Glossary terms clickable where they appear in a lesson | M | open |
 
@@ -133,6 +133,10 @@ naming an equilibrium of a *nonlinear* system, which means taking the
 Jacobian at the right point first -- the step the pitfall note warns about.
 A `ClassifyTemplate` over (system, equilibrium) cases, checked by
 `jacobian_at` + `classify`, like the linear portrait drill.
+*Done:* `which-equilibrium` in the nonlinear-equilibria lesson, 17 cases.
+`Case.at` names the point; the menu adds "not decided by linearising" for
+the non-hyperbolic cases, since a linear centre is exactly where the
+Jacobian is silent.
 
 **L11.** `vocabulary.METHODS` has no entry for reduction of order, so the
 which-method drill cannot offer it even though the narrator now teaches it.

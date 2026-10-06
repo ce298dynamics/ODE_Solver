@@ -29,8 +29,10 @@ from __future__ import annotations
 
 from .chapters import unit8 as chapters
 from .model import (
+    Case,
     Choice,
     ChoiceTemplate,
+    ClassifyTemplate,
     Example,
     Lesson,
     Note,
@@ -327,6 +329,170 @@ EQUILIBRIA = Lesson(
                 "there, which makes the determinant a single product.",
             ),
             slots=(("a", (1, 2, 3)), ("c", (1, 2, 3, 4))),
+        ),
+        # L10. The unit's drills asked for numbers; the skill it is about is
+        # naming an equilibrium, which means taking the Jacobian at *that*
+        # point first -- the step the pitfall note warns about. Several
+        # systems appear at two points on purpose: same equation, different
+        # answer. Every case is checked in tests/test_drill_kinds.py through
+        # `analysis.jacobian_at` and `analysis.classify`, the routines the
+        # Phase Portrait screen names equilibria with.
+        ClassifyTemplate(
+            key="which-equilibrium",
+            title="What does linearising say here?",
+            prompt="Linearise at the point given, and name what the "
+                   "linearisation says about it — or say that it cannot.",
+            table="equilibria",
+            options=("saddle", "stable node", "unstable node",
+                     "stable spiral", "unstable spiral", "undecided"),
+            cases=(
+                Case(
+                    equation="x' = y; y' = -sin(x)", at="(pi, 0)",
+                    technique="saddle",
+                    why="The Jacobian is (0, 1; −cos x, 0), which at x = π is "
+                        "(0, 1; 1, 0): determinant −1, negative, so a saddle. "
+                        "The pendulum balanced upside down.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="x' = -x + y**2; y' = -2*y + x**2", at="(0, 0)",
+                    technique="stable node",
+                    why="The squared terms have zero derivative at the origin, "
+                        "so the Jacobian is (−1, 0; 0, −2): two real negative "
+                        "eigenvalues, a stable node.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="x' = x + y**2; y' = 2*y - x**2", at="(0, 0)",
+                    technique="unstable node",
+                    why="At the origin the Jacobian is (1, 0; 0, 2) — the "
+                        "squares contribute nothing there — so two real "
+                        "positive eigenvalues, an unstable node.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="x' = y; y' = -sin(x) - y/2", at="(0, 0)",
+                    technique="stable spiral",
+                    why="The Jacobian is (0, 1; −1, −1/2): trace −1/2, "
+                        "determinant 1, and τ² − 4Δ = 1/4 − 4 < 0. A complex "
+                        "pair with negative real part — the damped pendulum "
+                        "winds down.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="x' = y; y' = -x + y*(1 - x**2)", at="(0, 0)",
+                    technique="unstable spiral",
+                    why="Van der Pol: the Jacobian at the origin is (0, 1; "
+                        "−1, 1), trace 1 and determinant 1, so τ² − 4Δ = −3 "
+                        "and the pair has positive real part.",
+                    tier="easier",
+                ),
+                Case(
+                    equation="x' = x - x*y; y' = x*y - y", at="(0, 0)",
+                    technique="saddle",
+                    why="With no predators or prey the Jacobian is (1 − y, "
+                        "−x; y, x − 1) = (1, 0; 0, −1): prey grows, predators "
+                        "die, eigenvalues of opposite sign.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="x' = x*(3 - x - 2*y); y' = y*(2 - x - y)",
+                    at="(3, 0)",
+                    technique="stable node",
+                    why="The Jacobian is (3 − 2x − 2y, −2x; −y, 2 − x − 2y), "
+                        "which at (3, 0) is (−3, −6; 0, −1): triangular, "
+                        "eigenvalues −3 and −1, a stable node.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="x' = x**2 - y; y' = x - y", at="(0, 0)",
+                    technique="stable spiral",
+                    why="The Jacobian (2x, −1; 1, −1) is (0, −1; 1, −1) at the "
+                        "origin: trace −1, determinant 1, τ² − 4Δ = −3. A "
+                        "complex pair with negative real part.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="x' = y; y' = -2*sin(x) + y", at="(0, 0)",
+                    technique="unstable spiral",
+                    why="The Jacobian is (0, 1; −2, 1): trace 1, determinant "
+                        "2, τ² − 4Δ = −7. Negative damping pumps energy in, "
+                        "so the oscillation grows.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="x' = y; y' = -sin(x)", at="(0, 0)",
+                    technique="undecided",
+                    why="The Jacobian is (0, 1; −1, 0): trace 0, determinant "
+                        "1, eigenvalues ±i. A linear centre, which a "
+                        "nonlinear term can turn either way — here it is a "
+                        "true centre, but only the energy shows it.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="x' = y; y' = x - x**3", at="(1, 0)",
+                    technique="undecided",
+                    why="The Jacobian is (0, 1; 1 − 3x², 0), which at (1, 0) "
+                        "is (0, 1; −2, 0): eigenvalues ±i√2, purely "
+                        "imaginary. The Duffing well is a centre, but the "
+                        "linearisation cannot say so.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="x' = x*(3 - x - 2*y); y' = y*(2 - x - y)",
+                    at="(1, 1)",
+                    technique="saddle",
+                    why="At the coexistence point the Jacobian is (−1, −2; "
+                        "−1, −1): determinant 1 − 2 = −1, negative. "
+                        "Coexistence is a saddle, so one species wins.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="x' = y - x; y' = x**2 - y", at="(1, 1)",
+                    technique="saddle",
+                    why="The Jacobian (−1, 1; 2x, −1) is (−1, 1; 2, −1) at "
+                        "(1, 1) — the x² term contributes 2x = 2 there, not 0 "
+                        "as at the origin. Determinant 1 − 2 = −1: a saddle.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="x' = y; y' = -sin(x) - 3*y", at="(0, 0)",
+                    technique="stable node",
+                    why="The Jacobian is (0, 1; −1, −3): trace −3, determinant "
+                        "1, and τ² − 4Δ = 9 − 4 = 5 > 0. Heavy damping: two "
+                        "real negative eigenvalues and no turning.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="x' = y; y' = x - x**3 - y/2", at="(1, 0)",
+                    technique="stable spiral",
+                    why="The Jacobian at (1, 0) is (0, 1; −2, −1/2): trace "
+                        "−1/2, determinant 2, τ² − 4Δ = −31/4. Damping turns "
+                        "the Duffing well's undecided centre into a stable "
+                        "spiral.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="x' = -y + x*(x**2 + y**2); "
+                             "y' = x + y*(x**2 + y**2)",
+                    at="(0, 0)",
+                    technique="undecided",
+                    why="The cubic terms vanish to second order, so the "
+                        "Jacobian is (0, −1; 1, 0): eigenvalues ±i. In polar "
+                        "form r' = r³ > 0, so the truth is an unstable spiral "
+                        "— which the linearisation cannot see.",
+                    tier="harder",
+                ),
+                Case(
+                    equation="x' = 2*x - x*y; y' = x*y - 3*y", at="(3, 2)",
+                    technique="undecided",
+                    why="The Jacobian (2 − y, −x; y, x − 3) is (0, −3; 2, 0) "
+                        "at (3, 2): trace 0, determinant 6, eigenvalues "
+                        "±i√6. Predator and prey cycle, but a conserved "
+                        "quantity, not the Jacobian, proves it.",
+                    tier="harder",
+                ),
+            ),
         ),
     ),
 )

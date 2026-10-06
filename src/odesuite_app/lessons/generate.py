@@ -46,7 +46,7 @@ from .model import (
 )
 
 __all__ = ["draws", "draw", "draw_choice", "draw_numeric", "draw_model",
-           "draw_expression", "draw_classify", "draw_fault",
+           "draw_expression", "draw_classify", "draw_fault", "case_shown",
            "combinations", "every", "every_at", "tidy", "tier_of",
            "tiers", "option_written"]
 
@@ -393,14 +393,19 @@ def draw_classify(template: ClassifyTemplate, seed: int,
     random.Random(f"{template.key}#{index}").shuffle(order)
     return Choice(
         key=f"{template.key}#{index}",
-        prompt=template.prompt.format(equation=case.equation),
+        prompt=template.prompt.format(equation=case.equation, at=case.at),
         options=tuple(labels[position] for position in order),
         answer=order.index(answer),
         becauses=tuple(reasons[position] for position in order),
         latex=case.latex,
-        shown=case.equation,
+        shown=case_shown(case),
         origins=tuple(order),
     )
+
+
+def case_shown(case) -> str:
+    """The equation as a classify drill shows it, with its point if it has one."""
+    return f"{case.equation}     at (x, y) = {case.at}" if case.at else case.equation
 
 
 def draw_fault(template: FaultTemplate, seed: int, tier: str = "") -> Choice:
