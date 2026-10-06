@@ -92,6 +92,15 @@ class GlossaryScreen(QWidget):
             self.listing.setCurrentRow(0)
         self._show()
 
+    def select_term(self, name: str) -> None:
+        """Show one term's entry, clearing any search that would hide it."""
+        if self.query.text():
+            self.query.setText("")              # refilters to every term
+        for row in range(self.listing.count()):
+            if self.listing.item(row).data(Qt.UserRole).name == name:
+                self.listing.setCurrentRow(row)
+                return
+
     def current_term(self):
         item = self.listing.currentItem()
         return item.data(Qt.UserRole) if item is not None else None

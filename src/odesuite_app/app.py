@@ -270,6 +270,7 @@ class MainWindow(QWidget):
 
         lessons = LessonsScreen(self.state, self.palette_obj)
         lessons.open_tool.connect(self._open_tool)
+        lessons.open_term.connect(self._open_term)
         self._add("lessons", lessons)
 
         course = CourseScreen(self.state, self.palette_obj)
@@ -454,6 +455,13 @@ class MainWindow(QWidget):
             # equation by the time it becomes visible.
             screen.load_equation(equation, conditions)
         self.go(key)
+
+    def _open_term(self, name: str) -> None:
+        """Open the glossary at one term, for a link in a lesson's chapter."""
+        glossary = self._screens.get("glossary")
+        if glossary is not None and hasattr(glossary, "select_term"):
+            glossary.select_term(name)
+        self.go("glossary")
 
     def _open_lesson(self, key: str) -> None:
         """Open `Lessons` at one lesson, for the Course Map's rows."""

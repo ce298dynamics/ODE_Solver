@@ -22,7 +22,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-__all__ = ["Term", "TERMS", "text_of", "uses", "search"]
+__all__ = ["Term", "TERMS", "text_of", "uses", "search", "chapter_prose",
+           "link_terms", "term_of", "SCHEME"]
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,22 @@ class Term:
     lesson: str
     #: Other spellings found in the lessons -- "equilibria" for "equilibrium".
     also: tuple[str, ...] = ()
+    #: Phrases in which the word is ordinary English rather than the term:
+    #: "in a different order" is not the order of an equation, and the centre
+    #: of a disc is not an equilibrium. A use inside one of these is neither
+    #: linked nor counted as "used in". Found by reading every first use in
+    #: the chapters, which is how `tests/test_glossary.py` keeps it honest.
+    not_in: tuple[str, ...] = ()
+    #: Lessons where the word always means something else, so that no phrase
+    #: list could be complete: in the series unit "centre" is the point a
+    #: power series is expanded about, on every page.
+    not_lessons: tuple[str, ...] = ()
+    #: Whether a lesson's prose may link the word here. "order" may not: the
+    #: numerical-methods unit uses it as the order of *accuracy* ("Euler's
+    #: method is first order"), written exactly as the order of an equation
+    #: is, and no list of phrases separates the two. A link that is wrong
+    #: half the time is worse than none.
+    linkable: bool = True
 
     @property
     def spellings(self) -> tuple[str, ...]:
@@ -42,7 +59,11 @@ class Term:
 
 TERMS: tuple[Term, ...] = (
     Term("order", "The highest derivative that appears. An equation of order "
-         "n needs n conditions to pick out one solution.", "basics"),
+         "n needs n conditions to pick out one solution.", "basics",
+         not_in=("in order", "different order", "either order", "same order",
+                 "order matters", "order of events", "windows of order",
+                 "exponential order"),
+         linkable=False),
     Term("initial value problem", "An equation together with the value of "
          "the solution (and of enough derivatives) at one instant.",
          "basics", ("initial condition",)),
@@ -113,7 +134,11 @@ TERMS: tuple[Term, ...] = (
          "complex eigenvalues.", "phase-portraits"),
     Term("centre", "An equilibrium surrounded by closed orbits. Linearly, a "
          "purely imaginary pair of eigenvalues.", "phase-portraits",
-         ("center",)),
+         ("center",),
+         # A disc's centre and the Earth's; a power series' centre is the
+         # series unit's own meaning of the word.
+         not_in=("from the centre", "at the centre", "centre of the disc"),
+         not_lessons=("power-series", "recurrence", "frobenius")),
     Term("Jacobian", "The matrix of first partial derivatives of the "
          "right-hand sides, evaluated at an equilibrium.",
          "nonlinear-equilibria"),
@@ -122,7 +147,10 @@ TERMS: tuple[Term, ...] = (
          ("linearise", "linearising", "linearization")),
     Term("hyperbolic", "An equilibrium whose Jacobian has no eigenvalue with "
          "zero real part; there the linearisation tells the truth.",
-         "almost-linear"),
+         "almost-linear",
+         not_in=("hyperbolic function", "hyperbolic tangent",
+                 "hyperbolic versions", "hyperbolic cosine",
+                 "hyperbolic sine")),
     Term("Hartman–Grobman", "Near a hyperbolic equilibrium the nonlinear flow "
          "has the type and stability of its linearisation.",
          "almost-linear", ("Hartman-Grobman",)),
@@ -163,12 +191,36 @@ TERMS: tuple[Term, ...] = (
 
 
 def text_of(lesson) -> str:
-    """Everything a reader sees on a lesson's Learn and Examples pages."""
+    """Everything a reader sees on a lesson's Learn and Examples pages.
+
+    The chapter included. It is most of the Learn page now, and leaving it
+    out made "used in" a search of the summary cards: a term a chapter used
+    on every page was reported as used nowhere.
+    """
     parts = [lesson.title, lesson.summary, lesson.motivation]
     parts += [passage.prose for passage in lesson.derivation]
     parts += [f"{note.heading} {note.body}" for note in lesson.notes]
     parts += [f"{example.why} {example.commentary}" for example in lesson.examples]
+    parts += list(chapter_prose(getattr(lesson, "chapter", ())))
     return "\n".join(parts)
+
+
+def chapter_prose(sections):
+    """The words of a chapter, block by block, as `chapter.words` counts them."""
+    from .chapter import blocks_of
+
+    for section in sections:
+        yield section.title
+    for block in blocks_of(sections):
+        if block.kind == "para":
+            yield block.text
+        elif block.kind == "box":
+            yield f"{block.title} {block.body}"
+        elif block.kind == "worked":
+            yield " ".join([block.title, block.problem]
+                           + [step.prose for step in block.steps])
+        elif block.kind in ("plot", "figure"):
+            yield block.caption
 
 
 def _pattern(term: Term) -> re.Pattern:
@@ -176,10 +228,108 @@ def _pattern(term: Term) -> re.Pattern:
     return re.compile(rf"(?<![\w-])(?:{words})(?![\w])", re.IGNORECASE)
 
 
+# ---------------------------------------------------------------------------
+# Terms as links, where a lesson uses them
+# ---------------------------------------------------------------------------
+
+#: Every spelling of every term, longest first, so that at any position the
+#: longest name wins: "initial value problem" rather than a shorter term
+#: inside it, "exact equation" rather than "exact".
+_SPELLINGS = sorted(
+    ((spelling, index) for index, term in enumerate(TERMS)
+     for spelling in term.spellings),
+    key=lambda pair: -len(pair[0]),
+)
+_ANY_TERM = re.compile(
+    r"(?<![\w-])(" + "|".join(re.escape(s) for s, _ in _SPELLINGS) + r")(?![\w])",
+    re.IGNORECASE,
+)
+_BY_SPELLING = {spelling.lower(): index for spelling, index in _SPELLINGS}
+
+#: Markup and character entities: never linked inside, never split.
+_MARKUP = re.compile(r"(<[^>]*>|&[#\w]+;)")
+
+#: The prefix a term link's href carries, followed by the term's index.
+SCHEME = "term:"
+
+
+def term_of(href: str) -> Term | None:
+    """The term a link made by `link_terms` points to, or None."""
+    if not href.startswith(SCHEME):
+        return None
+    try:
+        return TERMS[int(href[len(SCHEME):])]
+    except (ValueError, IndexError):
+        return None
+
+
+def link_terms(html: str, lesson_key: str, linked: set[int],
+               colour: str = "") -> str:
+    """`html` with the first use of each glossary term made a link.
+
+    *First* per lesson, not per paragraph: `linked` is shared across a whole
+    page and grows as terms are linked, so a word used forty times is one
+    link, where the reader first meets it. A term this very lesson teaches is
+    never linked -- the reader is in the middle of its definition.
+
+    Only text is touched. The input is already rich text (escaped, with
+    emphasis and superscripts), so tags and entities are stepped over whole,
+    and a term inside a link is left alone. The link keeps its underline, so
+    it is not marked by colour alone.
+    """
+    pieces = _MARKUP.split(html)
+    inside_link = False
+    for position, piece in enumerate(pieces):
+        if position % 2:                                   # markup
+            lowered = piece.lower()
+            if lowered.startswith("<a ") or lowered == "<a>":
+                inside_link = True
+            elif lowered == "</a>":
+                inside_link = False
+            continue
+        if inside_link or not piece:
+            continue
+
+        def replace(match: re.Match, piece=piece) -> str:
+            index = _BY_SPELLING[match.group(1).lower()]
+            term = TERMS[index]
+            if (index in linked or term.lesson == lesson_key
+                    or not term.linkable or lesson_key in term.not_lessons
+                    or _ordinary(term, piece, match.start(), match.end())):
+                return match.group(0)
+            linked.add(index)
+            style = f' style="color:{colour};"' if colour else ""
+            return f'<a href="{SCHEME}{index}"{style}>{match.group(0)}</a>'
+
+        pieces[position] = _ANY_TERM.sub(replace, piece)
+    return "".join(pieces)
+
+
+def _ordinary(term: Term, text: str, start: int, end: int) -> bool:
+    """Whether the word at `text[start:end]` sits inside one of `term.not_in`
+    -- ordinary English, not the term."""
+    lowered = text.lower()
+    for phrase in term.not_in:
+        phrase = phrase.lower()
+        at = lowered.find(phrase, max(0, start - len(phrase)))
+        while at != -1 and at <= start:
+            if at + len(phrase) >= end:
+                return True
+            at = lowered.find(phrase, at + 1)
+    return False
+
+
 def uses(term: Term, lessons) -> tuple:
     """The lessons whose text mentions `term`, in course order."""
     pattern = _pattern(term)
-    return tuple(lesson for lesson in lessons if pattern.search(text_of(lesson)))
+
+    def mentions(text: str) -> bool:
+        return any(not _ordinary(term, text, m.start(), m.end())
+                   for m in pattern.finditer(text))
+
+    return tuple(lesson for lesson in lessons
+                 if lesson.key not in term.not_lessons
+                 and mentions(text_of(lesson)))
 
 
 def search(query: str, terms: tuple[Term, ...] = TERMS) -> tuple[Term, ...]:

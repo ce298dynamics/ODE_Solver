@@ -169,6 +169,8 @@ class LessonsScreen(QWidget):
     #: other end, because the window knows which screen to show and only this
     #: screen knows which lesson is open.
     open_tool = Signal(str, str, str)
+    #: Asks the window to open the glossary at a term a chapter linked.
+    open_term = Signal(str)
 
     def __init__(self, state, palette: Palette, parent=None) -> None:
         super().__init__(parent)
@@ -591,7 +593,10 @@ class LessonsScreen(QWidget):
         frame, layout = self._panel()
         layout.setContentsMargins(28, 18, 28, 26)
         frame.setAccessibleName(f"Chapter: {lesson.title}")
-        layout.addWidget(ChapterView(lesson.chapter, self.palette_obj))
+        chapter = ChapterView(lesson.chapter, self.palette_obj,
+                              lesson_key=lesson.key)
+        chapter.term_chosen.connect(self.open_term)
+        layout.addWidget(chapter)
         self._layout.addWidget(frame)
 
         formulas = [note for note in lesson.notes if note.kind == "formula"]

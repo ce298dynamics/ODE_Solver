@@ -111,7 +111,7 @@ these again" queue the quiz report already builds.
 | L9 | "Show me" promises to stop counting the question, and does not | S | **done** 2026-10-04 |
 | L10 | Which-portrait drill for *nonlinear* equilibria, via the Jacobian | S–M | **done** 2026-10-06 |
 | L11 | Reduction of order in the which-method drill's vocabulary | S | **done** 2026-09-27 |
-| L12 | Glossary terms clickable where they appear in a lesson | M | open |
+| L12 | Glossary terms clickable where they appear in a lesson | M | **done** 2026-10-06 |
 
 **L9.** Both "Show me" buttons carry the tooltip "Work it through in full, and
 stop counting this one", and nothing in `_check_solve` knows the button was
@@ -143,3 +143,8 @@ which-method drill cannot offer it even though the narrator now teaches it.
 
 **L12.** The glossary links a term to its lessons; the lessons do not link
 back. Rich-text anchors on the first use of each term in a lesson's prose.
+*Done:* `glossary.link_terms`, used by `ChapterView`: first use per
+lesson, never in the teaching lesson, hover for the definition, click for
+the Glossary. Reading every link showed "order", "centre" and
+"hyperbolic" in everyday senses; `Term.not_in`, `not_lessons` and
+`linkable` exclude them, and "used in" now searches the chapters too.

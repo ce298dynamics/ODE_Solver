@@ -43,6 +43,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The glossary's "used in" ignored the chapters.** It searched only the
+  lesson cards, and missed 200 term-lesson pairs; it now reads the
+  chapters too, and no longer counts a word used in its everyday sense.
+
 - **"Show me" said it stopped counting the question, and did not.** Reading
   the full working and typing its last line in was marked correct, recorded
   and advanced the mastery streak. A right answer to an equation that "Show
@@ -378,6 +382,14 @@ All notable changes to this project are documented here. The format follows
   install alongside anything else.
 
 ### Added
+
+- **Glossary terms are links where a chapter uses them.** The first use
+  of each term in a lesson's chapter is underlined; hovering shows the
+  definition, and following it opens the Glossary at that term. A term is
+  not linked in the lesson that teaches it, and a word in its everyday
+  sense is not linked at all: the centre of a disc, hyperbolic functions,
+  and "order" (which the numerical unit also uses for accuracy) are
+  excluded by phrase, by lesson, or outright.
 
 - **A drill that names an equilibrium of a nonlinear system.** Seventeen
   (system, point) questions in the nonlinear-equilibria lesson: linearise

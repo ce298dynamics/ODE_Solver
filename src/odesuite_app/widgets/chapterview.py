@@ -18,13 +18,23 @@ this answers was that the lessons did not read like one:
 from __future__ import annotations
 
 import re
+from html import escape
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QCursor
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QToolTip,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .. import richtext, theme
+from ..lessons import glossary
 from ..theme import Palette
 from .mathlabel import MathLabel
 
@@ -88,12 +98,27 @@ def evaluate_curve(curve, t_range) -> tuple[np.ndarray, np.ndarray]:
 
 
 class ChapterView(QWidget):
-    """A whole chapter. Built once per lesson; the page scrolls around it."""
+    """A whole chapter. Built once per lesson; the page scrolls around it.
 
-    def __init__(self, sections, palette: Palette, parent=None) -> None:
+    Given `lesson_key`, the first use of each glossary term in the chapter's
+    prose is a link: hovering shows its definition, and activating it emits
+    `term_chosen` with the term's name, for the window to open the glossary
+    there. Terms the lesson itself teaches are not linked (see
+    `glossary.link_terms`).
+    """
+
+    #: The name of a glossary term the reader followed.
+    term_chosen = Signal(str)
+
+    def __init__(self, sections, palette: Palette, parent=None, *,
+                 lesson_key: str = "") -> None:
         super().__init__(parent)
         self.palette_obj = palette
         self._counts = {"box": 0, "example": 0}
+        self._lesson_key = lesson_key
+        #: Terms already linked on this page: one link per term, at its first
+        #: use, not one per paragraph.
+        self._linked: set[int] = set()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -109,18 +134,47 @@ class ChapterView(QWidget):
         for part in (piece.strip() for piece in text.split("\n\n")):
             if not part:
                 continue
-            label = QLabel(
-                f'<p style="line-height: 145%;">'
-                f'{superscripts(richtext.emphasise(part))}</p>')
+            body = superscripts(richtext.emphasise(part))
+            if self._lesson_key:
+                body = glossary.link_terms(body, self._lesson_key, self._linked,
+                                           self.palette_obj.accent)
+            label = QLabel(f'<p style="line-height: 145%;">{body}</p>')
             label.setTextFormat(Qt.RichText)
             label.setWordWrap(True)
-            label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            if "<a " in body:
+                # Keyboard-reachable as well as clickable: a link only a mouse
+                # can follow is not there for a keyboard reader.
+                label.setTextInteractionFlags(
+                    Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse
+                    | Qt.LinksAccessibleByKeyboard)
+                label.setOpenExternalLinks(False)
+                label.linkActivated.connect(self._follow)
+                label.linkHovered.connect(self._define)
+            else:
+                label.setTextInteractionFlags(Qt.TextSelectableByMouse)
             label.setAccessibleName("paragraph")
             label.setAccessibleDescription(richtext.plain(part))
             label.setStyleSheet(theme.scaled("font-size: 14px;"))
             if muted:
                 label.setProperty("role", "muted")
             layout.addWidget(label)
+
+    def _follow(self, href: str) -> None:
+        term = glossary.term_of(href)
+        if term is not None:
+            self.term_chosen.emit(term.name)
+
+    def _define(self, href: str) -> None:
+        """The definition beside the cursor while it rests on a term."""
+        term = glossary.term_of(href)
+        if term is None:
+            QToolTip.hideText()
+            return
+        QToolTip.showText(QCursor.pos(),
+                              f"<b>{escape(term.name)}</b><br>"
+                              f"{escape(term.definition)}"
+                              "<br><i>Click for the glossary entry.</i>",
+                              self)
 
     def _display(self, layout, latex: str, number: str = "") -> None:
         row = QHBoxLayout()
