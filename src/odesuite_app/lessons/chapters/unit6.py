@@ -1299,7 +1299,8 @@ DISTINCT = (
         Para(
             "The conservation law x + y = 30, which the previous chapter found "
             "by adding the equations, is the zero eigenvalue seen from the "
-            "other side: x + y is 3c₁, the coordinate whose rate is 0. A closed system that loses nothing always has a zero "
+            "other side: x + y is 3c₁, the coordinate whose rate is 0. A closed system that "
+            "loses nothing always has a zero "
             "eigenvalue for this reason, and the point on the line of "
             "equilibria at which it settles is fixed by the conserved total."
         ),
@@ -1581,7 +1582,8 @@ COMPLEX = (
             "complex exponentials must be converted back into real functions. "
             "The conversion is the one Unit 3 used for complex characteristic "
             "roots, and Unit 4 for the underdamped oscillator: Euler's formula, "
-            "now applied to a vector as well as to a scalar. That last clause is where nearly all the mistakes in this "
+            "now applied to a vector as well as to a scalar. That last clause is where nearly "
+            "all the mistakes in this "
             "topic are made."
         ),
     )),
@@ -3478,7 +3480,8 @@ NONHOMOGENEOUS = (
         Box(
             "warning", "Multiply by t, and keep the lower term",
             "With f = e^(λt)f₀ and λ a simple eigenvalue (multiplicity one), "
-            "try x_p = (at + b)e^(λt). Matching the t terms forces (A − λI)a = 0, so a is an eigenvector; "
+            "try x_p = (at + b)e^(λt). Matching the t terms forces (A − λI)a = 0, so a is an "
+            "eigenvector; "
             "matching the rest gives (A − λI)b = a − f₀, which is solvable only "
             "for the right multiple of that eigenvector. The guess te^(λt)a "
             "alone, without b, almost always fails. If λ is a repeated "
@@ -3875,7 +3878,8 @@ NONHOMOGENEOUS = (
             "and Φ⁻¹(s) inside it are taken at different times, so Φ∫Φ⁻¹f is "
             "not ∫f, even for a single equation. And because matrices do not "
             "commute, Φ⁻¹ must stand to the left of f inside the integral, and "
-            "Φ to the left of the integral outside. The fourth is to treat e^(At) as the entrywise exponential of At, and "
+            "Φ to the left of the integral outside. The fourth is to treat e^(At) as the "
+            "entrywise exponential of At, and "
             "the fifth is to use e^(A+B) = e^A e^B without checking that A and "
             "B commute. The last is the resonant guess te^(λt)a without the "
             "companion term b."

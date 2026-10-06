@@ -493,7 +493,8 @@ POWERSERIES = (
             "every coefficient in powers of s (nothing to do when t₀ = 0, "
             "where s = t), and substitute y = Σ aₙsⁿ and the term-by-term "
             "derivatives. 4. Re-index every sum so that each runs over the "
-            "same power sⁿ, and note where each one starts. 5. Collect, set the coefficient of each power "
+            "same power sⁿ, and note where each one starts. 5. Collect, set the coefficient of "
+            "each power "
             "to zero, and solve for the highest-index coefficient: that is "
             "the recurrence. 6. Leave a₀ and a₁ free, or set them from "
             "y(t₀) and y'(t₀), and generate the rest.",
@@ -956,7 +957,8 @@ POWERSERIES = (
             "Sometimes the failure is partial. For t²y'' + ty' − y = 0 the "
             "same calculation gives (n² − 1)aₙ = 0, so a₁ survives and the "
             "series method finds y = t — one solution of two. The other, "
-            "1/t, which the reduction-of-order chapter found, is not analytic at 0, and no choice of coefficients can "
+            "1/t, which the reduction-of-order chapter found, is not analytic at 0, and no "
+            "choice of coefficients can "
             "produce it. At a singular point it is frequently the second "
             "solution — the one a physical problem usually discards for "
             "being infinite there — that has no power series."
@@ -1915,7 +1917,8 @@ FROBENIUS = (
             "Separate variables in a problem with circular symmetry — a "
             "vibrating drumhead, heat flowing in a cylinder, a waveguide — and "
             "the radial equation is Bessel's equation, singular at the centre "
-            "of the disc, where the radius is zero. Do the same on a sphere and Legendre's equation "
+            "of the disc, where the radius is zero. Do the same on a sphere and Legendre's "
+            "equation "
             "appears, singular at t = ±1, the poles. The physically essential "
             "condition, that the solution stay finite at the centre or at the "
             "pole, is stated precisely at the singular point. A method that "
@@ -2701,7 +2704,8 @@ FROBENIUS = (
             "0·a₂ = −71a₀ at n = 2, the breakdown Bessel's order one showed, "
             "so the second solution carries a logarithm. The series with "
             "exponent 0, 1 + t/3 + t²/24 + t³/72 + ⋯, is guaranteed only on "
-            "0 < t < 1, because the irregular point t = 1 is at distance 1. For Legendre's equation "
+            "0 < t < 1, because the irregular point t = 1 is at distance 1. For Legendre's "
+            "equation "
             "expanded about t = 1, the other pole t = −1 is at distance 2."
         ),
         Para(
@@ -2731,7 +2735,8 @@ FROBENIUS = (
     )),
     Section("What Frobenius is for", (
         Para(
-            "It is worth stating plainly what the method delivers. Frobenius tells you, before any series is summed, how every "
+            "It is worth stating plainly what the method delivers. Frobenius tells you, before "
+            "any series is summed, how every "
             "solution behaves at the singular point: like t^(r₁), like t^(r₂), "
             "or — in the exceptional cases — with a logarithm. Those exponents "
             "come from a quadratic that takes a minute to write down."

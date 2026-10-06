@@ -1868,7 +1868,8 @@ ALMOST_LINEAR = (
                      "Lyapunov's test makes the origin stable; here it is "
                      "plain anyway, since V is half the squared distance and "
                      "the distance never increases. The second half does not "
-                     "apply, because dV/dt vanishes on the whole x-axis. A solution cannot stay on the "
+                     "apply, because dV/dt vanishes on the whole x-axis. A solution cannot "
+                     "stay on the "
                      "x-axis except at the origin, because there y' = −x ≠ 0 "
                      "pushes it off at once, so V keeps strictly decreasing; "
                      "a further argument (LaSalle's invariance principle) "
@@ -2952,7 +2953,8 @@ ECOLOGY = (
             "the y-axis at 2/3, below the y-nullcline's 1, and the "
             "y-nullcline meets the x-axis at 2/3, inside the x-nullcline's "
             "1. They cross at the saddle (2/5, 2/5). The two exact "
-            "solutions along the diagonal, from (0.1, 0.1) and (1.2, 1.2), both run into the saddle: "
+            "solutions along the diagonal, from (0.1, 0.1) and (1.2, 1.2), both run into the "
+            "saddle: "
             "together they make up its stable curve, the separatrix. Every "
             "population starting above the diagonal ends at (0, 1), and "
             "every one starting below it ends at (1, 0).",
@@ -4002,7 +4004,8 @@ MECHANICS = (
                "The figure starts at speed 1.5, with damping c = 0. The "
                "readout gives the energy at the start and after t = 30, and "
                "they agree to all four decimals shown (the slider's 1.5 is "
-               "really 1.4992, so both read +0.1238): the coloured trajectory is a closed curve lying "
+               "really 1.4992, so both read +0.1238): the coloured trajectory is a closed "
+               "curve lying "
                "between the grey constant-energy curves. Drag the "
                "starting speed (its range is 0.4 to 2.8) up towards 2 and "
                "watch the swing fill out towards the heavy separatrix; at "
@@ -5970,7 +5973,8 @@ BIFURCATIONS = (
                      r"\tau = \mu, \quad \Delta = 1, \quad \lambda = "
                      r"\frac{\mu}{2} \pm i\sqrt{1 - \frac{\mu^{2}}{4}}"),
                 Step("For the size, use the energy balance of Van der Pol's "
-                     "oscillator in the limit-cycles chapter. With E = (x² + y²)/2, the rate of change along "
+                     "oscillator in the limit-cycles chapter. With E = (x² + y²)/2, the rate "
+                     "of change along "
                      "a solution is xy + y(−x + μy − y³) = μy² − y⁴. Small "
                      "velocities feed energy in, large ones take it out.",
                      r"E' = \mu y^{2} - y^{4}"),
@@ -6180,10 +6184,12 @@ BIFURCATIONS = (
                    y="(4 + (sqrt(6) - 2)*t - sqrt((sqrt(6) - 2)*t*(4 + (sqrt(6) - 2)*t)))"
                      "/(2*(3 + (sqrt(6) - 2)*t))"),
              Curve("1 + sqrt(6) + (3 - sqrt(6))*t", "2-cycle, unstable",
-                   y="(2 + sqrt(6) + (3 - sqrt(6))*t + sqrt((sqrt(6) - 2 + (3 - sqrt(6))*t)*(2 + sqrt(6) + (3 - sqrt(6))*t)))"
+                   y="(2 + sqrt(6) + (3 - sqrt(6))*t + sqrt((sqrt(6) - 2 + (3 - "
+                     "sqrt(6))*t)*(2 + sqrt(6) + (3 - sqrt(6))*t)))"
                      "/(2*(1 + sqrt(6) + (3 - sqrt(6))*t))"),
              Curve("1 + sqrt(6) + (3 - sqrt(6))*t", "",
-                   y="(2 + sqrt(6) + (3 - sqrt(6))*t - sqrt((sqrt(6) - 2 + (3 - sqrt(6))*t)*(2 + sqrt(6) + (3 - sqrt(6))*t)))"
+                   y="(2 + sqrt(6) + (3 - sqrt(6))*t - sqrt((sqrt(6) - 2 + (3 - "
+                     "sqrt(6))*t)*(2 + sqrt(6) + (3 - sqrt(6))*t)))"
                      "/(2*(1 + sqrt(6) + (3 - sqrt(6))*t))"),
              Curve("3.5441 + 0*t", "r₃, 8-cycle begins", y="t"),
              Curve("3.5699 + 0*t", "r∞, doublings end", y="t")),

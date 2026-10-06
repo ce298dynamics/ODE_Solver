@@ -1297,7 +1297,8 @@ BASICS = (
         Para(
             "The definition of a solution mentions an interval, and the "
             "interval is not a technicality. The function y = 1/t solves "
-            "y' = −y², since y' = −1/t² and −y² = −1/t². But 1/t is not defined at t = 0, so it cannot be a "
+            "y' = −y², since y' = −1/t² and −y² = −1/t². But 1/t is not defined at t = 0, so "
+            "it cannot be a "
             "solution on any interval containing 0. It is a solution on "
             "(0, ∞), and separately on (−∞, 0), and those are two different "
             "solutions that happen to share a formula."

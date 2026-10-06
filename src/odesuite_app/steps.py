@@ -1787,7 +1787,6 @@ def _reduction_of_order(equation: sp.Eq, function: sp.Function, ics: dict,
         verified=_satisfies(equation, function, y1),
     ))
 
-    v = sp.Function("v")
     w_symbol = sp.Symbol("w")
     reduced = sp.simplify(2 * y1.diff(_T) / y1 + p)
     derivation.steps.append(Step(
