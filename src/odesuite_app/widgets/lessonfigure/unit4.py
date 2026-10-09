@@ -249,3 +249,109 @@ class ResonanceFigure(LessonFigure):
             f"{words}    —    damped peak {amplitudes[peak]:.2f} at "
             f"ω = {frequencies[peak]:.2f}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Circuits: the same equation, wearing different letters
+# ---------------------------------------------------------------------------
+
+
+class CircuitFigure(LessonFigure):
+    """An RLC loop beside its mass-spring twin, driven by the same numbers.
+
+    The lesson's claim is not that the two systems are *similar*. It is that
+    they are the same equation, and that every fact proved about one is
+    already a fact about the other. A figure of two systems that merely looked
+    alike would understate that, so the two panes are driven from a single set
+    of sliders through the correspondence L = m, R = c, 1/C = k -- and the
+    curves are then identical to floating point, which the readout measures
+    and prints.
+
+    That measurement is the point of the figure. The residual between the two
+    panes is not small because the models were tuned to agree; it is zero
+    because there is only one model, and anything other than zero here would
+    mean the analogy had been written down wrong.
+    """
+
+    title = "One equation, two circuits of letters"
+    caption = ("Left: the charge on the capacitor in L·q″ + R·q′ + q/C = 0. "
+               "Right: the position of a mass in m·x″ + c·x′ + k·x = 0, with "
+               "m = L, c = R and k = 1/C. The sliders drive both. The curves "
+               "are not similar; they are the same numbers.")
+    plots = 2
+
+    _T_END = 14.0
+
+    def build_sliders(self) -> None:
+        self.add_slider("L", "L  (henries)   =   m  (mass)", 0.4, 3.0, 1.0)
+        self.add_slider("R", "R  (ohms)   =   c  (damping)", 0.0, 4.0, 0.6,
+                        hint="Resistance dissipates energy as heat; damping "
+                             "dissipates it as heat. The analogy is not a "
+                             "metaphor at this point.")
+        self.add_slider("C", "C  (farads),  so  k = 1/C", 0.15, 2.0, 0.5)
+
+    def elements(self) -> tuple[float, float, float]:
+        """``(L, R, 1/C)``, which is also ``(m, c, k)``."""
+        return self.value("L"), self.value("R"), 1.0 / self.value("C")
+
+    def _response(self, t: np.ndarray) -> np.ndarray:
+        """The free response from q(0) = 1, q'(0) = 0, in closed form.
+
+        Closed form rather than a solve, and one function rather than two: if
+        the analogy is real then there is nothing to compute twice, and
+        computing it twice would be the figure quietly hedging on its own
+        claim.
+        """
+        inductance, resistance, stiffness = self.elements()
+        discriminant = resistance ** 2 - 4.0 * inductance * stiffness
+        alpha = -resistance / (2.0 * inductance)
+        if abs(discriminant) < 1e-12:
+            return (1.0 - alpha * t) * np.exp(alpha * t)
+        if discriminant > 0:
+            gap = math.sqrt(discriminant) / (2.0 * inductance)
+            first, second = alpha + gap, alpha - gap
+            return ((second * np.exp(first * t) - first * np.exp(second * t))
+                    / (second - first))
+        beta = math.sqrt(-discriminant) / (2.0 * inductance)
+        return np.exp(alpha * t) * (np.cos(beta * t)
+                                    - (alpha / beta) * np.sin(beta * t))
+
+    def draw(self) -> None:
+        t = np.linspace(0.0, self._T_END, 1200)
+        values = self._response(t)
+
+        for index, (pane, axis) in enumerate((
+            (self.panes[0], "q  (charge)"), (self.panes[1], "x  (position)"),
+        )):
+            pane.clear()
+            pane.setLabel("bottom", "t")
+            pane.setLabel("left", axis)
+            pane.addLine(y=0, pen=pg.mkPen(self.palette_obj.border, width=1))
+            pane.plot(t, values, pen=pg.mkPen(self.colour(index), width=3))
+            pane.setYRange(-1.2, 1.2, padding=0.02)
+        self._describe(t, values)
+
+    def _describe(self, t: np.ndarray, values: np.ndarray) -> None:
+        inductance, resistance, stiffness = self.elements()
+        natural = math.sqrt(stiffness / inductance)
+        critical = 2.0 * math.sqrt(inductance * stiffness)
+        regime = ("no resistance at all: it rings forever" if resistance <= 1e-9
+                  else "oscillating, and losing amplitude to the resistor"
+                  if resistance < critical - 1e-9 else
+                  "no oscillation left: the charge returns without overshoot")
+        # The residual of the drawn curve against the circuit equation, which
+        # is also its residual against the mechanical one. Measured, because
+        # "the same equation" is the claim.
+        step = float(t[1] - t[0])
+        speed = np.gradient(values, step)
+        acceleration = np.gradient(speed, step)
+        residual = float(np.max(np.abs(
+            inductance * acceleration + resistance * speed + stiffness * values
+        )[4:-4]))
+        self.readout.setText(
+            f"L = m = {inductance:.2f},  R = c = {resistance:.2f},  "
+            f"1/C = k = {stiffness:.2f}. Resonant frequency 1/√(LC) = "
+            f"√(k/m) = {natural:.3f}; critical at R = 2√(L/C) = "
+            f"{critical:.3f}, so this is {regime}. The one curve satisfies "
+            f"both equations to {residual:.1e}."
+        )

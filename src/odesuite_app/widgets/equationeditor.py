@@ -140,7 +140,11 @@ class EquationEditor(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
+        # Accessible names throughout (A11Y-01). A placeholder is not a name
+        # -- it vanishes the moment anything is typed, and a screen reader
+        # does not announce it as a label -- so every field says what it is.
         self.example_picker = QComboBox()
+        self.example_picker.setAccessibleName("example equation")
         self.example_picker.addItems(list(self._examples))
         self.example_picker.currentTextChanged.connect(self.load_example)
         layout.addWidget(self.example_picker)
@@ -160,6 +164,9 @@ class EquationEditor(QWidget):
             field.setPlaceholderText(
                 "y'' + 2*y' + 5*y = 0" if index == 0 else "another equation…"
             )
+            field.setAccessibleName(
+                "equation" if index == 0 else f"equation {index + 1}"
+            )
             field.textChanged.connect(self._refresh_parameter_names)
             field.returnPressed.connect(self.submit)
             layout.addWidget(field)
@@ -168,6 +175,7 @@ class EquationEditor(QWidget):
         layout.addSpacing(4)
         layout.addWidget(self._heading("Initial conditions"))
         self.ics = QLineEdit()
+        self.ics.setAccessibleName("initial conditions")
         self.ics.setPlaceholderText("y(0) = 1, y'(0) = 0     (optional)")
         self.ics.returnPressed.connect(self.submit)
         layout.addWidget(self.ics)
@@ -203,7 +211,9 @@ class EquationEditor(QWidget):
             name = QLabel("")
             name.setProperty("role", "mono")
             value, low, high = QLineEdit(), QLineEdit(), QLineEdit()
-            for field in (value, low, high):
+            for field, role in ((value, "value"), (low, "minimum"),
+                                (high, "maximum")):
+                field.setAccessibleName(f"parameter {row + 1} {role}")
                 field.setFixedWidth(58)
                 field.returnPressed.connect(self.submit)
             grid.addWidget(name, row + 1, 0)
@@ -222,12 +232,14 @@ class EquationEditor(QWidget):
         label.setProperty("role", "muted")
         span.addWidget(label)
         self.t_start = QLineEdit("0")
+        self.t_start.setAccessibleName("start time")
         self.t_start.setFixedWidth(58)
         span.addWidget(self.t_start)
         to = QLabel("to")
         to.setProperty("role", "muted")
         span.addWidget(to)
         self.t_end = QLineEdit("10")
+        self.t_end.setAccessibleName("end time")
         self.t_end.setFixedWidth(58)
         span.addWidget(self.t_end)
         span.addStretch(1)
@@ -273,6 +285,11 @@ class EquationEditor(QWidget):
             if index < len(names):
                 name = names[index]
                 label.setText(name)
+                # The row's accessible names follow the parameter it holds,
+                # since the column headings are only visual.
+                for field, role in ((value, "value"), (low, "minimum"),
+                                    (high, "maximum")):
+                    field.setAccessibleName(f"{role} of {name}")
                 kept = previous.get(name)
                 if kept:
                     value.setText(kept[0])

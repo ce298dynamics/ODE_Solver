@@ -455,3 +455,80 @@ def test_equilibria_outside_the_window_are_not_reported():
 def test_a_phase_line_needs_a_scalar_equation():
     with pytest.raises(ValueError, match="scalar"):
         analysis.phase_line(lotka_volterra().problem, (0.0, 3.0))
+
+
+# ---------------------------------------------------------------------------
+# PED-08 -- where the solver kept refusing steps onto one instant
+# ---------------------------------------------------------------------------
+
+
+def _solve_scalar(rhs, span, y0, rtol=1e-6):
+    from odesuite import ODEProblem, solve
+
+    return solve(ODEProblem(f=rhs, t_span=span, y0=[y0]), method="dopri5",
+                 rtol=rtol, atol=rtol * 1e-2)
+
+
+@pytest.mark.parametrize("rtol", [1e-6, 1e-9])
+@pytest.mark.parametrize(
+    "name,rhs,span,y0,where",
+    [
+        ("a jump in f", lambda t, y: np.array([np.sign(t - 1.0)]), (0, 3), 0.0, 1.0),
+        ("a kink in f", lambda t, y: np.array([abs(t - 1.0)]), (0, 3), 0.0, 1.0),
+        ("a switched forcing term",
+         lambda t, y: np.array([-y[0] + (1.0 if t > 2 else 0.0)]), (0, 6), 1.0, 2.0),
+    ],
+)
+def test_a_non_smooth_right_hand_side_is_located(name, rhs, span, y0, where, rtol):
+    spots = analysis.rough_spots(_solve_scalar(rhs, span, y0, rtol))
+    assert len(spots) == 1, (name, spots)
+    assert spots[0] == pytest.approx(where, abs=0.01), name
+
+
+@pytest.mark.parametrize(
+    "name,build",
+    [
+        ("decay", lambda: _solve_scalar(lambda t, y: -2 * y, (0, 5), 1.0)),
+        ("fast forcing",
+         lambda: _solve_scalar(lambda t, y: -y + np.sin(10 * t), (0, 10), 0.0)),
+    ],
+)
+def test_a_smooth_problem_has_no_rough_spots(name, build):
+    assert analysis.rough_spots(build()) == [], name
+
+
+def test_a_relaxation_jump_is_not_mistaken_for_a_discontinuity():
+    """Van der Pol at mu = 10 rejects steps at every relaxation jump -- a smooth
+    feature that is merely fast. Its rejections do not pile up on one instant
+    and their step sizes stay within a small factor of each other."""
+    from odesuite import solve
+
+    for rtol in (1e-3, 1e-6, 1e-9):
+        solution = solve(van_der_pol(mu=10.0).problem, method="dopri5",
+                         rtol=rtol, atol=rtol * 1e-2)
+        assert len(solution.rejected) > 0
+        assert analysis.rough_spots(solution) == [], rtol
+
+
+def test_the_initial_step_search_is_not_a_rough_spot():
+    """Robertson's first-step search halves h five times from t0. That is the
+    exact signature, and it is about the guess rather than the equation."""
+    from odesuite import solve
+    from odesuite.problems import robertson
+
+    solution = solve(robertson().problem, method="radau", rtol=1e-8, atol=1e-11)
+    assert np.count_nonzero(solution.rejected[:, 0] == solution.t[0]) >= 4
+    assert analysis.rough_spots(solution) == []
+
+
+def test_a_failed_solve_is_left_to_its_own_diagnosis():
+    solution = _solve_scalar(lambda t, y: y ** 2, (0, 2), 1.0)
+    assert not solution.success
+    assert analysis.rough_spots(solution) == []
+
+
+def test_the_note_is_about_the_solver_not_the_equation():
+    assert analysis.rough_spot_note([]) is None
+    note = analysis.rough_spot_note([1.0])
+    assert "t ≈ 1" in note and "may be" in note
+    assert "and 2 more" in analysis.rough_spot_note([1.0, 2.0, 3.0, 4.0, 5.0])

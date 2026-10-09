@@ -555,3 +555,216 @@ def test_the_collapse_control_round_trips(solved, qapp):
     assert not lab.stats.collapsed
     assert seen == [True, False]
     lab.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# The two views that are not the picture
+# ---------------------------------------------------------------------------
+#
+# A plot is the one representation of a solution this application could not
+# hand to somebody who is not looking at it. These are the other two: the
+# paragraph a screen reader announces in its place, and the numbers behind it.
+
+
+def test_the_panel_offers_the_plot_the_words_and_the_data(solved, qapp):
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    tabs = [panel.views.tabText(i) for i in range(panel.views.count())]
+    assert tabs == ["Plot", "In words", "Data"]
+    panel.deleteLater()
+
+
+def test_a_plot_describes_itself_for_a_reader_who_cannot_see_it(solved, qapp):
+    """The alternative text is the accessible description of the plot widget,
+    which is what a screen reader reads in place of the image."""
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    panel.update_from(solved.result, "Auto")
+    qapp.processEvents()
+
+    words = panel.plot.accessibleDescription()
+    assert words == panel.summary()
+    assert "Van der Pol" in words
+    # Not vacuous: it names the shape and the interval it was found over.
+    assert "oscillates" in words, words
+    assert "t from 0 to 60" in words, words
+    panel.deleteLater()
+
+
+def test_an_empty_panel_says_so_rather_than_describing_nothing(qapp):
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    assert "Nothing has been solved" in panel.plot.accessibleDescription()
+    panel.clear("solve failed")
+    assert panel.plot.accessibleDescription() == "solve failed"
+    panel.deleteLater()
+
+
+def test_the_data_table_matches_the_solution(solved, qapp):
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    panel.update_from(solved.result, "Auto")
+    qapp.processEvents()
+
+    model = panel.table_model
+    solution = solved.result.solution
+    assert model.columnCount() == solution.y.shape[0] + 1
+    assert model.column_name(0) == "t"
+    assert model.column_name(1) == catalog.get("van_der_pol").labels[0]
+
+    index = model.index(0, 0)
+    assert float(model.data(index)) == pytest.approx(float(solution.t[0]),
+                                                     rel=1e-5)
+    last = model.index(model.rowCount() - 1, 1)
+    assert float(model.data(last)) == pytest.approx(float(solution.y[0, -1]),
+                                                    rel=1e-5)
+    panel.deleteLater()
+
+
+def test_the_data_table_is_reachable_and_copyable_from_the_keyboard(solved,
+                                                                    qapp):
+    """Qt gives a table view selection and navigation and no copying at all,
+    so `Ctrl+C` is the part that had to be written and is the part worth
+    testing."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QGuiApplication
+
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    panel.update_from(solved.result, "Auto")
+    qapp.processEvents()
+
+    assert panel.table.focusPolicy() != Qt.NoFocus, "not reachable by tab"
+    panel.table.selectRow(0)
+    copied = panel.table.copy_selection()
+    assert copied, "nothing was copied"
+    assert "\t" in copied, "a row should be tab separated for a spreadsheet"
+    assert QGuiApplication.clipboard().text() == copied
+    panel.deleteLater()
+
+
+def test_a_huge_solution_is_thinned_for_the_table_and_says_so(solved, qapp):
+    """Robertson has tens of thousands of output points, and a table row per
+    point costs more to build than the solve did."""
+    from odesuite_app.widgets.plotpanel import PlotPanel
+
+    panel = PlotPanel(PALETTE)
+    panel.update_from(solved.result, "Auto")
+    qapp.processEvents()
+
+    total = solved.result.solution.t.size
+    assert panel.table_model.rowCount() <= 2001
+    if total > 2000:
+        assert "of" in panel.table_note.text()
+    else:
+        assert str(total) in panel.table_note.text()
+    panel.deleteLater()
+
+
+def test_a_switch_in_the_right_hand_side_is_marked_and_said(qapp):
+    """PED-08. `y' = -y + H(t - 2)` used to come back as unqualified success,
+    although the solver had spent twenty rejected steps bisecting onto t = 2.
+    The Lab now says so, and draws a rule where it happened."""
+    from types import SimpleNamespace
+
+    import pyqtgraph as pg
+
+    from odesuite import ODEProblem, solve
+    from odesuite_app.solver import SolveRequest, SolveResult
+
+    problem = ODEProblem(
+        f=lambda t, y: np.array([-y[0] + (1.0 if t > 2 else 0.0)]),
+        t_span=(0.0, 6.0), y0=[1.0],
+    )
+    solution = solve(problem, method="dopri5", rtol=1e-6, atol=1e-8,
+                     dense_output=True)
+    state = SessionState()
+    state.set_problem("logistic", resolve=False)
+    lab = _lab(qapp, state)
+    result = SolveResult(
+        request=SolveRequest("logistic", "dopri5", 1e-6, 1e-8),
+        solution=solution, benchmark=SimpleNamespace(problem=problem),
+        entry=catalog.get("logistic"),
+    )
+    lab.plot.view.setCurrentText("Time series")
+    lab._on_result(result)
+    qapp.processEvents()
+
+    assert lab.plot.rough_spots == [pytest.approx(2.0, abs=0.01)]
+    assert lab.caution.isVisible()
+    assert "t ≈ 2" in lab.caution.text()
+    rules = [item for item in lab.plot.plot.getPlotItem().items
+             if isinstance(item, pg.InfiniteLine) and item.angle == 90]
+    assert len(rules) == 1 and rules[0].value() == pytest.approx(2.0, abs=0.01)
+    assert "t ≈ 2" in rules[0].toolTip()
+
+    # A smooth answer on the same screen clears both.
+    lab._on_result(SolveResult(
+        request=result.request,
+        solution=solve(ODEProblem(lambda t, y: -y, (0.0, 6.0), [1.0]),
+                       method="dopri5", rtol=1e-6, atol=1e-8, dense_output=True),
+        benchmark=SimpleNamespace(problem=problem), entry=catalog.get("logistic"),
+    ))
+    qapp.processEvents()
+    assert lab.plot.rough_spots == []
+    assert "refused" not in lab.caution.text() or not lab.caution.isVisible()
+    lab.deleteLater()
+
+
+def _until(qapp, condition, seconds=90.0):
+    import time
+
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        qapp.processEvents()
+        if condition():
+            return True
+        time.sleep(0.02)
+    return False
+
+
+def test_a_chaotic_trajectory_marks_where_it_stops_being_a_prediction(qapp):
+    """UX-04. Lorenz's default duration is 40 and its horizon at rtol = 1e-8 is
+    about 20, so the default view used to present its second half -- which is
+    a sample of the attractor, not a forecast -- exactly like its first."""
+    state = SessionState()
+    state.set_problem("lorenz", resolve=False)
+    state.set_method("dopri5", resolve=False)
+    state.set_tolerances(1e-8, 1e-11, resolve=False)
+    _resolve(qapp, state)
+    lab = _lab(qapp, state)
+
+    assert _until(qapp, lambda: lab.plot.horizon is not None), "no horizon"
+    assert 14.0 <= lab.plot.horizon <= 28.0
+    assert lab.caution.isVisible() and "not a prediction" in lab.caution.text()
+    # The part past the horizon is drawn separately, and faint.
+    faint = [curve for curve in lab.plot._curves if curve.opacity() < 1.0]
+    assert len(faint) == 1
+
+    # Inside the horizon, nothing to say -- the caption is about the plot shown.
+    state.set_param("t_end", 10.0, resolve=False)
+    _resolve(qapp, state)
+    assert lab.plot.horizon is not None
+    assert "not a prediction" not in lab.caution.text() or not lab.caution.isVisible()
+    assert all(curve.opacity() == 1.0 for curve in lab.plot._curves)
+
+    # Below the onset of chaos there is no horizon at all, not a large one.
+    state.set_param("t_end", 40.0, resolve=False)
+    state.set_param("rho", 15.0, resolve=False)
+    _resolve(qapp, state)
+    key = lab._exponent_key(state.result)
+    assert _until(qapp, lambda: lab._exponents.get(key) not in (None, "pending"))
+    assert lab._exponents[key].value < 0
+    assert lab.plot.horizon is None
+    lab.deleteLater()
+
+
+def test_a_non_chaotic_problem_never_asks_for_an_exponent(solved, qapp):
+    lab = _lab(qapp, solved)
+    assert lab.plot.horizon is None and lab._exponents == {}
+    lab.deleteLater()

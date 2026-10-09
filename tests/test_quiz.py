@@ -118,17 +118,34 @@ def test_every_question_is_one_the_hub_already_grades():
     """The whole design. If these were a new kind of question they would need a
     new grader, and a second grader is a second opinion about what is correct.
 
-    All three kinds come straight from the lessons: a `Solve` graded by
-    substituting it into its own equation, a `Choice` by `grade_choice`, and a
-    `Numeric` by `grade_numeric` to a tolerance. Each is the type the Drill
-    segment already shows, which is why the quiz has no grader of its own.
+    Every kind comes straight from the lessons: a `Solve` graded by
+    substituting it into its own equation, a `Choice` by `grade_choice`, a
+    `Numeric` by `grade_numeric` to a tolerance, and a `Model` or an
+    `Expression` by the equivalence graders the Drill segment uses. Each is a
+    type the Drill segment already shows, which is why the quiz still has no
+    grader of its own.
+
+    It was three kinds and is now five. The two later ones arrived with the
+    drills that ask for an equation rather than a solution -- *write the
+    equation for this tank*, *write the integrating factor* -- and they reach
+    the quiz the moment a set is long enough to come round to the lesson that
+    holds them, which is what this test is really for: a question type can be
+    added to a lesson without anybody remembering that the quiz draws from the
+    same templates.
     """
-    from odesuite_app.lessons.model import Choice, Numeric, Solve
+    from odesuite_app.lessons.model import (
+        Choice,
+        Expression,
+        Model,
+        Numeric,
+        Solve,
+    )
 
     seen = set()
     for unit in buildable():
         for _lesson, _template, question in build(unit, 4, seed=3):
-            assert isinstance(question, (Solve, Choice, Numeric))
+            assert isinstance(question,
+                              (Solve, Choice, Numeric, Model, Expression))
             seen.add(question.kind)
             if isinstance(question, Solve):
                 assert question.equation
@@ -136,11 +153,17 @@ def test_every_question_is_one_the_hub_already_grades():
             elif isinstance(question, Choice):
                 assert question.options
                 assert len(question.becauses) == len(question.options)
+            elif isinstance(question, Model):
+                assert question.equation, "a model keeps the equation it wants"
+                assert question.because, "a model needs an account of itself"
+            elif isinstance(question, Expression):
+                assert question.answer
+                assert question.because, "a step needs a reason"
             else:
                 assert question.tolerance > 0
                 assert question.because, "a number needs a reason"
-    assert seen == {"solve", "choice", "numeric"}, (
-        f"the quiz never draws one of the three kinds: {sorted(seen)}"
+    assert {"solve", "choice", "numeric"} <= seen, (
+        f"the quiz never draws one of the three original kinds: {sorted(seen)}"
     )
 
 
@@ -540,3 +563,315 @@ def test_the_course_map_says_what_to_review(qapp, store):
 
 def test_the_default_length_is_a_sitting():
     assert 4 <= DEFAULT_LENGTH <= 20
+
+
+# ---------------------------------------------------------------------------
+# Papers: the same machinery, spanning a term and against a clock
+# ---------------------------------------------------------------------------
+
+
+def _pick_paper(screen, key: str) -> None:
+    """Select a paper in the picker, which holds units and papers together."""
+    index = next(
+        i for i in range(screen.unit_picker.count())
+        if screen.unit_picker.itemData(i) == ("paper", key)
+    )
+    screen.unit_picker.setCurrentIndex(index)
+
+
+def test_the_picker_offers_the_units_first_and_then_the_papers(screen):
+    """One control for both. They are two lengths of the same exercise rather
+    than two exercises, and a mode switch would be three clicks where one does.
+    """
+    from odesuite_app import exam
+
+    data = [screen.unit_picker.itemData(i)
+            for i in range(screen.unit_picker.count())]
+    assert data[:len(buildable())] == [("unit", unit.key)
+                                       for unit in buildable()]
+    assert data[len(buildable()):] == [("paper", paper.key)
+                                       for paper in exam.PAPERS]
+
+
+def test_choosing_a_unit_reports_no_paper(screen):
+    """A paper is not a unit and must not be made to look like one: reporting
+    its first unit from `current_unit` would have Start build a check-up."""
+    screen.unit_picker.setCurrentIndex(0)
+    assert screen.current_unit() is buildable()[0]
+    assert screen.current_paper() is None
+
+
+def test_choosing_a_paper_fixes_the_length_and_promises_the_time(screen, qapp):
+    from odesuite_app import exam
+
+    _pick_paper(screen, "exam-1")
+    qapp.processEvents()
+    paper = exam.by_key("exam-1")
+
+    assert screen.current_unit() is None
+    assert screen.current_paper() is paper
+    assert not screen.length.isEnabled(), (
+        "a paper's size is part of what makes it that paper"
+    )
+    assert screen.length.value() == paper.questions
+    assert str(paper.minutes) in screen.mode_note.text()
+
+
+def test_a_check_up_runs_no_countdown(screen, qapp):
+    """The distinction the screen exists to draw. A timer counting down turns
+    practice into an examination, and this is not one."""
+    screen.unit_picker.setCurrentIndex(0)
+    screen.length.setValue(4)
+    screen._start()
+    qapp.processEvents()
+
+    assert screen._paper is None
+    assert not screen._clock.isActive()
+    assert not screen.clock_label.isVisible()
+    assert "No countdown" in screen.mode_note.text()
+
+
+def test_a_paper_is_the_papers_length_and_runs_the_clock(screen, qapp):
+    from odesuite_app import exam
+    from odesuite_app.lessons import unit_of
+
+    _pick_paper(screen, "exam-1")
+    screen.seed_override = 7
+    screen._start()
+    qapp.processEvents()
+
+    paper = exam.by_key("exam-1")
+    assert len(screen._questions) == paper.questions
+    assert screen._paper is paper
+    assert screen._clock.isActive()
+    assert screen._left == paper.seconds
+    assert "0 left" in screen.clock_label.text()
+
+    spread = {unit_of(lesson).key for lesson, _, _ in screen._questions}
+    assert spread == set(paper.units), (
+        "a cumulative paper that stays in one unit is a check-up"
+    )
+
+
+def test_running_out_of_time_ends_the_paper_and_keeps_the_score(screen, qapp):
+    """Every unanswered question counts as missed, which is what would have
+    happened. A report that quietly shortened itself to the questions reached
+    would flatter the score by exactly the amount that ran out of time."""
+    from PySide6.QtWidgets import QLabel
+
+    _pick_paper(screen, "exam-1")
+    screen.seed_override = 7
+    screen._start()
+    qapp.processEvents()
+    total = len(screen._questions)
+
+    screen._left = 1
+    screen._tick()
+    qapp.processEvents()
+
+    assert not screen._clock.isActive()
+    assert not screen.clock_label.isVisible()
+    assert len(screen._verdicts) == total
+    assert not any(screen._verdicts.values())
+    shown = " ".join(label.text() for label in screen._page.findChildren(QLabel))
+    assert "Time ran out" in shown
+    assert f"0 of {total}" in screen.progress_label.text()
+
+
+def test_finishing_a_paper_stops_its_clock(screen, qapp):
+    """A finished paper counting down behind its own report would be the kind
+    of loose end nobody notices until it fires into a deleted widget."""
+    _pick_paper(screen, "exam-1")
+    screen.seed_override = 7
+    screen._start()
+    qapp.processEvents()
+    for _ in range(len(screen._questions)):
+        screen._advance()
+        qapp.processEvents()
+
+    assert not screen._clock.isActive()
+    assert not screen.clock_label.isVisible()
+
+
+def test_a_paper_reports_itself_by_name(screen, qapp):
+    from PySide6.QtWidgets import QLabel
+
+    _pick_paper(screen, "exam-2")
+    screen.seed_override = 3
+    screen._start()
+    qapp.processEvents()
+    for _ in range(len(screen._questions)):
+        screen._advance()
+    qapp.processEvents()
+
+    shown = " ".join(label.text() for label in screen._page.findChildren(QLabel))
+    assert "Exam 2" in shown
+
+
+# ---------------------------------------------------------------------------
+# The queue of what was missed
+# ---------------------------------------------------------------------------
+
+
+def test_the_report_offers_the_missed_questions_again(screen, qapp):
+    """Retrieval practice is worth most in the minutes after the miss. A list
+    of lessons to go back to is true, useful, and something almost nobody does
+    at eleven at night."""
+    screen.length.setValue(4)
+    screen.seed_override = 21
+    screen._start()
+    qapp.processEvents()
+    missed = list(screen._questions)
+    for _ in range(4):
+        screen._advance()
+    qapp.processEvents()
+
+    assert screen.retry_button is not None
+    assert "4 again" in screen.retry_button.text()
+
+    screen.retry_button.click()
+    qapp.processEvents()
+    assert screen._retrying
+    assert screen._index == 0
+    assert screen._verdicts == {}
+    assert screen._questions == missed, (
+        "a retry is the same draws, not fresh ones on the same techniques"
+    )
+
+
+def test_only_the_missed_questions_are_requeued(screen, qapp):
+    screen.length.setValue(6)
+    screen.seed_override = 21
+    screen._start()
+    qapp.processEvents()
+    drawn = list(screen._questions)
+
+    # Two right, the rest missed.
+    screen._verdicts = {0: True, 1: False, 2: True, 3: False, 4: False,
+                        5: False}
+    screen._index = 6
+    screen._show_question()
+    qapp.processEvents()
+
+    screen.retry_button.click()
+    qapp.processEvents()
+    assert screen._questions == [drawn[1], drawn[3], drawn[4], drawn[5]]
+
+
+def test_a_retry_is_never_timed_even_after_a_paper(screen, qapp):
+    """A second pass is practice whatever the first was -- and a retry that
+    inherited the paper's clock would put a four-question queue under a
+    fifty-minute countdown that had already run down."""
+    _pick_paper(screen, "exam-1")
+    screen.seed_override = 7
+    screen._start()
+    qapp.processEvents()
+    for _ in range(len(screen._questions)):
+        screen._advance()
+    qapp.processEvents()
+
+    screen.retry_button.click()
+    qapp.processEvents()
+    assert screen._paper is None
+    assert not screen._clock.isActive()
+    assert not screen.clock_label.isVisible()
+
+
+def test_nothing_missed_offers_no_queue(screen, qapp):
+    """A button that cannot do anything is worse than an absent one."""
+    from PySide6.QtWidgets import QLabel
+
+    screen.length.setValue(4)
+    screen._start()
+    qapp.processEvents()
+    screen._verdicts = {index: True for index in range(4)}
+    screen._index = 4
+    screen._show_question()
+    qapp.processEvents()
+
+    assert screen.retry_button is None
+    shown = " ".join(label.text() for label in screen._page.findChildren(QLabel))
+    assert "Nothing missed" in shown
+
+
+def test_a_retry_can_itself_be_retried(screen, qapp):
+    """A second miss is a third chance."""
+    screen.length.setValue(4)
+    screen.seed_override = 21
+    screen._start()
+    qapp.processEvents()
+    for _ in range(4):
+        screen._advance()
+    qapp.processEvents()
+    screen.retry_button.click()
+    qapp.processEvents()
+    for _ in range(len(screen._questions)):
+        screen._advance()
+    qapp.processEvents()
+
+    assert screen.retry_button is not None
+
+
+# ---------------------------------------------------------------------------
+# The two kinds a long set reaches that a short one never did
+# ---------------------------------------------------------------------------
+
+
+def _drawn(kind: str):
+    """One drawn question of `kind`, with the lesson behind it."""
+    from odesuite_app.lessons import generate
+
+    for unit in UNITS:
+        for lesson in unit.lessons:
+            for template in lesson.templates:
+                question = generate.draw(template, 0)
+                if question.kind == kind:
+                    return lesson, template, question
+    pytest.skip(f"the course has no {kind} drill")
+
+
+@pytest.mark.parametrize("kind", ["model", "expression"])
+def test_a_question_graded_by_equivalence_is_graded_at_all(screen, qapp, kind):
+    """Both reached the quiz as soon as a set was long enough to cycle round to
+    them, and until `_check_equivalent` existed a `Model` was reported as a
+    question that could not be set up and an `Expression`, having no equation
+    at all, took the screen down."""
+    lesson, template, question = _drawn(kind)
+    screen._run([(lesson, template, question)])
+    qapp.processEvents()
+
+    assert screen.answer is not None, "there must be something to type into"
+    right = question.equation if kind == "model" else question.answer
+    screen.answer.setText(right)
+    screen._check(lesson, question)
+    qapp.processEvents()
+    assert screen._verdicts[0] is True
+    assert "✓" in screen.verdict.text()
+
+
+@pytest.mark.parametrize("kind", ["model", "expression"])
+def test_a_wrong_answer_to_one_is_marked_wrong(screen, qapp, kind):
+    lesson, template, question = _drawn(kind)
+    screen._run([(lesson, template, question)])
+    qapp.processEvents()
+
+    screen.answer.setText("y' = 1 + t + t**2 + t**3" if kind == "model"
+                          else "t**3 + 7")
+    screen._check(lesson, question)
+    qapp.processEvents()
+    assert screen._verdicts[0] is False
+    assert screen._notes[0], "a miss with nothing said about it is a bare cross"
+
+
+def test_a_model_question_never_shows_its_own_answer(screen, qapp):
+    """`Model.equation` is the answer rather than the question -- and it is the
+    very field every other kind prints."""
+    from PySide6.QtWidgets import QLabel
+
+    lesson, template, question = _drawn("model")
+    screen._run([(lesson, template, question)])
+    qapp.processEvents()
+
+    shown = " ".join(label.text() for label in screen._page.findChildren(QLabel))
+    assert question.prompt in shown
+    assert question.equation not in shown

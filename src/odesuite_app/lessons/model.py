@@ -54,6 +54,14 @@ machinery that already existed.
 And every slot-based template can say which of `TIERS` each of its draws
 belongs to, so a drill can be made easier or harder without becoming a
 different drill.
+
+**A question can be asked about a picture.** `Choice`, `Numeric` and `Solve`
+each carry an optional `figure`, a key into the same registry a lesson's own
+figure comes from, and it is shown above the prompt. This is the graphical
+leg of the rule of four becoming assessable rather than merely illustrative:
+until a question could hold a figure, every question here was about a formula
+or a number, and reading a phase portrait -- which is most of what the later
+units are for -- could be demonstrated to a student and never asked of one.
 """
 
 from __future__ import annotations
@@ -191,6 +199,19 @@ class Choice:
     #: a different option every time. This maps the position back to the
     #: option the author wrote, which is stable, and `progress` stores that.
     origins: tuple[int, ...] = ()
+    #: A figure to put *above* the prompt, named by key as `Lesson.figure` is.
+    #:
+    #: The difference between this and the lesson's own figure is what the
+    #: picture is for. A lesson's figure illustrates; a question's figure is
+    #: the question -- "read the marked point off the b-c plane" cannot be
+    #: asked without one, and until a question could carry a picture the
+    #: graphical leg of the rule of four was the only one this application
+    #: never assessed.
+    #:
+    #: The same registry and the same widget, so a figure written for a lesson
+    #: can be asked about without being written twice, and moving its sliders
+    #: while answering is the intended way to answer.
+    figure: str = ""
 
     kind: str = field(default="choice", init=False)
 
@@ -220,6 +241,19 @@ class Solve:
     #: is revealed only when asked for, and "Show me" -- the narrator itself --
     #: sits at the end of it.
     hints: tuple[str, ...] = ()
+    #: A figure to put *above* the prompt, named by key as `Lesson.figure` is.
+    #:
+    #: The difference between this and the lesson's own figure is what the
+    #: picture is for. A lesson's figure illustrates; a question's figure is
+    #: the question -- "read the marked point off the b-c plane" cannot be
+    #: asked without one, and until a question could carry a picture the
+    #: graphical leg of the rule of four was the only one this application
+    #: never assessed.
+    #:
+    #: The same registry and the same widget, so a figure written for a lesson
+    #: can be asked about without being written twice, and moving its sliders
+    #: while answering is the intended way to answer.
+    figure: str = ""
 
     kind: str = field(default="solve", init=False)
 
@@ -261,6 +295,23 @@ class Numeric:
     #: The equation the question is about, if it is about one.
     latex: str = ""
     hints: tuple[str, ...] = ()
+    #: A figure to put *above* the prompt, named by key as `Lesson.figure` is.
+    #:
+    #: The difference between this and the lesson's own figure is what the
+    #: picture is for. A lesson's figure illustrates; a question's figure is
+    #: the question -- "read the marked point off the b-c plane" cannot be
+    #: asked without one, and until a question could carry a picture the
+    #: graphical leg of the rule of four was the only one this application
+    #: never assessed.
+    #:
+    #: The same registry and the same widget, so a figure written for a lesson
+    #: can be asked about without being written twice, and moving its sliders
+    #: while answering is the intended way to answer.
+    figure: str = ""
+    #: Wrong numbers with a known cause, as ``(value, cause)``. A typed
+    #: number that lands on one is told the cause instead of only "not
+    #: quite" -- see `NumericTemplate.mistakes`.
+    mistakes: tuple[tuple[float, str], ...] = ()
 
     kind: str = field(default="numeric", init=False)
 
@@ -378,6 +429,12 @@ class Case:
     latex: str = ""
     #: One of `TIERS`.
     tier: str = "typical"
+    #: The point the question is about, as typed -- ``"(pi, 0)"`` -- for a
+    #: question about one equilibrium of a nonlinear system. Empty for every
+    #: other kind. A linear system has one equilibrium and its matrix is the
+    #: whole story; a nonlinear one has several, each with its own Jacobian,
+    #: and naming the right point is half of what is being practised.
+    at: str = ""
 
 
 @dataclass(frozen=True)
@@ -505,6 +562,18 @@ class NumericTemplate:
     #: Which tier a draw belongs to, as a predicate over the drawn
     #: values, or None where the family has no honest spread.
     level: Callable[[Mapping[str, object]], str] | None = None
+    #: The wrong answers worth recognising, as ``(expression, cause)``, the
+    #: expression over the slots like `answer`.
+    #:
+    #: A wrong formula already gets a diagnosis -- `Fault` names it, and the
+    #: residual shows it. A wrong *number* got "not quite", which is the least
+    #: a verdict can say. But the usual wrong numbers are computable: an Euler
+    #: step answered with a backward-Euler step, the Jacobian taken at the
+    #: origin instead of the equilibrium, r² given for r. Each is an
+    #: expression here, evaluated per draw, so the diagnosis is exact rather
+    #: than guessed -- and a draw where a mistake happens to coincide with the
+    #: right answer drops that mistake, so a right answer is never "diagnosed".
+    mistakes: tuple[tuple[str, str], ...] = ()
 
     kind: str = field(default="numeric-template", init=False)
 
@@ -698,6 +767,16 @@ class Lesson:
     figure: str = ""
     #: Where this sits in Edwards, Penney and Calvis, 6e.
     reference: str = ""
+    #: The catalogue system the Phase Portrait opens on, for a lesson whose
+    #: `tool` is "portrait". A key rather than an equation: the portrait is
+    #: driven by the catalogue, and a nonlinear system is the one thing a
+    #: lesson's worked examples cannot carry, since no narrator solves one.
+    portrait: str = ""
+    #: The lesson written as a textbook section -- see `lessons.chapter`.
+    #: When present it *is* the Learn page, and `motivation`, `derivation`
+    #: and the notes are what it was written from; the formula notes still
+    #: close the page as a summary, and still make the formula sheet.
+    chapter: tuple = ()
 
     @property
     def example(self) -> str:

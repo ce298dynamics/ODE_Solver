@@ -673,15 +673,22 @@ def _screen(palette_name="dark"):
 
 
 def _submit(screen, qapp, equation, ics=""):
-    from PySide6.QtCore import QThreadPool
+    import time
 
     from odesuite_app.symbolic import EquationSpec
 
     screen._on_submitted(
         EquationSpec(equations=[equation], initial_conditions=ics)
     )
-    QThreadPool.globalInstance().waitForDone(60_000)
-    qapp.processEvents()
+    # Wait for the derivation, not for the pool to go idle: `waitForDone`
+    # waits on everything on the shared pool, typesetting included, and its
+    # result was ignored. See the matching helper in test_laplace.py.
+    status = screen.steps._status
+    deadline = time.monotonic() + 90
+    while status.text() == "working out how this one is solved…":
+        assert time.monotonic() < deadline, "the derivation never arrived"
+        qapp.processEvents()
+        time.sleep(0.02)
     qapp.processEvents()
 
 
@@ -1210,3 +1217,130 @@ def test_a_narration_failure_never_costs_the_answer():
     assert reply["ok"] is True, reply.get("error")
     assert reply["derivation"]["result"] is None
     assert reply["derivation"]["message"]
+
+
+# ---------------------------------------------------------------------------
+# SYM-03 -- a general solution with two branches shows both
+# ---------------------------------------------------------------------------
+
+
+def _solve_step(derivation):
+    return next(step for step in derivation.steps
+                if step.title.startswith("Solve for"))
+
+
+@pytest.mark.parametrize("equation,shown", [
+    # Separable, where the branches are a sign apart.
+    (_eq(Y(T).diff(T), -T / Y(T)), r"\pm \sqrt{2 C - t^{2}}"),
+    # Exact, where they are a quadratic's two roots.
+    (_eq(2 * T * Y(T) + (T**2 + 2 * Y(T)) * Y(T).diff(T)),
+     r"- \frac{t^{2}}{2} \pm \frac{\sqrt{4 C + t^{4}}}{2}"),
+])
+def test_a_general_solution_keeps_both_branches(equation, shown):
+    """``y' = -t/y`` used to be solved as ``y = -sqrt(2C - t^2)`` alone: half
+    of every circle, presented as the general solution."""
+    step = _solve_step(_derive(equation))
+    assert step.latex == f"y(t) = {shown}"
+
+
+def test_a_condition_still_picks_its_branch():
+    equation = _eq(Y(T).diff(T), -T / Y(T))
+    derivation = _derive(equation, {Y(sp.Integer(0)): 2})
+    assert r"\pm" not in _solve_step(derivation).latex
+    assert sp.simplify(derivation.result - sp.sqrt(4 - T**2)) == 0
+
+
+# ---------------------------------------------------------------------------
+# SYM-04 -- which technique each equation gets, pinned against sympy drift
+# ---------------------------------------------------------------------------
+#
+# The narrator dispatches on `classify_ode` hint *names*, which sympy does not
+# promise to keep. A renamed hint fails loudly already -- "no technique
+# applies". A *reordered* or newly added one does not: the equation still gets
+# narrated, by a different method, and every lesson test still passes because
+# the narration is still correct. That silent change of what a student is
+# taught is what this table catches. It is every distinct worked example in
+# the course that the steps narrator explains, recorded under sympy 1.14.0; if it
+# fails after a sympy upgrade, the question is whether the new choice is one a
+# course would make, not how to make the test pass.
+
+PINNED_TECHNIQUES = {
+    "y' = 3*t**2": 'separable',
+    "y'' + y = 0": 'nth_linear_constant_coeff_homogeneous',
+    "y' = y - t": '1st_linear',
+    "y' = t/y": 'separable',
+    "y' = y**(1/3)": 'separable',
+    "y' = y*(1 - y)": 'separable',
+    "y' = y**2": 'separable',
+    "y' + 2*y = t": '1st_linear',
+    "t*y' + y = t": '1st_linear',
+    "y' = -(cos(t) + y)/(t + 2*y)": '1st_exact',
+    "y' = -(2*t + 3*y)/(3*t + 4*y)": '1st_homogeneous_coeff_best',
+    "y' = (t**2 + y**2)/(t*y)": '1st_homogeneous_coeff_best',
+    "y' + y = t*y**3": 'Bernoulli',
+    "y' = 0.5*y": 'separable',
+    "y' = 0.5*y*(1 - y/20)": 'separable',
+    "y' = y**2 - 4": 'separable',
+    "y' = 4 - y": 'separable',
+    "y' = -9.8 - 0.2*y": 'separable',
+    "y' = -9.8": 'separable',
+    "y' = y": 'separable',
+    "y' = -2*y": 'separable',
+    "y'' - y = 0": 'nth_linear_constant_coeff_homogeneous',
+    "y'' + 4*y = 0": 'nth_linear_constant_coeff_homogeneous',
+    "y'' + 3*y' + 2*y = 0": 'nth_linear_constant_coeff_homogeneous',
+    "y'' + 2*y' + 5*y = 0": 'nth_linear_constant_coeff_homogeneous',
+    "y'' + 4*y = sin(t)": 'nth_linear_constant_coeff_undetermined_coefficients',
+    "y'' + y = cos(t)": 'nth_linear_constant_coeff_undetermined_coefficients',
+    "y'' + y = sec(t)": 'nth_linear_constant_coeff_variation_of_parameters',
+    "y'' - 2*y' + y = exp(t)/t": 'nth_linear_constant_coeff_variation_of_parameters',
+    "t**2*y'' + t*y' - y = 0": 'nth_linear_euler_eq_homogeneous',
+    "t**2*y'' - 3*t*y' + 4*y = 0": 'nth_linear_euler_eq_homogeneous',
+    "y''' - 6*y'' + 11*y' - 6*y = 0": 'nth_linear_constant_coeff_homogeneous',
+    "y''' + y'' = t": 'nth_linear_constant_coeff_undetermined_coefficients',
+    "y'' + 4*y' + 4*y = 0": 'nth_linear_constant_coeff_homogeneous',
+    "y'' + 4*y = cos(t)": 'nth_linear_constant_coeff_undetermined_coefficients',
+    "y'' + 4*y = cos(2*t)": 'nth_linear_constant_coeff_undetermined_coefficients',
+    "y'' + 4*y' + 3*y = 0": 'nth_linear_constant_coeff_homogeneous',
+    "y'' + 2*y' + 26*y = 0": 'nth_linear_constant_coeff_homogeneous',
+    "y' = -sin(t)/y": 'separable',
+    "y' = -4*t/y": 'separable',
+    "y' = y*(1 - y**2)": 'separable',
+    "y' = y*(y**2 - 1)": 'separable',
+    "y' = 4 - y**2": 'separable',
+    "y' = y - y**3": 'separable',
+    "t*y'' - (t + 1)*y' + y = 0": 'reduction_of_order',
+    "t**2*y'' - t*(t + 2)*y' + (t + 2)*y = 0": 'reduction_of_order',
+}
+
+
+@pytest.mark.parametrize("equation,technique", sorted(PINNED_TECHNIQUES.items()))
+def test_the_technique_chosen_has_not_drifted(equation, technique):
+    from odesuite_app.steps import detected
+    from odesuite_app.symbolic import parse_equation, spec_for
+
+    parsed = parse_equation(spec_for(equation, ""))
+    hints = sp.classify_ode(parsed.equation, parsed.function(T))
+    chosen = preferred_hint(hints) or detected(parsed.equation, parsed.function)
+    assert chosen == technique, (
+        f"{equation}: sympy {sp.__version__} now leads to {chosen!r}, "
+        f"not {technique!r}"
+    )
+
+
+def test_the_pinned_table_covers_every_technique():
+    assert set(PINNED_TECHNIQUES.values()) == (set(TECHNIQUES)
+                                               | {"1st_exact", "reduction_of_order"})
+
+
+def test_every_worked_example_is_pinned():
+    """A new worked example must be added to the table, or drift in its
+    technique would go unwatched."""
+    from odesuite_app.lessons import LESSONS
+
+    narrated = {example.equation for lesson in LESSONS
+                for example in lesson.examples
+                if getattr(example, "narrator", "steps") == "steps"
+                and ";" not in example.equation}
+    missing = narrated - set(PINNED_TECHNIQUES)
+    assert not missing, sorted(missing)

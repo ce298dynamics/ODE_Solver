@@ -23,6 +23,7 @@ exhaustive sweep runs every draw of every template.
 
 from __future__ import annotations
 
+from .chapters import unit5 as chapters
 from .model import (
     Choice,
     ChoiceTemplate,
@@ -42,11 +43,13 @@ __all__ = ["TRANSFORM", "LAPLACE", "SHIFTING", "CONVOLUTION",
 
 LAPLACE = Lesson(
     key="laplace",
+    chapter=chapters.LAPLACE,
     title="Laplace transforms",
     summary="Turn the differential equation into algebra — and handle forcing "
             "that switches on partway through.",
     tool="laplace",
     reference="Edwards 7.1–7.6",
+    figure="partial_fractions",
     motivation=(
         "With the transform of a derivative in hand, the method can be run "
         "end to end. What makes it worth learning is not that it solves "
@@ -230,6 +233,17 @@ LAPLACE = Lesson(
             r"\mathcal{L}\{f\}(s) = \int_{0}^{\infty} e^{-st} f(t)\,dt",
             "aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: exponential order and constant coefficients",
+            "The transform exists only for functions that grow no faster than "
+            "some exp(at): exp(t²) has none. And the method turns derivatives "
+            "into algebra only for constant coefficients; a coefficient of t "
+            "turns multiplication into differentiation in s, so t·y'' gives a "
+            "new differential equation rather than an equation to rearrange.",
+            r"\mathcal{L}\{t\,f(t)\} = -F'(s)",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -360,11 +374,13 @@ LAPLACE = Lesson(
 
 TRANSFORM = Lesson(
     key="transform",
+    chapter=chapters.TRANSFORM,
     title="The transform, and reading the table",
     summary="What the transform does to a function, and why the table is the "
             "only part you need to memorise.",
     tool="laplace",
     reference="Edwards 7.1",
+    figure="transform_area",
     motivation=(
         "Every method so far has attacked the differential equation directly. "
         "There is a completely different strategy, and it is one used all "
@@ -650,6 +666,41 @@ TRANSFORM = Lesson(
                 "exponential rows.",
             ),
         ),
+        Choice(
+            key="q-figure",
+            prompt="In the figure, drag s downwards until it passes a. What "
+                   "happens to the shaded area on the left, and to the curve "
+                   "on the right?",
+            figure="transform_area",
+            options=(
+                "The area stops being finite, and F(s) runs off to infinity "
+                "at s = a and does not exist below it",
+                "The area becomes negative, and F(s) is the negative value "
+                "the right pane marks",
+                "The area is unchanged; only the shape of the integrand moves",
+                "The area goes to zero, because the two dashed curves cancel "
+                "each other",
+            ),
+            answer=0,
+            becauses=(
+                "The integrand is e^{(a−s)t}. Above s = a the exponent is "
+                "negative and the tail decays fast enough to have a finite "
+                "area; at s = a it is the constant 1, whose area over an "
+                "infinite interval is infinite. That is the region of "
+                "convergence, and it is a place on the axis rather than a "
+                "proviso in small print.",
+                "The integrand is an exponential, which is positive "
+                "everywhere, so the area under it can never be negative. The "
+                "right pane is negative below the pole, but the transform is "
+                "not defined there to be read.",
+                "Changing s changes the weight e^{−st} that multiplies f, so "
+                "it changes the integrand and therefore the area. That is "
+                "precisely how F depends on s.",
+                "They are two separate curves drawn for reference, not "
+                "something being added. The shaded region is under their "
+                "product, which is positive throughout.",
+            ),
+        ),
     ),
     templates=(
         Template(
@@ -710,6 +761,7 @@ TRANSFORM = Lesson(
 
 SHIFTING = Lesson(
     key="shifting",
+    chapter=chapters.SHIFTING,
     title="Shifting theorems and partial fractions",
     summary="The two theorems that let the table cover far more than it "
             "lists, and the algebra that gets Y(s) into their shape.",
@@ -1014,6 +1066,7 @@ SHIFTING = Lesson(
 
 CONVOLUTION = Lesson(
     key="convolution",
+    chapter=chapters.CONVOLUTION,
     title="Convolution",
     summary="What to do when Y(s) is a product that refuses to split.",
     tool="laplace",
@@ -1294,6 +1347,13 @@ CONVOLUTION = Lesson(
         NumericTemplate(
             key="step-response",
             title="A convolution evaluated",
+            mistakes=(
+                ("exp(-{a}*{t0})",
+                 "the impulse response g({t0}) is given instead of its "
+                 "running integral"),
+                ("1 - exp(-{a}*{t0})",
+                 "the integral of e^(−{a}t) loses its factor 1/{a}"),
+            ),
             prompt="A system at rest has impulse response g(t) = e^(-{a}t). "
                    "Driven by a constant 1, its response is (1 * g)(t). What "
                    "is that at t = {t0}? Give four decimal places.",
@@ -1317,6 +1377,7 @@ CONVOLUTION = Lesson(
 
 STEPFORCING = Lesson(
     key="step-forcing",
+    chapter=chapters.STEPFORCING,
     title="Step functions and piecewise forcing",
     summary="Forcing that switches on partway through — the case no other "
             "technique in this course handles.",
@@ -1633,11 +1694,13 @@ STEPFORCING = Lesson(
 
 IMPULSES = Lesson(
     key="impulses",
+    chapter=chapters.IMPULSES,
     title="Impulses and the delta function",
     summary="A hammer blow: all the forcing delivered at a single instant, "
             "and what that does to a system.",
     tool="laplace",
     reference="Edwards 7.6",
+    figure="impulse_limit",
     motivation=(
         "A pulse can be made shorter and taller at the same time. A hammer "
         "blow, a spark, a collision: each delivers its effect over an "

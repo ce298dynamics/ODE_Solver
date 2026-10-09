@@ -11,6 +11,7 @@ with when none of chapter 1's techniques applies.
 
 from __future__ import annotations
 
+from .chapters import unit2 as chapters
 from .model import (
     Choice,
     Example,
@@ -29,11 +30,13 @@ __all__ = ["POPULATION", "EQUILIBRIA", "MOTION", "NUMERICAL",
 
 POPULATION = Lesson(
     key="population",
+    chapter=chapters.POPULATION,
     title="Population models and the logistic equation",
     summary="Where the first interesting nonlinear equation comes from, and "
             "what its two parameters mean.",
     tool="worked",
     reference="Edwards 2.1",
+    figure="growth_models",
     motivation=(
         "Where the equations of the first unit came from was never asked. "
         "This unit asks it, because a differential equation is not handed "
@@ -342,6 +345,7 @@ POPULATION = Lesson(
 
 EQUILIBRIA = Lesson(
     key="equilibria",
+    chapter=chapters.EQUILIBRIA,
     title="Equilibria, stability and the phase line",
     summary="For an autonomous equation, the sign of the right-hand side tells "
             "you everything about the long run.",
@@ -606,11 +610,50 @@ EQUILIBRIA = Lesson(
                 "cannot: it is monotone on each interval between equilibria.",
             ),
         ),
+        Choice(
+            key="q-figure",
+            prompt="In the figure, leave r and K where they are and raise h. "
+                   "The two equilibria slide together and vanish. What has "
+                   "happened to the population at that moment?",
+            figure="phase_line",
+            options=(
+                "f(y) is now negative for every y, so the population falls to "
+                "zero from any starting size",
+                "The population settles at the single equilibrium where the "
+                "two met",
+                "The population grows without bound, because nothing is "
+                "holding it back any more",
+                "Nothing changes: losing an equilibrium is an artefact of the "
+                "plotting window",
+            ),
+            answer=0,
+            becauses=(
+                "The parabola has been pushed entirely below the axis, so "
+                "there is no y at which growth balances harvest. Every arrow "
+                "points left, and the population crashes however large it "
+                "was — which is the point of the figure.",
+                "That is the state one slider-step earlier, at the fold "
+                "itself, where the two roots coincide. Past it there is no "
+                "root at all, and a population cannot settle at an "
+                "equilibrium that does not exist.",
+                "The harvest is subtracted at a constant rate, so raising it "
+                "can only push f(y) down. Unbounded growth is what h = 0 and "
+                "no capacity would give.",
+                "The curve really has left the axis: check the readout, which "
+                "counts the equilibria it found rather than the ones visible "
+                "in the window.",
+            ),
+        ),
     ),
     templates=(
         NumericTemplate(
             key="find-the-equilibrium",
             title="Where the right-hand side vanishes",
+            mistakes=(
+                ("{b}/{a}",
+                 "the division is turned upside down: {b}y = {a} gives y = "
+                 "{a}/{b}"),
+            ),
             prompt="The equation y' = {a}*y - {b}*y**2 has an equilibrium at "
                    "y = 0. What is the other one?",
             answer="{a}/{b}",
@@ -639,6 +682,7 @@ EQUILIBRIA = Lesson(
 
 MOTION = Lesson(
     key="motion",
+    chapter=chapters.MOTION,
     title="Acceleration, velocity and drag",
     summary="Newton's second law is a differential equation, and the "
             "interesting part is what the resistance term does.",
@@ -907,6 +951,13 @@ MOTION = Lesson(
         NumericTemplate(
             key="terminal-velocity",
             title="Terminal velocity, without solving",
+            mistakes=(
+                ("{m}*9.8/{k}",
+                 "the sign is dropped — with up positive, a falling body's "
+                 "velocity is negative"),
+                ("-9.8/{k}",
+                 "the mass is left out of the weight, m·g"),
+            ),
             # The mass appears as data and never inside the equation: writing
             # it there would substitute to "-2*9.8", which nothing tidies.
             prompt="A body of mass {m} kg falls under m*v' = -m*9.8 - {k}*v, "
@@ -958,6 +1009,7 @@ MOTION = Lesson(
 
 NUMERICAL = Lesson(
     key="numerical",
+    chapter=chapters.NUMERICAL,
     title="Euler's method",
     summary="What to do when there is no closed form — which is almost always "
             "— starting with the simplest thing that could work.",
@@ -1100,6 +1152,18 @@ NUMERICAL = Lesson(
             "shows you happening.",
             kind="aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: Euler is unstable on an oscillator",
+            "On y'' + y = 0 every Euler step multiplies the amplitude by √(1 + "
+            "h²), for any h at all: the numerical orbit spirals outwards "
+            "however small the step, and over a long enough run it overflows. "
+            "On y' = λy with λ < 0 the method is stable only for h < 2/|λ|, so "
+            "a fast-decaying component forces a tiny step whether or not "
+            "accuracy needs one.",
+            r"|1 + ih| = \sqrt{1 + h^{2}} > 1",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -1194,6 +1258,16 @@ NUMERICAL = Lesson(
         NumericTemplate(
             key="one-euler-step",
             title="One step of Euler's method",
+            mistakes=(
+                ("{h}*({a}*{y0})",
+                 "only the rise h·f is given — it is added to the starting "
+                 "value {y0}"),
+                ("{y0}/(1 - {h}*{a})",
+                 "the step is taken backwards (implicit Euler), with the "
+                 "slope at the end rather than the start"),
+                ("{y0}*exp({a}*{h})",
+                 "the exact solution is evaluated instead of taking the step"),
+            ),
             prompt="For y' = {a}*y with y(0) = {y0}, take one Euler step of "
                    "size h = {h}. What is the value it lands on?",
             answer="{y0} + {h}*({a}*{y0})",
@@ -1218,6 +1292,7 @@ NUMERICAL = Lesson(
 
 RUNGEKUTTA = Lesson(
     key="rungekutta",
+    chapter=chapters.RUNGEKUTTA,
     title="Runge–Kutta, and what order buys",
     summary="Four slopes instead of one, and why that is cheaper rather than "
             "dearer.",
@@ -1384,6 +1459,19 @@ RUNGEKUTTA = Lesson(
             "there is stability, which order does nothing about.",
             kind="aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: stiffness",
+            "Every explicit Runge–Kutta method has a bounded stability region. "
+            "For y' = −1000y, RK4 is stable only for h below about 2.785/1000 —"
+            " roughly 0.0028 — long after the solution has decayed to nothing. "
+            "A problem with one fast and one slow scale is dominated by that "
+            "bound for its whole length; it is called stiff, and the cure is an"
+            " implicit method.",
+            r"y' = \lambda y:\ \text{RK4 stable for } h|\lambda| < 2.785 \ (\lambda "
+            r"< 0)",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -1488,6 +1576,12 @@ RUNGEKUTTA = Lesson(
         NumericTemplate(
             key="one-rk4-step",
             title="One step of RK4, to four decimal places",
+            mistakes=(
+                ("1 + {a}*{h}",
+                 "only the first stage is used — that is an Euler step"),
+                ("1 + ({a}*{h}) + ({a}*{h})**2/2",
+                 "the stages are combined as a second-order method would"),
+            ),
             prompt="For y' = {a}*y with y(0) = 1, take one RK4 step of size "
                    "h = {h}. Give the value to four decimal places.",
             answer="1 + ({a}*{h}) + ({a}*{h})**2/2 + ({a}*{h})**3/6 "

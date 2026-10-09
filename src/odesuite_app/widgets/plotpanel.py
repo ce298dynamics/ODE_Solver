@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import describe, theme
+from .. import analysis, describe, theme
 from ..theme import Palette
 from .flow import FlowWidget
 
@@ -189,6 +189,7 @@ class PlotPanel(QFrame):
         header.addStretch(1)
 
         self.view = QComboBox()
+        self.view.setAccessibleName("plot view")
         self.view.addItems(["Auto", "Time series", "Phase", "Components"])
         self.view.setFixedWidth(118)
         self.view.currentTextChanged.connect(
@@ -241,6 +242,7 @@ class PlotPanel(QFrame):
         self._series: dict[int, list] = {}
 
         self.plot = pg.PlotWidget()
+        self.plot.setAccessibleName("plot")
         self.plot.setBackground(palette.plot_background)
         self.plot.showGrid(x=True, y=True, alpha=0.18)
 
@@ -249,6 +251,7 @@ class PlotPanel(QFrame):
         # one arrangement of them that a keyboard already knows how to move
         # between.
         self.views = QTabWidget()
+        self.views.setAccessibleName("plot, words or data")
         self.views.addTab(self.plot, "Plot")
         self.views.addTab(self._build_description(), "In words")
         self.views.addTab(self._build_table(), "Data")
@@ -268,7 +271,19 @@ class PlotPanel(QFrame):
         self.log_time.toggled.connect(lambda _: self._redraw())
         self.show_slope_field.toggled.connect(lambda _: self._redraw())
         self._last = None
+        self._dense_cache = None
+        #: Where the solver kept refusing steps onto one instant -- see
+        #: `analysis.rough_spots`. Read by the Solver Lab for its caution line,
+        #: so the words and the marks on the plot come from one computation.
+        self.rough_spots: list[float] = []
+        #: Where a single trajectory stops being a prediction (UX-04), or
+        #: None. Set by the Solver Lab, which owns the Lyapunov estimate it
+        #: comes from; the panel only draws it.
+        self.horizon: float | None = None
         self._auto_log_for: str | None = None
+        # An empty panel is still a panel somebody may land on, and "" is not
+        # a description of anything.
+        self._say("Nothing has been solved yet.")
 
     # -- helpers ---------------------------------------------------------
 
@@ -297,6 +312,19 @@ class PlotPanel(QFrame):
         resolution everywhere, while the uniform part keeps slow stretches
         smooth.
         """
+        # One entry, keyed on the solution object. The same result is redrawn
+        # far more often than a new one arrives -- a view switch, a toggle, the
+        # predictability horizon landing seconds later -- and evaluating the
+        # dense output was the largest remaining cost of a redraw (0.27 s of
+        # 0.30 s on Lorenz, measured).
+        cached = self._dense_cache
+        if cached is not None and cached[0] is solution and cached[1] == samples:
+            return cached[2]
+        grid = self._dense_grid(solution, samples)
+        self._dense_cache = (solution, samples, grid)
+        return grid
+
+    def _dense_grid(self, solution, samples: int):
         if solution.sol is None:
             return solution.t, solution.y
         lo, hi = solution.sol.t_min, solution.sol.t_max
@@ -329,13 +357,22 @@ class PlotPanel(QFrame):
 
     def clear(self, message: str = "") -> None:
         self._reset()
+        self.rough_spots = []
         self.title.setText(message or "—")
-        words = message or "Nothing has been solved yet."
-        self.summary_label.setText(words)
-        self.plot.setAccessibleName("plot")
-        self.plot.setAccessibleDescription(words)
+        self._say(message or "Nothing has been solved yet.")
         self.table_model.set_solution(np.empty(0), np.empty((0, 0)))
         self.table_note.setText("")
+
+    def _say(self, words: str, title: str = "") -> None:
+        """Put one paragraph on the words tab and on the plot's alt text.
+
+        One function for both, so the two can never say different things --
+        which is the failure mode of every hand-maintained alternative text
+        there has ever been.
+        """
+        self.summary_label.setText(words)
+        self.plot.setAccessibleName(f"plot of {title}" if title else "plot")
+        self.plot.setAccessibleDescription(words)
 
     def update_from(self, result, view: str = "Auto") -> None:
         # Apply the catalogue's log-time preference once per problem, then
@@ -361,6 +398,7 @@ class PlotPanel(QFrame):
 
         entry, solution = result.entry, result.solution
         self._reset()
+        self.rough_spots = analysis.rough_spots(solution)
 
         kind = entry.plot_kind if view == "Auto" else {
             "Time series": "time", "Phase": "phase", "Components": "time",
@@ -435,6 +473,24 @@ class PlotPanel(QFrame):
         inner.addWidget(self.table_note)
         return holder
 
+    def _size_columns(self) -> None:
+        """Column widths from the format, not from the contents.
+
+        `resizeColumnsToContents` asks the model for up to a thousand rows of
+        every column, through Python, on every redraw -- whether or not the
+        Data tab is open. Measured, that was 97% of the time to show a result:
+        1.2 s of 1.2 s on Pleiades, six seconds on Kuramoto-Sivashinsky. Even
+        sampling 64 rows left 0.4 s on the latter's 129 columns. Every cell is
+        ``%.6g``, so the widest a number can be is known without looking, and
+        only the headers vary.
+        """
+        metrics = self.table.fontMetrics()
+        widest_number = metrics.horizontalAdvance("-8.88888e-888")
+        padding = 18
+        for column in range(self.table_model.columnCount()):
+            header = metrics.horizontalAdvance(self.table_model.column_name(column))
+            self.table.setColumnWidth(column, max(widest_number, header) + padding)
+
     def summary(self) -> str:
         """The paragraph currently describing the plot. For tests, and alt text."""
         return self.summary_label.text()
@@ -462,15 +518,13 @@ class PlotPanel(QFrame):
         else:
             words = describe.summarise(solution, labels, title=title)
 
-        self.summary_label.setText(words)
         # The plot is an image, and an image with no alternative text is
         # nothing at all to a screen reader.
-        self.plot.setAccessibleName(f"plot of {title}" if title else "plot")
-        self.plot.setAccessibleDescription(words)
+        self._say(words, title)
 
         times, values = describe.table_rows(solution)
         self.table_model.set_solution(times, values, labels)
-        self.table.resizeColumnsToContents()
+        self._size_columns()
         shown, total = times.size, solution.t.size
         self.table_note.setText(
             f"{total} output points." if shown == total else
@@ -631,6 +685,40 @@ class PlotPanel(QFrame):
                 # a trail of dots exactly where its curve used to be.
                 self._series.setdefault(index, []).append(marker)
 
+        # A dashed rule at each rough spot, beneath the curves. The tooltip
+        # repeats the caution rather than inventing a second wording.
+        tip = analysis.rough_spot_note(self.rough_spots) or ""
+        for spot in self.rough_spots:
+            if use_log and spot <= 0:
+                continue
+            rule = pg.InfiniteLine(
+                pos=np.log10(spot) if use_log else spot, angle=90,
+                pen=pg.mkPen(self.palette_obj.warning, width=1,
+                             style=Qt.DashLine),
+            )
+            rule.setZValue(-5)
+            rule.setToolTip(tip)
+            self.plot.addItem(rule)
+
+        # The horizon: a rule, and everything after it shaded, so the part of
+        # the curve that is a prediction and the part that is a sample of the
+        # attractor are told apart without reading the caption.
+        if self.horizon is not None and self.horizon < t[-1]:
+            start = np.log10(self.horizon) if use_log else self.horizon
+            finish = np.log10(t[-1]) if use_log else t[-1]
+            shade = pg.LinearRegionItem(
+                values=(start, finish), movable=False,
+                brush=pg.mkBrush(self.palette_obj.text_muted + "22"),
+                pen=pg.mkPen(self.palette_obj.text_muted, width=1,
+                             style=Qt.DashLine),
+            )
+            shade.setZValue(-20)
+            shade.setToolTip(
+                "Beyond here a single trajectory is not a prediction: the "
+                "attractor is, the path is not."
+            )
+            self.plot.addItem(shade)
+
         self.title.setText(
             f"{entry.title} — {solution.stats.naccepted} steps, "
             f"{solution.y.shape[0]} component"
@@ -642,7 +730,7 @@ class PlotPanel(QFrame):
         self.plot.setLogMode(x=False, y=False)
         self.plot.setAspectLocked(kind in ("orbit", "nbody"))
 
-        _, y = self._dense(solution)
+        times, y = self._dense(solution)
 
         if kind == "nbody":
             self.plot.setLabel("bottom", "x")
@@ -666,11 +754,25 @@ class PlotPanel(QFrame):
         self.plot.setLabel("bottom", x_label)
         self.plot.setLabel("left", y_label)
 
+        # Past the predictability horizon the path is drawn faint: the shape
+        # it traces is still the attractor, but *where on it* the system is
+        # has stopped being information. Faded rather than cut, because the
+        # attractor is the part that remains true.
+        cut = (int(np.searchsorted(times, self.horizon))
+               if self.horizon is not None else times.size)
         self._curves.append(
             self.plot.plot(
-                y[i], y[j], pen=pg.mkPen(self._colour(0), width=2), name="trajectory"
+                y[i, :cut + 1], y[j, :cut + 1],
+                pen=pg.mkPen(self._colour(0), width=2), name="trajectory",
             )
         )
+        if cut < times.size - 1:
+            beyond = self.plot.plot(
+                y[i, cut:], y[j, cut:], pen=pg.mkPen(self._colour(0), width=1),
+                name="past the horizon",
+            )
+            beyond.setOpacity(0.3)
+            self._curves.append(beyond)
         if self.show_steps.isChecked() and solution.t.size < 4000:
             marker = self.plot.plot(
                 solution.y[i], solution.y[j], pen=None, symbol="o", symbolSize=4,

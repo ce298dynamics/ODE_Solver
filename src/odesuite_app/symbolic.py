@@ -1114,6 +1114,18 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
     for symbol in parsed.equation.free_symbols:
         if symbol.is_Symbol and symbol is not _T:
             scope.setdefault(symbol.name, symbol)
+    # Likewise a function the equation was allowed to use: a caller that widened
+    # the whitelist for ``Heaviside(t - 2)`` in the forcing gets an answer
+    # written with it too, which is the only way a switched answer can be
+    # written at all. Only named sympy functions -- never the unknown itself.
+    for applied in parsed.equation.atoms(sp.Function):
+        if not isinstance(applied, sp.core.function.AppliedUndef):
+            scope.setdefault(type(applied).__name__, type(applied))
+    # The two are one family: the response to a blow δ(t - a) is switched on
+    # by u(t - a), so an impulsive equation needs the step in its answer.
+    if "DiracDelta" in scope or "Heaviside" in scope:
+        scope.setdefault("Heaviside", sp.Heaviside)
+        scope.setdefault("DiracDelta", sp.DiracDelta)
 
     # A student writes the answer the way it is written on paper: "y = ...".
     # Accept that, with or without spaces and with or without the "(t)".
@@ -1129,16 +1141,35 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
     except ParseError as exc:
         return AnswerCheck(message=str(exc))
 
+    from .steps import vanishes
+
     check = AnswerCheck(expression=candidate)
+    jumps: list = []
     try:
         equation = parsed.equation
-        residual = sp.simplify(
-            (equation.lhs - equation.rhs).subs(parsed.function(_T), candidate).doit()
-        )
+        raw = (equation.lhs - equation.rhs).subs(parsed.function(_T), candidate).doit()
+        if raw.has(sp.DiracDelta):
+            raw, jumps = _sift_impulses(raw)
+        residual = sp.simplify(raw)
         check.residual = residual
-        check.correct = bool(sp.simplify(residual) == 0)
+        # `vanishes`, not `simplify(...) == 0`. The docstring above always
+        # promised that a residual sympy merely failed to simplify is "cannot
+        # tell", not "wrong", and the code said wrong: a correct answer to the
+        # course's own non-uniqueness example was marked as a mistake.
+        check.correct, domain = vanishes(residual)
     except Exception as exc:
         check.message = f"could not decide: {exc}"
+        return check
+
+    if jumps:
+        where = ", ".join(sp.sstr(point) for point in sorted(jumps, key=float))
+        check.correct = False
+        check.message = (
+            f"substituting it leaves an impulse at t = {where}: the answer or "
+            f"one of its derivatives jumps there by the wrong amount. Check "
+            f"that each switched-on term has its argument shifted too -- "
+            f"u(t - a)g(t - a), not u(t - a)g(t)"
+        )
         return check
 
     if check.correct and parsed.ics:
@@ -1146,12 +1177,72 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
 
     if check.correct is False:
         check.message = "substituting it does not give zero"
+    elif check.correct is None:
+        check.message = ("sympy could not simplify what is left, though it "
+                         "vanishes at every point tried -- probably right, "
+                         "not proven")
     elif check.matches_conditions is False:
         check.message = "it solves the equation, but not with these conditions"
+    elif domain:
+        check.message = (f"verified for {domain}: substituting it gives "
+                         f"exactly zero there")
     else:
         check.message = "verified: substituting it gives exactly zero"
     check.diagnosis = diagnose(parsed, check)
     return check
+
+
+def _sift_impulses(expression) -> tuple[sp.Expr, list]:
+    """Separate the impulses from a residual: ``(smooth part, [where one is left])``.
+
+    Differentiating ``Heaviside(t - a)`` leaves ``DiracDelta(t - a)`` terms in a
+    residual, and those are exactly where a switched answer is right or wrong --
+    ``u(t - 2)(1 - e^(-t))`` solves ``y' + y = u(t - 2)`` on both sides of the
+    switch and fails only by jumping at it. Sampling cannot see that, because a
+    delta is zero at every point tried. So sift: ``c(t)δ⁽ᵏ⁾(t - a)`` is a
+    combination of ``δ⁽ʲ⁾(t - a)`` with the constant coefficients
+    ``(-1)^(k-j) C(k, j) c^(k-j)(a)``, and the answer is right only if every one of
+    those collects to zero. Returns the smooth part with the zero impulses
+    removed, and the points where an impulse survives. An impulse sympy cannot
+    decide about is left in the smooth part, where the usual check sees it.
+    """
+    smooth = sp.Integer(0)
+    impulses: dict = {}
+    for term in sp.Add.make_args(sp.expand(expression)):
+        deltas = [f for f in term.atoms(sp.DiracDelta) if f.args[0].has(_T)]
+        if len(deltas) != 1:
+            smooth += term
+            continue
+        delta = deltas[0]
+        coefficient = term / delta
+        argument = delta.args[0]
+        order = int(delta.args[1]) if len(delta.args) > 1 else 0
+        slope = sp.diff(argument, _T)
+        if (coefficient.has(delta)
+                or not sp.Poly(argument, _T).degree() == 1
+                or slope not in (1, -1)):
+            smooth += term
+            continue
+        # sympy writes δ(t - 1 - π) as δ(-t + 1 + π); δ⁽ᵏ⁾ is even or odd as k is.
+        if slope == -1:
+            coefficient *= (-1) ** order
+        point = sp.solve(argument, _T)[0]
+        for j in range(order + 1):
+            key = (point, order - j)
+            weight = (-1) ** j * sp.binomial(order, j)
+            value = weight * sp.diff(coefficient, _T, j).subs(_T, point)
+            impulses[key] = impulses.get(key, 0) + value
+
+    jumps = []
+    for (point, order), total in impulses.items():
+        total = sp.simplify(total)
+        if total == 0:
+            continue
+        if total.is_zero is False and point not in jumps:
+            jumps.append(point)
+        else:
+            smooth += total * sp.DiracDelta(_T - point, order)
+    return smooth, jumps
 
 
 # ---------------------------------------------------------------------------
@@ -1400,6 +1491,11 @@ def grade_numeric(question, text: str) -> tuple[bool | None, str]:
     allowed = question.tolerance * max(1.0, abs(wanted))
     if abs(got.real - wanted) <= allowed:
         return True, f"correct: {_tidy_number(wanted)}"
+    for value, cause in getattr(question, "mistakes", ()):
+        if abs(got.real - value) <= question.tolerance * max(1.0, abs(value)):
+            return False, (f"not quite -- {_tidy_number(value)} is what you "
+                           f"get if {cause}. The answer is "
+                           f"{_tidy_number(wanted)}")
     return False, f"not quite -- the answer is {_tidy_number(wanted)}"
 
 
@@ -1768,6 +1864,55 @@ def check_model(reference: str, text: str) -> EquivalenceCheck:
     else:
         check.message = "could not tell whether that is the same equation"
     return check
+
+
+@dataclass(frozen=True)
+class Marking:
+    """What an `EquivalenceCheck` says to the person who typed the answer.
+
+    Decided here, once, rather than on each screen. It was written out three
+    times -- the lesson drill's model and expression cards and the quiz -- and
+    by the time the third copy existed the three disagreed: a wrong
+    *expression* in a lesson showed the question's `because`, which states the
+    rule and very nearly the answer, while a wrong *model* in the same lesson
+    and anything wrong in the quiz did not. The rule is now the model card's,
+    because it is the one that keeps a retry a question:
+
+    * right -- the `because`, which is the reason it is right;
+    * wrong -- what differs, when the two could be lined up, and nothing else;
+    * cannot tell -- the message only, and it is not a mark.
+    """
+
+    #: "right", "wrong" or "undecided". A screen maps these to its colours.
+    tone: str
+    #: The verdict line, with its tick or cross.
+    headline: str
+    #: A second line under it, or "".
+    detail: str = ""
+
+    @property
+    def counts(self) -> bool:
+        """Whether this was a mark at all. "Could not read that" is not."""
+        return self.tone != "undecided"
+
+
+def mark_equivalent(question, typed: str) -> tuple[EquivalenceCheck, Marking]:
+    """Grade a `Model` or an `Expression` question and say what it means."""
+    if question.kind == "model":
+        result = check_model(question.equation, typed)
+    else:
+        result = check_expression(question.answer, typed,
+                                  up_to_constant=question.up_to_constant)
+    because = getattr(question, "because", "")
+    if result.correct is True:
+        marking = Marking("right", "✓ " + result.message, because)
+    elif result.correct is False:
+        detail = (f"what differs: {result.difference}"
+                  if result.difference is not None else "")
+        marking = Marking("wrong", "✗ " + result.message, detail)
+    else:
+        marking = Marking("undecided", result.message)
+    return result, marking
 
 
 def _multiple_of(written, wanted):

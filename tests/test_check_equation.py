@@ -231,3 +231,62 @@ def test_the_hardened_parser_is_still_in_front_of_this_one():
         from odesuite_app.symbolic import _parse_side
 
         _parse_side("sin.__class__", {})
+
+
+# ---------------------------------------------------------------------------
+# What a verdict says to the reader -- one rule, shared by lesson and quiz
+# ---------------------------------------------------------------------------
+
+
+def _question(kind: str, **fields):
+    from types import SimpleNamespace
+
+    base = dict(kind=kind, because="because the rule says so, at length",
+                up_to_constant=False, equation="", answer="")
+    base.update(fields)
+    return SimpleNamespace(**base)
+
+
+def test_a_right_answer_is_told_why():
+    from odesuite_app.symbolic import mark_equivalent
+
+    _, marking = mark_equivalent(_question("model", equation=TANK), TANK)
+    assert marking.tone == "right" and marking.counts
+    assert marking.headline.startswith("✓")
+    assert marking.detail == "because the rule says so, at length"
+
+
+def test_a_wrong_answer_is_shown_what_differs_and_not_the_reason():
+    """The `because` states the rule and very nearly the answer. A lesson
+    drill once showed it on a wrong expression, while the model card beside
+    it and the quiz did not; a retry after reading it is not a question."""
+    from odesuite_app.symbolic import mark_equivalent
+
+    for question, typed in (
+        (_question("model", equation=TANK), "y' = 2 + y/20"),
+        (_question("expression", answer="exp(2*t)"), "exp(3*t)"),
+    ):
+        _, marking = mark_equivalent(question, typed)
+        assert marking.tone == "wrong" and marking.counts
+        assert "because" not in marking.detail
+
+
+def test_an_unreadable_answer_is_not_a_mark():
+    from odesuite_app.symbolic import mark_equivalent
+
+    _, marking = mark_equivalent(_question("expression", answer="exp(2*t)"), "")
+    assert marking.tone == "undecided"
+    assert not marking.counts
+    assert marking.detail == ""
+
+
+def test_the_screens_no_longer_grade_equivalence_themselves():
+    """Three copies became one. A fourth would start the drift again."""
+    from pathlib import Path
+
+    screens = Path(__file__).parents[1] / "src" / "odesuite_app" / "screens"
+    for path in screens.glob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        for name in ("check_model(", "check_expression("):
+            assert name not in text.replace("symbolic." + name, ""), (
+                f"{path.name} calls {name} directly; use mark_equivalent")

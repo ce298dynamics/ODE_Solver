@@ -60,3 +60,26 @@ def _generous_dsolve_timeout():
         yield
     finally:
         symbolic.DSOLVE_TIMEOUT = original
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _private_diagnostics_log(tmp_path_factory):
+    """Keep the failed-solve log (REL-04) out of the real per-user directory.
+
+    Many tests fail a solve on purpose -- that is what they test -- and
+    `SolveRunner` records every failure. Without this they would write into the
+    developer's own per-user `diagnostics.log`, and a bug
+    report pasted from it would be full of the suite's deliberate failures.
+    """
+    try:
+        from odesuite_app import diagnostics
+    except ImportError:
+        yield
+        return
+    original = diagnostics.path
+    log = tmp_path_factory.mktemp("diagnostics") / "diagnostics.log"
+    diagnostics.path = lambda: log
+    try:
+        yield
+    finally:
+        diagnostics.path = original

@@ -46,6 +46,7 @@ SECTIONS = [
             ("worked", "Worked Problems", "Ctrl+6"),
             ("quiz", "Quiz & Exams", "Ctrl+7"),
             ("print", "Print & Revise", "Ctrl+8"),
+            ("glossary", "Glossary", "Ctrl+9"),
         ],
     ),
     (
@@ -170,6 +171,16 @@ class Sidebar(QFrame):
         self.theme_button.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.theme_button)
 
+        # REL-04: the one way a failure here can reach the author, and only
+        # when the user chooses to paste it somewhere.
+        self.diagnostics_button = QPushButton("Copy diagnostics")
+        self.diagnostics_button.setCursor(Qt.PointingHandCursor)
+        self.diagnostics_button.setToolTip(
+            "Copy versions, platform and the last few failed solves to the "
+            "clipboard, for a bug report. Nothing is sent anywhere."
+        )
+        layout.addWidget(self.diagnostics_button)
+
         self.status = QLabel("ready")
         self.status.setProperty("role", "muted")
         self.status.setStyleSheet(theme.scaled("font-size: 10.5px; padding: 8px 8px 0 8px;"))
@@ -225,6 +236,7 @@ class MainWindow(QWidget):
         self.sidebar.section_changed.connect(self.show_section)
 
         self.sidebar.theme_button.clicked.connect(self.toggle_theme)
+        self.sidebar.diagnostics_button.clicked.connect(self.copy_diagnostics)
         self.state.busy_changed.connect(
             lambda busy: self.sidebar.status.setText("solving…" if busy else "ready")
         )
@@ -258,6 +270,7 @@ class MainWindow(QWidget):
 
         lessons = LessonsScreen(self.state, self.palette_obj)
         lessons.open_tool.connect(self._open_tool)
+        lessons.open_term.connect(self._open_term)
         self._add("lessons", lessons)
 
         course = CourseScreen(self.state, self.palette_obj)
@@ -273,6 +286,11 @@ class MainWindow(QWidget):
         from .screens.learn_print import PrintScreen
 
         self._add("print", PrintScreen(self.state, self.palette_obj))
+        from .screens.learn_glossary import GlossaryScreen
+
+        glossary = GlossaryScreen(self.state, self.palette_obj)
+        glossary.open_lesson.connect(self._open_lesson)
+        self._add("glossary", glossary)
         from .screens.learn_steps import StepsScreen
 
         self._add("steps", StepsScreen(self.state, self.palette_obj))
@@ -380,6 +398,17 @@ class MainWindow(QWidget):
         if group:
             self.go(group[0][0])
 
+    def copy_diagnostics(self) -> str:
+        """Put the diagnostics report on the clipboard, and return it."""
+        from PySide6.QtGui import QGuiApplication
+
+        from . import diagnostics
+
+        text = diagnostics.report()
+        QGuiApplication.clipboard().setText(text)
+        self.sidebar.status.setText("diagnostics copied to the clipboard")
+        return text
+
     def go(self, key: str) -> None:
         """Open a screen by key, switching section if it lives in the other one.
 
@@ -426,6 +455,13 @@ class MainWindow(QWidget):
             # equation by the time it becomes visible.
             screen.load_equation(equation, conditions)
         self.go(key)
+
+    def _open_term(self, name: str) -> None:
+        """Open the glossary at one term, for a link in a lesson's chapter."""
+        glossary = self._screens.get("glossary")
+        if glossary is not None and hasattr(glossary, "select_term"):
+            glossary.select_term(name)
+        self.go("glossary")
 
     def _open_lesson(self, key: str) -> None:
         """Open `Lessons` at one lesson, for the Course Map's rows."""
@@ -484,7 +520,11 @@ class MainWindow(QWidget):
         chrome and kept its content the size it was.
         """
         super().changeEvent(event)
-        if event.type() != QEvent.ApplicationFontChange:
+        # Both events, for the reason `MathLabel._FONT_EVENTS` records: which
+        # of the two Qt delivers depends on the widget, and the scale
+        # comparison below is what makes listening for both harmless.
+        if event.type() not in (QEvent.ApplicationFontChange,
+                                QEvent.FontChange):
             return
         scale = theme.text_scale()
         if abs(scale - self._text_scale) < 0.005:

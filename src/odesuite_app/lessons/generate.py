@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import functools
 import itertools
+import math
 import random
 import re
 from collections.abc import Iterator
@@ -45,7 +46,7 @@ from .model import (
 )
 
 __all__ = ["draws", "draw", "draw_choice", "draw_numeric", "draw_model",
-           "draw_expression", "draw_classify", "draw_fault",
+           "draw_expression", "draw_classify", "draw_fault", "case_shown",
            "combinations", "every", "every_at", "tidy", "tier_of",
            "tiers", "option_written"]
 
@@ -290,6 +291,28 @@ def draw_numeric(template: NumericTemplate, seed: int,
             f"template {template.key!r} draw {index} has a complex answer: "
             f"{value}"
         )
+    def apart(first: float, second: float) -> bool:
+        return abs(first - second) > 10 * template.tolerance * max(
+            1.0, abs(first), abs(second))
+
+    mistakes = []
+    for expression, cause in template.mistakes:
+        try:
+            wrong = complex(sp.sympify(expression.format(**slots)).evalf())
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+        if abs(wrong.imag) > 1e-12 or not math.isfinite(wrong.real):
+            continue                      # a backward step with h·a = 1
+        # Dropped where it coincides with the answer: with mu = 1, "gave r²
+        # for r" is the right number, and saying so would mark it a mistake.
+        if not apart(wrong.real, number.real):
+            continue
+        mistakes.append((wrong.real, cause.format(**slots)))
+    # And where two causes give the same number, naming either would be a
+    # guess: a d + b c and a + d are both -1 for (1, -2; 1, -2).
+    mistakes = [(value, cause) for value, cause in mistakes
+                if all(apart(value, other) for other, _ in mistakes
+                       if other is not value)]
     return Numeric(
         key=f"{template.key}#{index}",
         # Tidied, because a numeric prompt states its equation inline and a
@@ -303,6 +326,7 @@ def draw_numeric(template: NumericTemplate, seed: int,
         because=template.because.format(**slots),
         latex=template.latex.format(**slots) if template.latex else "",
         hints=tuple(hint.format(**slots) for hint in template.hints),
+        mistakes=tuple(mistakes),
     )
 
 
@@ -369,14 +393,19 @@ def draw_classify(template: ClassifyTemplate, seed: int,
     random.Random(f"{template.key}#{index}").shuffle(order)
     return Choice(
         key=f"{template.key}#{index}",
-        prompt=template.prompt.format(equation=case.equation),
+        prompt=template.prompt.format(equation=case.equation, at=case.at),
         options=tuple(labels[position] for position in order),
         answer=order.index(answer),
         becauses=tuple(reasons[position] for position in order),
         latex=case.latex,
-        shown=case.equation,
+        shown=case_shown(case),
         origins=tuple(order),
     )
+
+
+def case_shown(case) -> str:
+    """The equation as a classify drill shows it, with its point if it has one."""
+    return f"{case.equation}     at (x, y) = {case.at}" if case.at else case.equation
 
 
 def draw_fault(template: FaultTemplate, seed: int, tier: str = "") -> Choice:

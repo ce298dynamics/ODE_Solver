@@ -76,6 +76,7 @@ TOOL_NAMES = {
     "laplace": "Laplace Transforms",
     "byhand": "Methods by Hand",
     "worked": "Worked Problems",
+    "portrait": "Phase Portrait",
 }
 
 #: Which of those can be opened *on* an equation. The other two are driven by
@@ -168,6 +169,8 @@ class LessonsScreen(QWidget):
     #: other end, because the window knows which screen to show and only this
     #: screen knows which lesson is open.
     open_tool = Signal(str, str, str)
+    #: Asks the window to open the glossary at a term a chapter linked.
+    open_term = Signal(str)
 
     def __init__(self, state, palette: Palette, parent=None) -> None:
         super().__init__(parent)
@@ -193,10 +196,25 @@ class LessonsScreen(QWidget):
         #: once the page has been rebuilt. Cleared as soon as it is honoured:
         #: it describes one rebuild, not a preference.
         self._focus_drill: str = ""
-        #: Token -> the panel and button waiting on it. Keyed rather than held
-        #: singly, so a superseded request can still re-enable its own button
-        #: instead of leaving it disabled for good.
-        self._pending: dict[int, tuple[StepsPanel, QPushButton]] = {}
+        #: The equations "Show me" has shown worked in full, so that an answer
+        #: checked afterwards is marked but not counted: copying the last line
+        #: of the working is reading, not recall. Named by the equation and
+        #: its conditions (see `_seen`), not by the card: a drill's pool is
+        #: small and New question walks round it, so a draw read in full comes
+        #: back under another seed, and two lessons can ask the very same
+        #: question. Added on delivery, not on the press -- a working that
+        #: failed or was superseded showed nothing -- while one still on its
+        #: way counts through `_pending`. Held here rather than by the card,
+        #: because the page is rebuilt whenever another drill on it advances,
+        #: and not on disk, because it describes one sitting.
+        self._worked: set[tuple[str, str]] = set()
+        #: Token -> the panel and button waiting on it, what to hand the
+        #: derivation to instead of the panel, and the `_seen` name of an
+        #: equation being shown in full. Keyed rather than held singly, so a
+        #: superseded request can still re-enable its own button instead of
+        #: leaving it disabled for good.
+        self._pending: dict[int, tuple[StepsPanel, QPushButton, object,
+                                       tuple[str, str] | None]] = {}
 
         self._signals = _Signals()
         self._signals.done.connect(self._on_worked)
@@ -226,6 +244,7 @@ class LessonsScreen(QWidget):
         # A tree rather than a list: the units are what make thirty-odd
         # lessons navigable, and a flat list of them is a wall.
         self.listing = QTreeWidget()
+        self.listing.setAccessibleName("lessons")
         self.listing.setHeaderHidden(True)
         self.listing.setIndentation(12)
         self.listing.setMinimumHeight(260)
@@ -404,6 +423,7 @@ class LessonsScreen(QWidget):
         outer.addWidget(head)
 
         scroll = QScrollArea()
+        scroll.setAccessibleName("lesson")
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -544,6 +564,9 @@ class LessonsScreen(QWidget):
             self._scroll.ensureWidgetVisible(box, 0, 60)
 
     def _build_learn(self, lesson) -> None:
+        if lesson.chapter:
+            self._build_chapter(lesson)
+            return
         if lesson.objectives:
             self._layout.addWidget(self._objectives_card(lesson))
         # Motivation before anything else that is not a promise about the
@@ -560,6 +583,37 @@ class LessonsScreen(QWidget):
             self._layout.addWidget(self._derivation_card(lesson))
         for note in lesson.notes:
             self._layout.addWidget(self._note_card(note))
+
+    def _build_chapter(self, lesson) -> None:
+        """The textbook version of Learn: aims, the chapter, key formulas."""
+        from ..widgets.chapterview import ChapterView
+
+        if lesson.objectives:
+            self._layout.addWidget(self._objectives_card(lesson))
+        frame, layout = self._panel()
+        layout.setContentsMargins(28, 18, 28, 26)
+        frame.setAccessibleName(f"Chapter: {lesson.title}")
+        chapter = ChapterView(lesson.chapter, self.palette_obj,
+                              lesson_key=lesson.key)
+        chapter.term_chosen.connect(self.open_term)
+        layout.addWidget(chapter)
+        self._layout.addWidget(frame)
+
+        formulas = [note for note in lesson.notes if note.kind == "formula"]
+        if formulas:
+            box, inner = self._panel(self.palette_obj.accent_soft)
+            box.setAccessibleName(f"Key formulas: {lesson.title}")
+            heading = QLabel("Key formulas")
+            heading.setProperty("role", "heading")
+            inner.addWidget(heading)
+            for note in formulas:
+                name = QLabel(f"<b>{note.heading}</b>")
+                name.setTextFormat(Qt.RichText)
+                inner.addWidget(name)
+                if note.latex:
+                    inner.addWidget(MathLabel(self.palette_obj, note.latex,
+                                              point_size=14))
+            self._layout.addWidget(box)
 
     def _prose(self, layout, text: str) -> None:
         """Add `text` as one wrapped label per paragraph.
@@ -939,6 +993,7 @@ class LessonsScreen(QWidget):
         prompt.setProperty("role", "muted")
         prompt.setWordWrap(True)
         layout.addWidget(prompt)
+        self._question_figure(question, layout)
 
         if len(offered) > 1:
             layout.addLayout(self._tier_row(template, offered))
@@ -974,6 +1029,7 @@ class LessonsScreen(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
         answer = QLineEdit()
+        answer.setAccessibleName("your answer")
         answer.setPlaceholderText("y = ...")
         answer.setClearButtonEnabled(True)
         row.addWidget(answer, 1)
@@ -993,8 +1049,20 @@ class LessonsScreen(QWidget):
         hint_button.setEnabled(bool(question.hints))
         row.addWidget(hint_button)
 
+        step = QPushButton("Next step")
+        step.setToolTip(
+            "Show the first step of the real working for this equation, then "
+            "one more each time — never the last, which is the answer."
+        )
+        step.setCursor(Qt.PointingHandCursor)
+        row.addWidget(step)
+
         show = QPushButton("Show me")
-        show.setToolTip("Work it through in full, and stop counting this one")
+        show.setToolTip(
+            "Work it through in full. A right answer to this question is "
+            "still marked afterwards, but not counted: the streak neither "
+            "grows nor starts again."
+        )
         show.setCursor(Qt.PointingHandCursor)
         row.addWidget(show)
 
@@ -1029,7 +1097,8 @@ class LessonsScreen(QWidget):
         def graded() -> bool:
             marked = self._check_solve(lesson, question, answer, verdict,
                                        bucket=progress.drill_key(lesson.key),
-                                       key=template.key)
+                                       key=template.key,
+                                       fresh="Try a fresh one.")
             now, done = self._streak_of(lesson, template)
             run.setText(self._streak_text(now, done))
             run.setStyleSheet(
@@ -1046,10 +1115,49 @@ class LessonsScreen(QWidget):
         self._keyboard_loop(frame, template, answer, graded, next_question)
         show.clicked.connect(
             lambda: self._work(question.equation, question.conditions,
-                               template.narrator, working, show)
+                               template.narrator, working, show,
+                               shows=self._seen(question))
         )
+        self._wire_fading(question, template, working, step)
         again.clicked.connect(next_question)
         return frame
+
+    def _wire_fading(self, question, template, working: StepsPanel,
+                     button: QPushButton) -> None:
+        """The worked example, faded: the drawn equation's own working, a step
+        at a time, stopping one short of the end.
+
+        A hint says what kind of move comes next; this shows the move, on
+        these numbers, from the narrator that would solve it -- the bridge
+        between reading a worked example and producing one. The last step is
+        never revealed, because it is the answer, and "Show me" is still there
+        for anyone who wants the whole thing.
+        """
+        state = {"derivation": None, "shown": 0}
+
+        def reveal() -> None:
+            derivation = state["derivation"]
+            limit = max(len(derivation.steps) - 1, 0)
+            state["shown"] = min(state["shown"] + 1, limit)
+            working.setVisible(True)
+            working.show_derivation(derivation, upto=state["shown"])
+            if state["shown"] >= limit:
+                button.setEnabled(False)
+                button.setToolTip("The last step is the answer — yours to "
+                                  "write.")
+
+        def arrived(derivation) -> None:
+            state["derivation"] = derivation
+            reveal()
+
+        def pressed() -> None:
+            if state["derivation"] is None:
+                self._work(question.equation, question.conditions,
+                           template.narrator, working, button, deliver=arrived)
+            else:
+                reveal()
+
+        button.clicked.connect(pressed)
 
     def _build_choice_drill(self, lesson, template, question, run: QLabel,
                             layout, frame) -> None:
@@ -1151,6 +1259,7 @@ class LessonsScreen(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
         answer = QLineEdit()
+        answer.setAccessibleName("your answer")
         answer.setPlaceholderText("a number")
         answer.setClearButtonEnabled(True)
         row.addWidget(answer, 1)
@@ -1245,6 +1354,7 @@ class LessonsScreen(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
         answer = QLineEdit()
+        answer.setAccessibleName("your answer")
         answer.setPlaceholderText("y' = ...")
         answer.setClearButtonEnabled(True)
         row.addWidget(answer, 1)
@@ -1288,9 +1398,9 @@ class LessonsScreen(QWidget):
         self._wire_hints(question, hints, hint_button)
 
         def graded() -> bool:
-            marked = self._check_model(lesson, question, answer, verdict,
-                                       bucket=progress.drill_key(lesson.key),
-                                       key=template.key)
+            marked = self._check_equivalent(lesson, question, answer, verdict,
+                                            bucket=progress.drill_key(lesson.key),
+                                            key=template.key)
             now, done = self._streak_of(lesson, template)
             run.setText(self._streak_text(now, done))
             run.setStyleSheet(
@@ -1327,6 +1437,7 @@ class LessonsScreen(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
         answer = QLineEdit()
+        answer.setAccessibleName("your answer")
         answer.setPlaceholderText("an expression, like exp(3*t)")
         answer.setClearButtonEnabled(True)
         row.addWidget(answer, 1)
@@ -1370,7 +1481,7 @@ class LessonsScreen(QWidget):
         self._wire_hints(question, hints, hint_button)
 
         def graded() -> bool:
-            marked = self._check_expression(
+            marked = self._check_equivalent(
                 lesson, question, answer, verdict,
                 bucket=progress.drill_key(lesson.key), key=template.key,
             )
@@ -1399,12 +1510,53 @@ class LessonsScreen(QWidget):
         prompt.setProperty("role", "heading")
         prompt.setWordWrap(True)
         layout.addWidget(prompt)
+        # After the prompt and before the options: the prompt says what to
+        # read off the picture, so it has to have been read first.
+        self._question_figure(question, layout)
 
-        if question.kind == "choice":
-            self._build_choice(lesson, question, layout)
+        # Dispatched by kind rather than by "choice or everything else",
+        # which is what it was. A practice question could only ever be a
+        # `Choice` or a `Solve`, so the fall-through was safe; the first
+        # `Numeric` written into a lesson's `questions` landed in
+        # `_build_solve` and raised on `question.equation`, which a `Numeric`
+        # does not have. An unknown kind now says so on the card instead of
+        # taking the page down.
+        builder = {
+            "choice": self._build_choice,
+            "numeric": self._build_numeric,
+            "solve": self._build_solve,
+        }.get(question.kind)
+        if builder is None:
+            unknown = QLabel(
+                f"this question is a {question.kind!r}, which this screen "
+                "does not know how to ask"
+            )
+            unknown.setWordWrap(True)
+            unknown.setStyleSheet(
+                theme.scaled(f"color: {self.palette_obj.danger};")
+            )
+            layout.addWidget(unknown)
         else:
-            self._build_solve(lesson, question, layout)
+            builder(lesson, question, layout)
         return frame
+
+    def _question_figure(self, question, layout) -> None:
+        """Put a question's own figure above its prompt, where it has one.
+
+        The same widget the Learn segment shows, deliberately: a question
+        about a phase portrait should be answered by moving the sliders on
+        the phase portrait, not by remembering one. The figure is live here
+        for the same reason it is live there.
+
+        Silent where the key is unknown, as `build_figure` is: a question that
+        lost its picture is still a question, and the tests catch the typo.
+        """
+        key = getattr(question, "figure", "")
+        if not key:
+            return
+        figure = build_figure(key, self.palette_obj)
+        if figure is not None:
+            layout.addWidget(figure)
 
     def _build_choice(self, lesson, question, layout) -> None:
         if question.latex:
@@ -1441,6 +1593,69 @@ class LessonsScreen(QWidget):
         )
         self._restore(lesson, question, verdict)
 
+    def _build_numeric(self, lesson, question, layout) -> None:
+        """A practice question whose answer is a number.
+
+        The same shape as the drill's numeric card and for the same reasons:
+        a box, a tolerance-graded check through `symbolic.grade_numeric`, and
+        the hint ladder behind it. No "Show me" — what is being asked for is a
+        value read off a figure or off one step of a method, and there is no
+        narrator that works through *that*; the reason the answer is the
+        answer arrives with the verdict instead.
+        """
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        answer = QLineEdit()
+        answer.setAccessibleName("your answer")
+        answer.setPlaceholderText("a number")
+        answer.setClearButtonEnabled(True)
+        row.addWidget(answer, 1)
+
+        if question.units:
+            # Beside the box rather than inside it: the units are never part
+            # of what is typed, and a placeholder showing them would invite
+            # somebody to type them.
+            units = QLabel(question.units)
+            units.setProperty("role", "muted")
+            row.addWidget(units)
+
+        check = QPushButton("Check")
+        check.setToolTip("Mark the number you have entered")
+        check.setProperty("role", "primary")
+        check.setCursor(Qt.PointingHandCursor)
+        row.addWidget(check)
+
+        hint_button = QPushButton("Hint")
+        hint_button.setToolTip(
+            "Reveal the next hint. They come one at a time, and never the "
+            "answer."
+        )
+        hint_button.setCursor(Qt.PointingHandCursor)
+        hint_button.setEnabled(bool(question.hints))
+        row.addWidget(hint_button)
+        layout.addLayout(row)
+
+        verdict = QLabel("")
+        verdict.setWordWrap(True)
+        verdict.setTextFormat(Qt.RichText)
+        layout.addWidget(verdict)
+        self._verdicts[question.key] = verdict
+
+        hints = QLabel("")
+        hints.setProperty("role", "muted")
+        hints.setWordWrap(True)
+        hints.setVisible(False)
+        layout.addWidget(hints)
+
+        self._wire_hints(question, hints, hint_button)
+        check.clicked.connect(
+            lambda: self._check_numeric(lesson, question, answer, verdict)
+        )
+        answer.returnPressed.connect(
+            lambda: self._check_numeric(lesson, question, answer, verdict)
+        )
+        self._restore(lesson, question, verdict)
+
     def _build_solve(self, lesson, question, layout) -> None:
         shown = question.equation + (
             f",   {question.conditions}" if question.conditions else ""
@@ -1453,6 +1668,7 @@ class LessonsScreen(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
         answer = QLineEdit()
+        answer.setAccessibleName("your answer")
         answer.setPlaceholderText("y = ...")
         answer.setClearButtonEnabled(True)
         row.addWidget(answer, 1)
@@ -1473,7 +1689,11 @@ class LessonsScreen(QWidget):
         row.addWidget(hint_button)
 
         show = QPushButton("Show me")
-        show.setToolTip("Work it through in full, and stop counting this one")
+        show.setToolTip(
+            "Work it through in full. A right answer to this question is "
+            "still marked afterwards, but not counted until the app is next "
+            "opened. A tick it already has is kept."
+        )
         show.setCursor(Qt.PointingHandCursor)
         row.addWidget(show)
         layout.addLayout(row)
@@ -1507,7 +1727,8 @@ class LessonsScreen(QWidget):
         )
         show.clicked.connect(
             lambda: self._work(question.equation, question.conditions,
-                               lesson.narrator, working, show)
+                               lesson.narrator, working, show,
+                               shows=self._seen(question))
         )
         self._restore(lesson, question, verdict)
 
@@ -1613,7 +1834,22 @@ class LessonsScreen(QWidget):
 
     def _check_solve(self, lesson, question, answer: QLineEdit,
                      verdict: QLabel, *, bucket: str = "",
-                     key: str = "") -> bool:
+                     key: str = "",
+                     fresh: str = "It counts again the next time the app is "
+                                  "opened.") -> bool:
+        """Mark a typed solution, and record it.
+
+        Where "Show me" has shown this equation worked in full (see
+        `_was_worked`), a right answer is still *marked* -- whether the copy
+        is right is worth knowing -- but not recorded at all. Seeing the
+        answer is not recalling it, and a streak built by copying would make
+        "mastered" mean nothing; but recording it as a miss would be worse
+        than saying nothing. It would reset the streak and the review box of
+        a question somebody opened only to read the method again, and it
+        would charge the reader who checks their copy while the one who
+        presses New question instead goes free. `fresh` says when it counts
+        again.
+        """
         from ..laplace import EXTRA_FUNCTIONS
         from ..symbolic import check_answer, parse_equation, spec_for
 
@@ -1633,7 +1869,21 @@ class LessonsScreen(QWidget):
             return False
 
         result = check_answer(parsed, answer.text())
-        if result.correct is True and result.matches_conditions is not False:
+        right = result.correct is True and result.matches_conditions is not False
+        if right and self._was_worked(question):
+            # A drill's bucket is not shown as ticks, so only practice says so.
+            before = progress.load().get(lesson.key, {}).get(question.key)
+            if not bucket and before is not None and before.correct:
+                fresh = "The tick from before still stands."
+            # Muted, and no tick: at a glance it must not read as one.
+            verdict.setStyleSheet("")
+            verdict.setText(
+                f'<span style="color:{palette.text_muted};">Right — but it '
+                f"was worked for you, so this answer is not counted. "
+                f"{fresh}</span>"
+            )
+            return True
+        if right:
             colour, text = palette.success, "✓ " + result.message
             state = progress.State.CORRECT
         elif result.correct is False or result.matches_conditions is False:
@@ -1697,72 +1947,32 @@ class LessonsScreen(QWidget):
         # question rather than counting a typo as a turn taken.
         return right is not None
 
-    def _check_model(self, lesson, question, answer: QLineEdit,
-                     verdict: QLabel, *, bucket: str = "",
-                     key: str = "") -> bool:
-        """Mark an equation somebody wrote, and say where a wrong one differs.
-
-        The three verdicts again, and the third does more work here than
-        anywhere else: "write the whole equation, with an = in it" and "write
-        it in terms of y" are both things to fix rather than things to be
-        marked wrong for, and neither says anything about whether the model
-        was understood.
-
-        A wrong answer shows what is left over when the two equations are
-        subtracted, which is usually the whole diagnosis -- a forgotten
-        inflow term appears by itself, and a sign that went the wrong way
-        appears as twice the term it belongs to.
-        """
-        from ..symbolic import check_model
-
-        palette = self.palette_obj
-        result = check_model(question.equation, answer.text())
-        if result.correct is True:
-            colour, text = palette.success, "✓ " + result.message
-            state = progress.State.CORRECT
-        elif result.correct is False:
-            colour, text = palette.danger, "✗ " + result.message
-            state = progress.State.ATTEMPTED
-        else:
-            colour, text = palette.text_muted, result.message
-            state = progress.State.ATTEMPTED
-
-        detail = ""
-        if result.correct is False and result.difference is not None:
-            detail = self._aside(f"what differs: {result.difference}")
-        elif result.correct is True and question.because:
-            detail = self._aside(question.because)
-        verdict.setStyleSheet("")
-        verdict.setText(f'<span style="color:{colour};">{text}</span>{detail}')
-        self._record(bucket or lesson.key, key or question.key, state)
-        return result.correct is not None
-
-    def _check_expression(self, lesson, question, answer: QLineEdit,
+    def _check_equivalent(self, lesson, question, answer: QLineEdit,
                           verdict: QLabel, *, bucket: str = "",
                           key: str = "") -> bool:
-        """Mark one move of a method."""
-        from ..symbolic import check_expression
+        """Mark an equation somebody wrote, or one move of a method.
+
+        What the verdict *means* -- which line goes under it, and whether it
+        counts -- is `symbolic.mark_equivalent`'s, shared with the quiz. This
+        only colours it and records it. A wrong model shows what is left over
+        when the two equations are subtracted, which is usually the whole
+        diagnosis: a forgotten inflow term appears by itself, and a sign that
+        went the wrong way appears as twice the term it belongs to.
+        """
+        from ..symbolic import mark_equivalent
 
         palette = self.palette_obj
-        result = check_expression(question.answer, answer.text(),
-                                  up_to_constant=question.up_to_constant)
-        if result.correct is True:
-            colour, text = palette.success, "✓ " + result.message
-            state = progress.State.CORRECT
-        elif result.correct is False:
-            colour, text = palette.danger, "✗ " + result.message
-            state = progress.State.ATTEMPTED
-        else:
-            colour, text = palette.text_muted, result.message
-            state = progress.State.ATTEMPTED
-
-        detail = ""
-        if result.correct is not None and question.because:
-            detail = self._aside(question.because)
+        _, marking = mark_equivalent(question, answer.text())
+        colour = {"right": palette.success,
+                  "wrong": palette.danger}.get(marking.tone, palette.text_muted)
+        state = (progress.State.CORRECT if marking.tone == "right"
+                 else progress.State.ATTEMPTED)
+        detail = self._aside(marking.detail) if marking.detail else ""
         verdict.setStyleSheet("")
-        verdict.setText(f'<span style="color:{colour};">{text}</span>{detail}')
+        verdict.setText(
+            f'<span style="color:{colour};">{marking.headline}</span>{detail}')
         self._record(bucket or lesson.key, key or question.key, state)
-        return result.correct is not None
+        return marking.counts
 
     def _aside(self, text: str) -> str:
         """A second line under a verdict, in the muted colour."""
@@ -1776,12 +1986,45 @@ class LessonsScreen(QWidget):
         self._token += 1
         self._pending.clear()
 
+    @staticmethod
+    def _seen(question) -> tuple[str, str]:
+        """The name `_worked` knows a question by: what it asks, not where.
+
+        Tidied as a drill's draws are, and with the spaces dropped, so that a
+        practice question written "y' - 2*y = 0" and a draw that came out as
+        "y'+-2*y = 0" are recognisably the same equation.
+        """
+        from ..lessons.generate import tidy
+
+        return ("".join(tidy(question.equation).split()),
+                "".join(question.conditions.split()))
+
+    def _was_worked(self, question) -> bool:
+        """Whether this equation has been shown worked in full, or is about
+        to be: one asked for and still on its way counts as asked, or the
+        answer could be checked in the moment before it appears."""
+        seen = self._seen(question)
+        return seen in self._worked or any(
+            waiting[3] == seen for waiting in self._pending.values()
+        )
+
     def _work(self, equation: str, conditions: str, narrator: str,
-              panel: StepsPanel, button: QPushButton) -> None:
+              panel: StepsPanel, button: QPushButton, deliver=None,
+              shows: tuple[str, str] | None = None) -> None:
+        """Narrate off the interface thread and show it in `panel`.
+
+        `deliver`, when given, receives the derivation instead of the panel
+        rendering all of it -- the step-at-a-time button keeps the derivation
+        and shows it a piece at a time. `shows` is the `_seen` name of a
+        question this request works in full, for "Show me" to note once it
+        has arrived; the worked examples and the faded working pass none.
+        """
         self._token += 1
         # Whatever else was waiting will never be delivered now, so hand its
-        # button back rather than leaving it disabled for the rest of the visit.
-        for stale_panel, stale_button in self._pending.values():
+        # button back rather than leaving it disabled for the rest of the
+        # visit. Dropping it also drops what it would have shown from
+        # `_was_worked`: nothing was shown.
+        for stale_panel, stale_button, _, _ in self._pending.values():
             stale_button.setEnabled(True)
             stale_panel.clear("superseded")
         self._pending.clear()
@@ -1789,17 +2032,22 @@ class LessonsScreen(QWidget):
         panel.setVisible(True)
         panel.clear("working it through…")
         button.setEnabled(False)
-        self._pending[self._token] = (panel, button)
+        self._pending[self._token] = (panel, button, deliver, shows)
+        # Ahead of the queue: the pool is shared with every equation's
+        # typesetting, much of it for pages the reader has already left, and
+        # at equal priority it is first come, first served. A long visit
+        # could leave the working they just asked for a minute behind that.
         QThreadPool.globalInstance().start(
             _WorkingJob(self._token, equation, conditions, narrator,
-                        self._signals)
+                        self._signals),
+            1,
         )
 
     def _on_worked(self, token: int, result) -> None:
         waiting = self._pending.pop(token, None)
         if waiting is None:
             return                                # superseded, or not ours
-        panel, button = waiting
+        panel, button, deliver, shows = waiting
         button.setEnabled(True)
         if isinstance(result, Exception):
             panel.clear(f"{type(result).__name__}: {result}")
@@ -1807,15 +2055,27 @@ class LessonsScreen(QWidget):
         if result is None:
             panel.clear("no working could be produced for this one")
             return
+        if deliver is not None:
+            deliver(result)
+            return
+        if shows is not None:
+            self._worked.add(shows)
         panel.show_derivation(result)
 
     # -- the rest --------------------------------------------------------
 
     def _open_tool(self) -> None:
         lesson = self.current_lesson()
-        if lesson is not None:
-            self.open_tool.emit(lesson.tool, lesson.example,
-                                lesson.example_conditions)
+        if lesson is None:
+            return
+        if lesson.tool == "portrait":
+            # The portrait takes a catalogue key, not an equation: what a
+            # nonlinear lesson is about is a system no narrator can solve, and
+            # its worked examples are the pieces of it that can be.
+            self.open_tool.emit("portrait", lesson.portrait, "")
+            return
+        self.open_tool.emit(lesson.tool, lesson.example,
+                            lesson.example_conditions)
 
     def _describe_tool(self, lesson) -> None:
         """Say which screen the button opens, and on what.
@@ -1834,7 +2094,15 @@ class LessonsScreen(QWidget):
         name = TOOL_NAMES.get(lesson.tool, "the tool for this topic")
         self.tool_button.setText(f"Open in {name}")
         equation = lesson.example
-        if equation and lesson.tool in CARRIES_EQUATION:
+        if lesson.tool == "portrait" and lesson.portrait:
+            from .. import catalog
+
+            try:
+                title = catalog.get(lesson.portrait).title
+            except KeyError:
+                title = lesson.portrait
+            self.tool_button.setToolTip(f"Opens {name} on  {title}")
+        elif equation and lesson.tool in CARRIES_EQUATION:
             shown = equation + (f",  {lesson.example_conditions}"
                                 if lesson.example_conditions else "")
             self.tool_button.setToolTip(f"Opens {name} on  {shown}")

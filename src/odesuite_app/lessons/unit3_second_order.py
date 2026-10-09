@@ -11,6 +11,7 @@ case belong here too, and arrive with the narrator each needs.
 
 from __future__ import annotations
 
+from .chapters import unit3 as chapters
 from .model import (
     Case,
     Choice,
@@ -27,16 +28,18 @@ from .model import (
 )
 
 __all__ = ["SUPERPOSITION", "ROOTS", "UNDETERMINED", "VARIATION",
-           "CAUCHY", "HIGHER", "LESSONS"]
+           "REDUCTION", "CAUCHY", "HIGHER", "LESSONS"]
 
 
 ROOTS = Lesson(
     key="roots",
+    chapter=chapters.ROOTS,
     title="Second order: characteristic roots",
     summary="Constant coefficients, no forcing — where a differential equation "
             "becomes a quadratic.",
     tool="steps",
     reference="Edwards 3.1–3.3",
+    figure="root_cases",
     motivation=(
         "Superposition says that two independent solutions are the whole "
         "answer. It does not say how to find even one of them, and for a "
@@ -201,6 +204,17 @@ ROOTS = Lesson(
             r"b^{2} - 4ac > 0 \ \mid\ = 0 \ \mid\ < 0",
             "aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: constant coefficients only",
+            "Guessing eʳᵗ works because differentiating it only rescales it, "
+            "and that survives multiplication by a constant but not by a "
+            "function of t. For y'' + t·y = 0 the guess leaves t·eʳᵗ terms that"
+            " no choice of r cancels, and a different method — a series, here —"
+            " is needed.",
+            r"y'' + t\,y = 0: \ e^{rt} \text{ leaves } t\,e^{rt}",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -287,6 +301,39 @@ ROOTS = Lesson(
                 "y = C₁cos 3t + C₂sin 3t.",
                 "y(0) = 0 kills the cosine; y′(0) = 3 gives 3C₂ = 3, so "
                 "y = sin 3t.",
+            ),
+        ),
+        Choice(
+            key="q-figure",
+            prompt="In the left pane of the figure, hold b fixed and drag c "
+                   "upwards until the marker crosses the parabola. What "
+                   "happens to the solution in the right pane as it does?",
+            figure="root_cases",
+            options=(
+                "The two real roots collide into one, and past the parabola "
+                "the solution starts to oscillate",
+                "The solution changes from decaying to growing, because "
+                "crossing the parabola changes the sign of the roots",
+                "Nothing visible happens: the parabola marks a change in the "
+                "formula used, not in the behaviour",
+                "The solution stops existing, because above the parabola the "
+                "characteristic equation has no roots",
+            ),
+            answer=0,
+            becauses=(
+                "b² − 4c changes sign exactly at the parabola. Below it the "
+                "roots are two real numbers, on it they are one repeated "
+                "root, and above it they are a complex pair — which is the "
+                "first moment the curve crosses the axis rather than "
+                "approaching it.",
+                "Growth or decay is decided by the real part, which is −b/2 "
+                "and has nothing to do with c. Hold b positive and everything "
+                "decays on both sides of the parabola.",
+                "The formula changes because the behaviour does. Watch the "
+                "right pane while you cross: the curve goes from never "
+                "crossing zero to crossing it repeatedly.",
+                "It always has roots — a quadratic always does. What changes "
+                "is whether they are real, and complex roots are roots.",
             ),
         ),
     ),
@@ -381,6 +428,7 @@ ROOTS = Lesson(
 
 UNDETERMINED = Lesson(
     key="undetermined",
+    chapter=chapters.UNDETERMINED,
     title="Forced equations: undetermined coefficients",
     summary="When something is driving the system, and you can guess the shape "
             "of its response.",
@@ -559,6 +607,19 @@ UNDETERMINED = Lesson(
             "or the Laplace transform.",
             kind="aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: the forcing must have finitely many derivatives",
+            "A guess works when the forcing and all its derivatives lie in a "
+            "finite family: polynomials, exponentials, sines and cosines, and "
+            "their products. sec t does not — its derivatives keep producing "
+            "new functions — so no finite guess can contain the answer, and "
+            "variation of parameters is the method that still works. The "
+            "equation must also have constant coefficients.",
+            r"\frac{d}{dt}\sec t = \sec t\tan t,\quad \frac{d^{2}}{dt^{2}}\sec t = "
+            r"\sec t\tan^{2} t + \sec^{3} t,\ \dots",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -718,6 +779,7 @@ UNDETERMINED = Lesson(
 
 CAUCHY = Lesson(
     key="cauchy",
+    chapter=chapters.CAUCHY,
     title="Cauchy–Euler equations",
     summary="Variable coefficients that still come out in closed form, because "
             "the powers of t line up.",
@@ -890,6 +952,17 @@ CAUCHY = Lesson(
             "cannot be given there.",
             kind="aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: t = 0, and the wrong pattern",
+            "The guess y = tʳ works only when the k-th derivative is multiplied"
+            " by exactly tᵏ. And t = 0 is a singular point: the solutions are "
+            "found on t > 0 (or on t < 0 with |t|), and generally do not "
+            "continue through zero — tʳ with r negative or fractional is not "
+            "defined there.",
+            r"t^{2}y'' + a\,t\,y' + b\,y = 0 \quad (t > 0)",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -990,11 +1063,13 @@ CAUCHY = Lesson(
 
 SUPERPOSITION = Lesson(
     key="superposition",
+    chapter=chapters.SUPERPOSITION,
     title="Superposition, the Wronskian, and the general solution",
     summary="Why two solutions are enough for a second-order equation, and how "
             "to tell whether the two you have will do.",
     tool="steps",
     reference="Edwards 3.1",
+    figure="superposition",
     motivation=(
         "Everything so far has been first order, and first order means one "
         "constant and one condition. The physical world is mostly second "
@@ -1348,9 +1423,10 @@ SUPERPOSITION = Lesson(
                  "out.",
                  "harder"),
                 ("C₁ + C₂e^(-4t)", "y'' + 4*y' = 0",
-                 "A bare constant is e^(0t), so the roots are 0 and −4 and "
-                 "the polynomial is r(r + 4) = r² + 4r. The missing constant "
-                 "term is the zero root.",
+                 "A bare constant is an exponential too, with rate zero. So "
+                 "the roots are 0 and −4, and the polynomial is "
+                 "r(r + 4) = r² + 4r — the missing constant term is the zero "
+                 "root.",
                  "harder"),
             )),),
             level=lambda slots: slots["tier"],
@@ -1361,11 +1437,13 @@ SUPERPOSITION = Lesson(
 
 VARIATION = Lesson(
     key="variation",
+    chapter=chapters.VARIATION,
     title="Variation of parameters",
     summary="What to do when the forcing term is not something you could ever "
             "guess.",
     tool="steps",
     reference="Edwards 3.5",
+    figure="variation",
     motivation=(
         "Undetermined coefficients works because one particular family of "
         "functions is closed under differentiation. Step outside that family "
@@ -1534,6 +1612,18 @@ VARIATION = Lesson(
             r"y = C_1 y_1 + C_2 y_2 + u_1 y_1 + u_2 y_2",
             "aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: you need the homogeneous solutions first",
+            "Variation of parameters never guesses, but it assumes y₁ and y₂ "
+            "are already known. For constant coefficients they are; for most "
+            "variable-coefficient equations they are not, and the method has "
+            "nothing to start from. And the integrals it produces need not be "
+            "elementary — the answer is then correct but written with integrals"
+            " in it.",
+            r"u_1' = -\frac{y_2\,g}{W},\qquad u_2' = \frac{y_1\,g}{W}",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -1681,8 +1771,26 @@ VARIATION = Lesson(
             options=("nth_linear_constant_coeff_homogeneous",
                      "nth_linear_constant_coeff_undetermined_coefficients",
                      "nth_linear_constant_coeff_variation_of_parameters",
-                     "nth_linear_euler_eq_homogeneous"),
+                     "nth_linear_euler_eq_homogeneous",
+                     "reduction_of_order"),
             cases=(
+                Case(
+                    equation="t*y'' - (t + 1)*y' + y = 0",
+                    technique="reduction_of_order",
+                    why="The coefficients change with t and are not the "
+                        "powers Cauchy-Euler needs, so there is no polynomial "
+                        "to solve. But e^t can be spotted as a solution, and "
+                        "one solution is all reduction of order asks for.",
+                    tier="typical",
+                ),
+                Case(
+                    equation="t**2*y'' - t*(t + 2)*y' + (t + 2)*y = 0",
+                    technique="reduction_of_order",
+                    why="t² in front of y'' looks like Cauchy-Euler, but the "
+                        "t² inside the y' coefficient breaks the pattern. "
+                        "y = t works, so reduce the order from there.",
+                    tier="harder",
+                ),
                 Case(
                     equation="y'' + 3*y' + 2*y = 0",
                     technique="nth_linear_constant_coeff_homogeneous",
@@ -1806,11 +1914,13 @@ VARIATION = Lesson(
 
 HIGHER = Lesson(
     key="higher",
+    chapter=chapters.HIGHER,
     title="Higher-order linear equations",
     summary="Everything from second order, with more roots to keep track of "
             "and multiplicity to respect.",
     tool="steps",
     reference="Edwards 3.2–3.3",
+    figure="higher_order",
     motivation=(
         "Second order covers a mass on a spring. Higher orders appear as soon "
         "as more than one thing is storing energy: a beam's deflection is "
@@ -2081,5 +2191,252 @@ HIGHER = Lesson(
 )
 
 
-LESSONS = (SUPERPOSITION, ROOTS, UNDETERMINED, VARIATION, CAUCHY,
+REDUCTION = Lesson(
+    key="reduction-of-order",
+    chapter=chapters.REDUCTION,
+    title="Reduction of order: a second solution from the first",
+    summary="When one solution is known, the second is a first-order problem "
+            "— for any linear second-order equation, constant coefficients "
+            "or not.",
+    tool="steps",
+    reference="Edwards 3.2 (problems)",
+    figure="reduction",
+    prerequisites=("superposition",),
+    motivation=(
+        "Everything the course can do with a second-order equation so far "
+        "depends on constant coefficients, or on the one variable-coefficient "
+        "family, Cauchy–Euler, that turns into constant coefficients under a "
+        "change of variable. Most equations with coefficients that change "
+        "with t are neither, and for them there is no characteristic "
+        "polynomial to write down and no trial form to guess.\n\n"
+        "Often, though, one solution is visible. It may be given, it may be "
+        "a power or an exponential that happens to fit, or it may come from "
+        "the physics. And superposition says a second-order equation needs "
+        "exactly two independent solutions — so having one is half the "
+        "answer, and the question becomes how to turn one into two.\n\n"
+        "The idea is to look for the second solution as a multiple of the "
+        "first by a function, y₂ = v(t)·y₁. Substituting that in, the known "
+        "solution cancels every term containing v itself, and what remains is "
+        "a first-order equation for v′. First-order equations are what Unit 1 "
+        "solves. The order has been reduced by one, which is where the name "
+        "comes from — and the same substitution, run on a forced equation, is "
+        "where variation of parameters comes from too."
+    ),
+    derivation=(
+        Passage(
+            prose="Put the equation in standard form, with nothing in front of y''. "
+                  "Everything the method needs is read off P, so this step is not "
+                  "cosmetic.",
+            latex=r"y'' + P(t)\, y' + Q(t)\, y = 0",
+        ),
+        Passage(
+            prose="Try y = v y₁ and differentiate twice. The product rule makes "
+                  "three groups of terms, and grouping them by v, v' and v'' shows "
+                  "what happens.",
+            latex=r"v\left(y_1'' + P y_1' + Q y_1\right) + v'\left(2y_1' + "
+                  r"P y_1\right) + v'' y_1 = 0",
+        ),
+        Passage(
+            prose="The bracket multiplying v is the equation applied to y₁, and y₁ "
+                  "is a solution, so the bracket is zero. The v term vanishes "
+                  "entirely — that single cancellation is the whole method.",
+            latex=r"y_1 v'' + \left(2y_1' + P y_1\right) v' = 0",
+        ),
+        Passage(
+            prose="Call w = v'. The equation is first order in w, and separable: "
+                  "divide by y₁ w and integrate. The two logarithms combine into "
+                  "a formula that needs no further thought.",
+            latex=r"w = v' = \frac{e^{-\int P\, dt}}{y_1^{2}}",
+        ),
+        Passage(
+            prose="Integrate once more to get v, and multiply by y₁. The constants "
+                  "of integration can be dropped at both stages: one would scale "
+                  "y₂ and the other would add a multiple of y₁, and the general "
+                  "solution has room for both already.",
+            latex=r"y_2 = y_1 \int \frac{e^{-\int P\, dt}}{y_1^{2}}\, dt",
+        ),
+        Passage(
+            prose="Independence is automatic. The Wronskian of y₁ and v y₁ is "
+                  "y₁² v', which is y₁² w, and that is an exponential — never "
+                  "zero. So y₁ and y₂ are a fundamental set wherever y₁ is not "
+                  "zero, and the general solution follows.",
+            latex=r"W(y_1, y_2) = y_1^{2} v' = e^{-\int P\, dt} \neq 0",
+        ),
+    ),
+    objectives=(
+        "Put a second-order linear equation in standard form and read off P.",
+        "Check that a proposed first solution really is one, by substituting.",
+        "Derive the first-order equation for v′ and solve it.",
+        "Build the second solution and confirm the pair is independent.",
+    ),
+    examples=(
+        Example(
+            equation="t*y'' - (t + 1)*y' + y = 0",
+            why="A variable-coefficient equation with no characteristic "
+                "polynomial, where e^t can be spotted as a solution. The "
+                "second solution comes out a polynomial.",
+            commentary=(
+                "Divide by t first: P = −(t + 1)/t = −1 − 1/t. Getting P wrong "
+                "is the usual way this goes astray, and it goes astray "
+                "quietly, because every later step still produces something "
+                "that looks like an answer.\n\n"
+                "Then e^(−∫P) = e^(t + ln t) = t e^t, and dividing by "
+                "y₁² = e^(2t) leaves t e^(−t) to integrate. By parts that is "
+                "−(t + 1)e^(−t), and multiplying by e^t gives y₂ = −(t + 1): a "
+                "second solution with no exponential in it at all, which is "
+                "easy to check by substituting."
+            ),
+        ),
+        Example(
+            equation="t**2*y'' - t*(t + 2)*y' + (t + 2)*y = 0",
+            why="Here y₁ = t, and the method produces y₂ = t e^t — the "
+                "exponential appears from the reduction, not from any guess "
+                "about the equation.",
+            commentary=(
+                "In standard form P = −(t + 2)/t = −1 − 2/t, so e^(−∫P) = "
+                "t² e^t. Divided by y₁² = t² that leaves simply e^t — the "
+                "powers of t cancel exactly, which is the sign the "
+                "arithmetic has gone right.\n\n"
+                "Integrating gives v = e^t and y₂ = t e^t. Nothing about the "
+                "original equation suggested an exponential solution; it "
+                "came out of the integral. That is the practical value of "
+                "the method: it finds solutions nobody would have thought to "
+                "try."
+            ),
+        ),
+    ),
+    notes=(
+        Note(
+            "The formula",
+            "With y₁ known, a second solution of y'' + Py' + Qy = 0 is y₁ "
+            "times the integral of e^(−∫P) / y₁². Both constants of "
+            "integration may be dropped.",
+            r"y_2 = y_1 \int \frac{e^{-\int P\, dt}}{y_1^{2}}\, dt",
+            "formula",
+        ),
+        Note(
+            "Why the v term disappears",
+            "Substituting y = v y₁ collects y₁'' + P y₁' + Q y₁ as the "
+            "coefficient of v, and that is zero because y₁ is a solution. "
+            "Only v' and v'' survive, so the equation is first order in v'.",
+            r"v\,(y_1'' + P y_1' + Q y_1) = 0",
+            "idea",
+        ),
+        Note(
+            "Standard form first",
+            "P is the coefficient of y' after dividing by the coefficient of "
+            "y''. Reading it straight off t y'' − (t + 1)y' + y = 0 as "
+            "−(t + 1) instead of −(t + 1)/t gives a wrong v and a y₂ that "
+            "fails when substituted.",
+            r"P = \frac{b(t)}{a(t)}",
+            "pitfall",
+        ),
+        Note(
+            "It is where variation of parameters comes from",
+            "Run the same substitution on a forced equation, allowing both "
+            "solutions' coefficients to vary, and the result is variation of "
+            "parameters. Reduction of order is the one-solution version of "
+            "the same idea.",
+            r"y = u_1 y_1 + u_2 y_2",
+            "aside",
+        ),
+        Note(
+            "Constant coefficients, seen again",
+            "Applied to y'' − 2y' + y = 0 with y₁ = e^t, the method gives "
+            "y₂ = t e^t — which is where the factor of t for a repeated "
+            "characteristic root really comes from.",
+            r"r = 1 \text{ twice} \;\Longrightarrow\; y_2 = t e^{t}",
+            "idea",
+        ),
+    ),
+    questions=(
+        Choice(
+            key="q1",
+            prompt="In reduction of order, why does the substitution y = v y₁ "
+                   "lead to a first-order equation?",
+            options=(
+                "The coefficient of v is the equation applied to y₁, which is "
+                "zero",
+                "v is assumed to be a constant",
+                "The v'' term cancels against the v' term",
+                "y₁ is assumed to be an exponential",
+            ),
+            answer=0,
+            becauses=(
+                "Grouping by v, v' and v'' puts y₁'' + P y₁' + Q y₁ in front "
+                "of v, and y₁ solves the equation — so only v' and v'' remain, "
+                "and w = v' satisfies a first-order equation.",
+                "If v were constant, y₂ would be a multiple of y₁ and not a "
+                "new solution. The whole point is that v varies.",
+                "v'' survives; it is v itself that disappears. The equation "
+                "left is first order in v', not in v.",
+                "y₁ can be any solution — a power of t, a polynomial, "
+                "anything. The cancellation needs only that it solves the "
+                "equation.",
+            ),
+        ),
+        Choice(
+            key="q2",
+            prompt="For t² y'' + t y' − y = 0 with y₁ = t, what is P in the "
+                   "formula?",
+            options=("1/t", "t", "−1/t²", "1"),
+            answer=0,
+            becauses=(
+                "Divide by t²: y'' + (1/t) y' − (1/t²) y = 0, so P = 1/t.",
+                "That is the coefficient of y' before dividing by t². The "
+                "formula needs the standard form.",
+                "That is Q, the coefficient of y in standard form, not P.",
+                "P is a function of t here; only after dividing does the "
+                "coefficient of y' become clear, and it is 1/t.",
+            ),
+        ),
+        Solve(
+            key="q3",
+            prompt="One solution is y₁ = t. Find the general solution.",
+            equation="t**2*y'' - t*(t + 3)*y' + (t + 3)*y = 0",
+            hints=(
+                "Standard form: P = −(t + 3)/t = −1 − 3/t, so e^(−∫P) = "
+                "t³ e^t.",
+                "Divide by y₁² = t²: v' = t e^t. Integrate by parts.",
+                "v = (t − 1)e^t, so y₂ = t(t − 1)e^t, and the general "
+                "solution is C₁ t + C₂ t(t − 1)e^t.",
+            ),
+        ),
+        Solve(
+            key="q4",
+            prompt="The first worked example with conditions: e^t is one "
+                   "solution. Find the solution through y(1) = 0, y'(1) = 1.",
+            equation="t*y'' - (t + 1)*y' + y = 0",
+            conditions="y(1) = 0, y'(1) = 1",
+            hints=(
+                "The general solution is C₁ e^t + C₂(t + 1), from the worked "
+                "example.",
+                "At t = 1: C₁ e + 2C₂ = 0 and C₁ e + C₂ = 1.",
+                "Subtracting gives C₂ = −1, then C₁ = 2/e.",
+            ),
+        ),
+    ),
+    templates=(
+        Template(
+            key="second-from-first",
+            title="A second solution from y₁ = t",
+            prompt="y₁ = t is one solution. Reduce the order and give the "
+                   "general solution.",
+            equation="t**2*y'' - t*({b}*t + {a})*y' + ({b}*t + {a})*y = 0",
+            technique="reduction_of_order",
+            hints=(
+                "Divide by t² to get the standard form, and read off P as "
+                "the coefficient of y'.",
+                "Work out e^(−∫P) and divide by y₁² = t² — what is left is "
+                "v', a power of t times an exponential.",
+                "Integrate v' (by parts if a power of t is left), multiply "
+                "by t for y₂, and combine C₁ y₁ + C₂ y₂.",
+            ),
+            slots=(("a", (2, 3)), ("b", (1, 2, 3))),
+        ),
+    ),
+)
+
+
+LESSONS = (SUPERPOSITION, ROOTS, UNDETERMINED, VARIATION, REDUCTION, CAUCHY,
            HIGHER)

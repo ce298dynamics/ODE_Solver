@@ -768,3 +768,204 @@ def test_geometry_is_not_kept_in_the_progress_file(qapp, scratch_settings):
     assert "geometry" not in text
     assert "1100" not in text
     window.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# A lesson opening its tool
+# ---------------------------------------------------------------------------
+#
+# "Open the tool for this topic" used to emit a screen name and nothing else,
+# so a button whose tooltip promised "with an example loaded" landed on an
+# empty one. It now carries the lesson's own example across.
+
+
+@pytest.mark.parametrize("lesson_key,screen_key", [
+    ("separable", "steps"),
+    ("shifting", "laplace"),
+])
+def test_a_lesson_opens_its_tool_on_its_own_example(qapp, lesson_key,
+                                                    screen_key):
+    from odesuite_app import lessons as content
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow("dark")
+    lessons = window._screens["lessons"]
+    lessons.select(lesson_key)
+    qapp.processEvents()
+    lessons._open_tool()
+    qapp.processEvents()
+
+    lesson = content.by_key(lesson_key)
+    assert window.stack.currentWidget() is window._screens[screen_key]
+    editor = window._screens[screen_key].editor
+    assert editor.equation_texts() == [lesson.example]
+    assert editor.ics.text() == lesson.example_conditions
+    window.deleteLater()
+
+
+def test_a_system_written_with_a_semicolon_arrives_as_several_equations(qapp):
+    """A lesson writes a system as one string separated by semicolons, because
+    the comma was already taken by the initial conditions. The editor has a
+    field per equation, so the split has to happen on the way in."""
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow("dark")
+    window._open_tool("steps", "x' = x + 2*y; y' = 3*x + 2*y", "")
+    qapp.processEvents()
+
+    assert window._screens["steps"].editor.equation_texts() == [
+        "x' = x + 2*y", "y' = 3*x + 2*y",
+    ]
+    window.deleteLater()
+
+
+def test_a_tool_that_cannot_take_an_equation_still_opens(qapp):
+    """Two of the four tools a lesson links to are driven by the catalogue and
+    have no box to type into. They open, as they always did."""
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow("dark")
+    window._open_tool("byhand", "y' = y", "y(0) = 1")
+    qapp.processEvents()
+    assert window.stack.currentWidget() is window._screens["byhand"]
+    window.deleteLater()
+
+
+def test_the_portrait_opens_on_the_system_a_lesson_names(qapp):
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow("dark")
+    window._open_tool("portrait", "van_der_pol", "")
+    qapp.processEvents()
+    portrait = window._screens["portrait"]
+    assert window.stack.currentWidget() is portrait
+    assert portrait.picker.currentData() == "van_der_pol"
+
+    # A key the portrait does not offer leaves it where it was.
+    window._open_tool("portrait", "lorenz", "")
+    qapp.processEvents()
+    assert portrait.picker.currentData() == "van_der_pol"
+    window.deleteLater()
+
+
+def test_the_tool_button_says_where_it_goes_and_on_what(qapp):
+    from odesuite_app import lessons as content
+    from odesuite_app.app import MainWindow
+
+    window = MainWindow("dark")
+    lessons = window._screens["lessons"]
+    lessons.select("separable")
+    qapp.processEvents()
+
+    assert lessons.tool_button.text() == "Open in Solve Step by Step"
+    assert content.by_key("separable").example in lessons.tool_button.toolTip()
+
+    # A catalogue-driven tool promises less, because it delivers less.
+    lessons.select("numerical")
+    qapp.processEvents()
+    assert lessons.tool_button.text() == "Open in Methods by Hand"
+    assert content.by_key("numerical").example not in lessons.tool_button.toolTip()
+    window.deleteLater()
+
+
+def test_the_tool_names_match_the_sidebar(qapp):
+    """`learn_lessons.TOOL_NAMES` is a copy of four of the sidebar's labels,
+    kept there so the screen that module builds need not import it back. A
+    copy is only safe while something checks it."""
+    from odesuite_app.app import SCREENS
+    from odesuite_app.screens.learn_lessons import TOOL_NAMES
+
+    labels = {key: label for key, label, _ in SCREENS}
+    for key, name in TOOL_NAMES.items():
+        assert labels[key] == name, f"{key}: sidebar says {labels[key]!r}"
+
+
+# ---------------------------------------------------------------------------
+# A11Y-01 -- every control a keyboard can reach has a name
+# ---------------------------------------------------------------------------
+
+
+def _unnamed_focusable(root):
+    """Focusable widgets under `root` whose *effective* accessible name is empty.
+
+    Effective, because that is what a screen reader announces: Qt already
+    names a button by its caption and a check box by its text, so asking
+    whether `setAccessibleName` was called would demand redundant work and
+    miss nothing real. Three kinds of widget are Qt's own internals and take
+    their name from their owner -- a combo box's popup list, the line edit
+    inside a spin box or combo box, and a scroll area's viewport -- and are
+    skipped for that reason, not because they are hard.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QAccessible
+    from PySide6.QtWidgets import (
+        QAbstractScrollArea,
+        QAbstractSpinBox,
+        QComboBox,
+        QWidget,
+    )
+
+    def internal(widget) -> bool:
+        parent = widget.parentWidget()
+        if isinstance(parent, (QAbstractSpinBox, QComboBox)):
+            return True
+        if isinstance(parent, QAbstractScrollArea) and parent.viewport() is widget:
+            return True
+        ancestor = parent
+        while ancestor is not None:
+            if isinstance(ancestor, QComboBox):
+                return True
+            ancestor = ancestor.parentWidget()
+        return False
+
+    missing = []
+    for widget in root.findChildren(QWidget):
+        if widget.focusPolicy() == Qt.NoFocus or internal(widget):
+            continue
+        interface = QAccessible.queryAccessibleInterface(widget)
+        name = interface.text(QAccessible.Name) if interface is not None else ""
+        if not (name or "").strip():
+            missing.append(f"{type(widget).__name__} under "
+                           f"{type(widget.parentWidget()).__name__}")
+    return missing
+
+
+def test_every_focusable_control_on_every_screen_has_a_name(qapp):
+    """Measured before the fix: roughly 170 focusable widgets across the
+    fourteen screens had no name a screen reader could announce -- every
+    field of the equation editor, every slider, every combo box."""
+    from odesuite_app.app import SCREENS, MainWindow
+
+    window = MainWindow("dark")
+    window.resize(1400, 900)
+    window.show()
+    problems = {}
+    for key, _label, _shortcut in SCREENS:
+        window.go(key)
+        qapp.processEvents()
+        missing = _unnamed_focusable(window._screens[key])
+        if missing:
+            problems[key] = missing
+    assert not problems, problems
+    window.close()
+
+
+def test_a_practice_answer_box_has_a_name(qapp):
+    """Answer boxes are built when a question is shown, not with the screen,
+    so the walk above never sees them."""
+    from PySide6.QtWidgets import QLineEdit
+
+    from odesuite_app.screens.learn_lessons import LessonsScreen
+    from odesuite_app.state import SessionState
+    from odesuite_app.theme import PALETTES
+
+    screen = LessonsScreen(SessionState(), PALETTES["dark"])
+    screen.resize(1400, 900)
+    screen.select("basics")
+    screen._choose_segment("Practice")
+    qapp.processEvents()
+    boxes = [box for box in screen.findChildren(QLineEdit)
+             if box.accessibleName() == "your answer"]
+    assert boxes, "no named answer box on the practice page"
+    assert not _unnamed_focusable(screen)
+    screen.deleteLater()

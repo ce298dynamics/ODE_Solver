@@ -40,6 +40,7 @@ generalises, and that one can be worked end to end.
 
 from __future__ import annotations
 
+from .chapters import unit7 as chapters
 from .model import (
     Choice,
     ChoiceTemplate,
@@ -55,6 +56,7 @@ __all__ = ["POWERSERIES", "RECURRENCE", "FROBENIUS", "LESSONS"]
 
 POWERSERIES = Lesson(
     key="power-series",
+    chapter=chapters.POWERSERIES,
     title="Power series and ordinary points",
     summary="What to do when there is no closed form — which is most of the "
             "time.",
@@ -222,8 +224,9 @@ POWERSERIES = Lesson(
             "a₀ and a₁ are the initial conditions",
             "They are never determined by the recurrence — they are the two "
             "arbitrary constants, and they are exactly y(0) and y′(0). No "
-            "system to solve at the end, which is a genuine convenience this "
-            "method has and the others do not.",
+            "system to solve at the end, a convenience this method shares "
+            "with the Laplace transform and not with characteristic roots "
+            "or variation of parameters.",
             r"a_0 = y(0), \qquad a_1 = y'(0)",
             "idea",
         ),
@@ -233,8 +236,21 @@ POWERSERIES = Lesson(
             "gives the terms that were never written down. That residual is "
             "the truncation error, and expecting it to vanish is expecting "
             "the series to be finite. What is claimed is correctness up to a "
-            "given power, and that is what can be checked.",
-            r"y'' + y \;\longrightarrow\; O(t^{N})",
+            "given power, and that is what can be checked: a series correct "
+            "through tᴺ leaves a residual that starts at tᴺ⁻¹, because "
+            "differentiating twice lowers every power by two.",
+            r"y'' + y \;\longrightarrow\; O(t^{N-1})",
+            "pitfall",
+        ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: at a singular point",
+            "A power series about t₀ is guaranteed only when p and q are "
+            "analytic there, and then it converges at least out to the nearest "
+            "singularity — complex ones included. At a singular point itself "
+            "there may be no power series solution at all: t²y'' + t y' + (t² −"
+            " ν²)y = 0 at t = 0 needs the Frobenius form t^r·Σ aₙtⁿ.",
+            r"y = t^{r}\sum_{n \geq 0} a_n t^{n}",
             "pitfall",
         ),
     ),
@@ -378,11 +394,13 @@ POWERSERIES = Lesson(
 
 RECURRENCE = Lesson(
     key="recurrence",
+    chapter=chapters.RECURRENCE,
     title="Recurrence relations and the radius of convergence",
     summary="The rule that generates every coefficient, and how far the "
             "answer it builds can be trusted.",
     tool="steps",
     reference="Edwards 8.2",
+    figure="recurrence",
     motivation=(
         "Assuming a series and substituting it is the easy half. What comes "
         "back is an equation between three or four infinite sums whose powers "
@@ -642,6 +660,34 @@ RECURRENCE = Lesson(
                 "So a₆ and everything past it are zero, leaving a quartic.",
             ),
         ),
+        Choice(
+            key="q-figure",
+            prompt="Slide l in the figure onto 4. Reading the stems in the "
+                   "left pane, which of the drawn coefficients are zero?",
+            figure="recurrence",
+            options=(
+                "a₆ and every even coefficient after it",
+                "a₄ and every even coefficient after it",
+                "Every odd coefficient, because l is even",
+                "None of them — a recurrence never produces an exact zero",
+            ),
+            answer=0,
+            becauses=(
+                "The numerator n(n+1) − l(l+1) is zero at n = 4, and the "
+                "recurrence takes a₄ to a₆, so a₆ is zero and every later "
+                "even coefficient inherits it. What is left is a polynomial "
+                "of degree 4, which is why Legendre polynomials exist.",
+                "a₄ is the last coefficient that survives, not the first that "
+                "dies. The recurrence multiplies a₄ by the vanishing factor "
+                "to get a₆, so the zero lands one step further on.",
+                "The odd coefficients descend from a₁ and their numerators "
+                "are n(n+1) − 20 at odd n, which is never zero. Read the "
+                "stems: they are still there at a₁₅.",
+                "It produces one exactly when l is a whole number, and that "
+                "is the whole reason whole numbers are the interesting case. "
+                "The slider snaps onto them so that it can be seen happening.",
+            ),
+        ),
     ),
     templates=(
         ChoiceTemplate(
@@ -687,11 +733,13 @@ RECURRENCE = Lesson(
 
 FROBENIUS = Lesson(
     key="frobenius",
+    chapter=chapters.FROBENIUS,
     title="Regular singular points, and what Frobenius is for",
     summary="Where a plain power series is not enough, and the smallest change "
             "that rescues it.",
     tool="steps",
     reference="Edwards 8.3",
+    figure="indicial",
     motivation=(
         "The series method came with a condition: the point must be ordinary. "
         "The points that are not ordinary are exactly the interesting ones. A "
@@ -963,8 +1011,10 @@ FROBENIUS = Lesson(
                 "form and a logarithm has to be brought in.",
                 "Differing by 1/3, not an integer, so both Frobenius "
                 "solutions exist in the ordinary form. No trouble.",
-                "A real equation gives real indicial roots here; complex ones "
-                "do not arise from this construction in a first course.",
+                "Complex exponents do arise — t²y″ + ty′ + y = 0 gives ±i — "
+                "but they differ by 2i, which is not a whole number, so both "
+                "Frobenius solutions exist and their real and imaginary parts "
+                "are real solutions. Not the awkward case.",
             ),
         ),
         Solve(

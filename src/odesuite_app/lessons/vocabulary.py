@@ -34,7 +34,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-__all__ = ["Label", "METHODS", "PORTRAITS", "DAMPING", "VOCABULARIES",
+__all__ = ["Label", "METHODS", "PORTRAITS", "DAMPING", "EQUILIBRIA", "VOCABULARIES",
            "Fault", "FAULTS"]
 
 
@@ -113,6 +113,13 @@ METHODS: dict[str, Label] = {
                  "t²·y'' + a·t·y' + b·y. Try y = t^r and it becomes a "
                  "polynomial in r.",
     ),
+    "reduction_of_order": Label(
+        title="Reduction of order",
+        requires="Linear and homogeneous with coefficients that change with "
+                 "t in no pattern a trial fits — but with one solution you "
+                 "can find. Set y = v·y₁ and the equation drops to first "
+                 "order in v'.",
+    ),
 }
 
 
@@ -186,11 +193,32 @@ DAMPING: dict[str, Label] = {
 }
 
 
+#: What linearising says about one equilibrium of a nonlinear system.
+#:
+#: The five hyperbolic pictures, which the linearisation decides, and the one
+#: answer it cannot give. A linear centre is not on the menu as a centre: for
+#: a nonlinear system it is the case where the Jacobian is silent, and calling
+#: it a centre is the mistake the almost-linear lesson exists to prevent.
+EQUILIBRIA: dict[str, Label] = {
+    **{key: PORTRAITS[key] for key in ("saddle", "stable node", "unstable node",
+                                        "stable spiral", "unstable spiral")},
+    "undecided": Label(
+        title="Not decided by linearising",
+        requires="The Jacobian at the point has an eigenvalue with zero real "
+                 "part — a purely imaginary pair, as for a linear centre, or "
+                 "a zero eigenvalue. The equilibrium is then not hyperbolic, "
+                 "and the nonlinear terms decide: a true centre, a spiral "
+                 "either way, or something else.",
+    ),
+}
+
+
 #: What a `ClassifyTemplate.table` may name.
 VOCABULARIES: dict[str, dict[str, Label]] = {
     "methods": METHODS,
     "portraits": PORTRAITS,
     "damping": DAMPING,
+    "equilibria": EQUILIBRIA,
 }
 
 

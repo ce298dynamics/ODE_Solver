@@ -51,6 +51,7 @@ def control_panel(width: int) -> tuple[QFrame, QVBoxLayout]:
     panel.setFixedWidth(width)
 
     scroll = QScrollArea()
+    scroll.setAccessibleName("controls")
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
@@ -167,6 +168,12 @@ class ValueSlider(QWidget):
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(0, _TICKS)
         self.slider.setValue(self._to_tick(value))
+        # A11Y-01. The slider's own value is a tick from 0 to 1000, which is
+        # what a screen reader would announce -- meaningless, and on a log
+        # slider actively misleading. The name is the label beside it, and the
+        # description carries the real value, kept in step with the readout.
+        self.slider.setAccessibleName(label)
+        self.slider.setAccessibleDescription(format_value(value))
         if hint:
             self.setToolTip(hint)
         layout.addWidget(self.slider)
@@ -206,11 +213,15 @@ class ValueSlider(QWidget):
         blocked = self.slider.blockSignals(not notify)
         self.slider.setValue(self._to_tick(value))
         self.slider.blockSignals(blocked)
-        self.readout.setText(format_value(self.value()))
+        self._show(self.value())
+
+    def _show(self, value: float) -> None:
+        self.readout.setText(format_value(value))
+        self.slider.setAccessibleDescription(format_value(value))
 
     def _on_moved(self, _tick: int) -> None:
         current = self.value()
-        self.readout.setText(format_value(current))
+        self._show(current)
         self.preview.emit(current)
         self._timer.start()
 

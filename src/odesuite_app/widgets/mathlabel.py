@@ -52,11 +52,26 @@ class _RenderSignals(QObject):
     ready = Signal(int, object)          # token, QPixmap
 
 
+class _Wanted:
+    """The one render a label still wants, readable from the worker.
+
+    A plain object rather than an attribute of the label, because a job can
+    outlive its label: the page it sat on is gone, and the job is still in
+    the queue. `token` is None once the label has been destroyed.
+    """
+
+    __slots__ = ("token",)
+
+    def __init__(self) -> None:
+        self.token: int | None = 0
+
+
 class _RenderJob(QRunnable):
     """Typesets one expression off the GUI thread."""
 
     def __init__(self, token: int, latex: str, colour: str, point_size: float,
-                 ratio: float, signals: _RenderSignals) -> None:
+                 ratio: float, signals: _RenderSignals,
+                 wanted: _Wanted | None = None) -> None:
         super().__init__()
         self.token = token
         self.latex = latex
@@ -64,9 +79,18 @@ class _RenderJob(QRunnable):
         self.point_size = point_size
         self.ratio = ratio
         self.signals = signals
+        self.wanted = wanted
         self.setAutoDelete(True)
 
     def run(self) -> None:
+        # Skip a render nobody will see. Every page typesets its equations on
+        # the shared pool, and leaving a page or re-typing a label left those
+        # jobs queued: thousands over a long visit, each ~15 ms, all ahead of
+        # whatever the reader asked for next -- a worked example once waited
+        # over a minute behind them. Checked here, when the job is reached,
+        # because that is when it is known whether anyone still wants it.
+        if self.wanted is not None and self.wanted.token != self.token:
+            return
         # Produce the PNG here, on the worker; building the QPixmap itself is
         # left to the main thread, since QPixmap may not be touched off it.
         data = mathrender.render_bytes(
@@ -111,7 +135,7 @@ class _FontWatch(QObject):
         super().__init__()
         self._labels: weakref.WeakSet = weakref.WeakSet()
 
-    def watch(self, label: "MathLabel") -> None:
+    def watch(self, label: MathLabel) -> None:
         self._labels.add(label)
 
     def eventFilter(self, obj, event) -> bool:
@@ -127,7 +151,7 @@ class _FontWatch(QObject):
 _FONT_WATCH: _FontWatch | None = None
 
 
-def _watch_font(label: "MathLabel") -> None:
+def _watch_font(label: MathLabel) -> None:
     global _FONT_WATCH
     app = QApplication.instance()
     if app is None:
@@ -157,6 +181,12 @@ class MathLabel(QWidget):
         self._scale = theme.text_scale()
         self._signals = _RenderSignals()
         self._signals.ready.connect(self._on_rendered)
+        # What a queued job checks before it renders. Cleared when the label
+        # goes, through a closure over the object alone: nothing that refers
+        # to the label itself may run once it is being destroyed.
+        self._wanted = _Wanted()
+        wanted = self._wanted
+        self.destroyed.connect(lambda *_: setattr(wanted, "token", None))
 
         # Without this the generic ``QWidget`` rule in the style sheet paints
         # the window background, punching a rectangle of backdrop through
@@ -275,6 +305,7 @@ class MathLabel(QWidget):
 
     def _refresh(self) -> None:
         self._token += 1
+        self._wanted.token = self._token
         self._scale = theme.text_scale()
         self._show_text()                       # stands in until the image lands
 
@@ -292,7 +323,7 @@ class MathLabel(QWidget):
 
         QThreadPool.globalInstance().start(
             _RenderJob(self._token, self._latex, self.colour,
-                       size, ratio, self._signals)
+                       size, ratio, self._signals, self._wanted)
         )
 
     def _on_rendered(self, token: int, data: bytes) -> None:

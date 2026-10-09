@@ -62,6 +62,17 @@ DEFAULT_POINT_SIZE = 15.0
 #: Base resolution before the device-pixel-ratio multiplier.
 _BASE_DPI = 110.0
 
+#: Whitespace around a rendered equation at `DEFAULT_POINT_SIZE`, and scaled
+#: with the point size from there.
+#:
+#: Fixed padding was the first version and it made the bitmap only *nearly*
+#: proportional to the size asked for: at 15 pt it is about 40% of the image
+#: height, so an equation rendered at twice the size came out 1.55x taller
+#: rather than 2x, and the maths drifted relative to the prose as a reader
+#: raised their text scale. Padding is part of the typography, so it grows
+#: with the type.
+_PAD_INCHES = 0.08
+
 #: Computer Modern: the typeface mathematics is normally set in, and in
 #: measurement also the fastest and most compact of matplotlib's four sets.
 _FONTSET = "cm"
@@ -236,7 +247,8 @@ def _render(latex: str, colour: str, point_size: float, dpi: float) -> bytes:
         buffer = io.BytesIO()
         figure.savefig(
             buffer, format="png", bbox_inches="tight",
-            pad_inches=0.08, transparent=True,
+            pad_inches=_PAD_INCHES * point_size / DEFAULT_POINT_SIZE,
+            transparent=True,
         )
     except Exception:
         # A construct the guard did not anticipate. The caller falls back to

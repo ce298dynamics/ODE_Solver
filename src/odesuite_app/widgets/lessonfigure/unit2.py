@@ -360,3 +360,90 @@ class OrderFigure(LessonFigure):
             "  ·  ".join(words) + "  —  read off the last halving, and "
             "approaching 1 and 4 from below as h shrinks."
         )
+
+
+# ---------------------------------------------------------------------------
+# Population: the model that is right for a while, and the one that stays right
+# ---------------------------------------------------------------------------
+
+
+class PopulationFigure(LessonFigure):
+    """Exponential against logistic growth, from the same rate and start.
+
+    The lesson's argument is that ``P' = rP`` is not wrong so much as
+    *unconditional*: it is the right model while nothing is scarce, and it
+    keeps making the same prediction long after that stops being true. Drawn
+    from identical r and P(0), the two curves are indistinguishable for a
+    while and then are not, and the figure measures where -- the moment the
+    two disagree by 10% is a number, and it moves when the carrying capacity
+    does.
+
+    The dashed line is K. It is the only thing in the picture the exponential
+    model has no opinion about, and it is what decides everything.
+    """
+
+    title = "Unbounded growth, and growth with a ceiling"
+    caption = ("Both curves start from the same P(0) and grow at the same "
+               "rate r. One has nowhere to stop. Watch where they part "
+               "company — and note that the logistic curve is steepest at "
+               "K/2, not at the beginning.")
+
+    _TLIM = (0.0, 24.0)
+
+    def build_sliders(self) -> None:
+        self.add_slider("r", "r  (growth rate)", 0.05, 0.8, 0.3)
+        self.add_slider("K", "K  (carrying capacity)", 2.0, 40.0, 20.0,
+                        hint="The population the environment supports. The "
+                             "exponential model has no such number, which is "
+                             "exactly its problem.")
+        self.add_slider("P0", "P(0)", 0.2, 10.0, 1.0)
+
+    def _curves(self):
+        r, K, start = self.value("r"), self.value("K"), self.value("P0")
+        t = np.linspace(*self._TLIM, 1200)
+        unbounded = start * np.exp(r * t)
+        # The closed form of the logistic equation, which the lesson derives
+        # by partial fractions -- not a numerical solve, for the same reason
+        # the first-order figures draw their antiderivatives directly.
+        logistic = K / (1.0 + (K / start - 1.0) * np.exp(-r * t))
+        return t, unbounded, logistic, r, K, start
+
+    def draw(self) -> None:
+        self.plot.clear()
+        self.plot.setLabel("bottom", "t")
+        self.plot.setLabel("left", "P")
+
+        t, unbounded, logistic, r, K, start = self._curves()
+        self.plot.addLine(y=K, pen=pg.mkPen(self.palette_obj.warning, width=2,
+                                            style=Qt.DashLine))
+        self.plot.plot(t, unbounded,
+                       pen=pg.mkPen(self.colour(1), width=2,
+                                    style=Qt.DotLine))
+        self.plot.plot(t, logistic, pen=pg.mkPen(self.colour(0), width=3))
+
+        # The inflection, where the logistic curve is growing fastest. It is
+        # at P = K/2 whatever r and P(0) are, which is the claim.
+        half = K / 2.0
+        if start < half:
+            when = np.log(K / start - 1.0) / r
+            if self._TLIM[0] <= when <= self._TLIM[1]:
+                self.plot.plot([when], [half], pen=None, symbol="d",
+                               symbolSize=12, symbolBrush=None,
+                               symbolPen=pg.mkPen(self.palette_obj.accent,
+                                                  width=2))
+        self.plot.setYRange(0.0, min(3.0 * K, 90.0), padding=0.02)
+        self._describe(t, unbounded, logistic, r, K)
+
+    def _describe(self, t, unbounded, logistic, r, K) -> None:
+        apart = np.abs(unbounded - logistic) > 0.1 * logistic
+        where = float(t[apart][0]) if apart.any() else float("inf")
+        parted = (f"they differ by 10% at t = {where:.2f}"
+                  if np.isfinite(where) else
+                  "they never differ by 10% inside this window")
+        self.readout.setText(
+            f"doubling time ln2/r = {np.log(2) / r:.2f}; {parted}. The "
+            f"logistic curve is steepest at P = K/2 = {K / 2:.1f} and flattens "
+            f"onto K = {K:.1f}; the exponential one reaches "
+            f"{float(unbounded[-1]):.0f} by t = {self._TLIM[1]:.0f} and is "
+            "still accelerating."
+        )

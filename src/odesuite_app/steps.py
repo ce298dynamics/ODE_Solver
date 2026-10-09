@@ -103,6 +103,7 @@ TITLES = {
     "nth_linear_constant_coeff_variation_of_parameters":
         "Variation of parameters",
     "nth_linear_euler_eq_homogeneous": "Cauchy-Euler equation",
+    "reduction_of_order": "Reduction of order",
 }
 
 
@@ -260,13 +261,69 @@ def _is_zero(expr) -> bool:
         return False
 
 
+#: A stand-in for t with the assumption the real `_T` lacks. `t` is declared
+#: real project-wide, which is right for plotting and wrong for simplifying:
+#: sympy will not reduce ((2t/3)^(3/2))^(1/3) to (2t/3)^(1/2) without knowing
+#: t is positive, because for negative t it is not true.
+_T_POSITIVE = sp.Symbol("t", positive=True)
+
+#: Where `vanishes` evaluates a residual that would not simplify, and the value
+#: every other free symbol -- a constant C1, a parameter -- is given there.
+#: Positive times, because the positive-t retry is the one that just failed and
+#: a solution valid only for t > 0 must not be condemned at t < 0; irregular
+#: values, so that no sample lands on a special point by accident.
+_PROBE_TIMES = (0.37, 0.81, 1.29, 2.03)
+_PROBE_VALUE = 0.731
+
+
+def vanishes(residual) -> tuple[bool | None, str]:
+    """Whether a substituted residual is zero, and on what domain.
+
+    Three answers, not two, and "not simplified" is never "wrong":
+
+    1. It simplifies to zero: ``(True, "")``.
+    2. It simplifies to zero once t is known positive: ``(True, "t > 0")``.
+       ``y = (2t/3)^(3/2)`` solves ``y' = y^(1/3)`` -- the slope-fields
+       lesson's own example of non-uniqueness -- and was graded *wrong*,
+       because with t merely real the cube root of its cube will not cancel.
+    3. Otherwise it is evaluated at a few positive times. Measurably nonzero
+       anywhere it is finite: ``(False, "")``, because that is a proof. Zero
+       at every sample: ``(None, "")`` -- strong evidence, not a proof, and
+       this function never claims more than it has.
+    """
+    try:
+        if sp.simplify(residual) == 0:
+            return True, ""
+        if sp.simplify(residual.subs(_T, _T_POSITIVE)) == 0:
+            return True, "t > 0"
+    except Exception:
+        pass
+    others = {symbol: _PROBE_VALUE for symbol in residual.free_symbols
+              if symbol is not _T}
+    for time in _PROBE_TIMES:
+        try:
+            value = complex(residual.subs(others).subs(_T, time).evalf())
+        except Exception:
+            continue
+        if not (abs(value) < float("inf")):
+            continue
+        if abs(value) > 1e-9:
+            return False, ""
+    return None, ""
+
+
 def _satisfies(equation: sp.Eq, function: sp.Function, candidate) -> bool | None:
-    """Substitute `candidate` into `equation`; the check `_verify` already uses."""
+    """Substitute `candidate` into `equation`; the check `_verify` already uses.
+
+    True where the residual vanishes, including only for t > 0 -- a
+    narrator's answer involving t^(3/2) or ln t is a solution there and
+    nowhere else, which is how every textbook states it.
+    """
     try:
         residual = (equation.lhs - equation.rhs).subs(
             function(_T), candidate
         ).doit()
-        return bool(sp.simplify(residual) == 0)
+        return vanishes(residual)[0]
     except Exception:
         return None
 
@@ -508,10 +565,10 @@ def _separable(equation: sp.Eq, function: sp.Function, ics: dict,
             "the integrated form is correct but cannot be rearranged for y"
         )
         return
-    general = sp.simplify(_pick_branch(solutions, ics))
+    general = sp.simplify(_pick_branch(solutions, ics, equation, function))
     derivation.steps.append(Step(
         title=f"Solve for {variable}",
-        latex=_eq(f"{variable}(t)", general),
+        latex=_eq(f"{variable}(t)", _branches_latex(solutions, ics, general)),
         note="The general solution: one arbitrary constant, as a first-order "
              "equation must have."
              + ("" if len(solutions) < 2 else
@@ -524,7 +581,34 @@ def _separable(equation: sp.Eq, function: sp.Function, ics: dict,
     _apply_conditions(general, ics, derivation, _constants_in(general))
 
 
-def _pick_branch(solutions, ics: dict):
+def _branches_latex(solutions, ics: dict, chosen):
+    r"""The right-hand side a "Solve for y" step shows (SYM-03).
+
+    With a condition, the branch it sits on -- `_pick_branch` has chosen it.
+    Without one, *every* branch: showing one of two as "the general solution"
+    silently discards half the family, and ``y' = -t/y`` came out as
+    ``y = -sqrt(2C - t^2)`` with nothing on the page to say the upper half of
+    every circle existed. Two branches are written the way a textbook writes
+    them, as a centre plus or minus a half-difference, which gives both
+    ``\pm\sqrt{2C - t^2}`` and the exact equation's
+    ``-t^2/2 \pm \sqrt{4C + t^4}/2``; anything else is listed.
+    """
+    if ics or len(solutions) < 2:
+        return sp.latex(chosen)
+    if len(solutions) == 2:
+        first, second = solutions
+        centre = sp.simplify((first + second) / 2)
+        half = sp.simplify((first - second) / 2)
+        if half.could_extract_minus_sign():
+            half = -half
+        if centre == 0:
+            return rf"\pm {sp.latex(half)}"
+        return rf"{sp.latex(centre)} \pm {sp.latex(half)}"
+    return r"\quad\text{or}\quad ".join(sp.latex(sp.simplify(branch))
+                                         for branch in solutions)
+
+
+def _pick_branch(solutions, ics: dict, equation=None, function=None):
     """The branch the initial condition actually sits on.
 
     Solving ``y²/2 = t²/2 + C`` for y gives a positive and a negative root, and
@@ -535,28 +619,45 @@ def _pick_branch(solutions, ics: dict):
     """
     if len(solutions) < 2 or not ics:
         return solutions[0]
-    for candidate in solutions:
-        constants = _constants_in(candidate)
-        if not constants:
-            if _conditions_hold(candidate, ics):
-                return candidate
-            continue
-        try:
-            equations = []
-            for key, value in ics.items():
-                point, order = _condition_point(key)
-                if point is None:
-                    continue
-                expression = (candidate.diff(_T, order) if order else candidate)
-                equations.append(
-                    sp.Eq(expression.subs(_T, _exact(point)), _exact(value))
-                )
-            found = sp.solve(equations, list(constants), dict=True)
-        except Exception:
-            continue
-        if found and _conditions_hold(candidate.subs(found[0]), ics):
-            return candidate
-    return solutions[0]
+    on_the_point = [candidate for candidate in solutions
+                    if _passes_through(candidate, ics)]
+    # Several branches can pass through the point -- for y' = y^(1/3) and
+    # y(0) = 0 both roots do, with C = 0 -- and only one of them may solve the
+    # equation: under sympy's principal cube root, -(2t/3)^(3/2) does not. The
+    # first was being taken, so the lesson on non-uniqueness narrated an
+    # answer its own check then marked unverified.
+    #
+    # Ranked rather than filtered: a proven solution first, then one the
+    # numeric probe could not fault, and a proven non-solution only if nothing
+    # else passes through the point. With C still free the right branch here
+    # is usually only "not faulted" -- (C + t)^(3/2) will not simplify.
+    if equation is not None and len(on_the_point) > 1:
+        rank = {True: 0, None: 1, False: 2}
+        return min(on_the_point,
+                   key=lambda candidate: rank[_satisfies(equation, function,
+                                                         candidate)])
+    return on_the_point[0] if on_the_point else solutions[0]
+
+
+def _passes_through(candidate, ics: dict) -> bool:
+    """Whether some choice of the constants puts `candidate` on the condition."""
+    constants = _constants_in(candidate)
+    if not constants:
+        return bool(_conditions_hold(candidate, ics))
+    try:
+        equations = []
+        for key, value in ics.items():
+            point, order = _condition_point(key)
+            if point is None:
+                continue
+            expression = (candidate.diff(_T, order) if order else candidate)
+            equations.append(
+                sp.Eq(expression.subs(_T, _exact(point)), _exact(value))
+            )
+        found = sp.solve(equations, list(constants), dict=True)
+    except Exception:
+        return False
+    return bool(found) and bool(_conditions_hold(candidate.subs(found[0]), ics))
 
 
 # ---------------------------------------------------------------------------
@@ -1293,7 +1394,14 @@ def _is_exact(equation: sp.Eq, function: sp.Function) -> bool:
     """Whether ``M dt + N dy = 0`` has ∂M/∂y = ∂N/∂t.
 
     Never raises: it is asked about every equation no named technique fits.
+
+    First order only. It used to be asked about second-order equations too,
+    and ``y'' + t y' + y = 0`` passed: the split treated y' as the unknown's
+    rate and found an "exact" first-order equation that is not this one, so
+    the narrator printed a solution, C/t, that fails its own check.
     """
+    if _order_of(equation, function) != 1:
+        return False
     try:
         M, N, Y = _split_exact(equation, function)
     except Exception:
@@ -1382,10 +1490,10 @@ def _exact_equation(equation: sp.Eq, function: sp.Function, ics: dict,
             "rearranged for y"
         )
         return
-    general = sp.simplify(_pick_branch(solutions, ics))
+    general = sp.simplify(_pick_branch(solutions, ics, equation, function))
     derivation.steps.append(Step(
         title="Solve for y",
-        latex=_eq("y(t)", general),
+        latex=_eq("y(t)", _branches_latex(solutions, ics, general)),
         note="The general solution."
              + ("" if len(solutions) < 2 else
                 "  Rearranging gave several branches; this is the one the "
@@ -1586,6 +1694,158 @@ def _homogeneous_substitution(equation: sp.Eq, function: sp.Function,
     _apply_conditions(general, ics, derivation, _constants_in(general))
 
 
+# ---------------------------------------------------------------------------
+# Reduction of order
+# ---------------------------------------------------------------------------
+
+
+def _standard_second_order(equation: sp.Eq, function: sp.Function):
+    """``(P, Q)`` for ``y'' + P y' + Q y = 0``, or None.
+
+    None unless the equation is second order, linear, homogeneous, and has a
+    coefficient that is not constant -- the constant case has characteristic
+    roots and a technique of its own, which a course meets first.
+    """
+    if _order_of(equation, function) != 2:
+        return None
+    y = function(_T)
+    second, first, zeroth = sp.symbols("_Y2 _Y1 _Y0")
+    expr = sp.expand((equation.lhs - equation.rhs)
+                     .subs(y.diff(_T, 2), second)
+                     .subs(y.diff(_T), first)
+                     .subs(y, zeroth))
+    if expr.has(function):
+        return None
+    try:
+        poly = sp.Poly(expr, second, first, zeroth)
+    except sp.PolynomialError:
+        return None
+    if poly.total_degree() != 1 or poly.coeff_monomial(1) != 0:
+        return None
+    a = poly.coeff_monomial(second)
+    b = poly.coeff_monomial(first)
+    c = poly.coeff_monomial(zeroth)
+    if a == 0:
+        return None
+    p, q = sp.simplify(b / a), sp.simplify(c / a)
+    if not (p.has(_T) or q.has(_T)):
+        return None
+    return p, q
+
+
+#: What a first solution is looked for among, in the order a course would try
+#: them. A textbook *gives* y1 for this technique; the narrator has no box to
+#: be given it in, so it does what a student does on seeing none -- try the
+#: obvious forms and keep the first that substitutes to zero. Each candidate
+#: is checked, never assumed, so a lucky guess cannot produce a wrong answer.
+_TRIAL_SOLUTIONS = (
+    _T, _T**2, sp.exp(_T), sp.exp(-_T), 1 / _T, _T**3, sp.exp(2 * _T),
+    sp.exp(-2 * _T), 1 + _T, _T**-2, sp.exp(3 * _T), sp.Integer(1),
+)
+
+
+def _first_solution(p, q):
+    for candidate in _TRIAL_SOLUTIONS:
+        residual = (candidate.diff(_T, 2) + p * candidate.diff(_T)
+                    + q * candidate)
+        if _is_zero(residual) or _is_zero(residual.subs(_T, _T_POSITIVE)):
+            return candidate
+    return None
+
+
+def _reducible(equation: sp.Eq, function: sp.Function) -> bool:
+    coefficients = _standard_second_order(equation, function)
+    return coefficients is not None and _first_solution(*coefficients) is not None
+
+
+def _reduction_of_order(equation: sp.Eq, function: sp.Function, ics: dict,
+                        derivation: Derivation) -> None:
+    coefficients = _standard_second_order(equation, function)
+    if coefficients is None:
+        derivation.message = "this is not a second-order linear homogeneous equation"
+        return
+    p, q = coefficients
+    derivation.steps.append(Step(
+        title="Divide through by the leading coefficient",
+        latex=_eq(sp.Symbol("y''") + p * sp.Symbol("y'") + q * sp.Symbol("y"), 0),
+        note="The method is stated for y'' + P(t)y' + Q(t)y = 0, and P is "
+             "read off this form. Reading it off the equation as written, with "
+             "a coefficient still in front of y'', gives the wrong P.",
+    ))
+
+    y1 = _first_solution(p, q)
+    if y1 is None:
+        derivation.message = ("no first solution could be found by trying "
+                              "powers and exponentials")
+        return
+    derivation.steps.append(Step(
+        title="Find one solution",
+        latex=_eq("y_1(t)", y1),
+        note="Reduction of order needs one solution to start from. A textbook "
+             "usually supplies it; here it was found by trying powers of t and "
+             "exponentials, and substituting this one gives zero.",
+        verified=_satisfies(equation, function, y1),
+    ))
+
+    w_symbol = sp.Symbol("w")
+    reduced = sp.simplify(2 * y1.diff(_T) / y1 + p)
+    derivation.steps.append(Step(
+        title="Look for the second as y = v·y₁",
+        latex=(r"y_1 v'' + \left(2y_1' + P y_1\right) v' = 0"
+               r"\quad\Longrightarrow\quad " + _eq(sp.Symbol("w'"),
+                                                   -reduced * w_symbol)),
+        note="Substituting y = v·y₁ gives three groups of terms, and the one "
+             "multiplying v is y₁'' + P y₁' + Q y₁, which is zero because y₁ is "
+             "a solution. What is left has no v in it, only v' and v'' — so "
+             "w = v' satisfies a first-order equation. That is the reduction.",
+    ))
+
+    exponent = sp.integrate(p, _T)
+    w = sp.simplify(sp.exp(-exponent) / y1**2)
+    derivation.steps.append(Step(
+        title="Solve for w = v'",
+        latex=_eq("w(t)", w),
+        note="The equation for w is separable: w = e^(−∫P dt) / y₁². The "
+             "constant of integration is dropped here — any nonzero multiple "
+             "of w gives a second solution just as good.",
+        verified=_is_zero(w.diff(_T) + reduced * w)
+        or _is_zero((w.diff(_T) + reduced * w).subs(_T, _T_POSITIVE)),
+    ))
+
+    v_of_t = sp.integrate(w, _T)
+    if v_of_t.has(sp.Integral):
+        derivation.message = ("the integral for v has no elementary form, so "
+                              "the second solution stays an integral")
+        return
+    y2 = sp.simplify(v_of_t * y1)
+    derivation.steps.append(Step(
+        title="Integrate for v, and multiply by y₁",
+        latex=_eq("v(t)", v_of_t) + r",\qquad " + _eq("y_2(t)", y2),
+        note="Again the constant of integration is left out: it would only add "
+             "a multiple of y₁ to y₂, which the general solution already has.",
+        verified=_satisfies(equation, function, y2),
+    ))
+
+    wronskian = sp.simplify(y1 * y2.diff(_T) - y1.diff(_T) * y2)
+    derivation.steps.append(Step(
+        title="The two are independent",
+        latex=_eq("W(y_1, y_2)", wronskian),
+        note="The Wronskian is y₁² v' = y₁² w, which is never zero where y₁ is "
+             "not — so y₂ is not a multiple of y₁, and the pair is a "
+             "fundamental set.",
+        verified=None if wronskian == 0 else True,
+    ))
+
+    constants = [sp.Symbol("C1"), sp.Symbol("C2")]
+    general = constants[0] * y1 + constants[1] * y2
+    derivation.steps.append(Step(
+        title="The general solution",
+        latex=_eq("y(t)", general),
+        verified=_satisfies(equation, function, general),
+    ))
+    _apply_conditions(general, ics, derivation, constants)
+
+
 _BUILDERS = {
     "separable": _separable,
     "1st_linear": _integrating_factor,
@@ -1596,6 +1856,7 @@ _BUILDERS = {
     "nth_linear_constant_coeff_undetermined_coefficients": _undetermined,
     "nth_linear_constant_coeff_variation_of_parameters": _variation,
     "nth_linear_euler_eq_homogeneous": _cauchy_euler,
+    "reduction_of_order": _reduction_of_order,
 }
 
 #: Techniques `classify_ode` cannot be relied on to name, and how to recognise
@@ -1604,4 +1865,5 @@ _BUILDERS = {
 #: still gets the method it is met by first.
 _DETECTORS = (
     ("1st_exact", _is_exact),
+    ("reduction_of_order", _reducible),
 )

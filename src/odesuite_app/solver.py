@@ -30,6 +30,7 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 
 from odesuite import Event, solve
 
+from . import diagnostics
 from .catalog import CatalogEntry, get
 
 __all__ = ["SolveRequest", "SolveResult", "SolveRunner"]
@@ -278,6 +279,11 @@ class SolveRunner(QObject):
             # would let a screen render a partial trajectory as if it were the
             # answer.
             return
+        # REL-04. Every failure that reaches a screen also goes to the local
+        # log, so there is something to paste when reporting it. Here rather
+        # than in the job, because this runs on the interface thread: two pool
+        # threads appending to one file at once is a race the log need not have.
+        diagnostics.record_result(result)
         self.finished.emit(result)
         if result.request.token == self._newest:
             self.latest.emit(result)

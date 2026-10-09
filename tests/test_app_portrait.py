@@ -363,3 +363,82 @@ def test_a_system_with_nothing_to_sweep_says_so(screen, qapp):
     _select(screen, entry.key, qapp)
     assert not screen.sweep_button.isEnabled()
     assert "no parameter" in screen.sweep_note.text()
+
+
+def test_the_two_manifolds_differ_in_pattern_not_only_colour(screen, qapp):
+    """A11Y-03: stable solid, unstable dash-dot, and neither the nullclines' dash."""
+    from PySide6.QtCore import Qt
+
+    _select(screen, "pendulum", qapp)
+    assert screen._data.separatrices
+    manifold_colours = {PALETTE.danger.lower(), PALETTE.success.lower()}
+    styles = {
+        item.opts["pen"].style()
+        for item in screen.plot.listDataItems()
+        if item.opts.get("pen") is not None
+        and item.opts["pen"].color().name().lower() in manifold_colours
+    }
+    assert styles == {Qt.SolidLine, Qt.DashDotLine}
+    legend = screen.legend_label.text()
+    assert "-·-" in legend and "unstable manifold" in legend
+
+
+# ---------------------------------------------------------------------------
+# The limit cycle, drawn
+# ---------------------------------------------------------------------------
+
+
+def test_van_der_pol_shows_its_limit_cycle_and_period(screen, qapp):
+    """DYN-02 found the cycle and nothing drew it. The orbit is on the plot
+    and the period is in the report."""
+    _select(screen, "van_der_pol", qapp)
+
+    assert screen._cycle is not None and screen._cycle.isolated
+    assert len(screen._cycle_items) == 1
+    text = screen.report.text()
+    assert "period 6.66" in text and "attracting limit cycle" in text
+    assert "limit cycle" in screen.plot.accessibleDescription()
+
+
+def test_a_centre_orbit_is_drawn_dotted_and_not_called_a_limit_cycle(screen, qapp):
+    from PySide6.QtCore import Qt
+
+    _select(screen, "lotka_volterra", qapp)
+
+    assert screen._cycle is not None and not screen._cycle.isolated
+    pen = screen._cycle_items[0].opts["pen"]
+    assert pen.style() == Qt.DotLine
+    assert "not an isolated one" in screen.report.text()
+
+
+def test_no_cycle_is_reported_with_its_reason(screen, qapp):
+    _select(screen, "duffing", qapp)
+
+    assert screen._cycle_items == []
+    assert "No limit cycle" in screen.report.text()
+    assert "equilibrium" in screen.report.text()
+
+
+def test_the_cycle_layer_can_be_switched_off(screen, qapp):
+    _select(screen, "van_der_pol", qapp)
+    screen.toggles["cycle"].setChecked(False)
+    _settle(qapp)
+
+    assert screen._cycle_items == []
+    assert "period" not in screen.report.text()
+
+    screen.toggles["cycle"].setChecked(True)
+    _settle(qapp)
+    assert len(screen._cycle_items) == 1
+
+
+def test_a_late_cycle_does_not_wipe_clicked_trajectories(screen, qapp):
+    """The cycle arrives after the portrait. Drawing it must not re-render,
+    which clears the trajectories the user launched in the meantime."""
+    _select(screen, "van_der_pol", qapp)
+    screen._launch(0.5, 0.5)
+    drawn = len(screen._trajectories)
+    assert drawn > 0
+
+    screen._on_cycle(screen._cycle, screen._token)
+    assert len(screen._trajectories) == drawn

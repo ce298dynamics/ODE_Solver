@@ -16,17 +16,21 @@ tolerance. The exam contributes no mathematics and therefore cannot disagree
 with the rest of the Hub about what is correct — which is the argument that
 made the quiz cheap to add, used a second time.
 
-**The units are interleaved, not concatenated.** A paper built by taking six
-questions from Chapter 1 and then six from Chapter 3 would still tell you
-which chapter each question came from, just more slowly. `lessons_for` takes
-one lesson from each unit in turn, so consecutive questions are from different
-units by construction.
+**Selection and order are two separate decisions, and both matter.**
+`lessons_for` decides *which* lessons a paper draws on: the units are spread
+through one another in proportion to their size, so a chapter of six lessons
+carries twice the weight of one of three and no chapter is concatenated onto
+the end of another. `build` then shuffles what came out. Selecting in
+proportion and printing in that order would have the units march — first-order,
+models, first-order, models — and by question three the *position* would be
+telling you the chapter, which is most of what the question was asking.
 
 **Which lessons appear depends on the seed.** A paper is shorter than the run
-of lessons it draws from — eight questions against twenty-odd lessons — so a
-fixed order would examine the same eight every time and leave the rest
-unexaminable. The per-unit order is shuffled from the seed before the
-interleave, so the unit balance is fixed and the choice within it is not.
+of lessons it draws from — sixteen questions against thirty-five lessons — so
+a fixed selection would examine the same sixteen every time and leave the rest
+of the course unexaminable. The per-unit order is shuffled from the seed before
+the proportional spread, so the balance between units is fixed and the choice
+within each of them is not.
 
 The boundaries below are the ones this course keeps, and they are one tuple to
 edit for a section that splits the term differently. They follow Edwards,

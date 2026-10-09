@@ -226,6 +226,7 @@ class AccuracyScreen(QWidget):
         add_heading(layout, "Study")
 
         self.study = QComboBox()
+        self.study.setAccessibleName("study")
         self.study.addItems(_STUDIES)
         self.study.currentTextChanged.connect(self._on_study)
         layout.addWidget(self.study)
@@ -239,6 +240,7 @@ class AccuracyScreen(QWidget):
         add_heading(layout, "Problem", space_above=4)
 
         self.problem_picker = QComboBox()
+        self.problem_picker.setAccessibleName("problem")
         self.problem_picker.currentIndexChanged.connect(self._on_problem)
         layout.addWidget(self.problem_picker)
 
@@ -278,6 +280,7 @@ class AccuracyScreen(QWidget):
         layout.addWidget(self.title)
 
         self.plot = pg.PlotWidget()
+        self.plot.setAccessibleName("error against work plot")
         self.plot.setBackground(self.palette_obj.plot_background)
         self.plot.showGrid(x=True, y=True, alpha=0.18)
         self.plot.setMenuEnabled(False)

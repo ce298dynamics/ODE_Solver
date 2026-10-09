@@ -90,16 +90,29 @@ Three of these needed their design changed by measurement rather than reasoning:
   *growth* under refinement, which separates them from `y^(1/3)` by four orders
   of magnitude.
 
-### M3 in progress
+### M3 in progress (updated 2026-09-23)
 
 | Item | State | Evidence |
 |---|---|---|
 | **PED-04** FitzHugh–Nagumo and SIR in the catalogue | **done** | Hopf window *derived* from trace J = 0 → `I ∈ (0.331281, 1.418719)`, matching the measured onset (1.5e-2 at I=0.30 vs 3.75 at I=0.33) and collapse (3.75 at 1.42 vs 3.4e-5 at 1.50); SIR conserves S+I+R to 1.5e-12 |
 | **DYN-03** Lyapunov exponent with an honest error bar | **done** | Lorenz **+0.9001 ± 0.0117** against literature 0.9056; damped pendulum −0.1497; Lotka–Volterra "indistinguishable from zero" |
-| DYN-01 continuation / bifurcation | open | prototypes `cont01–04.py` survive in scratch |
-| DYN-02 limit cycles / Poincaré | open | prototypes `proto_period*.py` survive |
-| UX-04 predictability horizon | unblocked | `predictability_horizon` now exists and returns None unless the exponent resolves positive |
-| PED-01, PED-02, SYM-02/03/04, A11Y-01/02, TEST-03 | open | |
+| **DYN-01** continuation / bifurcation | **done** | `bb0b8eb` |
+| **DYN-02** limit cycles / Poincaré | **done** | `bb0b8eb` |
+| **PED-02** figures for the 17 lessons without | **done** | all 35 lessons have one; `test_lessons.py` asserts it over the course |
+| **A11Y-02** text alternative and data table | **done** | `describe.py`; Plot / In words / Data tabs |
+| **UX-04** predictability horizon | **done** | Lorenz at rtol 1e-8: horizon ≈ 20–23 from a 15-unit, ~3 s background estimate; none at ρ = 15 |
+| **PED-08** flag a discontinuous RHS | **done** | `analysis.rough_spots`: sign, kink and switch located at 1e-6 and 1e-9; every catalogue problem clean; silent at 1e-3, and says why |
+| **PED-07** name Lipschitz and Picard–Lindelöf | **done** | aside in `slopefields` |
+| **TEST-03** property-based tests | **done, redesigned** | property 4 is invisible through `solve`; fixed-step with exact Jacobians it fails `66e7491` (2.6e-10 against a 1e-11 bound) |
+| **A11Y-03** separatrices by pattern | **done** | stable solid, unstable dash-dot (nullclines own the dash) |
+| **SYM-03** implicit solutions | **done, narrowed** | the IC case was already right; the defect was the general solution dropping a branch |
+| **SYM-04** classifier drift | **half done** | 37 worked examples pinned to their technique; recognisers-first inversion not started |
+| **A11Y-01** accessible names | **done** | ~170 unnamed focusable widgets → 0, measured through `QAccessible`; a tree-walking test holds it |
+| **PED-06** when each method fails | **done** | 13 method lessons, one "Where it stops" pitfall each, asserted |
+| **PED-05** y' = y^(1/3) as a lesson | **done** | a worked example; building it found the grader marking the correct answer wrong, and the narrator choosing a non-solution branch |
+| **REL-04** diagnostics log | **done** | `diagnostics.py`, recorded by `SolveRunner`, sidebar "Copy diagnostics", disclosed in the README |
+| **PED-01** Unit 8, nonlinear systems | **done** | `ca0ba69`: six lessons, six figures, drills checked in `tests/test_unit8.py` |
+| **SYM-02** Reduction of order | **done** | narrator, lesson and drill; `t y'' - (t+1) y' + y = 0` gives `C1 e^t + C2 (t+1)`, every step verified |
 
 **DYN-03's error bar is the part worth reading.** The obvious one is wrong by a
 factor of 8.5, and the measurement that shows it is in the docstring: over 12
@@ -803,7 +816,21 @@ predictability horizon).
 - **Acceptance criteria:** dopri5 on Robertson fails in under 1 s (currently 22.6 s) with a diagnosis naming stiffness; no `NONSTIFF` benchmark triggers it at `rtol` from `1e-3` to `1e-12`; the Method Race test drops below 10 s.
 - **Dependencies / risks:** false positives would be worse than the current slowness — the no-false-alarm criterion above is the gate. Best after ARCH-01.
 
-### [PERF-03] Hoist the ERK stage buffer out of the step loop
+### [PERF-03] ~~Hoist the ERK stage buffer out of the step loop~~ — **WITHDRAWN 2026-09-23**
+
+> **Measured, and not worth doing.** 50 000 RK4 steps took 0.76 s at n = 1,
+> 0.87 s at n = 28 and 3.20 s at n = 400; allocating the `(7, n)` buffer the
+> same number of times took 0.008, 0.009 and 0.014 s — **1.0%, 1.0% and 0.4%**
+> of the run. The step is dominated by the Python-level stage loop and the
+> right-hand side, not by one `np.empty`.
+>
+> And the proposal as written would have introduced a bug. `step` returns
+> `f_new = K[-1]` for FSAL tableaux, which is a *view* into `K`. The driver
+> carries it as `f` into the next attempt; if that attempt is rejected and `K`
+> is reused, the trial's last stage overwrites the row `f` points at and the
+> retry starts from a wrong derivative. A safe version must copy `f_new`,
+> which spends part of the 1% it saves. Left as it is.
+
 
 - **Severity:** P3
 - **Effort:** S

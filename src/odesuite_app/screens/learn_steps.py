@@ -127,6 +127,7 @@ class StepsScreen(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
         self.answer = QLineEdit()
+        self.answer.setAccessibleName("your answer")
         self.answer.setPlaceholderText("y = C1*exp(-2*t) + C2*exp(-t)")
         self.answer.setClearButtonEnabled(True)
         row.addWidget(self.answer, 1)

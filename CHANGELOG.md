@@ -43,6 +43,107 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The glossary's "used in" ignored the chapters.** It searched only the
+  lesson cards, and missed 200 term-lesson pairs; it now reads the
+  chapters too, and no longer counts a word used in its everyday sense.
+
+- **"Show me" said it stopped counting the question, and did not.** Reading
+  the full working and typing its last line in was marked correct, recorded
+  and advanced the mastery streak. A right answer to an equation that "Show
+  me" has shown is now still marked, in a muted "Right — but it was worked
+  for you" with no tick, and recorded not at all: no tick, no streak, and no
+  miss either, so an earlier tick, streak and review box are untouched. The
+  equation is what is remembered, not the card, so a drill draw that comes
+  round again, or the same question in another lesson, is not counted
+  either; it lasts until the app is next opened. Only a working that
+  actually arrived (or is still on its way) counts: one that failed or was
+  superseded showed nothing. The faded "Next step" working never shows the
+  answer and disqualifies nothing.
+
+- **Typesetting rendered equations nobody could see.** A queued render ran
+  even after its label had been re-typed or its page closed, and over a long
+  visit those jobs filled the shared thread pool ahead of whatever was asked
+  for next -- on every screen, not only the lessons. A job now checks, when
+  it is reached, whether its label still wants it, and returns at once if
+  not.
+
+- **A worked example could wait a minute behind typesetting.** The narrator
+  shares the thread pool with every equation's typesetting, much of it for
+  pages already left, and queued at equal priority behind it. It now goes
+  ahead of that queue. This was also the cause of an intermittently failing
+  screen test, which waited on the whole pool and ignored the timeout.
+
+- **A factor common to every term was taken for a singular point.** Series
+  analysis read (1 − t²)(y'' + y) = 0 as having singular points at ±1 and a
+  radius of 1; `series.split` now cancels a polynomial factor shared by all
+  three coefficients, so it is y'' + y = 0 with an infinite radius.
+
+- **Series-unit figures and lesson text.** The partial-sums readout put the
+  1% reach a grid step short (0.397 for 0.01^(1/5) = 0.398) and now closes
+  the bracket by bisection; the recurrence figure's fixed ±2.5 pane cut off
+  the first even coefficients (a₂ = −6 at ℓ = 3) and now fits them. Three
+  lesson statements were wrong: a truncation's residual starts at t^(N−1),
+  not t^N; writing initial conditions straight in is shared with the Laplace
+  transform; and complex indicial roots do arise (t²y'' + ty' + y = 0).
+
+- **An asterisk in mathematics was read as emphasis.** The equilibrium
+  "(x*, y*)" rendered as "(x<i>, y</i>)", and a drill prompt such as
+  "Linearise x' = 2*x - x*y" set "x - x" in italics. A marker now has to be
+  free of letters and digits on its outer side, so only `*emphasis*` between
+  spaces or punctuation is italicised.
+
+- **Three Unit 8 readouts misreported.** The almost-linear figure said
+  "after t = 18" about a trajectory the solver had abandoned at t = 6, and it
+  and the normal-forms figure printed a rounding error as "−0.000". The
+  limit-cycles quiz also justified Poincaré–Bendixson with a large circle that
+  Van der Pol's flow in fact leaves near its top and bottom.
+
+- **The eigenlines figure called a centre an unstable spiral.** numpy's
+  eigenvalues for a centre carry a real part of about 1e-16, which
+  `systems.classify` rightly reads as positive. The figure now sets parts
+  below 1e-9 to zero before naming the origin, and draws a zero eigenvalue's
+  line of equilibria without the arrow that made it look like an incoming
+  eigenline.
+
+- **A switched or impulsive answer could not be checked, and a wrong one
+  could pass.** Substituting `u(t - 2)(1 - e^(-t))` into `y' + y = u(t - 2)`
+  leaves a `δ(t - 2)` in the residual, and a delta is zero wherever it is
+  sampled, so the answer satisfied the equation on both sides of the switch
+  and failed only *at* it. `check_answer` now separates the impulses from the
+  residual, collects each `c(t)δ⁽ᵏ⁾(t - a)` into constant multiples of
+  `δ⁽ʲ⁾(t - a)`, and calls the answer wrong at any point where one survives,
+  naming it. An answer to an equation that uses `Heaviside` or `DiracDelta`
+  may use both.
+
+- **The nonlinear analysis tools were confidently wrong in four places.**
+  The Lyapunov estimate called Lotka–Volterra, Kepler and FitzHugh–Nagumo
+  chaotic and read Lorenz at ρ = 15 as −0.0008 against its true −0.3502;
+  continuation reported dozens of Hopf bifurcations on a centre and missed
+  Lorenz's real one at ρ = 24.74; the limit-cycle finder gave up on slow
+  relaxation oscillators; and a large result took up to 6.8 s to redraw. All
+  are now checked against closed forms.
+
+- **A correct answer that sympy could not simplify was marked wrong.**
+  `check_answer`'s docstring promised that a residual which merely failed to
+  simplify would be reported as "cannot tell", and the code reported it as
+  wrong. The case that exposed it is the course's own: `y = (2t/3)^(3/2)`
+  solves `y' = y^(1/3)`, `y(0) = 0` -- the slope-fields lesson's example of
+  non-uniqueness -- and was graded as a mistake, because `t` is declared real
+  and the cube root of its cube does not cancel without `t > 0`. The new
+  `steps.vanishes` decides in three steps: simplify; simplify again with `t`
+  positive, and if that works say "verified for t > 0" rather than claiming
+  more; otherwise evaluate at four positive times, and report wrong only if
+  the residual is measurably nonzero somewhere, "probably right, not proven"
+  if it vanishes at all of them. The narrator's own check uses the same
+  function.
+
+- **The narrator chose a branch that is not a solution.** For that same
+  equation both roots pass through the origin with C = 0, and the first --
+  the negative one, not a solution under sympy's principal cube root -- was
+  taken, so the lesson's tool showed an unverified answer. Branches are now
+  ranked: proven solution, then one the numeric probe cannot fault, then the
+  rest.
+
 - **Radau missed the tolerance it was asked for, and reported success.** Below
   `rtol = 1e-9` the achieved error stopped tracking the request: 15x too large
   at 1e-10, 30x at 1e-11, 54x at 1e-12, 103x at 1e-13, while DOPRI5 held 1.8x
@@ -182,6 +283,83 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Every control a keyboard can reach has a name** (A11Y-01). Measured by
+  asking Qt's accessibility layer what a screen reader would announce, not by
+  counting `setAccessibleName` calls -- a button is already named by its
+  caption -- about 170 focusable widgets across the fourteen screens
+  announced nothing: every field of the equation editor, every slider, every
+  combo box, the plots and the scroll areas. They are named at the few
+  constructors that make most of them. Two things are more than a label. A
+  `ValueSlider`'s own value is a tick from 0 to 1000, which on a logarithmic
+  slider is actively misleading, so its accessible description carries the
+  real value and follows the readout. And the parameter fields of the
+  equation editor are renamed after the parameter they hold, because their
+  column headings are only visual. `tests/test_app.py` walks every screen,
+  and a lesson's practice page for the answer boxes built on demand, and
+  fails on any focusable widget without a name; it failed on all of them
+  before.
+
+- **A general solution with two branches shows both** (SYM-03). Without an
+  initial condition, "Solve for y" took the first root sympy returned and
+  called it the general solution: `y' = -t/y` became `y = -√(2C - t²)`, the
+  lower half of every circle, with the upper half nowhere on the page. It now
+  reads `y = ±√(2C - t²)`, and the exact equation `2ty + (t² + 2y)y' = 0`
+  reads `y = -t²/2 ± √(4C + t⁴)/2` beneath its implicit `ψ = C`. With a
+  condition nothing changes: the branch it sits on is still the one shown.
+  What was *not* found is the defect the audit expected -- the initial-value
+  case was already choosing the right branch, via `_pick_branch`.
+
+- **Separatrices differ in pattern as well as colour** (A11Y-03). The stable
+  manifold is solid and the unstable one dash-dot, and the legend draws the
+  two patterns. They were red against green only, the pairing red–green
+  colour blindness collapses, in a file that already encodes equilibria by
+  marker shape for that reason. Dash-dot rather than dashed, because the
+  nullclines are dashed.
+
+- **"Open the tool for this topic" now opens it on the topic.** The button
+  emitted a screen name and nothing else, so a tooltip promising "with an
+  example loaded" landed on an empty screen. It carries the lesson's own
+  example and conditions across, and says which screen it is opening and on
+  what equation. Where the tool is catalogue-driven and has no box to type
+  into — Methods by Hand, Worked Problems — it promises less, because it
+  delivers less. A lesson writes a system as one string separated by
+  semicolons, so the split happens on the way into the editor's fields.
+
+- **A drill runs from the keyboard alone.** Enter marks what is in the box;
+  Enter again draws the next question and puts the caret where the answer
+  goes. It was the one part of this application somebody does forty times in
+  a row and the one part that needed the mouse for every second action.
+
+  Two things had to be got right. The grader now reports whether it actually
+  marked anything, so an empty box or an unpicked option is not spent as a
+  turn. And the key is taken once, by the card: a `QLineEdit` emits
+  `returnPressed` *and* lets the event travel on, so wiring both checked and
+  advanced on a single press. A `QShortcut` scoped to the card was the first
+  attempt and is the wrong tool — shortcuts are matched against the window,
+  so they do nothing until it is active, which makes the behaviour untestable
+  and dependent on something the reader cannot see.
+
+- **Rendered mathematics follows the operating system's text scale** (A11Y-04).
+  Every font size in this application is written in pixels, and the OS text
+  scale reaches Qt as a larger default font point size and nothing else — so
+  raising it left the whole interface exactly where it was. Equations were
+  the worst case, because they are matplotlib bitmaps and cannot inherit a
+  font size at all, and would have been the smallest thing on a page whose
+  prose had grown around them.
+
+  `theme.text_scale` reads the factor and `theme.scaled` applies it to the
+  application style sheet and to every inline one; `MathLabel` multiplies its
+  point size by it and re-renders when the scale moves. Three things were
+  found by measuring rather than reasoning. `QApplication.setFont` delivers
+  only `FontChange` to a label that has never been shown, not the
+  `ApplicationFontChange` the documentation suggests, so both are handled and
+  the guard is that the scale actually moved. The render cache is keyed on
+  point size, so the two scales cannot collide. And the fixed `pad_inches`
+  around a rendered equation was about 40% of its height at 15 pt, which made
+  a bitmap rendered at twice the size only 1.55× taller — padding is part of
+  the typography, so it grows with the type, and the maths now tracks the
+  body text to within 10% across the range.
+
 - **A non-hyperbolic equilibrium is no longer labelled with a definite answer.**
   The Phase Portrait printed `kind` verbatim, in bold. For
   `x' = -y + x(x²+y²)`, `y' = x + y(x²+y²)` that reads "centre" — which is what
@@ -204,6 +382,218 @@ All notable changes to this project are documented here. The format follows
   install alongside anything else.
 
 ### Added
+
+- **Glossary terms are links where a chapter uses them.** The first use
+  of each term in a lesson's chapter is underlined; hovering shows the
+  definition, and following it opens the Glossary at that term. A term is
+  not linked in the lesson that teaches it, and a word in its everyday
+  sense is not linked at all: the centre of a disc, hyperbolic functions,
+  and "order" (which the numerical unit also uses for accuracy) are
+  excluded by phrase, by lesson, or outright.
+
+- **A drill that names an equilibrium of a nonlinear system.** Seventeen
+  (system, point) questions in the nonlinear-equilibria lesson: linearise
+  at the point given and name what the Jacobian says -- or that it cannot,
+  for the non-hyperbolic cases. Several systems appear at two points on
+  purpose. Every answer is checked with `analysis.jacobian_at` and
+  `analysis.classify`, and the point is checked to be an equilibrium.
+
+- **Unit 8, nonlinear systems and phenomena** (Edwards ch. 6): six lessons —
+  equilibria and linearisation, almost linear systems, ecological models,
+  conservative mechanics, limit cycles and Poincaré–Bendixson, bifurcations and
+  chaos — each with an interactive figure and a drill checked against the
+  analysis routine that decides it. Lessons open the Phase Portrait on their
+  own system.
+- **The Phase Portrait draws the limit cycle**, with its period and whether it
+  is isolated, beside the equilibria.
+
+- **A local record of failed solves, and "Copy diagnostics"** (REL-04). With
+  no telemetry -- a position worth keeping -- the only way the author learns a
+  solver failed for somebody is that they report it, and until now there was
+  nothing to report: the traceback was captured and then discarded. Failures
+  now go to `diagnostics.log` beside `progress.json`, one JSON line each:
+  problem, method, tolerances, parameters, the error or the solver's
+  structured diagnosis, and the traceback with every path cut down to the
+  package that raised, so a username in a home directory is never pasted into
+  an issue. Capped at 64 KB by dropping the older half; never fatal. The
+  sidebar's **Copy diagnostics** puts versions, platform and the last ten
+  failures on the clipboard. The README's privacy section names the file. The
+  test suite writes its own deliberate failures to a temporary log, not the
+  developer's.
+
+- **y' = y^(1/3) is a worked example** (PED-05). The slope-fields lesson said
+  it has two solutions through the origin, and the Solver Lab answers y ≡ 0
+  with a green "finished" and nothing else. The example narrates the other
+  one, points out that separation found it only by dividing away the first,
+  notes that there are in fact infinitely many, and sends the reader to the
+  Lab to watch a numerical method pick one while the uniqueness warning says
+  why it could. Building it is what found the two defects under Fixed.
+
+- **Every method lesson says where its method stops** (PED-06). The course's
+  pitfalls were about students' mistakes -- a lost constant, a forgotten
+  divide -- and much thinner on the method's own domain. Thirteen lessons now
+  carry a "Where it stops" note: separation needs f to factor, and y' = t + y
+  never will; undetermined coefficients has no finite guess for sec t, whose
+  derivatives never close; Euler multiplies an oscillator's amplitude by
+  √(1 + h²) every step, for every h; RK4 on y' = −1000y is stable only below
+  h ≈ 0.0028; Laplace needs exponential order and constant coefficients,
+  because L{t·f} = −F′(s) turns a variable coefficient into a new
+  differential equation; a power series is guaranteed only out to the
+  nearest singularity, complex ones included. A test requires one on each.
+
+- **The technique each worked example gets is pinned** (SYM-04, first half).
+  The narrator picks its method from `classify_ode`'s hint names, which sympy
+  does not promise to keep. A rename already fails loudly; a reordering would
+  not -- the equation would be narrated, correctly, by a different method, and
+  every test would pass. `tests/test_steps.py` now records, for all 37
+  distinct worked examples the steps narrator explains, which of the nine
+  techniques they get under sympy 1.14, and fails on any change. A new worked
+  example has to be added to the table. The second half -- making the app's
+  own recognisers primary so that `classify_ode` is only a fallback -- is not
+  done.
+
+- **A chaotic trajectory marks where it stops being a prediction** (UX-04).
+  Lorenz's default duration is 40 and its predictability horizon at
+  rtol = 1e-8 is about 20, so the default view presented a second half that
+  is a sample of the attractor exactly like a first half that is a forecast.
+  For entries tagged chaotic the Lab now estimates the largest Lyapunov
+  exponent in the background -- `largest_lyapunov` existed since DYN-03 and
+  nothing in the interface used it -- and, when the plot runs past
+  `ln(1/rtol)/λ`, shades the time axis beyond it, draws that stretch of the
+  orbit faint, and says why in one caption. Faded rather than cut: the
+  attractor is the part that stays true.
+
+  The estimate is a 15-time-unit run, about three seconds, cached per
+  parameter setting and abandoned when the user moves on. Measured against
+  the 300-unit run it is 0.80 ± 0.05 against 0.89 ± 0.01, so the caption says
+  "about" and gives the horizon to two figures. The duration is left out of
+  the cache key, since lengthening the plot does not change the exponent.
+  Below the onset of chaos (ρ = 15) the exponent is negative and there is no
+  horizon at all, rather than a large one.
+
+- **The Solver Lab says where the solver fought a discontinuity** (PED-08).
+  `y' = -y + H(t - 2)` came back as unqualified success although the solver
+  had spent twenty rejected steps bisecting onto t = 2 and recorded every
+  one. `analysis.rough_spots` looks for an instant covered by at least four
+  rejected intervals whose step sizes span a factor of twenty -- the
+  signature of a controller creeping up on a jump. A smooth but fast feature,
+  such as Van der Pol's relaxation jump, also rejects steps, but its
+  rejections neither share a point nor shrink by orders of magnitude, and
+  none is flagged. Every catalogue problem at its defaults is clean once
+  rejections *at t0* are set aside: Robertson's first-step search halves
+  five times from the start, which has the same signature and is about the
+  initial guess, not the equation. Flagged spots get a dashed rule on the
+  time plot and a caution worded as an observation about the solver.
+
+  At rtol = 1e-3 nothing is found even where there is a jump: the solver
+  steps across without noticing. A detector built on its rejections cannot
+  do better, so the absence of a remark means no evidence, not smoothness.
+
+- **Property-based tests** (TEST-03), in `tests/test_properties.py`:
+  time-reversibility of Verlet and Yoshida on the nonlinear pendulum,
+  superposition for linear systems, time-translation invariance, and
+  invariance under autonomisation. The last one needed redesigning after
+  measurement. Through `solve` it could not see NUM-03 at all -- error
+  control simply took smaller steps, and the pre-fix RODAS4 agreed with its
+  autonomised form to 5e-14 -- so it marches the stepper at a fixed h with
+  exact Jacobians on both sides. There every Runge-Kutta method and Radau are
+  invariant to round-off, and RODAS4 misses by 2.6e-10 before NUM-03, 4.9e-13
+  with the central difference, and 6.7e-16 with an exact `dfdt`. The bound
+  of 1e-11 fails the old code and passes the current one, each by more than
+  an order of magnitude.
+
+- **Picard–Lindelöf and Lipschitz are named** (PED-07), in an aside in the
+  slope-fields lesson, so a student who wants to read further can search
+  for what they were taught. The ∂f/∂y form stays the one taught.
+
+- **A figure for every lesson — the seventeen that had none.** The course
+  honoured the rule of four everywhere except its graphical leg, which
+  eighteen lessons had and seventeen did not. All thirty-five have one now,
+  and `tests/test_lessons.py` asserts it over the whole course rather than
+  over a list, so a lesson added later without a picture fails rather than
+  quietly being the only one missing a representation.
+
+  The two the audit named as close to indispensable are there. `systems-intro`
+  draws the same motion twice — two graphs against time, and one curve in the
+  (y, y′) plane — because the reader is entitled to ask what rewriting a
+  second-order equation as a pair bought, and that is the answer.
+  `eigenvalues` draws the two modes against time with both eigenvalues on
+  sliders and the eigenvectors held fixed, which is the one arrangement in
+  which "the eigenvalue decides what survives" can be watched in isolation;
+  the eigenvector half of the story already had `eigenlines`.
+
+  The rest, in course order: the family of antiderivatives and the condition
+  that picks one of it; `v = y/t` straightening a homogeneous family into
+  parallel straight lines of slope 2, which is what "the substituted equation
+  is separable" looks like drawn; exponential against logistic growth from
+  identical r and P(0), with the moment they part company measured rather
+  than asserted; two solutions of y″ − y = 0 and every combination of them;
+  the b–c plane, whose parabola b² = 4c *is* the three-case distinction;
+  sec t against the shapes a guess would have to be built from, with the
+  answer variation of parameters produces beside it; three roots and the
+  measured point where the largest takes the answer over; an RLC loop and its
+  mass–spring twin driven from one set of sliders through L = m, R = c,
+  1/C = k; the Laplace integral as the shaded area it actually is, with the
+  region of convergence as a place on the axis rather than a proviso; the
+  answer to y″ + 3y′ + 2y = sin t rebuilt one pole at a time; a rectangle of
+  unit area narrowing onto a delta with the response converging faster than
+  it does; the single eigendirection of a defective matrix and the t·e^(λt)
+  that makes up the difference; three starts spiralling onto one forced loop;
+  the Legendre recurrence as a stem per coefficient, with the stems past
+  n = ℓ vanishing the moment ℓ lands on a whole number; and Bessel's leading
+  power t^ν against the Frobenius series that corrects it.
+
+  Two measurements changed what was drawn. The impulse pulse is **centred**
+  on the instant rather than starting at it — both sequences converge, but a
+  pulse that starts there also arrives half a width late, and that offset is
+  first order in w, so it dominated the difference and made the convergence
+  look far slower than it is; centred, a pulse of width 0.5 matches the
+  impulse response to 1.05% of its peak and one of width 0.2 to 0.17%. And
+  the higher-order readout reports the leading term's *share* at the end of
+  the window rather than only where it crosses a threshold, because "it has
+  not taken over yet" with no number attached is the least useful thing it
+  could say.
+
+- **A question can now be asked about a picture.** `Choice`, `Numeric` and
+  `Solve` carry an optional `figure`, a key into the same registry a lesson's
+  own figure comes from, shown above the prompt in Practice, in Drill and in
+  the quiz. Until now every question here was about a formula or a number:
+  reading a phase portrait — which is most of what the later units are for —
+  could be demonstrated to a student and never asked of one.
+
+  Seven questions use it, one per unit, and each is answered by moving the
+  sliders on the figure rather than by remembering it: read the slope field
+  with a = −1 and say where every solution goes; raise the harvest until the
+  two equilibria vanish and say what has happened to the population; cross
+  the parabola in the b–c plane and say what the solution does; drag the
+  damping until the roots meet and type the value; push s below a and say
+  what happens to the area; count the straight-line solutions in a phase
+  portrait; read which coefficients the recurrence has just killed.
+
+- **Every plot says in words what it shows, and offers its numbers.** The
+  trajectory panel has three tabs — the curve, a paragraph, and a table of
+  the output times and states, keyboard-navigable with Ctrl+C to copy. The
+  paragraph is also the plot's accessible description, which is what a screen
+  reader announces in place of the image, and it is generated by the new
+  `describe` module rather than written: the shape comes from counting
+  turning points, the limit from comparing the last tenth of the record with
+  the endpoint, and blow-up from the solver's own report that it stopped
+  early.
+
+  The first turning-point counter was wrong in a way worth recording. It
+  counted sign changes of `diff` with small steps discarded, which compares
+  *one step* against a fraction of the whole range — so on a finely sampled
+  curve every step is small, every step is discarded, and a decaying
+  oscillation was reported as turning once. Step size is a property of the
+  solver, not of the solution. What is measured now is the *swing*, and
+  `tests/test_describe.py` renders the same curve at 200 and at 20 000
+  samples and requires the same count.
+
+  Lesson figures gained the same thing for free: each already wrote a readout
+  in words, and that readout is now attached to its plots as alternative text
+  by the base class, so a figure added later cannot forget to do it. The
+  Phase Portrait describes its window, its equilibria and their
+  classification from the same `analysis` results the report beside it uses.
 
 - **Four kinds of question the drills could not ask.** Every drill in the
   Hub handed you an equation and asked what to do with it. That is one of the

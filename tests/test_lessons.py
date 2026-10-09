@@ -98,8 +98,23 @@ def test_every_lesson_is_complete():
         assert lesson.title and lesson.summary
         assert len(lesson.notes) >= 3, f"{lesson.key} is thin on notes"
         assert len(lesson.questions) >= 4, f"{lesson.key} is thin on practice"
-        assert lesson.tool in {"steps", "laplace", "byhand", "worked"}
+        assert lesson.tool in {"steps", "laplace", "byhand", "worked", "portrait"}
         assert lesson.narrator in NARRATORS
+
+
+def test_a_portrait_lesson_opens_on_a_system_the_portrait_offers():
+    """The key is checked against the catalogue and against the screen's own
+    gate: a lesson that sent the reader to a system with no planar portrait
+    would open the screen on whatever it happened to be showing."""
+    from odesuite_app import catalog
+
+    for lesson in LESSONS:
+        if lesson.tool != "portrait":
+            assert not lesson.portrait, f"{lesson.key} names a portrait it never opens"
+            continue
+        assert lesson.portrait, f"{lesson.key} opens the portrait on nothing"
+        assert catalog.get(lesson.portrait).autonomous_2d, (
+            f"{lesson.key}: {lesson.portrait} has no planar phase portrait")
 
 
 def test_keys_are_unique():
@@ -220,6 +235,7 @@ FULL_DEPTH = (
     "roots",
     "undetermined",
     "variation",
+    "reduction-of-order",
     "cauchy",
     "higher",
     "free-vibration",
@@ -237,6 +253,12 @@ FULL_DEPTH = (
     "repeated-eigenvalues",
     "forced-systems",
     "phase-portraits",
+    "nonlinear-equilibria",
+    "almost-linear",
+    "ecological-models",
+    "nonlinear-mechanics",
+    "limit-cycles",
+    "bifurcations-chaos",
     "power-series",
     "recurrence",
     "frobenius",
@@ -624,7 +646,7 @@ def test_lessons_needs_no_interface_toolkit():
 
     code = (
         "import sys; sys.modules['PySide6'] = None\n"
-        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 35\n"
+        "from odesuite_app.lessons import LESSONS; assert len(LESSONS) == 42\n"
     )
     done = subprocess.run([sys.executable, "-c", code], capture_output=True,
                           text=True)
@@ -795,6 +817,33 @@ def screen(qapp, store):
     qapp.processEvents()
     yield made
     made.deleteLater()
+    # Every page leaves its equations' typesetting queued on the shared pool,
+    # and nothing takes it off when the page goes. A few hundred tests of it
+    # once added up to minutes of backlog that the next test's own work had to
+    # queue behind; the screen it was typeset for is gone, so drop it here.
+    from PySide6.QtCore import QThreadPool
+
+    QThreadPool.globalInstance().clear()
+
+
+def _until(qapp, condition, seconds: float = 90) -> bool:
+    """Turn the event loop until `condition()` holds, or `seconds` pass.
+
+    Wait on the thing itself, not on the thread pool going idle. These tests
+    used to call `waitForDone`, which waits for *everything* on the shared
+    pool -- including thousands of typesetting jobs left by earlier tests --
+    and ignored its answer, so a slow machine failed with "0 >= 4" instead of
+    saying it had timed out. Returns whether the condition was met in time.
+    """
+    import time
+
+    deadline = time.monotonic() + seconds
+    while not condition():
+        if time.monotonic() >= deadline:
+            return False
+        qapp.processEvents()
+        time.sleep(0.02)
+    return True
 
 
 def _open(screen, qapp, key: str, segment: str = "Practice"):
@@ -896,14 +945,38 @@ def test_a_card_announces_what_it_is(screen, qapp):
     names itself from its own heading."""
     from PySide6.QtWidgets import QFrame
 
-    lesson = _open(screen, qapp, "separable", "Learn")
-    named = {frame.accessibleName()
-             for frame in screen.findChildren(QFrame)
-             if frame.accessibleName()}
+    # Every lesson now has a chapter, but the card layout is still what a
+    # lesson without one gets -- so take one lesson's chapter away for the
+    # length of the test. Lesson is frozen, hence object.__setattr__.
+    lesson = LESSONS[0]
+    chapter = lesson.chapter
+    object.__setattr__(lesson, "chapter", ())
+    try:
+        _open(screen, qapp, lesson.key, "Learn")
+        named = {frame.accessibleName()
+                 for frame in screen.findChildren(QFrame)
+                 if frame.accessibleName()}
+    finally:
+        object.__setattr__(lesson, "chapter", chapter)
     assert any("Why this topic exists" in one for one in named)
     assert any("Where this comes from" in one for one in named)
     for note in lesson.notes:
         assert any(note.heading in one for one in named), note.heading
+
+
+def test_a_chapter_announces_its_sections_boxes_and_examples(screen, qapp):
+    from PySide6.QtWidgets import QWidget
+
+    key = next(lesson.key for lesson in LESSONS if lesson.chapter)
+    lesson = _open(screen, qapp, key, "Learn")
+    named = {widget.accessibleName()
+             for widget in screen.findChildren(QWidget)
+             if widget.accessibleName()}
+    assert any(one.startswith("Chapter:") for one in named)
+    for number, section in enumerate(lesson.chapter, start=1):
+        assert f"Section {number}: {section.title}" in named
+    assert any(one.startswith("Example 1:") for one in named)
+    assert any(one.startswith("Definition 1:") for one in named)
 
 
 def test_each_paragraph_of_prose_is_announced_as_one(screen, qapp):
@@ -1213,19 +1286,36 @@ def test_switching_around_does_not_accumulate_widgets(screen, qapp):
 
 
 def test_the_tool_button_asks_for_the_matching_screen(screen, qapp):
+    """And carries the lesson's own example with it.
+
+    `open_tool` widened to `Signal(str, str, str)` when the button began
+    handing the tool an equation to open on, and a one-argument slot silently
+    collected nothing at all: `list.append` raised inside the emission, so the
+    list stayed empty rather than wrong. Three arguments are taken here, and
+    the payload is asserted rather than merely tolerated.
+    """
     seen = []
-    screen.open_tool.connect(seen.append)
+    screen.open_tool.connect(
+        lambda tool, equation, conditions: seen.append(
+            (tool, equation, conditions))
+    )
     for lesson in LESSONS:
         _open(screen, qapp, lesson.key, "Learn")
         screen._open_tool()
-    assert seen == [lesson.tool for lesson in LESSONS]
+
+    assert [tool for tool, _, _ in seen] == [lesson.tool for lesson in LESSONS]
+    # A portrait lesson sends its catalogue system instead: the portrait is
+    # driven by the catalogue and cannot open on a typed equation.
+    assert [equation for _, equation, _ in seen] == [
+        lesson.portrait if lesson.tool == "portrait" else lesson.example
+        for lesson in LESSONS
+    ], "the tool is opened on the lesson's own example"
 
 
 @pytest.mark.slow
 def test_a_worked_example_is_produced_on_request(screen, qapp):
     """It is generated by the narrator through the real subprocess, not stored,
     so what the lesson shows cannot drift from what the tool would say."""
-    from PySide6.QtCore import QThreadPool
     from PySide6.QtWidgets import QPushButton
 
     from odesuite_app.widgets.stepspanel import StepsPanel
@@ -1239,13 +1329,99 @@ def test_a_worked_example_is_produced_on_request(screen, qapp):
     assert not panels[0].isVisibleTo(screen)
 
     button.click()
-    QThreadPool.globalInstance().waitForDone(90_000)
-    for _ in range(6):
-        qapp.processEvents()
+    assert _until(qapp, lambda: not screen._pending), "no working arrived"
 
     assert panels[0].isVisibleTo(screen)
     assert panels[0]._body.count() >= 4
     assert button.isEnabled(), "the button was left disabled"
+
+
+@pytest.mark.slow
+def test_a_worked_example_is_not_queued_behind_typesetting(screen, qapp,
+                                                          monkeypatch):
+    """The reader asked for this one; the equations queued on the shared pool
+    may be for pages they have already left. With the pool backed up, the
+    working must still go ahead of them rather than wait its turn.
+
+    What is timed is when the job *starts*, not when its working arrives. The
+    narrator alone can outlast any fair queueing budget on a busy machine, and
+    a deadline over both once failed for that reason and blamed the queue."""
+    import time
+
+    from PySide6.QtCore import QRunnable, QThreadPool
+    from PySide6.QtWidgets import QPushButton
+
+    from odesuite_app.screens import learn_lessons
+    from odesuite_app.widgets.stepspanel import StepsPanel
+
+    class Busy(QRunnable):
+        def run(self):
+            time.sleep(0.5)
+
+    started: list[float] = []
+    run = learn_lessons._WorkingJob.run
+
+    def timed(job) -> None:
+        started.append(time.monotonic())
+        run(job)
+
+    monkeypatch.setattr(learn_lessons._WorkingJob, "run", timed)
+
+    _open(screen, qapp, "separable", "Examples")
+    panels = screen._page.findChildren(StepsPanel)
+    button = next(b for b in screen._page.findChildren(QPushButton)
+                  if b.text() == "Work it through")
+    pool = QThreadPool.globalInstance()
+    try:
+        # About forty seconds of queue at the pool's own width, against a
+        # deadline of ten: a job that waits its turn cannot start in time, and
+        # one that goes ahead starts as soon as the first sleeper wakes.
+        for _ in range(pool.maxThreadCount() * 80):
+            pool.start(Busy())
+        button.click()
+        assert _until(qapp, lambda: started, 10), (
+            "the worked example waited behind the typesetting queue"
+        )
+    finally:
+        pool.clear()
+    assert _until(qapp, lambda: not screen._pending), "no working arrived"
+    assert panels[0]._body.count() >= 4
+
+
+@pytest.mark.slow
+def test_a_drill_fades_its_working_one_step_at_a_time(screen, qapp):
+    """"Next step" shows the drawn equation's own working a step per press,
+    and stops one short: the last step is the answer, and revealing it would
+    turn the drill into reading."""
+    import re
+
+    from PySide6.QtWidgets import QPushButton
+
+    from odesuite_app.widgets.stepspanel import StepsPanel
+
+    _open(screen, qapp, "separable", "Drill")
+    button = next(b for b in screen._page.findChildren(QPushButton)
+                  if b.text() == "Next step")
+    panel = next(p for p in screen._page.findChildren(StepsPanel)
+                 if not p.isVisibleTo(screen))
+
+    def press():
+        button.click()
+        # Only the first press asks the narrator; the rest reveal what it
+        # already sent, and there is nothing pending to wait for.
+        assert _until(qapp, lambda: not screen._pending), "no working arrived"
+        shown, total = map(int, re.match(r"(\d+) of (\d+)",
+                                          panel._status.text()).groups())
+        return shown, total
+
+    shown, total = press()
+    assert (shown, panel._body.count()) == (1, 1)
+    assert total >= 3, "a separable derivation has more than two steps"
+    while button.isEnabled():
+        shown, _ = press()
+    assert shown == total - 1, "it stopped too early, or gave the answer away"
+    assert panel._body.count() == total - 1, "no verdict, no final step"
+    assert "yours" in button.toolTip()
 
 
 def test_a_superseded_request_hands_its_button_back(screen, qapp):
@@ -1416,10 +1592,19 @@ def test_drill_is_withheld_from_a_lesson_that_has_none(screen, qapp):
 
 
 def test_the_drill_page_offers_every_template(screen, qapp):
+    """Every drill, and each saying how many versions it has.
+
+    The count is the one for the tier the card is *drawing from*, which is the
+    whole pool unless the template offers a choice of difficulty. "One of 18
+    versions" beside a control set to harder would be counting questions the
+    drill is not going to ask.
+    """
     lesson = _drill(screen, qapp, "separable")
     assert set(screen._verdicts) == {t.key for t in lesson.templates}
     for template in lesson.templates:
-        assert str(generate.combinations(template)) in _page_text(screen), (
+        offered = generate.tiers(template)
+        tier = screen._tier_of(template, offered) if len(offered) > 1 else ""
+        assert str(generate.combinations(template, tier)) in _page_text(screen), (
             "the drill does not say how many versions there are"
         )
 
@@ -1427,11 +1612,16 @@ def test_the_drill_page_offers_every_template(screen, qapp):
 def test_a_new_question_is_a_different_question(screen, qapp):
     lesson = _drill(screen, qapp, "separable")
     template = lesson.templates[0]
+    # At whichever tier the card is set to, or the drawn question is not the
+    # one on the screen: this drill offers a choice of difficulty, and a draw
+    # that ignored it would be comparing against a question nobody was asked.
+    offered = generate.tiers(template)
+    tier = screen._tier_of(template, offered) if len(offered) > 1 else ""
 
-    first = generate.draw(template, screen._drill_seed[template.key])
+    first = generate.draw(template, screen._drill_seed[template.key], tier)
     _press(screen, "New question")
     qapp.processEvents()
-    second = generate.draw(template, screen._drill_seed[template.key])
+    second = generate.draw(template, screen._drill_seed[template.key], tier)
 
     assert (first.equation, first.conditions) != (second.equation,
                                                   second.conditions)
@@ -1452,6 +1642,106 @@ def test_the_question_survives_leaving_the_lesson_and_coming_back(screen,
     _open(screen, qapp, "roots", "Learn")
     _drill(screen, qapp, "separable")
     assert screen._drill_seed[template.key] == seed
+
+
+def _enter(widget, qapp):
+    """Press Return on `widget`, the way a reader working a drill would."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    QTest.keyClick(widget, Qt.Key_Return)
+    qapp.processEvents()
+
+
+def test_enter_marks_the_answer_and_enter_again_draws_the_next(screen, qapp,
+                                                               store):
+    """The whole of the keyboard loop, in the order a reader meets it.
+
+    Enter used only to mark. *New question* was a button, so a drill -- the
+    one part of this application somebody does forty times in a row -- needed
+    the mouse for every second action.
+    """
+    lesson = _drill(screen, qapp, "separable")
+    template = lesson.templates[0]
+    box = screen._drill_inputs[template.key]
+    seed = screen._drill_seed[template.key]
+
+    box.setText("y = nonsense")
+    _enter(box, qapp)
+    assert screen._drill_seed[template.key] == seed, (
+        "the first press should mark the answer, not skip past it"
+    )
+    assert screen._verdicts[template.key].text(), "nothing was marked"
+
+    _enter(screen._drill_inputs[template.key], qapp)
+    assert screen._drill_seed[template.key] == seed + 1, (
+        "the second press should draw the next question"
+    )
+
+
+def test_the_caret_lands_in_the_next_question(screen, qapp, store):
+    """Advancing rebuilds the whole segment, which destroys the box being
+    typed in. Without putting the caret back, the loop would run exactly one
+    question before handing the mouse back."""
+    lesson = _drill(screen, qapp, "separable")
+    template = lesson.templates[0]
+    box = screen._drill_inputs[template.key]
+
+    box.setText("y = nonsense")
+    _enter(box, qapp)
+    _enter(screen._drill_inputs[template.key], qapp)
+
+    fresh = screen._drill_inputs[template.key]
+    assert fresh is not box, "the card was not rebuilt"
+    assert screen.focusWidget() is fresh, "the caret was not put back"
+
+
+def test_an_empty_box_is_not_spent_as_a_turn(screen, qapp, store):
+    """`graded` reports whether it actually marked anything, which is what
+    keeps a stray Return from skipping a question unanswered."""
+    lesson = _drill(screen, qapp, "numerical")       # a Numeric drill
+    template = next(t for t in lesson.templates if t.kind == "numeric-template")
+    box = screen._drill_inputs[template.key]
+    seed = screen._drill_seed[template.key]
+
+    for _ in range(3):
+        _enter(box, qapp)
+    assert screen._drill_seed[template.key] == seed, (
+        "an unreadable answer should leave the reader on the same question"
+    )
+
+
+def test_a_multiple_choice_drill_answers_to_the_keyboard_too(screen, qapp,
+                                                             store):
+    """It has no box to type in, so the card itself takes the key -- and only
+    that card, or one press would answer every drill on the page."""
+    from PySide6.QtWidgets import QRadioButton
+
+    lesson = _drill(screen, qapp, "impulses")
+    template = lesson.templates[0]
+    seed = screen._drill_seed[template.key]
+
+    option = screen._page.findChildren(QRadioButton)[0]
+    option.setChecked(True)
+    _enter(option, qapp)
+    assert screen._drill_seed[template.key] == seed, "the first press marks"
+    assert screen._verdicts[template.key].text()
+
+    _enter(screen._page.findChildren(QRadioButton)[0], qapp)
+    assert screen._drill_seed[template.key] == seed + 1, "the second advances"
+
+
+def test_an_unpicked_option_is_not_spent_as_a_turn(screen, qapp, store):
+    from PySide6.QtWidgets import QRadioButton
+
+    lesson = _drill(screen, qapp, "impulses")
+    template = lesson.templates[0]
+    seed = screen._drill_seed[template.key]
+
+    for _ in range(3):
+        _enter(screen._page.findChildren(QRadioButton)[0], qapp)
+    assert screen._drill_seed[template.key] == seed
+    assert "pick an option" in screen._verdicts[template.key].text()
 
 
 def test_a_drill_is_mastered_by_three_in_a_row(screen, qapp, store):
@@ -1498,6 +1788,342 @@ def test_a_wrong_drill_answer_starts_the_count_again(screen, qapp, store):
                         bucket=bucket, key=template.key)
     assert store.load()[bucket][template.key].streak == 0
     assert "✗" in screen._verdicts[template.key].text()
+
+
+def _card_button(card, caption: str):
+    from PySide6.QtWidgets import QPushButton
+
+    return next(b for b in card.findChildren(QPushButton)
+                if b.text().startswith(caption))
+
+
+def _stand_in_narrator(monkeypatch, *, gives: str = "working",
+                       gate=None) -> list:
+    """Stand in for the narrator, and note each request made of it.
+
+    The real one is a sympy solve that takes seconds, or most of a minute on a
+    loaded machine, and waiting on it is how a screen test comes to fail one
+    run in twenty. What these tests are about is what the screen does with the
+    reply, so the reply is one small derivation made here, whatever was asked
+    -- or None, when `gives` is "nothing", for "no working could be produced".
+    `gate`, when given, holds the reply back until it is set: a working still
+    on its way.
+    """
+    from odesuite_app.screens import learn_lessons
+
+    canned = (narrate("steps", _parse("y' = y", "y(0) = 1"))
+              if gives == "working" else None)
+    asked: list = []
+
+    def narrator(equation: str, conditions: str, which: str):
+        asked.append((equation, conditions, which))
+        if gate is not None:
+            gate.wait(60)
+        return canned
+
+    monkeypatch.setattr(learn_lessons, "_work_out", narrator)
+    return asked
+
+
+def _show_me(screen, qapp, card) -> None:
+    """Press "Show me" and wait for the working to be on the card."""
+    _card_button(card, "Show me").click()
+    assert _until(qapp, lambda: not screen._pending, 30), "no working arrived"
+
+
+def _answer(qapp, card, box, text: str, how: str = "button") -> None:
+    """Type an answer and have it marked, by the Check button or by Enter.
+
+    Enter is taken by the box on a practice card and by the card itself on a
+    drill (see `_keyboard_loop`), so each is pressed where it is listened for.
+    """
+    box.setText(text)
+    if how == "button":
+        _card_button(card, "Check").click()
+    elif hasattr(card, "returned"):
+        card.returned.emit()
+    else:
+        box.returnPressed.emit()
+    qapp.processEvents()
+
+
+def _practice_solve(screen, qapp, key: str = "separable", which: str = ""):
+    """A typed-answer question of a lesson -- the first, unless `which` names
+    one -- its card and its answer."""
+    from PySide6.QtWidgets import QLineEdit
+
+    lesson = _open(screen, qapp, key, "Practice")
+    question = next(q for q in lesson.questions if isinstance(q, Solve)
+                    and q.key == (which or q.key))
+    card = screen._verdicts[question.key].parentWidget()
+    box = card.findChildren(QLineEdit)[0]
+    derivation = _work_out(lesson, question.equation, question.conditions)
+    return lesson, question, card, box, sp.sstr(derivation.result)
+
+
+def _drill_solve(screen, qapp, key: str = "separable"):
+    """The drill card on screen, the draw it shows and that draw's answer."""
+    lesson = _drill(screen, qapp, key)
+    template = lesson.templates[0]
+    offered = generate.tiers(template)
+    tier = screen._tier_of(template, offered) if len(offered) > 1 else ""
+    question = generate.draw(template, screen._drill_seed[template.key], tier)
+    card = screen._verdicts[template.key].parentWidget()
+    box = screen._drill_inputs[template.key]
+    derivation = _work_out(lesson, question.equation, question.conditions)
+    return lesson, template, card, box, sp.sstr(derivation.result)
+
+
+@pytest.mark.parametrize("how", ["button", "enter"])
+def test_a_shown_practice_answer_is_marked_but_not_counted(screen, qapp, store,
+                                                          monkeypatch, how):
+    """Reading the whole worked answer and typing it back in is not answering
+    it. It is still marked -- whether the copy is right is worth knowing --
+    but nothing is recorded: not a tick, and not a miss either."""
+    asked = _stand_in_narrator(monkeypatch)
+    lesson, question, card, box, right = _practice_solve(screen, qapp)
+
+    _show_me(screen, qapp, card)
+    assert asked, "Show me did not ask for the working"
+    _answer(qapp, card, box, right, how)
+
+    verdict = screen._verdicts[question.key].text()
+    assert "not counted" in verdict
+    assert "Right" in verdict, "a right answer should still be marked right"
+    assert "✓" not in verdict, "a copied answer should not open with a tick"
+    assert screen.palette_obj.success not in verdict, (
+        "a copied answer should not look like a green tick"
+    )
+    assert question.key not in store.load().get(lesson.key, {})
+    assert "(0/" in _row_text(screen, lesson.key)
+
+
+@pytest.mark.parametrize("how", ["button", "enter"])
+def test_a_shown_drill_answer_leaves_the_streak_where_it_was(screen, qapp,
+                                                            store,
+                                                            monkeypatch, how):
+    """Not counted means neither way. One more right would be credit for
+    copying; a reset would be a penalty for checking the copy, which pressing
+    New question instead would have escaped."""
+    _stand_in_narrator(monkeypatch)
+    lesson, template, card, box, right = _drill_solve(screen, qapp)
+    bucket = store.drill_key(lesson.key)
+    _answer(qapp, card, box, right)                  # one in the bank
+    before = store.load()[bucket][template.key]
+    assert before.streak == 1
+
+    _show_me(screen, qapp, card)
+    _answer(qapp, card, box, right, how)
+
+    verdict = screen._verdicts[template.key].text()
+    assert "not counted" in verdict and "fresh one" in verdict
+    assert screen.palette_obj.success not in verdict
+    assert store.load()[bucket][template.key] == before
+    assert screen._streak_of(lesson, template)[0] == 1
+
+
+def test_a_shown_question_keeps_the_tick_it_already_had(screen, qapp, store,
+                                                        monkeypatch):
+    """Show me on a question answered long ago -- to read the method again --
+    must not cost it its tick, its streak or its place in the review boxes,
+    and the verdict must not contradict the tick the page shows on its next
+    rebuild."""
+    _stand_in_narrator(monkeypatch)
+    lesson, question, card, box, right = _practice_solve(screen, qapp)
+    for _ in range(3):
+        _answer(qapp, card, box, right)
+    before = store.load()[lesson.key][question.key]
+    assert before.streak == 3
+
+    _show_me(screen, qapp, card)
+    _answer(qapp, card, box, right)
+
+    verdict = screen._verdicts[question.key].text()
+    assert "not counted" in verdict and "still stands" in verdict
+    assert store.load()[lesson.key][question.key] == before
+
+    _open(screen, qapp, lesson.key, "Learn")
+    _open(screen, qapp, lesson.key, "Practice")
+    assert "answered correctly" in screen._verdicts[question.key].text()
+
+
+def test_a_draw_that_comes_round_again_is_still_not_counted(screen, qapp, store,
+                                                            monkeypatch):
+    """A drill's pool is finite, and New question walks round it: a draw read
+    in full turns up again a few presses later under another seed. It is the
+    same question, and its working has been read."""
+    _stand_in_narrator(monkeypatch)
+    lesson, template, card, box, _ = _drill_solve(screen, qapp)
+    offered = generate.tiers(template)
+    tier = screen._tier_of(template, offered) if len(offered) > 1 else ""
+    first = generate.draw(template, screen._drill_seed[template.key], tier).key
+    _show_me(screen, qapp, card)
+
+    for _ in generate.draws(template):
+        card = screen._verdicts[template.key].parentWidget()
+        _card_button(card, "New question").click()
+        qapp.processEvents()
+        seed = screen._drill_seed[template.key]
+        if generate.draw(template, seed, tier).key == first:
+            break
+    else:
+        pytest.fail(f"{first} never came round again")
+
+    lesson, template, card, box, right = _drill_solve(screen, qapp)
+    _answer(qapp, card, box, right)
+    assert "not counted" in screen._verdicts[template.key].text()
+    assert template.key not in store.load().get(store.drill_key(lesson.key), {})
+
+
+def test_a_question_read_in_one_lesson_is_not_counted_in_another(screen, qapp,
+                                                                 store,
+                                                                 monkeypatch):
+    """Two lessons can ask the very same equation -- characteristic roots and
+    the systems introduction share one -- and the working read in one is the
+    answer to the other."""
+    _stand_in_narrator(monkeypatch)
+    lesson, question, card, box, _ = _practice_solve(screen, qapp, "roots",
+                                                     "q3")
+    _show_me(screen, qapp, card)
+
+    lesson, question, card, box, right = _practice_solve(
+        screen, qapp, "systems-intro", "q4")
+    _answer(qapp, card, box, right)
+    assert "not counted" in screen._verdicts[question.key].text()
+    assert question.key not in store.load().get(lesson.key, {})
+
+
+def test_a_working_on_its_way_already_disqualifies(screen, qapp, store,
+                                                   monkeypatch):
+    """Asked for and not yet arrived still counts as asked. Otherwise the
+    answer could be checked in the moment before the reply, with the working
+    about to appear under it."""
+    import threading
+
+    gate = threading.Event()
+    _stand_in_narrator(monkeypatch, gate=gate)
+    try:
+        lesson, question, card, box, right = _practice_solve(screen, qapp)
+        _card_button(card, "Show me").click()
+        _answer(qapp, card, box, right)
+        assert screen._pending, "the stand-in should still be holding it"
+        assert "not counted" in screen._verdicts[question.key].text()
+        assert question.key not in store.load().get(lesson.key, {})
+    finally:
+        gate.set()
+
+
+def test_a_working_that_never_came_does_not_disqualify(screen, qapp, store,
+                                                       monkeypatch):
+    """"It was worked for you" has to be true. When the narrator had nothing
+    to show, the reader saw nothing, and the answer is their own."""
+    _stand_in_narrator(monkeypatch, gives="nothing")
+    lesson, question, card, box, right = _practice_solve(screen, qapp)
+    _show_me(screen, qapp, card)
+    _answer(qapp, card, box, right)
+    assert "not counted" not in screen._verdicts[question.key].text()
+    assert store.load()[lesson.key][question.key].correct
+
+
+def test_a_superseded_working_does_not_disqualify(screen, qapp, store,
+                                                  monkeypatch):
+    """Asking for another card's working before this one arrives throws this
+    one away: its panel says "superseded", nothing was shown, and the answer
+    still counts."""
+    import threading
+
+    gate = threading.Event()
+    _stand_in_narrator(monkeypatch, gate=gate)
+    try:
+        lesson, question, card, box, right = _practice_solve(screen, qapp)
+        other = next(q for q in lesson.questions if isinstance(q, Solve)
+                     and q.key != question.key)
+        _card_button(card, "Show me").click()
+        _card_button(screen._verdicts[other.key].parentWidget(),
+                     "Show me").click()
+        _answer(qapp, card, box, right)
+        assert "not counted" not in screen._verdicts[question.key].text()
+        assert store.load()[lesson.key][question.key].correct
+    finally:
+        gate.set()
+
+
+def test_an_answer_nobody_was_shown_is_counted(screen, qapp, store):
+    """The other half: a fix that simply stopped counting would pass the two
+    tests above."""
+    lesson, question, card, box, right = _practice_solve(screen, qapp)
+    box.setText(right)
+    _card_button(card, "Check").click()
+    qapp.processEvents()
+    assert "not counted" not in screen._verdicts[question.key].text()
+    assert store.load()[lesson.key][question.key].correct
+
+    lesson, template, card, box, right = _drill_solve(screen, qapp)
+    box.setText(right)
+    _card_button(card, "Check").click()
+    qapp.processEvents()
+    assert "not counted" not in screen._verdicts[template.key].text()
+    assert store.load()[store.drill_key(lesson.key)][template.key].streak == 1
+
+
+def test_a_shown_draw_does_not_disqualify_the_next(screen, qapp, store,
+                                                   monkeypatch):
+    """"This one" is the draw on screen. A new question has not been seen."""
+    _stand_in_narrator(monkeypatch)
+    lesson, template, card, box, _ = _drill_solve(screen, qapp)
+    _show_me(screen, qapp, card)
+    _card_button(card, "New question").click()
+    qapp.processEvents()
+
+    lesson, template, card, box, right = _drill_solve(screen, qapp)
+    box.setText(right)
+    _card_button(card, "Check").click()
+    qapp.processEvents()
+    assert "not counted" not in screen._verdicts[template.key].text()
+    assert store.load()[store.drill_key(lesson.key)][template.key].streak == 1
+
+
+def test_a_shown_answer_stays_uncounted_when_the_page_is_rebuilt(screen, qapp,
+                                                                 store,
+                                                                 monkeypatch):
+    """The page is rebuilt whenever another drill on it advances, or the
+    reader glances at the notes and comes back. Neither unsees the answer."""
+    _stand_in_narrator(monkeypatch)
+    lesson, template, card, box, _ = _drill_solve(screen, qapp)
+    _show_me(screen, qapp, card)
+
+    _open(screen, qapp, lesson.key, "Learn")
+    lesson, template, card, box, right = _drill_solve(screen, qapp)
+    _answer(qapp, card, box, right)
+    assert "not counted" in screen._verdicts[template.key].text()
+    assert template.key not in store.load().get(store.drill_key(lesson.key), {})
+
+
+@pytest.mark.slow
+def test_the_faded_working_does_not_disqualify_an_answer(screen, qapp, store):
+    """"Next step" never shows the last step, which is the answer, so an
+    answer written after it is still the reader's own and still counts."""
+    from PySide6.QtWidgets import QPushButton
+
+    from odesuite_app.widgets.stepspanel import StepsPanel
+
+    lesson, template, card, box, right = _drill_solve(screen, qapp)
+    step = next(b for b in card.findChildren(QPushButton)
+                if b.text() == "Next step")
+    panel = card.findChildren(StepsPanel)[0]
+
+    step.click()
+    # The narrator runs in a subprocess: how many event-loop turns its
+    # answer takes to arrive is not something to guess.
+    assert _until(qapp, lambda: panel._body.count()), (
+        "the first step never arrived"
+    )
+
+    box.setText(right)
+    _card_button(card, "Check").click()
+    qapp.processEvents()
+    assert "not counted" not in screen._verdicts[template.key].text()
+    assert store.load()[store.drill_key(lesson.key)][template.key].streak == 1
 
 
 def test_drilling_does_not_move_the_lessons_own_count(screen, qapp, store):
@@ -1707,21 +2333,71 @@ def test_the_two_orders_are_reported_as_measured_ratios(qapp):
     made.deleteLater()
 
 
-def test_a_lesson_with_a_figure_shows_it_and_one_without_does_not(screen, qapp):
+def test_every_lesson_has_a_figure():
+    """All thirty-five, which was not true until the seventeen were written.
+
+    Asserted over the whole course rather than over a list, so a lesson added
+    later without a picture fails here rather than quietly being the only one
+    missing its graphical leg."""
+    without = [lesson.key for lesson in LESSONS if not lesson.figure]
+    assert without == [], f"no figure for: {', '.join(without)}"
+
+
+def test_a_lesson_shows_its_figure_in_learn_and_not_in_examples(screen, qapp):
     from odesuite_app.widgets.lessonfigure import LessonFigure
 
     _open(screen, qapp, "slopefields", "Learn")
     assert screen._page.findChildren(LessonFigure), "the figure is missing"
 
-    # And it belongs to Learn only: the same lesson's Practice is questions.
-    _open(screen, qapp, "slopefields", "Practice")
+    # It belongs to Learn. Examples is the narrator working an equation
+    # through, and a figure there would be a third thing to read.
+    _open(screen, qapp, "slopefields", "Examples")
     assert not screen._page.findChildren(LessonFigure)
 
-    # A lesson genuinely without one. Eighteen of the thirty-five have a
-    # figure and seventeen do not, because a figure earns its place only
-    # where the lesson has a parameter worth turning.
-    _open(screen, qapp, "basics", "Learn")
+
+def test_a_question_can_be_asked_about_a_picture(screen, qapp):
+    """The graphical leg becoming assessable rather than only illustrative.
+
+    `slopefields` has a question carrying `figure=`, so its Practice segment
+    shows one; `separable` has none, so its Practice is questions alone. Both
+    directions are checked, because a screen that drew a figure on every
+    question card would pass the first assertion for the wrong reason."""
+    from odesuite_app.widgets.lessonfigure import LessonFigure
+
+    _open(screen, qapp, "slopefields", "Practice")
+    shown = screen._page.findChildren(LessonFigure)
+    assert shown, "a question that names a figure should show it"
+    assert any(type(one).__name__ == "SlopeFieldFigure" for one in shown), (
+        "and it should be the figure the question actually names"
+    )
+
+    _open(screen, qapp, "separable", "Practice")
     assert not screen._page.findChildren(LessonFigure)
+
+
+def test_every_figure_a_question_names_exists():
+    from odesuite_app.widgets.lessonfigure import FIGURES
+
+    for lesson in LESSONS:
+        for question in lesson.questions:
+            key = getattr(question, "figure", "")
+            if key:
+                assert key in FIGURES, (
+                    f"{lesson.key}/{question.key} names a figure that does "
+                    f"not exist: {key!r}"
+                )
+
+
+def test_the_figure_questions_are_spread_across_the_course():
+    """One per unit, which is the point: reading a picture is a skill the
+    whole course uses, not a trick of the unit that happened to get one."""
+    units = {
+        content.unit_of(lesson).key
+        for lesson in LESSONS
+        for question in lesson.questions
+        if getattr(question, "figure", "")
+    }
+    assert len(units) >= 7, f"figure questions reach only {sorted(units)}"
 
 
 # ---------------------------------------------------------------------------
@@ -1818,6 +2494,10 @@ def test_the_partial_sums_figure_reaches_further_with_more_terms(qapp):
         reaches.append(float(found.group(1)))
     assert reaches[0] < reaches[1] < reaches[2], reaches
     assert reaches[-1] < 1.0, "the radius is 1 and nothing may reach past it"
+    # The relative error of 1 + t + ... + t^(N-1) is exactly t^N, so the
+    # reach is 0.01^(1/N); the readout once printed a grid step short of it.
+    for terms, reach in zip((2, 6, 14), reaches):
+        assert reach == pytest.approx(0.01 ** (1 / terms), abs=5e-4), (terms, reach)
     made.deleteLater()
 
 
@@ -1996,6 +2676,26 @@ def test_complex_eigenvalues_draw_no_straight_lines(qapp):
     made.deleteLater()
 
 
+def test_a_centre_is_not_called_a_spiral_by_rounding(qapp):
+    """numpy gives the centre's eigenvalues a real part of about 1e-16, and
+    `classify` read that as "an unstable spiral" -- a wrong word at exactly
+    the matrix the phase-portraits chapter sends the reader to."""
+    made = _figure("eigenlines")
+    for key, value in zip("abcd", (1.0, 2.0, -1.0, -1.0)):
+        made.sliders[key].set_value(value)
+    made.draw()
+    qapp.processEvents()
+    assert "centre" in made.readout.text()
+
+    # And a zero eigenvalue is a line of equilibria, not a very slow node.
+    for key, value in zip("abcd", (1.0, 2.0, 1.0, 2.0)):
+        made.sliders[key].set_value(value)
+    made.draw()
+    qapp.processEvents()
+    assert "line of equilibria" in made.readout.text()
+    made.deleteLater()
+
+
 def test_the_figure_agrees_with_the_narrator_on_the_same_matrix(qapp):
     """Two independent routes -- numpy in the figure, sympy in the narrator --
     to the same words. If they ever parted, one screen would contradict the
@@ -2020,3 +2720,38 @@ def test_the_figure_agrees_with_the_narrator_on_the_same_matrix(qapp):
     step = next(s for s in narrated.steps if s.title == "What the origin is")
     assert "saddle" in step.note and "saddle" in made.readout.text()
     made.deleteLater()
+
+
+#: The lessons that teach a method, each of which must say where it stops
+#: working (PED-06). A pitfall about a *student's* mistake is not that: these
+#: notes are about the method's own domain, headed "Where it stops".
+METHOD_LESSONS = (
+    "separable", "linear", "exact", "substitutions", "roots", "undetermined",
+    "variation", "cauchy", "numerical", "rungekutta", "laplace",
+    "power-series", "eigenvalues",
+)
+
+
+@pytest.mark.parametrize("key", METHOD_LESSONS)
+def test_a_method_lesson_says_where_the_method_stops(key):
+    lesson = next(lesson for lesson in LESSONS if lesson.key == key)
+    limits = [note for note in lesson.notes
+              if note.kind == "pitfall" and note.heading.startswith("Where it stops")]
+    assert len(limits) == 1, f"{key} does not say where its method fails"
+    assert len(limits[0].body) >= 200
+
+
+def test_both_solutions_through_the_origin_are_accepted():
+    """PED-05. The slope-fields lesson teaches that y' = y^(1/3), y(0) = 0 has
+    two solutions. The grader marked the non-trivial one wrong -- t is real
+    here, and the cube root of (2t/3)^(3/2) does not simplify without t > 0 --
+    and the narrator narrated the branch that is not a solution at all."""
+    from odesuite_app.symbolic import check_answer, parse_equation, spec_for
+
+    parsed = parse_equation(spec_for("y' = y**(1/3)", "y(0) = 0"))
+    for answer in ("y = 0", "y = (2*t/3)**(3/2)"):
+        verdict = check_answer(parsed, answer)
+        assert verdict.correct is True and verdict.matches_conditions is not False, (
+            answer, verdict.message)
+    assert "t > 0" in check_answer(parsed, "y = (2*t/3)**(3/2)").message
+    assert check_answer(parsed, "y = t").correct is False

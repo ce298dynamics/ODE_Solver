@@ -44,7 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--screen", default=None,
         help="open on a specific screen. Learning Hub: course, lessons, steps, "
-             "laplace, byhand, worked, quiz. Solver Studio: lab, portrait, "
+             "laplace, byhand, worked, quiz, print, glossary. Solver Studio: "
+             "lab, portrait, "
              "stiffness, race, accuracy. Or home.",
     )
     parser.add_argument(

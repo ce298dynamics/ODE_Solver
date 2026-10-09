@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("sympy")
+sympy = pytest.importorskip("sympy")
 
 from odesuite_app.symbolic import (  # noqa: E402
     EquationSpec,
@@ -369,3 +369,81 @@ def test_nothing_the_ladder_does_can_raise():
 
     broken = AnswerCheck(expression=None, residual=None, correct=False)
     assert diagnose(_parsed("y' = y"), broken) == ""
+
+
+# ---------------------------------------------------------------------------
+# Switched and impulsive answers
+# ---------------------------------------------------------------------------
+#
+# A delta is zero at every point a sampler tries, so an answer that jumps by
+# the wrong amount at the switch looks right everywhere else. These are the
+# cases the residual's impulses decide.
+
+
+def _switched(equation: str, ics: str = ""):
+    from odesuite_app.laplace import EXTRA_FUNCTIONS
+
+    return parse_equation(
+        EquationSpec(equations=[equation], initial_conditions=ics),
+        extra_functions=EXTRA_FUNCTIONS,
+    )
+
+
+@pytest.mark.parametrize(
+    "equation,answer,ics",
+    [
+        ("y' + y = Heaviside(t - 2)", "Heaviside(t - 2)*(1 - exp(-(t - 2)))", "y(0) = 0"),
+        ("y'' + 4*y = Heaviside(t - 3)", "Heaviside(t - 3)*(1 - cos(2*(t - 3)))/4",
+         "y(0) = 0, y'(0) = 0"),
+        ("y'' + y = DiracDelta(t - 1)", "Heaviside(t - 1)*sin(t - 1)", "y(0) = 0, y'(0) = 0"),
+        ("y' + y = DiracDelta(t - 1) + DiracDelta(t - 2)",
+         "Heaviside(t - 1)*exp(-(t - 1)) + Heaviside(t - 2)*exp(-(t - 2))", "y(0) = 0"),
+        # sympy turns δ(t - 1 - π) round to δ(-t + 1 + π); the sign must follow.
+        ("y'' + 4*y = Heaviside(t - 1) - Heaviside(t - 1 - pi)",
+         "(Heaviside(t - 1)*(1 - cos(2*(t - 1)))"
+         " - Heaviside(t - 1 - pi)*(1 - cos(2*(t - 1 - pi))))/4",
+         "y(0) = 0, y'(0) = 0"),
+    ],
+)
+def test_a_correct_switched_answer_verifies(equation, answer, ics):
+    result = check_answer(_switched(equation, ics), answer)
+    assert result.correct is True, f"{answer}: {result.message}"
+    assert result.matches_conditions is True
+
+
+@pytest.mark.parametrize(
+    "equation,answer,where",
+    [
+        # The classic slip: the switch shifted, the function it switches on not.
+        ("y' + y = Heaviside(t - 2)", "Heaviside(t - 2)*(1 - exp(-t))", "t = 2"),
+        ("y'' + 4*y = Heaviside(t - 3)", "Heaviside(t - 3)*(1 - cos(2*t))/4", "t = 3"),
+        ("y'' + y = DiracDelta(t - 1)", "Heaviside(t - 1)*sin(t)", "t = 1"),
+        # A blow of the wrong size, or one that moves y instead of y'.
+        ("y'' + y = DiracDelta(t - 1)", "2*Heaviside(t - 1)*sin(t - 1)", "t = 1"),
+        ("y'' + y = DiracDelta(t - 1)", "Heaviside(t - 1)*cos(t - 1)", "t = 1"),
+        # One blow answered, the other forgotten.
+        ("y' + y = DiracDelta(t - 1) + DiracDelta(t - 2)",
+         "Heaviside(t - 1)*exp(-(t - 1))", "t = 2"),
+        # The same when sympy has turned the delta's argument round.
+        ("y'' + y = DiracDelta(t - 1 - pi)",
+         "Heaviside(t - 1 - pi)*cos(t - 1 - pi)", "t = 1 + pi"),
+    ],
+)
+def test_a_wrong_jump_is_caught_and_located(equation, answer, where):
+    """Each of these satisfies the equation on both sides of the switch and
+    fails only at it -- so the verdict must be False, not "cannot decide",
+    and the message must say where."""
+    result = check_answer(_switched(equation), answer)
+    assert result.correct is False, f"{answer}: {result.message}"
+    assert f"impulse at {where}" in result.message
+
+
+def test_the_step_is_allowed_in_the_answer_to_an_impulsive_equation():
+    """The response to δ(t - a) is switched on by u(t - a), so an equation
+    that mentions only DiracDelta must still accept Heaviside in the answer."""
+    parsed = parse_equation(
+        EquationSpec(equations=["y' + 3*y = DiracDelta(t - 1)"]),
+        extra_functions={"DiracDelta": sympy.DiracDelta},
+    )
+    result = check_answer(parsed, "Heaviside(t - 1)*exp(-3*(t - 1))")
+    assert result.correct is True, result.message

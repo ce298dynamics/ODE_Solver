@@ -47,14 +47,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import exam
+from .. import exam, printable, theme
 from .. import lessons as content
-from .. import printable, theme
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
 from ..widgets.mathlabel import MathLabel
 
-__all__ = ["PrintScreen", "SOURCES", "sources"]
+__all__ = ["PrintScreen", "sources", "draw", "title_for"]
 
 #: How many questions a worksheet offers by default. Longer than a check-up:
 #: the cost of a printed page is in the printing, and a sheet you work over two
@@ -65,13 +64,13 @@ DEFAULT_LENGTH = 10
 #: offers: a worksheet spanning the course but not sized like the final.
 WHOLE_COURSE = "whole-course"
 
-#: What a worksheet may be drawn from, as ``(kind, key, label)``. Built at call
-#: time rather than at import, so it follows the curriculum rather than a copy.
-SOURCES = "unit", "paper", "course"
-
-
 def sources() -> list[tuple[str, str, str]]:
-    """Everything a worksheet can be drawn from, in the order it is offered."""
+    """Everything a worksheet can be drawn from, as ``(kind, key, label)``.
+
+    A function rather than a constant, so the list follows the curriculum
+    rather than a copy of it taken at import: a unit added to `lessons.UNITS`
+    or a paper added to `exam.PAPERS` appears here without being named twice.
+    """
     out: list[tuple[str, str, str]] = [
         ("unit", unit.key, f"Unit — {unit.title}")
         for unit in content.UNITS if unit.quizzable
@@ -258,6 +257,7 @@ class PrintScreen(QWidget):
         layout.addWidget(blurb)
 
         self.source_picker = QComboBox()
+        self.source_picker.setAccessibleName("worksheet source")
         for kind, key, label in sources():
             self.source_picker.addItem(label, (kind, key))
         self.source_picker.currentIndexChanged.connect(self._redraw)
@@ -269,6 +269,7 @@ class PrintScreen(QWidget):
         count.setProperty("role", "muted")
         row.addWidget(count, 1)
         self.length = QSpinBox()
+        self.length.setAccessibleName("number of questions")
         self.length.setRange(2, 30)
         self.length.setValue(DEFAULT_LENGTH)
         self.length.valueChanged.connect(self._redraw)
@@ -284,6 +285,7 @@ class PrintScreen(QWidget):
         label.setProperty("role", "muted")
         seeds.addWidget(label, 1)
         self.seed = QSpinBox()
+        self.seed.setAccessibleName("worksheet seed")
         self.seed.setRange(1, 99_999)
         self.seed.setValue(1)
         self.seed.setToolTip(
@@ -321,6 +323,7 @@ class PrintScreen(QWidget):
         layout.addWidget(crib)
 
         self.sheet_picker = QComboBox()
+        self.sheet_picker.setAccessibleName("formula sheet units")
         self.sheet_picker.addItem("Whole course", "")
         for unit in content.UNITS:
             self.sheet_picker.addItem(unit.title, unit.key)
@@ -371,6 +374,7 @@ class PrintScreen(QWidget):
 
     def _build_body(self) -> QWidget:
         self._scroll = QScrollArea()
+        self._scroll.setAccessibleName("printable preview")
         self._scroll.setWidgetResizable(True)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._page = QWidget()

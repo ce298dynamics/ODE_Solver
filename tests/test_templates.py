@@ -190,7 +190,11 @@ def test_a_reject_predicate_actually_rejects_something():
     """A `reject` that never fires is either wrong or unnecessary, and both are
     worth knowing about."""
     for _, template in TEMPLATES:
-        if template.reject is None:
+        # `getattr`, because a `ClassifyTemplate` has no slots to draw from --
+        # what varies in it is the equation itself -- and so no predicate over
+        # drawn values to reject anything with. `generate.draws` makes the
+        # same accommodation.
+        if getattr(template, "reject", None) is None:
             continue
         everything = list(generate._spread(template))
         kept = generate.combinations(template)
@@ -740,3 +744,34 @@ def test_the_slope_drill_is_the_right_hand_side_at_the_point():
         wanted = slots["a"] * slots["y0"] + slots["b"] * slots["t0"]
         assert question.answer == pytest.approx(float(wanted))
 
+
+
+# ---------------------------------------------------------------------------
+# A wrong number with a known cause is told the cause
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("lesson,template", NUMERIC_TEMPLATES,
+                         ids=NUMERIC_IDS)
+def test_every_numeric_drill_knows_its_usual_mistakes(lesson, template):
+    """"not quite" is the least a verdict can say. Every numeric drill names at
+    least one computable wrong answer, so the common slip gets a diagnosis."""
+    assert template.mistakes, f"{template.key}: no mistakes recorded"
+
+
+@pytest.mark.parametrize("lesson,template", NUMERIC_TEMPLATES,
+                         ids=NUMERIC_IDS)
+def test_a_recognised_mistake_is_named_and_the_answer_never_is(lesson, template):
+    from odesuite_app.symbolic import grade_numeric
+
+    named = 0
+    for question in generate.every(template):
+        right, message = grade_numeric(question, repr(question.answer))
+        assert right is True and "is what you get if" not in message
+        for value, cause in question.mistakes:
+            right, message = grade_numeric(question, repr(value))
+            assert right is False, (
+                f"{template.key}: the mistake '{cause}' is marked right")
+            assert cause in message, message
+            named += 1
+    assert named, f"{template.key}: no draw kept any of its mistakes"

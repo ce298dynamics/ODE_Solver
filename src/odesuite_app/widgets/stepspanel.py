@@ -43,6 +43,7 @@ class StepsPanel(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
 
         scroll = QScrollArea()
+        scroll.setAccessibleName("derivation steps")
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         outer.addWidget(scroll)
@@ -77,8 +78,13 @@ class StepsPanel(QWidget):
         self._status.setVisible(True)
         self._status.setText(message or "Type an equation to see how it is solved.")
 
-    def show_derivation(self, derivation) -> None:
-        """Render `derivation`, or explain its absence if it is None."""
+    def show_derivation(self, derivation, upto: int | None = None) -> None:
+        """Render `derivation`, or explain its absence if it is None.
+
+        `upto` shows only the first that many steps, and no verdict: the rest
+        of the working is the reader's to do. That is how a drill fades a
+        worked example -- the same derivation, stopped short.
+        """
         self._clear_body()
         if derivation is None:
             self.clear(
@@ -92,6 +98,15 @@ class StepsPanel(QWidget):
 
         self._heading.setVisible(True)
         self._heading.setText(derivation.title)
+        if upto is not None:
+            total = len(derivation.steps)
+            self._status.setVisible(True)
+            self._status.setText(
+                f"{min(upto, total)} of {total} steps shown — "
+                "take it from here.")
+            for number, step in enumerate(derivation.steps[:upto], start=1):
+                self._body.addWidget(self._card(number, step))
+            return
         self._status.setVisible(bool(derivation.message))
         self._status.setText(derivation.message)
 

@@ -76,6 +76,7 @@ from .. import exam, progress, theme
 from .. import lessons as content
 from ..theme import Palette
 from ..widgets.controls import add_heading, control_panel
+from ..widgets.lessonfigure import build_figure
 from ..widgets.mathlabel import MathLabel
 
 __all__ = ["QuizScreen"]
@@ -176,6 +177,7 @@ class QuizScreen(QWidget):
         # between two modes -- each of which then needs its own list -- would
         # be three clicks where one does.
         self.unit_picker = QComboBox()
+        self.unit_picker.setAccessibleName("quiz or exam")
         for unit in buildable():
             self.unit_picker.addItem(f"Unit — {unit.title}",
                                      ("unit", unit.key))
@@ -193,6 +195,7 @@ class QuizScreen(QWidget):
 
         add_heading(layout, "Questions", space_above=8)
         self.length = QSpinBox()
+        self.length.setAccessibleName("number of questions")
         self.length.setRange(4, 20)
         self.length.setValue(DEFAULT_LENGTH)
         self.length.setToolTip(
@@ -237,6 +240,7 @@ class QuizScreen(QWidget):
 
     def _build_body(self) -> QWidget:
         self._scroll = QScrollArea()
+        self._scroll.setAccessibleName("quiz questions")
         self._scroll.setWidgetResizable(True)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._page = QWidget()
@@ -456,6 +460,21 @@ class QuizScreen(QWidget):
             return
         self._run([self._questions[index] for index in wrong], retrying=True)
 
+    def _question_figure(self, question, layout) -> None:
+        """Put a question's own figure above its prompt, where it has one.
+
+        The same helper the Lessons screen has, because a quiz question *is*
+        an ordinary question: one that asks what a phase portrait shows has to
+        show one here too, or the quiz would silently drop the only leg of the
+        rule of four this application has just learned to assess.
+        """
+        key = getattr(question, "figure", "")
+        if not key:
+            return
+        figure = build_figure(key, self.palette_obj)
+        if figure is not None:
+            layout.addWidget(figure)
+
     def _show_question(self) -> None:
         self._clear()
         if self._index >= len(self._questions):
@@ -492,6 +511,7 @@ class QuizScreen(QWidget):
         )
         prompt.setWordWrap(True)
         inner.addWidget(prompt)
+        self._question_figure(question, inner)
 
         # A Choice carries real LaTeX and is typeset; a Solve carries source
         # text, which is shown monospaced. Running generated source through the
@@ -546,6 +566,7 @@ class QuizScreen(QWidget):
                 inner.addWidget(button)
         else:
             self.answer = QLineEdit()
+            self.answer.setAccessibleName("your answer")
             self.answer.setPlaceholderText(
                 "a number" if counting
                 else "an equation, with an = in it" if question.kind == "model"
@@ -646,24 +667,16 @@ class QuizScreen(QWidget):
         question that could not be set up and an `Expression`, having no
         equation at all, was worse. Both are now graded as the lessons intend.
         """
-        from ..symbolic import check_expression, check_model
+        from ..symbolic import mark_equivalent
 
         palette = self.palette_obj
-        typed = self.answer.text()
-        if question.kind == "model":
-            result = check_model(question.equation, typed)
-        else:
-            result = check_expression(question.answer, typed,
-                                      up_to_constant=question.up_to_constant)
-        right = result.correct is True
-        colour = (palette.success if right
-                  else palette.danger if result.correct is False
-                  else palette.text_muted)
-        mark = "✓ " if right else "✗ " if result.correct is False else ""
-        because = (f"  —  {question.because}"
-                   if right and question.because else "")
+        result, marking = mark_equivalent(question, self.answer.text())
+        right = marking.tone == "right"
+        colour = {"right": palette.success,
+                  "wrong": palette.danger}.get(marking.tone, palette.text_muted)
         self.verdict.setStyleSheet(f"color: {colour};")
-        self.verdict.setText(mark + result.message + because)
+        self.verdict.setText(marking.headline
+                             + (f"  —  {marking.detail}" if marking.detail else ""))
         # The difference is the useful half of a wrong verdict here: a
         # forgotten inflow term or a sign that went the other way appears in
         # it by itself, which no restatement of the right answer would show.

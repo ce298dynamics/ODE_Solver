@@ -46,7 +46,7 @@ from __future__ import annotations
 import base64
 import datetime as _datetime
 import struct
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from html import escape
 
 __all__ = ["Line", "Worked", "work_out", "typeset", "math_image",
@@ -90,12 +90,16 @@ class Line:
 class Worked:
     """The full account of one question, for the key.
 
-    Three shapes, because the three question kinds are answered differently and
-    a key that pretended otherwise would be padding. A `Solve` gets the
-    narrator's derivation, line by line. A `Choice` gets the option that is
-    right and the reason it is -- which is the whole of the answer, since the
-    question was never about computing anything. A `Numeric` gets the value and
-    the account of where it comes from.
+    Two shapes, because only one of the five question kinds has working to
+    show and a key that padded the other four would be teaching nobody.
+
+    A `Solve` gets the narrator's derivation, line by line, ticks and all. The
+    rest get an answer and the reason for it, which in each case *is* the whole
+    of the working: a `Choice` asks which technique applies and the answer is a
+    judgement rather than a computation; a `Numeric` asks for a value; a
+    `Model` asks for the equation a situation satisfies; an `Expression` asks
+    for one move of a method. None of the four has intermediate lines to print
+    because none of them is arrived at in lines.
     """
 
     #: The technique's textbook name, where one was found.
@@ -110,10 +114,6 @@ class Worked:
     #: Why there is no working, when there is none. Printed rather than
     #: hidden: a key with a silent gap teaches the reader to distrust it.
     problem: str = ""
-
-    @property
-    def worked(self) -> bool:
-        return bool(self.lines)
 
 
 # ---------------------------------------------------------------------------

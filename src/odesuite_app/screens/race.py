@@ -132,6 +132,7 @@ class RaceScreen(QWidget):
         add_heading(layout, "Problem")
 
         self.problem_picker = QComboBox()
+        self.problem_picker.setAccessibleName("problem")
         self.refresh_problems()
         self.problem_picker.currentIndexChanged.connect(self._on_problem)
         layout.addWidget(self.problem_picker)
@@ -180,6 +181,7 @@ class RaceScreen(QWidget):
         layout.addWidget(self.title)
 
         self.plot = pg.PlotWidget()
+        self.plot.setAccessibleName("method race plot")
         self.plot.setBackground(self.palette_obj.plot_background)
         self.plot.showGrid(x=True, y=True, alpha=0.15)
         self.plot.setLabel("bottom", "t")

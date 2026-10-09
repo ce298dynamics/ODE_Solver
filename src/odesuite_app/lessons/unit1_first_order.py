@@ -9,6 +9,7 @@ and the four techniques a first course solves them with.
 
 from __future__ import annotations
 
+from .chapters import unit1 as chapters
 from .model import (
     Case,
     Choice,
@@ -32,6 +33,7 @@ __all__ = ["BASICS", "SLOPEFIELDS", "SEPARABLE", "LINEAR",
 
 SEPARABLE = Lesson(
     key="separable",
+    chapter=chapters.SEPARABLE,
     title="Separable equations",
     summary="The first technique, and the one every other first-order method "
             "falls back on when it can.",
@@ -197,6 +199,17 @@ SEPARABLE = Lesson(
             r"y^{2} = t^{2} + C \;\Longrightarrow\; y = \pm\sqrt{t^{2} + C}",
             "pitfall",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: f must factor",
+            "The method needs y' = g(t)·h(y) exactly. y' = t + y does not "
+            "factor, however it is rearranged, and needs an integrating factor "
+            "instead. And a factored equation can still defeat the second step:"
+            " ∫ exp(y²) dy has no elementary form, so the answer stays an "
+            "integral or an implicit relation.",
+            r"y' = t + y \;\neq\; g(t)\,h(y)",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -344,6 +357,7 @@ SEPARABLE = Lesson(
 
 LINEAR = Lesson(
     key="linear",
+    chapter=chapters.LINEAR,
     title="First-order linear, and the integrating factor",
     summary="What to do when the equation is linear in y but refuses to "
             "separate.",
@@ -518,6 +532,17 @@ LINEAR = Lesson(
             "p is 1/t and not 1 — and a wrong p gives a wrong μ, which leaves "
             "the left side not the derivative of anything.",
             r"t y' + y = t \;\Longrightarrow\; y' + \frac{1}{t}\,y = 1",
+            "pitfall",
+        ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: y must appear linearly",
+            "An integrating factor exists because y and y' appear only to the "
+            "first power. y' = y² + t is not linear, and no μ(t) straightens "
+            "it. Even when the equation is linear, ∫ μq dt may have no "
+            "elementary antiderivative; the method still works, and the answer "
+            "keeps that integral in it.",
+            r"y' = y^{2} + t \quad\text{is not linear in } y",
             "pitfall",
         ),
     ),
@@ -739,11 +764,13 @@ LINEAR = Lesson(
 
 BASICS = Lesson(
     key="basics",
+    chapter=chapters.BASICS,
     title="What a differential equation is",
     summary="An equation whose unknown is a function, and what it means to "
             "have solved one.",
     tool="steps",
     reference="Edwards 1.1–1.2",
+    figure="solution_family",
     motivation=(
         "Algebra asks which *number* satisfies a condition. A differential "
         "equation asks which *function* does — and the condition is about the "
@@ -1087,6 +1114,7 @@ BASICS = Lesson(
 
 SLOPEFIELDS = Lesson(
     key="slopefields",
+    chapter=chapters.SLOPEFIELDS,
     title="Slope fields, existence and uniqueness",
     summary="What the equation tells you about its solutions before you solve "
             "anything at all.",
@@ -1224,6 +1252,31 @@ SLOPEFIELDS = Lesson(
                 "than a solution."
             ),
         ),
+        # PED-05. The lesson says this equation has two solutions through the
+        # origin, and the Solver Lab answers y = 0 and nothing else. Made into
+        # an example so the contradiction is the lesson rather than a surprise.
+        Example(
+            equation="y' = y**(1/3)",
+            conditions="y(0) = 0",
+            why="∂f/∂y = 1/(3y^(2/3)) is infinite on y = 0, so the uniqueness "
+                "half of the theorem has nothing to say at the origin, and "
+                "separation finds a solution that is not the obvious one.",
+            commentary=(
+                "Notice first what separation did not find. Dividing by y^(1/3) "
+                "assumed it was not zero, and y ≡ 0 is exactly the solution that "
+                "division threw away: it passes through the origin, its slope is "
+                "zero, and y^(1/3) is zero there too. So this condition is met by "
+                "two different curves, (2t/3)^(3/2) and the constant zero, and in "
+                "fact by infinitely many — stay at zero until any t = a, then leave "
+                "along (2(t − a)/3)^(3/2).\n\n"
+                "Then put it into the Solver Lab and watch a numerical method "
+                "choose. Started exactly at y = 0, every step sees a slope of zero "
+                "and the answer is y ≡ 0, reported as a success, while the Lab "
+                "warns that the uniqueness hypothesis fails at the start. Neither "
+                "answer is wrong. A method returns one solution, and only the "
+                "theorem can tell you whether there was only one to return."
+            ),
+        ),
     ),
     notes=(
         Note(
@@ -1268,6 +1321,22 @@ SLOPEFIELDS = Lesson(
             "pointing at the problem.",
             r"\frac{\partial}{\partial y} y^{1/3} = \frac{1}{3y^{2/3}}",
             "pitfall",
+        ),
+        # PED-07. The content above is the ∂f/∂y form deliberately -- it is the
+        # one a student can check -- and this note does not change that. It
+        # exists so that someone who wants to read further can search for what
+        # they were taught: without the names, nothing here is findable.
+        Note(
+            "Its name, for reading further",
+            "Books call the uniqueness half the Picard–Lindelöf theorem, and "
+            "usually state it with a weaker-looking hypothesis: that f is "
+            "Lipschitz in y, meaning |f(t, y₁) − f(t, y₂)| ≤ L·|y₁ − y₂| for "
+            "some constant L near the point. A continuous ∂f/∂y implies that "
+            "— take L to be the largest |∂f/∂y| nearby — so the test taught "
+            "here is a special case of the textbook one, and y^{1/3} fails "
+            "both for the same reason.",
+            r"|f(t, y_1) - f(t, y_2)| \leq L\,|y_1 - y_2|",
+            kind="aside",
         ),
     ),
     questions=(
@@ -1362,11 +1431,48 @@ SLOPEFIELDS = Lesson(
                 "even though the equation itself looks harmless there.",
             ),
         ),
+        Choice(
+            key="q-figure",
+            prompt="In the figure, drag a down to −1 and b to 0, so the "
+                   "equation is y′ = −y. Now read the dashes rather than any "
+                   "curve: what do they say about every solution?",
+            figure="slope_field",
+            options=(
+                "Every solution approaches y = 0, from whichever side it "
+                "started on",
+                "Solutions above the axis rise and those below it fall, so "
+                "they separate",
+                "Solutions cross the axis and oscillate about it",
+                "It depends on the initial condition, and the field cannot "
+                "say",
+            ),
+            answer=0,
+            becauses=(
+                "The slope is −y, so it is negative wherever y is positive "
+                "and positive wherever y is negative. Every dash leans "
+                "towards the axis, and a solution curve has no choice but to "
+                "follow them there.",
+                "That is what a = +1 would give. Read the sign: with a = −1 a "
+                "positive y has a negative slope, so the curve comes back "
+                "down rather than running away.",
+                "Nothing crosses the axis. y = 0 is itself a solution, and "
+                "uniqueness says no other curve may touch it — so no curve "
+                "can get to the other side of it.",
+                "Answering exactly this, without solving anything, is what a "
+                "slope field is for. Drop conditions anywhere you like and "
+                "every curve does the same thing.",
+            ),
+        ),
     ),
     templates=(
         NumericTemplate(
             key="slope-at-a-point",
             title="Read the slope straight off the equation",
+            mistakes=(
+                ("{a}*{t0} + {b}*{y0}",
+                 "t and y are swapped when substituting — the point is (t, "
+                 "y), time first"),
+            ),
             prompt="For y' = {a}*y + {b}*t, what slope does the field have "
                    "at the point (t, y) = ({t0}, {y0})?",
             answer="{a}*{y0} + {b}*{t0}",
@@ -1392,6 +1498,7 @@ SLOPEFIELDS = Lesson(
 
 EXACT = Lesson(
     key="exact",
+    chapter=chapters.EXACT,
     title="Exact equations",
     summary="When the left side is already the derivative of something, and "
             "the only work is finding what.",
@@ -1583,6 +1690,19 @@ EXACT = Lesson(
             "above, run on your equation.",
             kind="aside",
         ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: most equations are not exact",
+            "Exactness is a coincidence of partial derivatives, and most "
+            "equations lack it. The rescue is an integrating factor, and the "
+            "usual ones exist only in special cases: a factor depending on t "
+            "alone exists exactly when (M_y − N_t)/N depends on t alone. When "
+            "neither that nor its y-counterpart does, the textbook routes have "
+            "nothing to offer.",
+            r"\mu(t) \text{ exists} \Leftrightarrow \frac{M_y - N_t}{N} \text{ "
+            r"depends on } t \text{ only}",
+            "pitfall",
+        ),
     ),
     questions=(
         Choice(
@@ -1700,11 +1820,13 @@ EXACT = Lesson(
 
 SUBSTITUTIONS = Lesson(
     key="substitutions",
+    chapter=chapters.SUBSTITUTIONS,
     title="Substitutions: homogeneous and Bernoulli",
     summary="Two equations that are not separable or linear, and two changes "
             "of variable that make them so.",
     tool="steps",
     reference="Edwards 1.6",
+    figure="substitution",
     motivation=(
         "Four techniques in, the pattern is that each one recognises a shape. "
         "That raises an obvious question about everything else: is an equation "
@@ -1873,6 +1995,18 @@ SUBSTITUTIONS = Lesson(
             "signs solve the equation. Only one passes through your initial "
             "point. Substituting will not tell you which — the condition is "
             "the only thing that does.",
+            "pitfall",
+        ),
+        # PED-06: where the method itself stops, not a mistake a student makes.
+        Note(
+            "Where it stops: the form has to match exactly",
+            "Each substitution is built for one shape. Homogeneous needs f(λt, "
+            "λy) = f(t, y); Bernoulli needs y' + p y = q yⁿ and nothing else. "
+            "y' = y² + t is neither — it is a Riccati equation, which has no "
+            "general elementary method at all. A substitution that does not fit"
+            " the equation does not fail loudly; it just produces something no "
+            "easier.",
+            r"y' = y^{2} + t: \ \text{neither homogeneous nor Bernoulli}",
             "pitfall",
         ),
     ),

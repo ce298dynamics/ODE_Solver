@@ -57,6 +57,7 @@ class StepTimeline(QFrame):
         layout.addLayout(header)
 
         self.plot = pg.PlotWidget()
+        self.plot.setAccessibleName("step size against time")
         self.plot.setBackground(palette.plot_background)
         self.plot.showGrid(x=True, y=True, alpha=0.18)
         self.plot.setLabel("left", "h")
