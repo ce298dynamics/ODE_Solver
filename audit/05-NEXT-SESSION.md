@@ -1,5 +1,12 @@
 # Next session: the highest-ratio items
 
+> **This brief has been run. Read `06-OUTCOME.md` first.** Four of the five
+> items below were already built when it was written — they landed in
+> `bb0b8eb`, the commit before this file — and two of the three things it calls
+> broken are not broken in the way it says. The body below is otherwise left as
+> the input that was actually given, amended only where a later session struck
+> something out in place; `06-OUTCOME.md` is what came back.
+
 A brief for a scheduled cloud session. Self-contained: it assumes no memory of
 the sessions that produced `01-FINDINGS.md` through `04-ROADMAP.md`.
 

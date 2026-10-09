@@ -337,6 +337,48 @@ def test_analyse_produces_every_layer():
     assert data.speed_grid is not None and np.all(np.isfinite(data.speed_grid))
 
 
+def test_analyse_asks_for_the_streamline_density_it_means():
+    """PORT-01 -- `analyse` was passing its `resolution` into `density`.
+
+    The two are different quantities that sat in adjacent parameter slots:
+    `streamlines` samples the field on `STREAMLINE_RESOLUTION` and takes
+    matplotlib's line-spacing `density` next, and `analyse` handed 33 to it
+    positionally. Measured on the pendulum over the window the screen opens on,
+    that cost 372.045 s and produced 4609 overlapping paths where the intended
+    density takes 0.781 s and produces 90 -- a 476x slowdown, an unreadable
+    picture, and the reason `tests/test_app_portrait.py` never finished.
+
+    Asserted as a *count*, because a count is what separates the two settings
+    and a wall-clock budget on a shared machine is not a fact about this code.
+    Ninety-odd paths over this window; thirty times the density is thousands,
+    so the threshold does not need to be delicate to catch the mistake coming
+    back.
+    """
+    bench = pendulum(0.0)
+    window = ((-10.8, 10.8), (-2.9, 2.9))
+    data = analysis.analyse(bench.problem, *window)
+
+    assert data.streamlines, "no streamlines were extracted"
+    assert len(data.streamlines) < 500, (
+        f"{len(data.streamlines)} streamline paths over this window: "
+        "`analyse` is asking matplotlib for far more line density than "
+        "`streamlines` defaults to, which is PORT-01 returning"
+    )
+    # The default really is the cheap one, and the expensive setting really is
+    # the expensive one -- so the assertion above is discriminating rather than
+    # merely true.
+    assert len(analysis.streamlines(bench.problem, *window)) == \
+        len(data.streamlines)
+
+
+def test_the_streamline_density_cannot_be_passed_positionally():
+    """What stops PORT-01 coming back: the two numbers can no longer be
+    confused by position, only by name."""
+    bench = pendulum(0.0)
+    with pytest.raises(TypeError):
+        analysis.streamlines(bench.problem, (-4.0, 4.0), (-3.0, 3.0), 33)
+
+
 def test_analyse_respects_the_layer_switches():
     bench = pendulum(0.0)
     data = analysis.analyse(

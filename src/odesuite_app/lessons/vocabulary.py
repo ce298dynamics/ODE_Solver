@@ -1,7 +1,7 @@
 """The names a question can ask for, and what each one means.
 
-Four tables of prose. Three are vocabularies -- sets of labels a `Case` can
-claim, with the criterion for each -- and the fourth is the list of ways an
+Five tables of prose. Four are vocabularies -- sets of labels a `Case` can
+claim, with the criterion for each -- and the fifth is the list of ways an
 answer goes wrong. All of them exist so that a drill is built out of the
 application's own words rather than out of an author's memory of them.
 
@@ -18,6 +18,9 @@ reason these are keyed the way they are:
   asking the application what it would call them.
 * `DAMPING` is keyed by the four regimes, checked against the sign of the
   discriminant.
+* `POINTS` is keyed by the strings `series.point_kind` returns, so a case
+  claiming a regular singular point is checked by splitting the equation into
+  `P`, `Q`, `R` and asking the application what it would call `t = 0`.
 
 So a question here cannot quietly disagree with the tool that would answer it.
 A case whose classification changed under a sympy upgrade becomes a failing
@@ -34,8 +37,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-__all__ = ["Label", "METHODS", "PORTRAITS", "DAMPING", "EQUILIBRIA", "VOCABULARIES",
-           "Fault", "FAULTS"]
+__all__ = ["Label", "METHODS", "PORTRAITS", "DAMPING", "EQUILIBRIA", "POINTS",
+           "VOCABULARIES", "Fault", "FAULTS"]
 
 
 @dataclass(frozen=True)
@@ -213,13 +216,73 @@ EQUILIBRIA: dict[str, Label] = {
 }
 
 
+#: Keyed by what `series.point_kind` returns, so the Series screen and this
+#: drill cannot call the same point different things.
+#:
+#: The vocabulary furthest from a *method* -- which is why
+#: it belongs here rather than in spite of it. A series solution begins by
+#: classifying the point, and that classification is what decides whether a
+#: plain power series is enough, whether Frobenius is needed, or whether a
+#: first course stops. `series.point_kind`'s own docstring says so: "the
+#: classification decides which method applies, so it is the first thing a
+#: course checks". *Which method* and *what kind of point* are the same
+#: question about different nouns, exactly as the portrait and the damping
+#: regime are.
+POINTS: dict[str, Label] = {
+    "ordinary": Label(
+        title="Ordinary point — a plain power series",
+        requires="t = 0 is ordinary when the leading coefficient does not "
+                 "vanish there. Divide through by it and both remaining "
+                 "coefficients stay finite at 0, so y = Σ aₙtⁿ works and the "
+                 "recurrence closes.",
+    ),
+    "regular singular": Label(
+        title="Regular singular point — Frobenius",
+        requires="The leading coefficient vanishes at 0, but mildly: t·Q/P "
+                 "and t²·R/P both stay finite there. The singularity is weak "
+                 "enough to carry, and y = t^r Σ aₙtⁿ works once r is read "
+                 "off the indicial equation.",
+    ),
+    "irregular singular": Label(
+        title="Irregular singular point — neither method applies",
+        requires="The leading coefficient vanishes at 0 and at least one of "
+                 "t·Q/P, t²·R/P blows up there. Neither a power series nor a "
+                 "Frobenius series is guaranteed, and this is where a first "
+                 "course stops rather than pressing on.",
+    ),
+}
+
+
 #: What a `ClassifyTemplate.table` may name.
 VOCABULARIES: dict[str, dict[str, Label]] = {
     "methods": METHODS,
     "portraits": PORTRAITS,
     "damping": DAMPING,
     "equilibria": EQUILIBRIA,
+    "points": POINTS,
 }
+
+# The vocabularies that are *not* here, and why, so that the next person to
+# notice the gap does not have to rediscover the reason.
+#
+# A *which method* drill was wanted for every unit. Five have one now and two
+# do not, and the two are not an oversight:
+#
+# * **Models and numerical methods.** The choice that unit teaches is between
+#   Euler, improved Euler and RK4, and nothing in this application decides it
+#   -- `byhand.walk` runs whichever method it is handed, and there is no
+#   routine anywhere that, shown a problem, says which of the three to use.
+#   A table whose answers nothing here can check is a stored answer key, which
+#   is the one thing `test_every_vocabulary_has_an_oracle` exists to refuse.
+# * **Laplace transforms.** The same, more sharply. The question a course asks
+#   is *which transform pair* or *which shifting theorem*, and
+#   `laplace.pairs_used` reports the pairs an answer happened to use rather
+#   than deciding which one applies. There is nothing to hold a drill to.
+#
+# Written down rather than left implicit because the gap looks like a job
+# half done and is not: adding those two tables would take an afternoon, and
+# would make the drill dishonest in precisely the way every table above is
+# built to avoid.
 
 
 @dataclass(frozen=True)

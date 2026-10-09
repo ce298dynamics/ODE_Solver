@@ -144,6 +144,29 @@ All notable changes to this project are documented here. The format follows
   ranked: proven solution, then one the numeric probe cannot fault, then the
   rest.
 
+- **Every phase portrait was drawn with thirty times the streamline density it
+  meant to ask for.** `analysis.streamlines` samples the field on
+  `STREAMLINE_RESOLUTION` and takes matplotlib's line-spacing `density` as its
+  next parameter; `analyse` passed its own `resolution` — 33 — into that slot
+  positionally. Two different quantities in adjacent parameter slots, and
+  nothing to catch it.
+
+  Measured on the pendulum over the window the screen opens on:
+
+      density=1.1      0.781 s      90 paths
+      density=33     372.045 s    4609 paths
+
+  A 476x slowdown, and 4609 overlapping curves is a scribble rather than a
+  picture of a flow. The screen's own docstring promised "a few hundred
+  milliseconds" and had been wrong for as long as the call existed, and
+  `tests/test_app_portrait.py` did not finish at all: its fixture builds a
+  screen per test and every one of them waited out a six-minute analysis. With
+  the density passed correctly that file runs all 24 of its tests in 122 s, the
+  slowest single test taking 6.4 s.
+
+  `density` is keyword-only now, so the two numbers can no longer be confused
+  by position.
+
 - **Radau missed the tolerance it was asked for, and reported success.** Below
   `rtol = 1e-9` the achieved error stopped tracking the request: 15x too large
   at 1e-10, 30x at 1e-11, 54x at 1e-12, 103x at 1e-13, while DOPRI5 held 1.8x
@@ -594,6 +617,34 @@ All notable changes to this project are documented here. The format follows
   by the base class, so a figure added later cannot forget to do it. The
   Phase Portrait describes its window, its equilibria and their
   classification from the same `analysis` results the report beside it uses.
+
+- **Which method? — over the whole course, and over a series point.** The
+  *which method would you reach for first* drill existed in four units, and in
+  each of them the menu was the unit's own: told the options are `separable`,
+  `1st_linear`, `1st_exact`, homogeneous and Bernoulli, you have already been
+  told not to look for a characteristic equation. Two drills close that.
+
+  `which-method-cumulative`, on the last lesson of unit 3, offers **all nine**
+  methods the narrator knows over twenty equations drawn from units 1 and 3 —
+  the version an examination asks, where nothing on the page says which chapter
+  the question came from.
+
+  `which-kind-of-point`, on the last lesson of unit 7, asks the same question
+  about a different noun: is `t = 0` ordinary, regular singular, or irregular
+  singular? It is the first thing a course checks before writing a series and
+  the thing that decides whether a plain power series is enough, Frobenius is
+  needed, or a first course stops. Its answers are decided by
+  `series.point_kind` — the routine the Series screen narrates from — so the
+  drill cannot disagree with the tool that would answer it, and
+  `POINTS` joins `METHODS`, `PORTRAITS` and `DAMPING` as a vocabulary with an
+  oracle behind it.
+
+  No such drill was added for the models or the Laplace units, and
+  `vocabulary.py` now records why rather than leaving the gap looking like an
+  oversight: nothing in this application decides between Euler and RK4, and
+  `laplace.pairs_used` reports the pairs an answer used rather than deciding
+  which one applies. A table no routine can check is a stored answer key, which
+  is what every other table here is built to avoid.
 
 - **Four kinds of question the drills could not ask.** Every drill in the
   Hub handed you an equation and asked what to do with it. That is one of the
