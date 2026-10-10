@@ -55,6 +55,7 @@ from .. import lessons as content
 from .. import progress, richtext, theme
 from ..lessons import generate
 from ..theme import Palette
+from ..widgets.answerpreview import AnswerPreview, question_parser
 from ..widgets.controls import add_heading, control_panel
 from ..widgets.lessonfigure import build_figure
 from ..widgets.mathlabel import MathLabel
@@ -1074,6 +1075,8 @@ class LessonsScreen(QWidget):
         again.setCursor(Qt.PointingHandCursor)
         row.addWidget(again)
         layout.addLayout(row)
+        layout.addWidget(AnswerPreview(self.palette_obj, answer,
+                                       question_parser(question)))
 
         verdict = QLabel("")
         verdict.setWordWrap(True)
@@ -1697,6 +1700,8 @@ class LessonsScreen(QWidget):
         show.setCursor(Qt.PointingHandCursor)
         row.addWidget(show)
         layout.addLayout(row)
+        layout.addWidget(AnswerPreview(self.palette_obj, answer,
+                                       question_parser(question)))
 
         verdict = QLabel("")
         verdict.setWordWrap(True)

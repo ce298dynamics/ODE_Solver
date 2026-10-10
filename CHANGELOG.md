@@ -406,6 +406,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Every typed solution is shown back as mathematics while it is typed.**
+  Answers are typed as code, and one misplaced bracket turns
+  `exp(-t)*(C1*cos(2*t) + C2*sin(2*t))` into a different function. That was
+  then marked wrong as mathematics, when it was a typo. Under each answer box in
+  Practice, Drill, the quiz and Solve Step by Step, a line now reads
+  *Read as:* followed by the typeset function, or says quietly why the text is
+  not readable yet ("'(' was never closed"). It is read by the new
+  `symbolic.read_answer`, the parsing half of `check_answer` split out, so the
+  preview and the mark cannot disagree, and it goes through the same hardened
+  parser.
+
 - **A download that needs no Python.** `packaging/build.py` freezes the studio
   with PyInstaller, checks the frozen build and zips it: about 100 MB on
   Windows, unzip and double-click. The spec had not been built since the first

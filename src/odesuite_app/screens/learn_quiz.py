@@ -75,6 +75,7 @@ from PySide6.QtWidgets import (
 from .. import exam, progress, theme
 from .. import lessons as content
 from ..theme import Palette
+from ..widgets.answerpreview import AnswerPreview, question_parser
 from ..widgets.controls import add_heading, control_panel
 from ..widgets.lessonfigure import build_figure
 from ..widgets.mathlabel import MathLabel
@@ -582,6 +583,9 @@ class QuizScreen(QWidget):
                 inner.addLayout(row)
             else:
                 inner.addWidget(self.answer)
+            if not counting and question.kind not in ("model", "expression"):
+                inner.addWidget(AnswerPreview(self.palette_obj, self.answer,
+                                              question_parser(question)))
 
         self.verdict = QLabel("")
         self.verdict.setWordWrap(True)
