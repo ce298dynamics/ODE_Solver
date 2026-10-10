@@ -420,6 +420,14 @@ class LessonsScreen(QWidget):
                 lambda _=False, n=name: self._choose_segment(n)
             )
         bar.addStretch(1)
+        # The way on. Without it a lesson was a dead end: the reader finished
+        # the drill and had to go back to the tree, or the Course Map, to find
+        # out what came next.
+        self.next_button = QPushButton("Next lesson →")
+        self.next_button.setProperty("role", "primary")
+        self.next_button.setCursor(Qt.PointingHandCursor)
+        self.next_button.clicked.connect(self._open_next)
+        bar.addWidget(self.next_button)
         head_layout.addLayout(bar)
         outer.addWidget(head)
 
@@ -486,6 +494,23 @@ class LessonsScreen(QWidget):
                 self.listing.setCurrentItem(item)
                 return
 
+    def next_lesson(self):
+        """The lesson after the open one, in course order, or None."""
+        lesson = self.current_lesson()
+        if lesson is None:
+            return None
+        order = [each.key for each in content.LESSONS]
+        index = order.index(lesson.key) if lesson.key in order else -1
+        return content.LESSONS[index + 1] if 0 <= index < len(order) - 1 else None
+
+    def _open_next(self) -> None:
+        following = self.next_lesson()
+        if following is None:
+            return
+        self._segment = SEGMENTS[0]
+        self.segment_buttons[SEGMENTS[0]].setChecked(True)
+        self.select(following.key)
+
     def _choose_segment(self, name: str) -> None:
         self._segment = name
         button = self.segment_buttons.get(name)
@@ -512,7 +537,13 @@ class LessonsScreen(QWidget):
             self.reference_label.setText("")
             for button in self.segment_buttons.values():
                 button.setEnabled(False)
+            self.next_button.setVisible(False)
             return
+
+        following = self.next_lesson()
+        self.next_button.setVisible(following is not None)
+        if following is not None:
+            self.next_button.setToolTip(f"Next: {following.title}")
 
         for name, button in self.segment_buttons.items():
             button.setEnabled(True)

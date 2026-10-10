@@ -406,6 +406,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **One path through the course.** The Learning Hub listed nine screens as
+  equals, which made them nine competing ways in. The sidebar now splits them
+  into *Study* (Course Map, Lessons, Quiz & Exams, Glossary) and *Tools* (Solve
+  Step by Step, Laplace Transforms, Methods by Hand, Worked Problems, Print &
+  Revise), with shortcuts renumbered to follow: `Ctrl+1`–`4` study, `Ctrl+5`–`9`
+  tools. A first launch now opens on the Course Map, whose Continue button is
+  the way in, instead of Home's page of fourteen links. Every lesson has a
+  **Next lesson →** button; before it, a finished drill was a dead end. Also
+  fixed: Qt reads a lone `&` in a button as a mnemonic marker, so the sidebar
+  said "Quiz  Exams" and "Print  Revise".
+
 - **Every typed solution is shown back as mathematics while it is typed.**
   Answers are typed as code, and one misplaced bracket turns
   `exp(-t)*(C1*cos(2*t) + C2*sin(2*t))` into a different function. That was
