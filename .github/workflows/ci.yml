@@ -79,16 +79,27 @@ jobs:
     #
     # If a leg here proves unsupportable, the honest fix is to narrow the
     # classifiers rather than to delete the leg.
+    #
+    # **Those eight legs run on demand, not on every push.** The repository is
+    # private, so Actions minutes are metered: 2,000 a month on the free plan,
+    # with Windows minutes counted twice and macOS minutes ten times. Measured
+    # on the 2026-10-06 run, the eight legs took 27-106 min on Ubuntu, 149 and
+    # 185 min on Windows and 22 and 47 min on macOS, about 1,600 billed minutes
+    # for one push. Two pushes used the month up, and every later run showed
+    # 0/13 because GitHub refused to start the jobs. A push or a pull request
+    # now runs the one Ubuntu leg that also measures coverage. The whole matrix
+    # runs from "Run workflow" on the Actions tab, before a release; and the
+    # release workflow builds and self-tests the frozen app on Windows and
+    # macOS for every tag in any case.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.10", "3.12"]
-        include:
-          - os: ubuntu-latest
-            python: "3.11"
-          - os: ubuntu-latest
-            python: "3.13"
+        include: ${{ fromJSON(github.event_name == 'workflow_dispatch'
+          && '[{"os":"ubuntu-latest","python":"3.10"},{"os":"ubuntu-latest","python":"3.11"},{"os":"ubuntu-latest","python":"3.12"},{"os":"ubuntu-latest","python":"3.13"},{"os":"windows-latest","python":"3.10"},{"os":"windows-latest","python":"3.12"},{"os":"macos-latest","python":"3.10"},{"os":"macos-latest","python":"3.12"}]'
+          || '[{"os":"ubuntu-latest","python":"3.12"}]') }}
+    # A cap, so that one stuck leg cannot spend a month's minutes. Ubuntu's
+    # slowest measured leg took 106 min and Windows' 185.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 240 || 150 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
