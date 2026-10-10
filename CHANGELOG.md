@@ -406,6 +406,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **A download that needs no Python.** `packaging/build.py` freezes the studio
+  with PyInstaller, checks the frozen build and zips it: about 100 MB on
+  Windows, unzip and double-click. The spec had not been built since the first
+  commit, so nobody knew whether it still produced a working app. It does. The
+  checks are what make that a finding rather than a hope: `--selftest` inside
+  the frozen process covers the solvers and matplotlib's fonts, and a closed
+  form found through the frozen `--dsolve-worker` covers the symbolic half,
+  which `--selftest` never starts and which every Learning Hub answer depends
+  on. A new `release` workflow runs the same script on Windows and macOS for
+  every `v*` tag and attaches the zips to a GitHub Release. The macOS build has
+  not been run by hand. It will first run in that workflow, and it is unsigned.
+
 - **Glossary terms are links where a chapter uses them.** The first use
   of each term in a lesson's chapter is underlined; hovering shows the
   definition, and following it opens the Glossary at that term. A term is
