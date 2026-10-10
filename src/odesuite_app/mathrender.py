@@ -46,6 +46,7 @@ __all__ = [
     "to_latex",
     "to_plain",
     "is_renderable",
+    "equation_latex",
     "rows",
     "latex_to_png",
     "cached_png",
@@ -141,6 +142,112 @@ def is_renderable(latex: str) -> bool:
         return False
     return (_ENVIRONMENT.search(latex) is None
             and _UNSUPPORTED.search(latex) is None)
+
+
+#: ``y'``, ``y''``, ``y^(4)``: a derivative as a question writes it.
+_DERIVATIVE = re.compile(r"\b([A-Za-z])('+|\^\((\d+)\))")
+
+
+def equation_latex(equation: str, conditions: str = "") -> str | None:
+    """A question's equation as typeset mathematics, in prime notation.
+
+    Practice and the quiz showed a Solve question's equation as the code it is
+    stored as -- ``y' = 2*t*y`` in a monospace font -- directly beside choice
+    questions whose equations were typeset, so one page used two notations
+    for the same thing. This reads the stored text rather than the parsed
+    equation, because sympy would print the parsed one as
+    ``\\frac{d}{dt} y{\\left(t \\right)}`` where a course writes ``y'``, and
+    would reorder its terms. The terms are kept in the order they were written.
+
+    `equation` may hold several, separated by ``;``. None if any part cannot be
+    read, and the caller keeps the code: a plain equation beats a broken one.
+    """
+    import sympy as sp
+    from sympy.parsing.sympy_parser import (
+        convert_xor,
+        parse_expr,
+        standard_transformations,
+    )
+
+    from .custom import reject_unsafe_syntax
+
+    names: dict = {}
+
+    def derivative(match) -> str:
+        name, primes, order = match.group(1), match.group(2), match.group(3)
+        n = int(order) if order else len(primes)
+        key = f"D{n}_{name}"
+        names[sp.Symbol(key)] = name + ("'" * n if n <= 3 else f"^{{({n})}}")
+        return key
+
+    transformations = standard_transformations + (convert_xor,)
+    local = {"Heaviside": sp.Function("u"), "DiracDelta": sp.Function("delta")}
+
+    def drop_ones(expr):
+        # Parsed unevaluated, 1/(1 + e^t) is Mul(1, Pow(1 + e^t, -1)), which
+        # prints as "1 \frac{1}{1 + e^t}". Evaluating would fix that and also
+        # rewrite what the question wrote: -0.2*(y - 20) becomes 4 - 0.2y.
+        if expr.is_Atom:
+            return expr
+        args = [drop_ones(arg) for arg in expr.args]
+        if isinstance(expr, sp.Mul):
+            # Flattened, so the -1 of -y/t, parsed as (-1*y)*(1/t), comes first.
+            args = [factor for arg in args
+                    for factor in (arg.args if isinstance(arg, sp.Mul) else (arg,))]
+            args = [arg for arg in args if arg != 1] or [sp.Integer(1)]
+            return args[0] if len(args) == 1 else sp.Mul(*args, evaluate=False)
+        if isinstance(expr, (sp.Add, sp.Pow)):
+            return expr.func(*args, evaluate=False)
+        return expr.func(*args)
+
+    def term_latex(term) -> tuple[str, str]:
+        """(sign, body): -y/t is Mul(-1, y, 1/t), which prints "(-1) y/t"."""
+        if isinstance(term, sp.Mul) and term.args and term.args[0] == -1:
+            rest = term.args[1:]
+            body = rest[0] if len(rest) == 1 else sp.Mul(*rest, evaluate=False)
+            return "-", sp.latex(body, order="none", symbol_names=names)
+        piece = sp.latex(term, order="none", symbol_names=names)
+        if piece.startswith("-"):
+            return "-", piece[1:].lstrip()
+        return "+", piece
+
+    def side_latex(text: str) -> str:
+        whole = drop_ones(parse_expr(text, local_dict=local, evaluate=False,
+                                     transformations=transformations))
+        terms = whole.args if isinstance(whole, sp.Add) else (whole,)
+        out = ""
+        for term in terms:
+            sign, body = term_latex(term)
+            if not out:
+                out = body if sign == "+" else "-" + body
+            else:
+                out += f" {sign} {body}"
+        return out
+
+    # A which-portrait question about a nonlinear system names the point it
+    # asks about: "x' = y; y' = -sin(x)     at (x, y) = (pi, 0)".
+    where = ""
+    if re.search(r"\s{2,}at\s", equation):
+        equation, where = re.split(r"\s{2,}at\s+", equation, maxsplit=1)
+        if not re.fullmatch(r"[\w\s(),.\-+=/*]+", where):
+            return None
+        where = re.sub(r"\bpi\b", r"\\pi", where.replace("*", ""))
+
+    parts = []
+    try:
+        for text in (part for part in equation.split(";") if part.strip()):
+            body = _DERIVATIVE.sub(derivative, text)
+            reject_unsafe_syntax(body.replace("=", "+"))
+            parts.append(" = ".join(side_latex(side) for side in body.split("=")))
+    except Exception:
+        return None
+    latex = r",\quad ".join(parts)
+    if conditions.strip():
+        given = [c.strip().replace("*", "") for c in conditions.split(",") if c.strip()]
+        latex += r",\qquad " + r",\quad ".join(given)
+    if where:
+        latex += r"\qquad \mathrm{at}\ " + where.strip()
+    return latex if is_renderable(latex) else None
 
 
 def rows(expr) -> list[Row]:

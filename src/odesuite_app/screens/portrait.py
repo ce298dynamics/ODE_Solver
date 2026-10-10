@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -33,6 +33,7 @@ from .. import analysis, catalog, continuation, theme
 from ..state import SessionState
 from ..theme import Palette
 from ..widgets.controls import ParameterPanel, add_heading, control_panel
+from ..widgets.soon import run_soon
 
 __all__ = ["PortraitScreen"]
 
@@ -432,7 +433,7 @@ class PortraitScreen(QWidget):
         made meanwhile collapse into one, keeping a window reset if any asked.
         """
         self._queued_reset = bool(self._queued_reset) or reset_window
-        QTimer.singleShot(0, self, self.catch_up)
+        run_soon(self, self.catch_up)
 
     def catch_up(self) -> None:
         """Start the queued analysis, unless the screen is still hidden."""

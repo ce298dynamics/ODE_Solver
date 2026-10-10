@@ -36,6 +36,7 @@ stays instant.
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -58,7 +59,7 @@ from ..theme import Palette
 from ..widgets.answerpreview import AnswerPreview, question_parser
 from ..widgets.controls import add_heading, control_panel
 from ..widgets.lessonfigure import build_figure
-from ..widgets.mathlabel import MathLabel
+from ..widgets.mathlabel import MathLabel, equation_label
 from ..widgets.stepspanel import StepsPanel
 
 __all__ = ["CARRIES_EQUATION", "TOOL_NAMES", "LessonsScreen", "SEGMENTS"]
@@ -415,6 +416,11 @@ class LessonsScreen(QWidget):
             button.setChecked(index == 0)
             self._segment_group.addButton(button, index)
             self.segment_buttons[name] = button
+            # The checked segment is set in bold, and a button sized for its
+            # regular-weight label clipped its own bold one: "Practic".
+            bold = button.font()
+            bold.setBold(True)
+            button.setMinimumWidth(QFontMetrics(bold).horizontalAdvance(name) + 34)
             bar.addWidget(button)
             button.clicked.connect(
                 lambda _=False, n=name: self._choose_segment(n)
@@ -1050,13 +1056,8 @@ class LessonsScreen(QWidget):
                                          layout, frame)
             return frame
 
-        shown = question.equation + (
-            f",   {question.conditions}" if question.conditions else ""
-        )
-        equation = QLabel(shown)
-        equation.setStyleSheet("font-family: Cascadia Mono, Consolas, monospace;")
-        equation.setWordWrap(True)
-        layout.addWidget(equation)
+        layout.addWidget(equation_label(self.palette_obj, question.equation,
+                                        question.conditions))
 
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -1207,17 +1208,11 @@ class LessonsScreen(QWidget):
             layout.addWidget(MathLabel(self.palette_obj, question.latex,
                                        point_size=15))
         if question.shown:
-            # A generated question cannot be typeset: the equation comes out
-            # of the draw, and authoring a LaTeX form of it as well would be
-            # writing the same equation twice and waiting for the two to
-            # disagree. So it is shown in the font the editor uses, which is
-            # also the form it would be typed in.
-            written = QLabel(question.shown)
-            written.setStyleSheet(
-                "font-family: Cascadia Mono, Consolas, monospace;"
-            )
-            written.setWordWrap(True)
-            layout.addWidget(written)
+            # The equation comes out of the draw, so it has no authored LaTeX
+            # form, and writing one as well would be writing it twice and
+            # waiting for the two to disagree. `equation_label` typesets the
+            # drawn text itself instead, so there is still only the one.
+            layout.addWidget(equation_label(self.palette_obj, question.shown))
 
         # Parented to the card, as `_build_choice` explains: a group owned by
         # the screen would outlive its own buttons and accumulate a dead set
@@ -1691,13 +1686,8 @@ class LessonsScreen(QWidget):
         self._restore(lesson, question, verdict)
 
     def _build_solve(self, lesson, question, layout) -> None:
-        shown = question.equation + (
-            f",   {question.conditions}" if question.conditions else ""
-        )
-        equation = QLabel(shown)
-        equation.setStyleSheet("font-family: Cascadia Mono, Consolas, monospace;")
-        equation.setWordWrap(True)
-        layout.addWidget(equation)
+        layout.addWidget(equation_label(self.palette_obj, question.equation,
+                                        question.conditions))
 
         row = QHBoxLayout()
         row.setSpacing(8)

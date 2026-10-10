@@ -622,10 +622,21 @@ def _boxes(screen):
 
 
 def _page_text(screen) -> str:
+    """What the page says, including its typeset equations.
+
+    An equation is an image, so its words are its accessible description --
+    what a screen reader announces -- rather than any label's text.
+    """
     from PySide6.QtWidgets import QLabel
 
-    return "\n".join(label.text() for label in screen._page.findChildren(QLabel)
-                      if label.isVisibleTo(screen))
+    from odesuite_app.widgets.mathlabel import MathLabel
+
+    said = [label.text() for label in screen._page.findChildren(QLabel)
+            if label.isVisibleTo(screen)]
+    said += [label.accessibleDescription()
+             for label in screen._page.findChildren(MathLabel)
+             if label.isVisibleTo(screen)]
+    return "\n".join(said)
 
 
 def _lessons_with(kind):
@@ -718,8 +729,13 @@ def test_a_fault_drill_shows_both_the_equation_and_the_answer(screen, qapp):
     template = next(item for item in lesson.templates
                     if item.kind == "fault-template")
     question = generate.draw(template, screen._drill_seed[template.key])
+    page = _page_text(screen)
     for line in question.shown.splitlines():
-        assert line in _page_text(screen)
+        # "the answer handed in:   y = ..." is set as words, then mathematics.
+        words, _, mathematics = line.rpartition(":")
+        assert mathematics.strip() in page
+        if words:
+            assert words.strip().capitalize() in page
 
 
 def test_the_difficulty_control_appears_only_where_there_is_a_spread(screen,

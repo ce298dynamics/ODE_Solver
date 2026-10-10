@@ -43,6 +43,22 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Questions showed their equations as code.** Practice, the drills and the
+  quiz set a Solve question's equation in monospace, `y' = 2*t*y`, beside
+  choice questions whose equations were typeset. The new
+  `mathrender.equation_latex` reads the stored text into prime notation with
+  its terms in the order written, so it is never authored twice, and a
+  "what went wrong" card typesets both its equation and the answer handed in.
+  A test renders every equation the course can show: all 486 typeset.
+- **Five side panels were cut off at the right edge**: the quiz by over 100 px,
+  Print & Revise by 24, and the Solver Lab, Method Race and Accuracy Lab by a
+  few pixels each. In every case a drop-down asked to be as wide as its longest
+  entry, in a fixed-width panel that does not scroll sideways. `control_panel`
+  now lets every picker shrink and elide, and a test checks every screen.
+- **Smaller things a first look caught**: radio buttons drew Qt's own dark
+  circle, invisible on the dark theme's cards; the bold "Practice" tab clipped
+  its own label; the quiz blurb printed `*which*` with its asterisks.
+
 - **A lesson opened from a cold start showed raw LaTeX for five to fifteen
   seconds.** The app builds every screen at launch, and every one started its
   background work at once on the pool the open lesson typesets on: 51

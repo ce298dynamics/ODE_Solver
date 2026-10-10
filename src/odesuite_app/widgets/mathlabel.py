@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import weakref
 
-from PySide6.QtCore import QEvent, QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QRunnable, Qt, QThreadPool, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
 from .. import mathrender, theme
 from ..mathrender import Row
 from ..theme import Palette
+from .soon import run_soon
 
 __all__ = ["MathLabel", "MathBlock"]
 
@@ -329,7 +330,7 @@ class MathLabel(QWidget):
         # put it on a page, and only once it is placed can it tell whether
         # that page is hidden.
         self._pending = True
-        QTimer.singleShot(0, self, self._start_if_wanted)
+        run_soon(self, self._start_if_wanted)
 
     def _start_if_wanted(self) -> None:
         if not self._pending:
@@ -377,6 +378,12 @@ class MathLabel(QWidget):
         if self._plain == self._latex:
             self._label.setPixmap(_null_pixmap())
             self._label.setText("")
+            # Blank is not unnamed: a screen reader reaching it before the
+            # image lands gets what it will get afterwards.
+            described = self._plain or "equation"
+            for widget in (self, self._label):
+                widget.setAccessibleName("equation")
+                widget.setAccessibleDescription(described)
             return
         self._show_text()
 
@@ -538,3 +545,60 @@ def _null_pixmap():
     from PySide6.QtGui import QPixmap
 
     return QPixmap()
+
+
+def equation_label(palette: Palette, equation: str, conditions: str = "", *,
+                   point_size: float = mathrender.DEFAULT_POINT_SIZE) -> QWidget:
+    """A question's equation, typeset in the notation a course writes.
+
+    The stored text -- ``y' = 2*t*y`` -- stays the label's plain form, so a
+    screen reader and "Copy" still get something typeable. Where the text
+    cannot be read as mathematics, the code itself is shown, as before.
+
+    A generated question's `shown` text may run to several lines, each an
+    equation with its conditions after three spaces and a comma, and may
+    open with words: ``the answer handed in:   y = 5*exp(2*t) + C1``. Each
+    line is typeset on its own and the words stay words.
+    """
+    if "\n" in equation and not conditions:
+        box = QWidget()
+        lines = QVBoxLayout(box)
+        lines.setContentsMargins(0, 0, 0, 0)
+        lines.setSpacing(4)
+        for line in equation.splitlines():
+            if line.strip():
+                lines.addWidget(equation_label(palette, line,
+                                               point_size=point_size))
+        return box
+
+    prefix = ""
+    if ":" in equation and not conditions:
+        prefix, equation = (part.strip() for part in equation.split(":", 1))
+    if ",   " in equation and not conditions:
+        equation, conditions = (part.strip() for part in equation.split(",   ", 1))
+
+    shown = equation + (f",   {conditions}" if conditions else "")
+    latex = mathrender.equation_latex(equation, conditions)
+    if latex is not None:
+        label = MathLabel(palette, point_size=point_size)
+        label.set_row(Row(latex=latex, plain=shown))
+        widget: QWidget = label
+    else:
+        fallback = QLabel(shown)
+        fallback.setStyleSheet(
+            theme.scaled("font-family: Cascadia Mono, Consolas, monospace; "
+                         f"font-size: {point_size:.0f}px;")
+        )
+        fallback.setWordWrap(True)
+        widget = fallback
+    if not prefix:
+        return widget
+    row = QWidget()
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(0, 0, 0, 0)
+    words = QLabel(prefix[0].upper() + prefix[1:] + ":")
+    words.setProperty("role", "muted")
+    layout.addWidget(words)
+    layout.addWidget(widget)
+    layout.addStretch(1)
+    return row

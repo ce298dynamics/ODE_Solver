@@ -326,6 +326,19 @@ def stylesheet(palette: Palette, scale: float | None = None) -> str:
     QCheckBox::indicator:checked {{
         background: {p.accent}; border-color: {p.accent};
     }}
+    /* Unstyled, a radio button drew Qt's own dark circle, and on the dark
+       palette's cards the options of a multiple-choice question had no
+       visible button at all. Muted text, not the border colour, for the ring:
+       it is the thing to click, not a divider. */
+    QRadioButton::indicator {{
+        width: 14px; height: 14px; border-radius: 8px;
+        border: 1px solid {p.text_muted}; background: {p.surface_alt};
+    }}
+    QRadioButton::indicator:hover {{ border-color: {p.accent}; }}
+    QRadioButton::indicator:checked {{
+        background: {p.accent}; border: 4px solid {p.surface_alt};
+        outline: none;
+    }}
     QToolTip {{
         background: {p.surface_alt}; color: {p.text};
         border: 1px solid {p.border}; padding: 5px;

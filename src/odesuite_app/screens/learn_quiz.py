@@ -72,13 +72,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import exam, progress, theme
+from .. import exam, progress, richtext
 from .. import lessons as content
 from ..theme import Palette
 from ..widgets.answerpreview import AnswerPreview, question_parser
 from ..widgets.controls import add_heading, control_panel
 from ..widgets.lessonfigure import build_figure
-from ..widgets.mathlabel import MathLabel
+from ..widgets.mathlabel import MathLabel, equation_label
 
 __all__ = ["QuizScreen"]
 
@@ -164,11 +164,11 @@ class QuizScreen(QWidget):
         panel, layout = control_panel(268)
 
         add_heading(layout, "Check-up or exam")
-        blurb = QLabel(
+        blurb = QLabel(richtext.emphasise(
             "A mixed set, in no particular order. Working out *which* method a "
             "question wants is most of what an exam asks, and it is the one "
             "thing lesson-by-lesson practice cannot rehearse."
-        )
+        ))
         blurb.setProperty("role", "muted")
         blurb.setWordWrap(True)
         layout.addWidget(blurb)
@@ -533,24 +533,11 @@ class QuizScreen(QWidget):
                 # LaTeX, because the equation came out of the draw and could
                 # not be authored twice. Without this the question asks about
                 # an equation it never shows.
-                written = QLabel(question.shown)
-                written.setStyleSheet(
-                    theme.scaled("font-family: Cascadia Mono, Consolas, "
-                                 "monospace; font-size: 15px;")
-                )
-                written.setWordWrap(True)
-                inner.addWidget(written)
+                inner.addWidget(equation_label(self.palette_obj, question.shown,
+                                               point_size=15))
         else:
-            shown = question.equation + (
-                f",   {question.conditions}" if question.conditions else ""
-            )
-            equation = QLabel(shown)
-            equation.setStyleSheet(
-                theme.scaled("font-family: Cascadia Mono, Consolas, monospace; "
-                             "font-size: 15px;")
-            )
-            equation.setWordWrap(True)
-            inner.addWidget(equation)
+            inner.addWidget(equation_label(self.palette_obj, question.equation,
+                                           question.conditions, point_size=15))
 
         self.answer = None
         self.group = None

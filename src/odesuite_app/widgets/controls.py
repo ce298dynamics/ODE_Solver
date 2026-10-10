@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -31,6 +32,7 @@ from PySide6.QtWidgets import (
 
 from .. import catalog, theme
 from ..catalog import CatalogEntry
+from .soon import run_soon
 
 
 def control_panel(width: int) -> tuple[QFrame, QVBoxLayout]:
@@ -64,7 +66,34 @@ def control_panel(width: int) -> tuple[QFrame, QVBoxLayout]:
     holder = QVBoxLayout(panel)
     holder.setContentsMargins(0, 0, 0, 0)
     holder.addWidget(scroll)
+    # Once the caller has filled it, which is after this returns.
+    run_soon(inner, lambda: fit_pickers(inner))
     return panel, layout
+
+
+def fit_pickers(container: QWidget) -> None:
+    """Let every drop-down in `container` shrink to the panel it sits in.
+
+    A `QComboBox` asks by default to be as wide as its longest entry, and in a
+    fixed-width panel that does not scroll sideways, one long entry made the
+    whole column wider than the panel, cutting every line of it off at the
+    right edge. Measured across the screens: the quiz by over 100 px (an exam
+    paper with its chapter range), Print & Revise by 24 px, and the Solver Lab,
+    Method Race and Accuracy Lab by 2-10 px, each from its problem picker. So
+    a picker takes the width it is given, elides what does not fit, and still
+    lists its entries in full when opened.
+    """
+    for combo in container.findChildren(QComboBox):
+        combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        combo.setMinimumContentsLength(10)
+        view = combo.view()
+        view.setMinimumWidth(max(view.minimumWidth(),
+                                 view.sizeHintForColumn(0) + 24))
+        # `QComboBox` caches its size hints and does not drop them when the
+        # policy changes; a style change is what clears them. Without this the
+        # new policy took effect only after the next theme switch.
+        QApplication.sendEvent(combo, QEvent(QEvent.StyleChange))
+        combo.updateGeometry()
 
 
 def add_heading(layout: QVBoxLayout, text: str, *, space_above: int = 0) -> QLabel:
