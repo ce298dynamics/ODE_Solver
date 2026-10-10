@@ -34,7 +34,14 @@ def screen(qapp):
 
 
 def _settle(qapp, timeout: int = 120_000) -> None:
-    """Let the background analysis land."""
+    """Let the background analysis land.
+
+    Events first: the screen starts its analysis from the event loop, once it
+    can tell whether it is in front, so before that there is nothing to wait
+    for.
+    """
+    for _ in range(5):
+        qapp.processEvents()
     QThreadPool.globalInstance().waitForDone(timeout)
     for _ in range(20):
         qapp.processEvents()

@@ -43,6 +43,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A lesson opened from a cold start showed raw LaTeX for five to fifteen
+  seconds.** The app builds every screen at launch, and every one started its
+  background work at once on the pool the open lesson typesets on: 51
+  equations for pages nobody could see, and about fifteen seconds of Phase
+  Portrait analysis for a screen nobody had opened. A render takes 8 ms
+  alone and averaged over a second in that crowd, and until it landed an
+  equation given as LaTeX showed its own source (`\frac{dy}{dt} = ...`). Now
+  an equation on a hidden page, and the portrait's analysis, wait until their
+  screen is shown; mathtext is warmed off-thread at launch; and an equation
+  waiting to be typeset shows nothing rather than its source. Opening a lesson
+  three seconds after launch: all 30 equations typeset at 1.8 s, against 7 s
+  before.
+
 - **The glossary's "used in" ignored the chapters.** It searched only the
   lesson cards, and missed 200 term-lesson pairs; it now reads the
   chapters too, and no longer counts a word used in its everyday sense.

@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import weakref
 
-from PySide6.QtCore import QEvent, QObject, QRunnable, Qt, QThreadPool, Signal
+from PySide6.QtCore import QEvent, QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
@@ -176,6 +176,7 @@ class MathLabel(QWidget):
         self._latex = ""
         self._plain = ""
         self._token = 0
+        self._pending = False
         #: The text scale the current bitmap was rendered at. Compared against
         #: on a font change, so a re-render happens exactly when it is needed.
         self._scale = theme.text_scale()
@@ -307,9 +308,10 @@ class MathLabel(QWidget):
         self._token += 1
         self._wanted.token = self._token
         self._scale = theme.text_scale()
-        self._show_text()                       # stands in until the image lands
+        self._pending = False
 
         if not mathrender.is_renderable(self._latex):
+            self._show_text()
             return
 
         ratio = self._ratio()
@@ -321,14 +323,69 @@ class MathLabel(QWidget):
             self._show_pixmap(image)            # cache hit: no flicker, no job
             return
 
+        self._show_waiting()
+        # Decided on the next pass of the event loop, not here: a label is
+        # usually given its expression in its constructor, before anything has
+        # put it on a page, and only once it is placed can it tell whether
+        # that page is hidden.
+        self._pending = True
+        QTimer.singleShot(0, self, self._start_if_wanted)
+
+    def _start_if_wanted(self) -> None:
+        if not self._pending:
+            return
+        if self._offstage():
+            # On a screen or tab that is not in front. Typesetting it now is
+            # work for an equation nobody can see, and it is not free: the app
+            # builds every screen at launch, and those renders shared the pool
+            # with the open lesson's -- 51 jobs at once, each 8 ms alone and
+            # over a second in that crowd, so the lesson in front showed raw
+            # LaTeX for five to fifteen seconds. `showEvent` catches up.
+            return
+        self._pending = False
         QThreadPool.globalInstance().start(
             _RenderJob(self._token, self._latex, self.colour,
-                       size, ratio, self._signals, self._wanted)
+                       self.rendered_point_size(), self._ratio(),
+                       self._signals, self._wanted)
         )
 
+    def _offstage(self) -> bool:
+        """Whether this label sits on a hidden page of its window.
+
+        Not merely "not shown": a label nobody has put in a window, or one on
+        the front page of a window not shown yet, typesets as it always did.
+        Only a label its own window is hiding waits.
+        """
+        window = self.window()
+        return window is not self and not self.isVisibleTo(window)
+
+    def showEvent(self, event) -> None:         # noqa: N802
+        super().showEvent(event)
+        if self._pending:
+            self._refresh()
+
+    def _show_waiting(self) -> None:
+        """What stands in while the image is typeset.
+
+        The plain form where it reads as mathematics -- ``exp(-t)`` from a sympy
+        expression -- and nothing where it would not. An equation given as
+        LaTeX has only its source for a plain form, and showing the source of a
+        fraction, backslashes and braces, for the moment before the image lands
+        looked like a broken page, which is what a first-time reader took it
+        for.
+        """
+        if self._plain == self._latex:
+            self._label.setPixmap(_null_pixmap())
+            self._label.setText("")
+            return
+        self._show_text()
+
     def _on_rendered(self, token: int, data: bytes) -> None:
-        if token != self._token or not data:
-            return                              # superseded, or unrenderable
+        if token != self._token:
+            return                              # superseded
+        if not data:
+            self._show_text()                   # could not be typeset after all
+            return
         image = mathrender.to_pixmap(data, self._ratio())
         if image is not None:
             self._show_pixmap(image)

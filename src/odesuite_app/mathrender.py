@@ -292,6 +292,18 @@ def pixmap(latex: str, colour: str, point_size: float = DEFAULT_POINT_SIZE,
     return to_pixmap(data, ratio)
 
 
+def warm_up() -> None:
+    """Typeset one throwaway symbol, so the first real equation is not the one
+    that pays for loading matplotlib's mathtext and its fonts.
+
+    Called off the GUI thread at launch, while the reader is still looking at
+    the first screen. Measured opening a lesson three seconds after launch,
+    two runs each: the last of its 30 equations landed at 2.2-2.4 s without
+    this and 1.8 s with it. A render costs 8 ms once warm.
+    """
+    latex_to_png("x", "#000000", DEFAULT_POINT_SIZE, _BASE_DPI)
+
+
 def render_bytes(latex: str, colour: str, point_size: float,
                  device_pixel_ratio: float = 1.0) -> bytes:
     """PNG bytes at the resolution `pixmap` would use. Safe off the GUI thread.

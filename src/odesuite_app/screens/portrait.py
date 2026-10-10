@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -143,6 +143,9 @@ class PortraitScreen(QWidget):
         self._cycle: analysis.LimitCycle | None = None
         self._cycle_pending = False
         self._cycle_items: list = []
+        #: An analysis asked for but not started: None when there is none,
+        #: otherwise whether it must also reset the window.
+        self._queued_reset: bool | None = None
         self._signals = _Signals()
         self._signals.done.connect(self._on_analysis)
         self._signals.diagram.connect(self._on_diagram)
@@ -419,6 +422,33 @@ class PortraitScreen(QWidget):
         return analysis.default_window(problem.problem, solution)
 
     def _recompute(self, reset_window: bool = False) -> None:
+        """Ask for a fresh analysis, started once this screen is in front.
+
+        The application builds every screen at launch, and this one's analysis
+        is seconds of Python -- streamlines, separatrices, a limit-cycle search
+        -- which ran for a screen nobody had opened, alongside the screen they
+        had. On a cold start it held the lesson in front at raw LaTeX for
+        several seconds. So the work waits for the screen to be shown. Requests
+        made meanwhile collapse into one, keeping a window reset if any asked.
+        """
+        self._queued_reset = bool(self._queued_reset) or reset_window
+        QTimer.singleShot(0, self, self.catch_up)
+
+    def catch_up(self) -> None:
+        """Start the queued analysis, unless the screen is still hidden."""
+        if self._queued_reset is None:
+            return
+        window = self.window()
+        if window is not self and not self.isVisibleTo(window):
+            return                          # `showEvent` or `go` comes back here
+        reset_window, self._queued_reset = self._queued_reset, None
+        self._start_analysis(reset_window)
+
+    def showEvent(self, event) -> None:     # noqa: N802
+        super().showEvent(event)
+        self.catch_up()
+
+    def _start_analysis(self, reset_window: bool) -> None:
         entry = self.entry
         bench = entry.build(self._params)
         xlim, ylim = self._window(reset_window)

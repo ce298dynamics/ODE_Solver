@@ -242,6 +242,11 @@ class MainWindow(QWidget):
 
         self._screens: dict[str, QWidget] = {}
         self._build_screens()
+        from PySide6.QtCore import QThreadPool
+
+        from . import mathrender
+
+        QThreadPool.globalInstance().start(mathrender.warm_up)
 
         for key, _, shortcut in SCREENS:
             self.sidebar.buttons[key].clicked.connect(
@@ -448,6 +453,11 @@ class MainWindow(QWidget):
         if hasattr(screen, "refresh_problems"):
             screen.refresh_problems()
         self.stack.setCurrentWidget(screen)
+        # A screen that holds its work while hidden starts it here as well as
+        # in its `showEvent`: a window that is never shown -- the tests, the
+        # screenshot scripts -- never sends one.
+        if hasattr(screen, "catch_up"):
+            screen.catch_up()
         button = self.sidebar.buttons.get(key)
         if button is not None:
             button.setChecked(True)
