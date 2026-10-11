@@ -40,13 +40,13 @@ SECTIONS = [
         [
             ("course", "Course Map", "Ctrl+1"),
             ("lessons", "Lessons", "Ctrl+2"),
-            ("steps", "Solve Step by Step", "Ctrl+3"),
-            ("laplace", "Laplace Transforms", "Ctrl+4"),
-            ("byhand", "Methods by Hand", "Ctrl+5"),
-            ("worked", "Worked Problems", "Ctrl+6"),
-            ("quiz", "Quiz & Exams", "Ctrl+7"),
-            ("print", "Print & Revise", "Ctrl+8"),
-            ("glossary", "Glossary", "Ctrl+9"),
+            ("quiz", "Quiz & Exams", "Ctrl+3"),
+            ("glossary", "Glossary", "Ctrl+4"),
+            ("steps", "Solve Step by Step", "Ctrl+5"),
+            ("laplace", "Laplace Transforms", "Ctrl+6"),
+            ("byhand", "Methods by Hand", "Ctrl+7"),
+            ("worked", "Worked Problems", "Ctrl+8"),
+            ("print", "Print & Revise", "Ctrl+9"),
         ],
     ),
     (
@@ -61,6 +61,15 @@ SECTIONS = [
         ],
     ),
 ]
+
+#: Headings the sidebar draws above a screen, splitting a section into parts.
+#:
+#: The Learning Hub has nine screens, and listed as equals they were nine
+#: competing ways in. Four of them are the course: the map, the lessons, the
+#: check-ups and the glossary they lean on. The other five are tools a lesson
+#: opens when it needs one. Saying so is what makes the course the obvious
+#: path through the app rather than one option among nine.
+SUBHEADINGS = {"course": "Study", "steps": "Tools"}
 
 #: Shortcuts number each section from 1 and the modifier picks the section:
 #: `Ctrl+N` for the Learning Hub, `Ctrl+Shift+N` for Solver Studio. Ten screens
@@ -148,13 +157,23 @@ class Sidebar(QFrame):
 
         # One page of screen buttons per section, only one of which is visible.
         self.section_pages: dict[str, QWidget] = {}
+        self.subheadings: dict[str, QLabel] = {}
         for section, _, group in SECTIONS:
             page = QWidget()
             page_layout = QVBoxLayout(page)
             page_layout.setContentsMargins(0, 0, 0, 0)
             page_layout.setSpacing(3)
             for key, label, shortcut in group:
-                button = QPushButton(label)
+                if key in SUBHEADINGS:
+                    heading = QLabel(SUBHEADINGS[key].upper())
+                    heading.setProperty("role", "muted")
+                    heading.setStyleSheet(theme.scaled(
+                        "font-size: 10.5px; font-weight: 600; letter-spacing: 1px;"
+                        f"padding: {'8' if page_layout.count() else '2'}px 8px 2px 8px;"
+                    ))
+                    page_layout.addWidget(heading)
+                    self.subheadings[key] = heading
+                button = QPushButton(label.replace("&", "&&"))
                 button.setProperty("role", "nav")
                 button.setCheckable(True)
                 button.setCursor(Qt.PointingHandCursor)
@@ -223,6 +242,11 @@ class MainWindow(QWidget):
 
         self._screens: dict[str, QWidget] = {}
         self._build_screens()
+        from PySide6.QtCore import QThreadPool
+
+        from . import mathrender
+
+        QThreadPool.globalInstance().start(mathrender.warm_up)
 
         for key, _, shortcut in SCREENS:
             self.sidebar.buttons[key].clicked.connect(
@@ -429,6 +453,11 @@ class MainWindow(QWidget):
         if hasattr(screen, "refresh_problems"):
             screen.refresh_problems()
         self.stack.setCurrentWidget(screen)
+        # A screen that holds its work while hidden starts it here as well as
+        # in its `showEvent`: a window that is never shown -- the tests, the
+        # screenshot scripts -- never sends one.
+        if hasattr(screen, "catch_up"):
+            screen.catch_up()
         button = self.sidebar.buttons.get(key)
         if button is not None:
             button.setChecked(True)

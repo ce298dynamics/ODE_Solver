@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 
 from ..symbolic import ParsedEquation, check_answer
 from ..theme import Palette
+from ..widgets.answerpreview import AnswerPreview
 from ..widgets.controls import add_heading, control_panel
 from ..widgets.equationeditor import EquationEditor
 from ..widgets.stepspanel import StepsPanel
@@ -137,6 +138,8 @@ class StepsScreen(QWidget):
         self.check_button.setCursor(Qt.PointingHandCursor)
         row.addWidget(self.check_button)
         layout.addLayout(row)
+        layout.addWidget(AnswerPreview(self.palette_obj, self.answer,
+                                       lambda: self._parsed))
 
         self.verdict = QLabel("")
         self.verdict.setWordWrap(True)

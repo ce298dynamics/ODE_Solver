@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-__all__ = ["main"]
+__all__ = ["main", "opening_screen"]
 
 #: Modules that only the `[app]` extra provides.
 _APP_EXTRA_MODULES = ("PySide6", "shiboken6", "pyqtgraph")
@@ -43,10 +43,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--screen", default=None,
-        help="open on a specific screen. Learning Hub: course, lessons, steps, "
-             "laplace, byhand, worked, quiz, print, glossary. Solver Studio: "
-             "lab, portrait, "
-             "stiffness, race, accuracy. Or home.",
+        help="open on a specific screen. Learning Hub: course, lessons, quiz, "
+             "glossary, steps, laplace, byhand, worked, print. Solver Studio: "
+             "lab, portrait, stiffness, race, accuracy. Or home.",
     )
     parser.add_argument(
         "--rebuild-thumbnails", action="store_true",
@@ -72,6 +71,18 @@ def build_parser() -> argparse.ArgumentParser:
              "windowed executable has no console to print to.",
     )
     return parser
+
+
+def opening_screen(window) -> str:
+    """Where a launch with no --screen, --problem or --session opens.
+
+    Where it was last closed, with what was open, if that is known. Otherwise
+    this is a first launch, and a student's first screen is the Course Map:
+    what the course is, how far through it they are, and a Continue button.
+    Home, the old default, is a page of links to fourteen screens, and asks a
+    newcomer to choose before they know what any of them is.
+    """
+    return window.restore_session() or window.remembered_screen() or "course"
 
 
 def selftest(report_path: str | None = None) -> int:
@@ -238,10 +249,7 @@ def main(argv: list[str] | None = None) -> int:
         # Reopen where it was last closed, and with what was open. An explicit
         # --screen, --problem or --session wins, because someone who named one
         # means it.
-        restored = window.restore_session()
-        remembered = restored or window.remembered_screen()
-        if remembered:
-            window.go(remembered)
+        window.go(opening_screen(window))
     window.show()
     return app.exec()
 

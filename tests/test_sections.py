@@ -226,3 +226,65 @@ def test_the_cli_advertises_every_screen_it_accepts():
     help_text = build_parser().format_help()
     for key, _, _ in SCREENS:
         assert key in help_text, f"--screen help does not mention {key!r}"
+
+
+def test_the_learning_hub_puts_the_course_before_the_tools(window):
+    """Four screens are the course and five are tools a lesson opens; the
+    sidebar says which is which, with the course first."""
+    from odesuite_app.app import SUBHEADINGS
+
+    learn = [key for key, _, _ in SECTIONS[0][2]]
+    assert learn[:4] == ["course", "lessons", "quiz", "glossary"]
+    assert SUBHEADINGS == {"course": "Study", "steps": "Tools"}
+    assert window.sidebar.subheadings["course"].text() == "STUDY"
+    assert window.sidebar.subheadings["steps"].text() == "TOOLS"
+
+
+def test_an_ampersand_in_a_screen_name_is_shown_not_eaten(window):
+    """Qt reads a lone `&` in a button as a mnemonic marker and hides it, so
+    "Quiz & Exams" rendered as "Quiz  Exams"."""
+    assert window.sidebar.buttons["quiz"].text() == "Quiz && Exams"
+    assert window.sidebar.buttons["print"].text() == "Print && Revise"
+
+
+@pytest.mark.parametrize("restored, remembered, expected", [
+    ("", "", "course"),          # a first launch opens on the course
+    ("", "portrait", "portrait"),
+    ("lab", "portrait", "lab"),  # a saved session is the more specific memory
+])
+def test_a_launch_opens_where_it_should(restored, remembered, expected):
+    from types import SimpleNamespace
+
+    from odesuite_app.cli import opening_screen
+
+    window = SimpleNamespace(restore_session=lambda: restored,
+                             remembered_screen=lambda: remembered)
+    assert opening_screen(window) == expected
+
+
+def test_a_lesson_leads_on_to_the_next_one(window, qapp):
+    from odesuite_app import lessons as content
+
+    screen = window._screens["lessons"]
+    first, second = content.LESSONS[0], content.LESSONS[1]
+    screen.select(first.key)
+    screen.segment_buttons["Drill"].click()
+    qapp.processEvents()
+
+    assert screen.next_button.isVisibleTo(screen)
+    assert screen.next_button.toolTip() == f"Next: {second.title}"
+    screen.next_button.click()
+    qapp.processEvents()
+
+    assert screen.current_lesson().key == second.key
+    assert screen.segment_buttons["Learn"].isChecked()   # a new lesson starts at its notes
+
+
+def test_the_last_lesson_has_nowhere_to_lead(window, qapp):
+    from odesuite_app import lessons as content
+
+    screen = window._screens["lessons"]
+    screen.select(content.LESSONS[-1].key)
+    qapp.processEvents()
+    assert screen.next_lesson() is None
+    assert not screen.next_button.isVisibleTo(screen)

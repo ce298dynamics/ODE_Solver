@@ -50,6 +50,7 @@ __all__ = [
     "SymbolicSolution",
     "ParsedEquation",
     "parse_equation",
+    "read_answer",
     "spec_for",
     "parse_initial_conditions",
     "solve_symbolically",
@@ -1082,29 +1083,22 @@ class AnswerCheck:
         return bool(self.correct) and self.matches_conditions is not False
 
 
-def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
-    """Substitute a proposed solution into the equation and report what is left.
+def read_answer(parsed: ParsedEquation, text: str) -> list[tuple[str, sp.Expr]]:
+    """Read a typed solution into ``(unknown, expression)`` pairs, or raise.
 
-    The same test the library already applies to sympy's own answer, pointed at
-    the user's instead. That is the whole implementation: `_verify` decides
-    whether a closed form is right by substituting and simplifying, and there is
-    no reason a hand-written candidate deserves a weaker check.
+    The parsing half of `check_answer`, on its own so that the answer box's
+    live preview reads the text exactly as the grader will. A preview with its
+    own parser would be a second opinion, and the student would be shown one
+    reading and marked on another.
 
-    Two things it deliberately does not do. It does not compare against sympy's
-    answer -- an equation has many equivalent forms and a student who wrote
-    ``C*exp(-t)`` where sympy wrote ``C1*exp(-t)`` is not wrong. And it does not
-    report "wrong" when simplification merely fails; `correct` is None there,
-    because the residual not visibly vanishing is not proof that it does not.
-
-    The text goes through the same hardened parser as everything else --
-    `parse_expr` with an emptied ``__builtins__`` and a whitelist -- because
-    this is a new place a user's string reaches sympy, and `sympify` executes
-    what it is given.
+    One pair for a single equation, written with or without its ``y =``; one
+    per unknown, in the system's order, for a system, where every line must
+    name its unknown. `ParseError` carries a message meant for the student.
     """
     if not text or not text.strip():
-        return AnswerCheck(message="type a solution to check")
+        raise ParseError("type a solution to check")
     if parsed.is_system:
-        return _check_system(parsed, text)
+        return _read_system_answer(parsed, text)
 
     scope = {"t": _T, "C1": sp.Symbol("C1"), "C2": sp.Symbol("C2"),
              "C3": sp.Symbol("C3"), "C": sp.Symbol("C1")}
@@ -1134,10 +1128,68 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
         flags=re.IGNORECASE,
     )
     if not text:
+        raise ParseError("type a solution to check")
+    return [(parsed.function.__name__, _parse_side(text, scope))]
+
+
+def _read_system_answer(parsed: ParsedEquation,
+                        text: str) -> list[tuple[str, sp.Expr]]:
+    names = {function.__name__: function for function in parsed.functions}
+    scope = {"t": _T}
+    for index in range(1, 5):
+        scope[f"C{index}"] = sp.Symbol(f"C{index}")
+    for equation in parsed.equations:
+        for symbol in equation.free_symbols:
+            if symbol.is_Symbol and symbol is not _T:
+                scope.setdefault(symbol.name, symbol)
+
+    candidates: dict[str, sp.Expr] = {}
+    for line in re.split(r"[\n;]+", text.strip()):
+        line = line.strip()
+        if not line:
+            continue
+        match = re.match(r"^\s*([A-Za-z]\w*)\s*(\(\s*t\s*\))?\s*=\s*(.+)$",
+                         line, flags=re.DOTALL)
+        if not match or match.group(1) not in names:
+            raise ParseError(
+                "write one line per unknown, naming each: "
+                + ", ".join(f"{name} = ..." for name in names)
+            )
+        candidates[match.group(1)] = _parse_side(match.group(3), scope)
+
+    missing = set(names) - set(candidates)
+    if missing:
+        raise ParseError(f"no line for {', '.join(sorted(missing))}")
+    return [(function.__name__, candidates[function.__name__])
+            for function in parsed.functions]
+
+
+def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
+    """Substitute a proposed solution into the equation and report what is left.
+
+    The same test the library already applies to sympy's own answer, pointed at
+    the user's instead. That is the whole implementation: `_verify` decides
+    whether a closed form is right by substituting and simplifying, and there is
+    no reason a hand-written candidate deserves a weaker check.
+
+    Two things it deliberately does not do. It does not compare against sympy's
+    answer -- an equation has many equivalent forms and a student who wrote
+    ``C*exp(-t)`` where sympy wrote ``C1*exp(-t)`` is not wrong. And it does not
+    report "wrong" when simplification merely fails; `correct` is None there,
+    because the residual not visibly vanishing is not proof that it does not.
+
+    The text goes through the same hardened parser as everything else --
+    `parse_expr` with an emptied ``__builtins__`` and a whitelist -- because
+    this is a new place a user's string reaches sympy, and `sympify` executes
+    what it is given.
+    """
+    if not text or not text.strip():
         return AnswerCheck(message="type a solution to check")
+    if parsed.is_system:
+        return _check_system(parsed, text)
 
     try:
-        candidate = _parse_side(text, scope)
+        [(_, candidate)] = read_answer(parsed, text)
     except ParseError as exc:
         return AnswerCheck(message=str(exc))
 
@@ -1998,37 +2050,11 @@ def _check_system(parsed: ParsedEquation, text: str) -> AnswerCheck:
     wrote them the other way round, which is the failure this check exists to
     avoid making.
     """
+    try:
+        candidates = dict(read_answer(parsed, text))
+    except ParseError as exc:
+        return AnswerCheck(message=str(exc))
     names = {function.__name__: function for function in parsed.functions}
-    scope = {"t": _T}
-    for index in range(1, 5):
-        scope[f"C{index}"] = sp.Symbol(f"C{index}")
-    for equation in parsed.equations:
-        for symbol in equation.free_symbols:
-            if symbol.is_Symbol and symbol is not _T:
-                scope.setdefault(symbol.name, symbol)
-
-    candidates: dict[str, sp.Expr] = {}
-    for line in re.split(r"[\n;]+", text.strip()):
-        line = line.strip()
-        if not line:
-            continue
-        match = re.match(r"^\s*([A-Za-z]\w*)\s*(\(\s*t\s*\))?\s*=\s*(.+)$",
-                         line, flags=re.DOTALL)
-        if not match or match.group(1) not in names:
-            return AnswerCheck(
-                message=("write one line per unknown, naming each: "
-                         + ", ".join(f"{name} = ..." for name in names))
-            )
-        try:
-            candidates[match.group(1)] = _parse_side(match.group(3), scope)
-        except ParseError as exc:
-            return AnswerCheck(message=str(exc))
-
-    missing = set(names) - set(candidates)
-    if missing:
-        return AnswerCheck(
-            message=f"no line for {', '.join(sorted(missing))}"
-        )
 
     substitutions = {names[name](_T): expression
                      for name, expression in candidates.items()}

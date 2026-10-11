@@ -22,6 +22,14 @@ sol.t_events[0]       # where g(t, y) = 0
 sol.stats             # nfev / njev / nlu / steps / rejections / runtime
 ```
 
+**To study with it**, no Python needed: download the zip for your system from the
+[latest release](https://github.com/ce298dynamics/ODE_Solver/releases/latest), unzip it,
+and run `odesuite-studio` inside the folder. Windows warns once that the app is
+unsigned (*More info → Run anyway*); on macOS, right-click it and choose *Open* the
+first time.
+
+**To develop it:**
+
 ```
 pip install -e ".[app]"     # then:
 odesuite-gui
@@ -933,6 +941,21 @@ fails if `PySide6` appears in `sys.modules` after importing `odesuite`.
 
 `odesuite-gui` without the `[app]` extra says which extra to install rather than raising a
 PySide6 traceback, and `--list-problems` and `--selftest` work without it.
+
+### The standalone studio
+
+```
+py -3.10 -m pip install pyinstaller
+py -3.10 packaging/build.py
+```
+
+builds `dist/odesuite-studio-<version>-<platform>.zip`, about 100 MB, and refuses to
+zip a build that fails its checks. A frozen build breaks where the test suite cannot
+see, because the suite runs from source and PyInstaller leaves out whatever it cannot
+trace statically, so the script runs the frozen app's `--selftest` and then finds a
+closed form through its own `--dsolve-worker` subprocess, the path every symbolic
+answer in the Learning Hub takes. Pushing a `v*` tag runs the same script for Windows
+and macOS in the `release` workflow and attaches both zips to a GitHub Release.
 
 ## Privacy
 
