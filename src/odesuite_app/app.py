@@ -569,16 +569,5 @@ def build_application(palette_name: str = "dark"):
     app.setApplicationName("odesuite")
     app.setOrganizationName("odesuite")
     theme.apply_theme(app, PALETTES[palette_name])
-    # Python's collector runs on whichever thread happens to allocate when a
-    # threshold is crossed, and the portrait, the solvers and the typesetter
-    # all allocate on worker threads. A cycle holding a Qt object collected
-    # there destroys that object off the GUI thread, and Qt aborts: CI caught
-    # exactly that, an abort inside "Garbage-collecting" on a portrait worker.
-    # pyqtgraph's remedy turns automatic collection off and collects on a
-    # timer here, on the GUI thread. Kept on the app so it lives as long.
-    from pyqtgraph.util.garbage_collector import GarbageCollector
-
-    if not hasattr(app, "_odesuite_gc"):
-        app._odesuite_gc = GarbageCollector(interval=1.0)
     window = MainWindow(palette_name)
     return app, window
