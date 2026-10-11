@@ -83,3 +83,48 @@ def _private_diagnostics_log(tmp_path_factory):
         yield
     finally:
         diagnostics.path = original
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _collect_garbage_on_the_main_thread():
+    """Never let Python's collector run on a worker thread.
+
+    Automatic collection runs on whichever thread allocates past a threshold.
+    The screens under test start workers (the portrait's analysis, the
+    typesetter, the solver), and a cycle holding a Qt object collected on one
+    of them destroys it off the GUI thread. On the Linux runners, the runs
+    without this hung near the end of the suite with renders left pending,
+    which fits a render thread stuck in a collection; the runs with it did
+    not hang.
+    The application does the same through pyqtgraph's `GarbageCollector`
+    (see `build_application`); most tests build screens directly, so the
+    suite does it here, collecting between tests where the main thread is the
+    only one doing anything.
+    """
+    import gc
+
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if was_enabled:
+            gc.enable()
+
+
+@pytest.fixture(autouse=True)
+def _collect_between_tests():
+    """The collection automatic GC would have done, done here instead.
+
+    Generation by generation against the usual thresholds, as pyqtgraph's
+    collector does, so a test that made no garbage costs nothing extra.
+    """
+    yield
+    import gc
+
+    counts = gc.get_count()
+    thresholds = gc.get_threshold()
+    for generation in (2, 1, 0):
+        if counts[generation] > thresholds[generation]:
+            gc.collect(generation)
+            break

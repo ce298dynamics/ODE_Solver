@@ -136,18 +136,23 @@ jobs:
       # The library is the product and sits at 96%; the interface is harder to
       # exercise and sits at 90%, and a single combined gate would let the
       # library slide while the total stayed green.
+      #
+      # --timeout: a test that runs ten minutes is stuck, not slow. Without it
+      # a hang showed only as a leg frozen at 98% until the job's own timeout,
+      # with no stack to read; pytest-timeout fails the test and dumps every
+      # thread instead.
       - name: pytest
         if: matrix.os != 'ubuntu-latest' || matrix.python != '3.12'
         env:
           QT_QPA_PLATFORM: offscreen
-        run: pytest tests/ -q -n auto
+        run: pytest tests/ -q -n auto --timeout=600
 
       - name: pytest with coverage
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          pytest tests/ -q -n auto \
+          pytest tests/ -q -n auto --timeout=600 \
             --cov=odesuite --cov=odesuite_app \
             --cov-report=term-missing:skip-covered \
             --cov-report=html:htmlcov \
