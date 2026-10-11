@@ -241,7 +241,12 @@ def test_the_split_factorisation_is_cheaper_than_the_dense_one():
     split_time = _best_of(split)
     dense_time = _best_of(lambda: lu_factorize(big))
 
-    assert dense_time > 2.0 * split_time, (
+    # 1.25x, not 2x. The ~9x above is this project's development machine; on
+    # the GitHub runners (2026-10-11) it measured 1.45x (macOS) and 1.56x
+    # (Ubuntu), where a different BLAS factorises the dense 3n x 3n faster.
+    # Every one of them shows the split path winning, which is the claim. The
+    # old threshold made a fact about one machine's BLAS a failing test.
+    assert dense_time > 1.25 * split_time, (
         f"split {split_time * 1e3:.3f}ms vs dense(3n={3 * n}) "
         f"{dense_time * 1e3:.3f}ms -- expected the split path to win clearly"
     )
