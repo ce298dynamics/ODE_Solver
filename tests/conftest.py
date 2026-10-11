@@ -118,7 +118,27 @@ def _collect_between_tests():
 
     Generation by generation against the usual thresholds, as pyqtgraph's
     collector does, so a test that made no garbage costs nothing extra.
+
+    Between tests is not often enough on its own. A test that opens all
+    seventy lessons makes its garbage in one go: measured on Windows, it
+    peaked at 3.7 GB with collection only between tests and 1.3 GB with it
+    running throughout. Four such workers exhausted a 16 GB Linux runner
+    ("the runner has received a shutdown signal"), and on macOS the sweep
+    afterwards took past the ten-minute test timeout. So once a
+    `QApplication` exists, the application's own timer collects during the
+    test too -- on the GUI thread, inside the `processEvents` calls that
+    these long tests make anyway.
     """
+    import sys
+
+    if "PySide6.QtWidgets" in sys.modules:
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if app is not None and not hasattr(app, "_odesuite_gc"):
+            from pyqtgraph.util.garbage_collector import GarbageCollector
+
+            app._odesuite_gc = GarbageCollector(interval=0.25)
     yield
     import gc
 
