@@ -242,11 +242,10 @@ class MainWindow(QWidget):
 
         self._screens: dict[str, QWidget] = {}
         self._build_screens()
-        from PySide6.QtCore import QThreadPool
-
         from . import mathrender
+        from .widgets.mathlabel import render_pool
 
-        QThreadPool.globalInstance().start(mathrender.warm_up)
+        render_pool().start(mathrender.warm_up)
 
         for key, _, shortcut in SCREENS:
             self.sidebar.buttons[key].clicked.connect(

@@ -330,25 +330,18 @@ def latex_to_png(latex: str, colour: str, point_size: float, dpi: float) -> byte
     return data
 
 
-#: One render at a time. The choices below keep renders from racing over
-#: pyplot and rcParams, but mathtext's own font handling is shared state too:
-#: a Linux CI worker segfaulted with three threads inside it at once, two in
-#: `savefig` and one in `_mathtext._get_font` (Ubuntu, Python 3.13,
-#: 2026-10-11). A warm render takes 8 ms and the GIL serialises most of the
-#: work anyway, so the lock gives up almost nothing concurrency was buying.
-_RENDER_LOCK = threading.Lock()
-
-
 def _render(latex: str, colour: str, point_size: float, dpi: float) -> bytes:
-    """The actual typesetting. Serialised; no Qt, no pyplot, no caching."""
+    """The actual typesetting. No Qt, no pyplot, no caching.
+
+    Not safe to run twice at once: mathtext's font handling is shared state,
+    and a Linux CI worker segfaulted with three renders inside it together.
+    The application's renders all go through `widgets.mathlabel.render_pool`,
+    which runs one at a time. A lock here was tried first and made Linux CI
+    legs hang until their timeout, so the serialising is done by the pool.
+    """
     if not is_renderable(latex):
         return b""
-    with _RENDER_LOCK:
-        return _render_unlocked(latex, colour, point_size, dpi)
 
-
-def _render_unlocked(latex: str, colour: str, point_size: float,
-                     dpi: float) -> bytes:
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
 
