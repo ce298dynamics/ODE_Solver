@@ -784,7 +784,10 @@ def test_the_directory_is_the_platform_convention(monkeypatch):
 
     monkeypatch.setattr(real.sys, "platform", "win32")
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\someone\AppData\Local")
-    assert real.directory().as_posix().endswith("AppData/Local/odesuite")
+    # Backslashes by hand: off Windows, `Path` does not read them as
+    # separators, so `as_posix` left this one whole and the test failed on
+    # every Linux and macOS runner while the code was right.
+    assert str(real.directory()).replace("\\", "/").endswith("AppData/Local/odesuite")
 
     monkeypatch.setattr(real.sys, "platform", "linux")
     monkeypatch.setenv("XDG_CONFIG_HOME", "/home/someone/.config")

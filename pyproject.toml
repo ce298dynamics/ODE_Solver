@@ -67,6 +67,10 @@ docs = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.26",
+    # 12.x changed `Highlight.__init__` to require `md`, which mkdocstrings
+    # 1.0.6 does not pass, so every API page fails to build. Lift this once
+    # mkdocstrings catches up.
+    "pymdown-extensions<12",
 ]
 
 [project.scripts]

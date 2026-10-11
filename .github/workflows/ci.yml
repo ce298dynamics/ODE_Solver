@@ -62,7 +62,7 @@ jobs:
       - name: dependency advisories
         run: |
           pip install pip-audit
-          pip-audit --strict --desc .
+          pip-audit --strict --desc on .
 
   tests:
     name: full suite (${{ matrix.os }}, ${{ matrix.python }})

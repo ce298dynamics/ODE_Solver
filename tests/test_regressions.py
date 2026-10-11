@@ -11,11 +11,21 @@ number and the test that pins it stay connected.
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
 import pytest
 
-from odesuite import ODEProblem, solve
-from odesuite.problems import (
+#: The CI job that installs the library alone has no sympy, and these tests
+#: exercise the app's symbolic half. They failed there at run time rather than
+#: skipping, which hid behind an earlier collection error until it was fixed.
+needs_sympy = pytest.mark.skipif(
+    importlib.util.find_spec("sympy") is None,
+    reason="the app extra is not installed",
+)
+
+from odesuite import ODEProblem, solve  # noqa: E402
+from odesuite.problems import (  # noqa: E402
     hires,
     logistic,
     lotka_volterra,
@@ -657,6 +667,7 @@ def _interval(expr_text, t0=0.0):
         ("t/(t**2+1)", 0.0, (None, None)),
     ],
 )
+@needs_sympy
 def test_the_interval_of_validity_is_found(expression, t0, expected):
     assert _interval(expression, t0) == expected
 
@@ -665,6 +676,7 @@ def test_the_interval_of_validity_is_found(expression, t0, expected):
     "expression,t0",
     [("tan(t)", 0.0), ("log(t)", 1.0), ("sqrt(t)", 1.0), ("1/sin(t)", 1.0)],
 )
+@needs_sympy
 def test_it_declines_rather_than_guessing(expression, t0):
     """`tan(t)` is the case that matters: poles at every odd multiple of pi/2
     and no denominator to show for them. Anything that looked only at the
@@ -672,6 +684,7 @@ def test_it_declines_rather_than_guessing(expression, t0):
     assert _interval(expression, t0) is None
 
 
+@needs_sympy
 def test_it_is_fast_enough_for_the_interface():
     """The whole symbolic route has a twelve-second budget.
     `sympy.singularities`, the general answer, did not return within ten
@@ -684,6 +697,7 @@ def test_it_is_fast_enough_for_the_interface():
     assert time.perf_counter() - started < 2.0
 
 
+@needs_sympy
 def test_the_interval_is_rendered_the_way_it_would_be_written():
     from odesuite_app import symbolic
 
@@ -705,6 +719,7 @@ def test_the_interval_is_rendered_the_way_it_would_be_written():
         ("y' = y**2", "", None),                 # no conditions: no point
     ],
 )
+@needs_sympy
 def test_the_initial_point_is_read_from_the_conditions(
     equation, conditions, expected_point
 ):
@@ -717,6 +732,7 @@ def test_the_initial_point_is_read_from_the_conditions(
     assert symbolic._initial_point(parsed) == expected_point
 
 
+@needs_sympy
 def test_the_symbolic_and_numerical_halves_now_agree_about_this_equation():
     """`y' = y^2, y(0)=1`: the solver stops at t=1 and says so; the symbolic
     answer now carries the same boundary."""
@@ -1087,6 +1103,17 @@ def test_every_docs_link_in_the_readme_survives_being_staged():
 
 
 def _ci_test_matrix():
+    """Every leg the `tests` job can run.
+
+    The matrix is an expression now: one Ubuntu leg on a push, the full set
+    from "Run workflow", because eight legs on every push spent a month's
+    Actions minutes in one run (see the comment in ci.yml). The legs are the
+    JSON arrays inside that expression, so this reads them out. The promise a
+    classifier makes is backed by the on-demand run, not by every push, and the
+    tests below check that run.
+    """
+    import json
+    import re
     from pathlib import Path
 
     yaml = pytest.importorskip("yaml")
@@ -1095,8 +1122,13 @@ def _ci_test_matrix():
         (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     )
     matrix = config["jobs"]["tests"]["strategy"]["matrix"]
-    legs = [(os_, py) for os_ in matrix["os"] for py in matrix["python"]]
-    legs += [(entry["os"], entry["python"]) for entry in matrix.get("include", [])]
+    include = matrix.get("include", [])
+    if isinstance(include, str):
+        include = [entry for array in re.findall(r"'(\[.*?\])'", include)
+                   for entry in json.loads(array)]
+    legs = [(os_, py) for os_ in matrix.get("os", [])
+            for py in matrix.get("python", [])]
+    legs += [(entry["os"], entry["python"]) for entry in include]
     return legs
 
 
@@ -1269,6 +1301,7 @@ def test_r_nought_below_one_means_no_outbreak():
     assert outbreak.y[1].max() > 100 * outbreak.y[1][0], "no outbreak with R0 = 4.5"
 
 
+@needs_sympy
 @pytest.mark.parametrize("key", ["fitzhugh_nagumo", "sir"])
 def test_both_are_reachable_from_the_interface(key):
     """A model in `problems` that never reaches the catalogue is a model a

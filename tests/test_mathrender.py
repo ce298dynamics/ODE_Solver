@@ -15,9 +15,10 @@ from __future__ import annotations
 import time
 
 import pytest
-import sympy as sp
 
-from odesuite_app import mathrender
+sp = pytest.importorskip("sympy", reason="the app extra is not installed")
+
+from odesuite_app import mathrender  # noqa: E402
 
 T = sp.Symbol("t", real=True)
 C1, C2 = sp.symbols("C1 C2")

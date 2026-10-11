@@ -17,18 +17,19 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import sympy as sp
 
-from odesuite import solve
-from odesuite_app import catalog
-from odesuite_app.custom import ParseError
-from odesuite_app.equationmodel import (
+sp = pytest.importorskip("sympy", reason="the app extra is not installed")
+
+from odesuite import solve  # noqa: E402
+from odesuite_app import catalog  # noqa: E402
+from odesuite_app.custom import ParseError  # noqa: E402
+from odesuite_app.equationmodel import (  # noqa: E402
     build_entry,
     default_range,
     entry_from_text,
     parameter_specs,
 )
-from odesuite_app.symbolic import (
+from odesuite_app.symbolic import (  # noqa: E402
     EXAMPLES,
     EquationSpec,
     parse_equation,
