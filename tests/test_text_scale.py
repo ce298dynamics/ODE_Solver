@@ -35,7 +35,19 @@ def qapp():
 
 @pytest.fixture
 def at_scale(qapp):
-    """Set the application font to a chosen multiple of the baseline."""
+    """Set the application font to a chosen multiple of the baseline.
+
+    Also empties the render queue first. These tests wait for one equation,
+    and what an xdist worker ran before them can leave it queued behind
+    hundreds of others: test pages are never deleted while nothing returns to
+    an event loop, so their equations stay wanted. On the Windows 3.10 runner
+    that backlog outlasted the 20 s wait, twice in a row. Safe here because
+    every label in this file is made by the test that waits on it, and pytest
+    has torn down other modules' screens before this one's tests run.
+    """
+    from odesuite_app.widgets.mathlabel import render_pool
+
+    render_pool().clear()
     original = qapp.font()
 
     def set_scale(factor: float):
@@ -201,7 +213,7 @@ def _settle(qapp, label: MathLabel, until=None, timeout: float = 20.0) -> None:
     """
     import time
 
-    from PySide6.QtCore import QThreadPool
+    from odesuite_app.widgets.mathlabel import render_pool
 
     done = until or (lambda: label.is_typeset)
     started = time.perf_counter()
@@ -210,7 +222,7 @@ def _settle(qapp, label: MathLabel, until=None, timeout: float = 20.0) -> None:
         qapp.processEvents()
         if done():
             return
-        QThreadPool.globalInstance().waitForDone(50)
+        render_pool().waitForDone(50)
 
     # Pump once more and then *check*. The previous version pumped and threw
     # the result away, so a render landing on that last pass -- or a budget
@@ -227,7 +239,7 @@ def _settle(qapp, label: MathLabel, until=None, timeout: float = 20.0) -> None:
         return
 
     waited = time.perf_counter() - started
-    pending = not QThreadPool.globalInstance().waitForDone(0)
+    pending = not render_pool().waitForDone(0)
     # The state that decides which of the two it is. An idle pool with an
     # unchanged bitmap means the font change never reached the label, so the
     # application font is the thing to look at -- and this failure has only

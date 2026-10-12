@@ -307,7 +307,13 @@ class LessonsScreen(QWidget):
         self.reset_button.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.reset_button)
 
-        where = QLabel(f"Answers are remembered in\n{progress.path()}")
+        # A path has no spaces, so word wrap cannot break it, and a long user
+        # name pushed the whole panel past its fixed width: 287 px of 274 on a
+        # CI runner whose user is "runneradmin". A zero-width space after each
+        # separator lets it wrap there; the tooltip keeps the path copyable.
+        shown = str(progress.path()).replace("\\", "\\​").replace("/", "/​")
+        where = QLabel(f"Answers are remembered in\n{shown}")
+        where.setToolTip(str(progress.path()))
         where.setProperty("role", "muted")
         where.setWordWrap(True)
         where.setStyleSheet(theme.scaled("font-size: 10px;"))

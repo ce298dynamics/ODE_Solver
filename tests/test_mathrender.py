@@ -15,9 +15,10 @@ from __future__ import annotations
 import time
 
 import pytest
-import sympy as sp
 
-from odesuite_app import mathrender
+sp = pytest.importorskip("sympy", reason="the app extra is not installed")
+
+from odesuite_app import mathrender  # noqa: E402
 
 T = sp.Symbol("t", real=True)
 C1, C2 = sp.symbols("C1 C2")
@@ -337,19 +338,22 @@ def test_mathlabel_retyping_discards_the_stale_render(qapp):
 def test_a_render_nobody_wants_is_skipped(qapp, monkeypatch):
     """Jobs for labels re-typed or destroyed while still queued do not render.
 
-    Every page typesets on the shared pool, and those jobs used to run even
+    Every page typesets on the render pool, and those jobs used to run even
     after their page had gone: thousands of them over a long visit, enough to
     keep a worked example waiting a minute. The pool is held busy here so the
     jobs are still queued when their labels are superseded or deleted, which
     is the case that matters -- a job already running cannot be recalled.
+    It is `render_pool`, not the global pool, since renders moved to their own
+    one-thread pool; holding the global one left this pool free, and the jobs
+    ran before their labels went.
     """
     import threading
 
-    from PySide6.QtCore import QRunnable, QThreadPool
+    from PySide6.QtCore import QRunnable
 
     from odesuite_app import mathrender
     from odesuite_app.theme import DARK
-    from odesuite_app.widgets.mathlabel import MathLabel
+    from odesuite_app.widgets.mathlabel import MathLabel, render_pool
 
     rendered: list[str] = []
     real = mathrender.render_bytes
@@ -368,7 +372,7 @@ def test_a_render_nobody_wants_is_skipped(qapp, monkeypatch):
         def run(self):
             self.gate.wait(30)
 
-    pool = QThreadPool.globalInstance()
+    pool = render_pool()
     gate = threading.Event()
     for _ in range(pool.maxThreadCount()):
         pool.start(_Hold(gate), 5)              # every thread busy, first

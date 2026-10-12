@@ -36,7 +36,13 @@ classifiers = [
 # hint strings -- internal identifiers with no stability promise -- so a sympy
 # major release could change which technique a student is shown a derivation
 # for, and no test of an API signature would notice. PySide6 is capped for the
-# ordinary reason that Qt majors break widgets.
+# ordinary reason that Qt majors break widgets, and below 6.12 for an
+# unordinary one: 6.12.0 crashed test workers on Linux, about ten per run
+# ("deallocating None: refcount error in a C extension"). Measured on CI on
+# 2026-10-11: the code from before this cap's commit crashed the same way
+# under 6.12.0, and the current code under 6.11.2 passed 5,001 tests with no
+# such crash. Windows under 6.12.0 did not crash. Lift it once a 6.12.x
+# release runs the suite clean on Linux.
 #
 # numpy and scipy are left open deliberately: the library uses their stable
 # surface, numpy 2 was adopted without incident, and pinning them would make
@@ -45,15 +51,16 @@ dependencies = ["numpy>=1.24", "scipy>=1.10"]
 
 [project.optional-dependencies]
 plots = ["matplotlib>=3.7"]
-app = ["PySide6>=6.6,<7", "pyqtgraph>=0.13", "matplotlib>=3.7", "sympy>=1.12,<2"]
+app = ["PySide6>=6.6,<6.12", "pyqtgraph>=0.13", "matplotlib>=3.7", "sympy>=1.12,<2"]
 dev = [
     "pytest>=7.0",
     "pytest-xdist>=3.0",
     "pytest-cov>=4.0",
+    "pytest-timeout>=2.3",
     # For the test that checks the CI matrix backs the package classifiers.
     "pyyaml>=6.0",
     "matplotlib>=3.7",
-    "PySide6>=6.6,<7",
+    "PySide6>=6.6,<6.12",
     "pyqtgraph>=0.13",
     "sympy>=1.12,<2",
     "ruff>=0.6",
@@ -67,6 +74,10 @@ docs = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.26",
+    # 12.x changed `Highlight.__init__` to require `md`, which mkdocstrings
+    # 1.0.6 does not pass, so every API page fails to build. Lift this once
+    # mkdocstrings catches up.
+    "pymdown-extensions<12",
 ]
 
 [project.scripts]
