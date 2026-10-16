@@ -1051,6 +1051,52 @@ def test_a_right_answer_is_recorded_and_counted(screen, qapp, store):
     assert "(1/" in _row_text(screen, lesson.key), "the count did not follow"
 
 
+def test_an_answer_typed_on_paper_is_read(screen, qapp, store):
+    """`e^(t^2)` is what a student types, and it is right."""
+    from PySide6.QtWidgets import QLineEdit
+
+    lesson = _open(screen, qapp, "separable")
+    question = next(q for q in lesson.questions if isinstance(q, Solve))
+    box = _find(screen, QLineEdit)[0]
+    box.setText("y = e^(t^2)")
+    screen._check_solve(lesson, question, box, screen._verdicts[question.key])
+    assert "✓" in screen._verdicts[question.key].text()
+
+
+def test_an_unreadable_answer_is_not_recorded(screen, qapp, store):
+    """A bracket left open is a typo, not an attempt: nothing is recorded."""
+    from PySide6.QtWidgets import QLineEdit
+
+    lesson = _open(screen, qapp, "separable")
+    question = next(q for q in lesson.questions if isinstance(q, Solve))
+    box = _find(screen, QLineEdit)[0]
+    box.setText("exp(t**2")
+    screen._check_solve(lesson, question, box, screen._verdicts[question.key])
+    text = screen._verdicts[question.key].text()
+    assert "bracket" in text and "✗" not in text
+    assert question.key not in store.load().get(lesson.key, {})
+
+
+def test_one_solution_is_not_the_general_solution_on_the_page(screen, qapp,
+                                                              store):
+    """y = 0 solves every homogeneous equation, and is not what "solve it"
+    asks for when there are no conditions to pick one solution out."""
+    from PySide6.QtWidgets import QLineEdit
+
+    found = next(((lesson, q) for lesson in LESSONS for q in lesson.questions
+                  if isinstance(q, Solve) and not q.conditions
+                  and lesson.narrator == "steps"
+                  and q.equation.replace(" ", "").endswith("=0")), None)
+    assert found, "this test needs a homogeneous question with no conditions"
+    lesson, question = found
+    _open(screen, qapp, lesson.key)
+    box = screen._workspace.page(question.key).findChildren(QLineEdit)[0]
+    box.setText("0")
+    screen._check_solve(lesson, question, box, screen._verdicts[question.key])
+    text = screen._verdicts[question.key].text()
+    assert "✗" in text and "general solution" in text
+    assert not store.load()[lesson.key][question.key].correct
+
 
 def test_an_equivalent_form_is_accepted(screen, qapp, store):
     """There is no stored answer to match against, so any correct spelling

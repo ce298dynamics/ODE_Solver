@@ -136,3 +136,11 @@ def test_every_typed_solution_box_in_the_app_has_a_preview(qapp):
     finally:
         window.deleteLater()
         qapp.processEvents()
+
+
+def test_a_bare_exponent_is_pointed_out(qapp):
+    """`e^2t` is e squared times t. Shown as read, with the fix beside it."""
+    preview, _ = _preview(qapp, "y' = 2*y", "y = C e^2t")
+    assert "e^(2t)" in preview.note.text()
+    clean, _ = _preview(qapp, "y' = 2*y", "y = C e^(2t)")
+    assert clean.note.text() == "Read as:"

@@ -447,3 +447,164 @@ def test_the_step_is_allowed_in_the_answer_to_an_impulsive_equation():
     )
     result = check_answer(parsed, "Heaviside(t - 1)*exp(-3*(t - 1))")
     assert result.correct is True, result.message
+
+
+# ---------------------------------------------------------------------------
+# Typed the way students type
+# ---------------------------------------------------------------------------
+#
+# Found by a student session (2026-10-12): a correct `e^(t^2)` was marked
+# wrong, `2t` and `Ce^(2t)` were syntax errors, and `y = 0` was ticked as the
+# general solution of a second-order equation. A grader that marks a right
+# answer wrong on the first question is a grader nobody trusts again.
+
+
+@pytest.mark.parametrize(
+    "equation,conditions,answer",
+    [
+        ("y' = 2*t*y", "y(0) = 1", "e^(t^2)"),
+        ("y' = 2*t*y", "y(0) = 1", "y = e^(t^2)"),
+        ("y' = 2*y", "", "Ce^(2t)"),
+        ("y' = 2*y", "", "C e^(2t)"),
+        ("y' = 2*y", "", "c1 e^(2t)"),
+        ("y' = -y", "", "c1 e^-t"),
+        ("y' = 2", "", "2t + C"),
+        ("y'' + y = 0", "", "C1 cos(t) + C2 sin(t)"),
+        ("y'' + y = 0", "", "C1cos(t) + C2sin(t)"),
+        ("y'' + y = 0", "", "c1cos(t)+c2sin(t)"),
+        ("y'' + 2*y' + y = 0", "", "C1e^(-t) + C2te^(-t)"),
+        ("y'' + 2*y' + y = 0", "", "(C1 + C2 t) e^(-t)"),
+        ("y' = y", "y(0) = 3", "3e^t"),
+        ("y' = y", "y(0) = 2", "2 exp(t)"),
+        ("y' = 1/t", "y(1) = 0", "ln(t)"),
+        ("y'' - y = 0", "", "C1 e^t + C2 e^(-t)"),
+    ],
+)
+def test_an_answer_typed_like_a_student_is_read(equation, conditions, answer):
+    result = check_answer(_parsed(equation, conditions), answer,
+                          general=not conditions)
+    assert result.ok, f"{answer!r}: {result.message} {result.diagnosis}"
+
+
+def test_e_is_a_parameter_where_the_equation_says_so():
+    """An equation with its own `e` keeps it: the student means that one."""
+    parsed = parse_equation(EquationSpec(equations=["y' = e*y"],
+                                         parameters={"e": 2.0}))
+    assert "e" in {s.name for s in parsed.equation.free_symbols}
+    assert check_answer(parsed, "C*exp(e*t)").correct is True
+    assert check_answer(parsed, "C*exp(t)").correct is False
+
+
+@pytest.mark.parametrize(
+    "answer,says",
+    [
+        ("sin t", "sin(t)"),
+        ("cos(2t", "bracket"),
+        ("C1*cos(2t) +", "ends"),
+        ("y = C1 = cos(2t)", "="),
+        ("foo(t)", "foo"),
+        ("C1*cos(2t) + y", "y"),
+    ],
+)
+def test_an_unreadable_answer_says_what_to_fix(answer, says):
+    result = check_answer(_parsed("y'' + 4*y = 0"), answer)
+    assert result.correct is None, f"{answer!r} is a typo, not a wrong answer"
+    assert "cannot parse" in result.message or "cannot read" in result.message
+    assert says in result.message, result.message
+
+
+def test_a_scientific_literal_is_still_a_number():
+    from types import SimpleNamespace
+
+    from odesuite_app.symbolic import grade_numeric
+
+    question = SimpleNamespace(answer=-49.0, tolerance=1e-3, mistakes=())
+    assert grade_numeric(question, "-4.9e1")[0] is True
+    question = SimpleNamespace(answer=7.38905609893065, tolerance=1e-3,
+                               mistakes=())
+    assert grade_numeric(question, "e^2")[0] is True
+    assert grade_numeric(question, "exp(2)")[0] is True
+
+
+# ---------------------------------------------------------------------------
+# A general solution is the whole family
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "equation,answer",
+    [
+        ("y'' + 4*y = 0", "0"),
+        ("y'' + 4*y = 0", "cos(2*t)"),
+        ("y'' + 4*y = 0", "C1*cos(2*t)"),
+        ("y'' + 2*y' + y = 0", "C1*exp(-t) + C2*exp(-t)"),
+        ("y' + 2*y = 0", "0"),
+    ],
+)
+def test_one_solution_is_not_the_general_solution(equation, answer):
+    result = check_answer(_parsed(equation), answer, general=True)
+    assert result.correct is True, "it does solve the equation"
+    assert result.general is False
+    assert not result.ok
+    assert result.diagnosis
+
+
+def test_a_repeated_root_is_told_about_t_times():
+    result = check_answer(_parsed("y'' + 2*y' + y = 0"),
+                          "C1*exp(-t) + C2*exp(-t)", general=True)
+    assert "t" in result.diagnosis and "one constant" in result.diagnosis
+
+
+def test_the_general_flag_is_only_asked_for():
+    """Without `general`, a particular solution is still just correct."""
+    result = check_answer(_parsed("y'' + 4*y = 0"), "cos(2*t)")
+    assert result.general is None and result.ok
+
+
+def test_the_whole_family_passes_as_general():
+    result = check_answer(_parsed("y'' + 4*y = 0"),
+                          "C1*cos(2*t) + C2*sin(2*t)", general=True)
+    assert result.general is True and result.ok
+
+
+def _no_condition_solves():
+    from odesuite_app.lessons import LESSONS, Solve, generate
+
+    found = []
+    for lesson in LESSONS:
+        for question in lesson.questions:
+            if isinstance(question, Solve) and not question.conditions:
+                found.append((f"{lesson.key}-{question.key}", lesson.narrator,
+                              question))
+        for template in lesson.templates:
+            if template.kind != "template":
+                continue
+            question = generate.draw(template, 0)
+            if not question.conditions:
+                found.append((f"{lesson.key}-{template.key}",
+                              template.narrator, question))
+    return found
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("key,narrator,question", _no_condition_solves(),
+                         ids=[k for k, _, _ in _no_condition_solves()])
+def test_the_narrators_own_general_solution_passes(key, narrator, question):
+    """The new rule must not reject an answer the app itself gives."""
+    from odesuite_app.laplace import EXTRA_FUNCTIONS
+    from odesuite_app.symbolic import spec_for
+
+    from .narrators import narrate
+
+    parsed = parse_equation(spec_for(question.equation, question.conditions),
+                            extra_functions=EXTRA_FUNCTIONS)
+    if parsed.is_system:
+        pytest.skip("a system is not held to the family rule")
+    derivation = narrate(narrator, parsed)
+    if derivation is None or derivation.result is None:
+        pytest.skip("no narration to compare against")
+    result = derivation.result
+    text = sympy.sstr(getattr(result, "rhs", result))
+    verdict = check_answer(parsed, text, general=True)
+    assert verdict.correct is not False, f"{key}: {verdict.message}"
+    assert verdict.general is not False, f"{key}: {verdict.diagnosis}"

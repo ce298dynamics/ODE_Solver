@@ -721,13 +721,15 @@ class QuizScreen(QWidget):
             self.verdict.setText(f"this question could not be set up: {exc}")
             return
 
-        result = check_answer(parsed, self.answer.text())
-        right = (result.correct is True
-                 and result.matches_conditions is not False)
+        result = check_answer(parsed, self.answer.text(),
+                              general=not question.conditions)
+        right = result.ok
+        wrong = (result.correct is False or result.general is False
+                 or result.matches_conditions is False)
         colour = (palette.success if right
-                  else palette.danger if result.correct is False
+                  else palette.danger if wrong
                   else palette.text_muted)
-        mark = "✓ " if right else "✗ " if result.correct is False else ""
+        mark = "✓ " if right else "✗ " if wrong else ""
         # `symbolic.diagnose` reads the residual for what it usually says --
         # the complementary function without a particular solution, a lost
         # coefficient, the right family and the wrong member of it. Shown here

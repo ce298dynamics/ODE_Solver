@@ -2271,8 +2271,17 @@ class LessonsScreen(QWidget):
             verdict.setText(f"this question could not be set up: {exc}")
             return False
 
-        result = check_answer(parsed, answer.text())
-        right = result.correct is True and result.matches_conditions is not False
+        # A question with no conditions asks for the general solution, and
+        # one member of the family -- y = 0, say -- is not it.
+        result = check_answer(parsed, answer.text(),
+                              general=not question.conditions)
+        if result.expression is None and result.correct is None:
+            # Not read at all: a typo, not an attempt. Said quietly and not
+            # recorded, so a bracket left open does not cost a streak.
+            verdict.setStyleSheet(f"color: {palette.text_muted};")
+            verdict.setText(result.message)
+            return True
+        right = result.ok
         if right and self._was_worked(question):
             # A drill's bucket is not shown as ticks, so only practice says so.
             before = progress.load().get(lesson.key, {}).get(question.key)
@@ -2289,7 +2298,8 @@ class LessonsScreen(QWidget):
         if right:
             colour, text = palette.success, "✓ " + result.message
             state = progress.State.CORRECT
-        elif result.correct is False or result.matches_conditions is False:
+        elif (result.correct is False or result.matches_conditions is False
+              or result.general is False):
             colour, text = palette.danger, "✗ " + result.message
             state = progress.State.ATTEMPTED
         else:

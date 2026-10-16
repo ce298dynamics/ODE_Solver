@@ -193,6 +193,183 @@ def _insert_multiplication(text: str) -> str:
     return text
 
 
+#: Names an answer may write as functions, with a bracket after them.
+_ANSWER_FUNCTIONS = frozenset(
+    {name for name in ALLOWED_FUNCTIONS if name not in ("pi", "E")}
+    | {"ln", "Heaviside", "DiracDelta"}
+)
+
+#: A number (a scientific literal kept whole: ``-4.9e1`` is forty-nine, not
+#: 4.9 times e times 1), a name, a run of space, or any one other character.
+_ANSWER_TOKEN = re.compile(
+    r"(?P<number>(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+(?![A-Za-z_]))?)"
+    r"|(?P<name>[A-Za-z_][A-Za-z_0-9]*)"
+    r"|(?P<space>\s+)"
+    r"|(?P<other>.)",
+    re.DOTALL,
+)
+
+_CONSTANT_NAME = re.compile(r"[Cc]\d+")
+
+
+def _split_name(name: str, known, called: bool) -> list[str]:
+    """``Ce`` -> ``[C, e]``, ``C1cos`` -> ``[C1, cos]``, or ``[name]`` unsplit.
+
+    A name is split only when it breaks *completely* into names the answer
+    may use, in as few pieces as possible, and a function only as the last
+    piece and only when a bracket follows -- so ``sint`` stays one unknown
+    name and is reported, rather than becoming ``sin*t`` behind the reader's
+    back.
+    """
+    def usable(piece: str, last: bool) -> bool:
+        if piece in _ANSWER_FUNCTIONS:
+            return last and called
+        return piece in known or bool(_CONSTANT_NAME.fullmatch(piece))
+
+    if usable(name, True) or name in known:
+        return [name]
+    # Fewest pieces first: best[i] is the shortest split of name[:i].
+    best: list[list[str] | None] = [None] * (len(name) + 1)
+    best[0] = []
+    for end in range(1, len(name) + 1):
+        for start in range(end):
+            head = best[start]
+            piece = name[start:end]
+            if head is None or not usable(piece, end == len(name)):
+                continue
+            if best[end] is None or len(head) + 1 < len(best[end]):
+                best[end] = [*head, piece]
+    return best[-1] or [name]
+
+
+def _answer_text(text: str, known) -> str:
+    """Read an answer the way it is written on paper, into what the parser takes.
+
+    ``2t`` -> ``2*t``, ``Ce^(2t)`` -> ``C*e^(2*t)``, ``C1 cos(t)`` ->
+    ``C1*cos(t)``. Juxtaposition is multiplication between operands, written
+    with a space or without one. Never after a function name: ``sin t`` is
+    left alone, to fail and be explained, because reading it as ``sin*t``
+    would mark a right idea wrong for a reason nobody could see.
+
+    `known` is every name the answer may use: the unknown's variable, the
+    constants, the equation's parameters. The syntax guard still runs on the
+    result, in `_parse_side`; this only ever adds ``*``.
+    """
+    tokens = []
+    for match in _ANSWER_TOKEN.finditer(text):
+        kind = match.lastgroup
+        value = match.group()
+        if kind == "name":
+            rest = text[match.end():].lstrip()
+            pieces = _split_name(value, known, rest.startswith("("))
+            for index, piece in enumerate(pieces):
+                if index:
+                    tokens.append(("other", "*"))
+                tokens.append(("name", piece))
+        else:
+            tokens.append((kind, value))
+
+    out: list[str] = []
+    previous = None                 # the last token that was not a space
+    for kind, value in tokens:
+        if kind == "space":
+            out.append(value)
+            continue
+        if previous is not None:
+            before_kind, before = previous
+            ends = (before_kind == "number" or before == ")"
+                    or (before_kind == "name" and before not in _ANSWER_FUNCTIONS))
+            starts = kind in ("number", "name") or value == "("
+            spaced = bool(out) and out[-1].isspace()
+            # An unknown name with a bracket straight after it is a call, and
+            # is left one, to be reported by name rather than multiplied.
+            call = (before_kind == "name" and value == "(" and not spaced
+                    and before not in known
+                    and not _CONSTANT_NAME.fullmatch(before))
+            if ends and starts and not call and not (
+                    before_kind == "number" and kind == "number"):
+                while out and out[-1].isspace():
+                    out.pop()
+                out.append("*")
+        out.append(value)
+        previous = (kind, value)
+    return "".join(out)
+
+
+def _friendly_parse_error(text: str) -> str:
+    """What is wrong with an answer that will not parse, said for a student.
+
+    "" when none of the usual slips is recognised, and the parser's own
+    message is shown instead.
+    """
+    stripped = text.strip()
+    opened, closed = stripped.count("("), stripped.count(")")
+    if opened > closed:
+        return "cannot parse that: a bracket is opened and never closed"
+    if closed > opened:
+        return "cannot parse that: a bracket is closed that was never opened"
+    if "=" in stripped:
+        return ("cannot parse that: there is an = in the answer -- write it "
+                "once, as y = ..., with only the answer after it")
+    if re.search(r"[-+*/^]\s*$", stripped):
+        return ("cannot parse that: it ends with an operator, so something "
+                "is missing after it")
+    names = "|".join(sorted(_ANSWER_FUNCTIONS, key=len, reverse=True))
+    found = re.search(rf"\b({names})\s+[A-Za-z0-9_]", stripped)
+    if found:
+        name = found.group(1)
+        return (f"cannot parse that: write {name}(t), with brackets -- "
+                f"'{name} t' is not read as {name} of t")
+    return ""
+
+
+def _answer_scope(parameters) -> dict:
+    """The names an answer may use, besides the functions.
+
+    ``C`` and ``c`` are the first constant, ``c1``... the same as ``C1``...,
+    and ``e`` is Euler's number -- each unless the equation itself has a
+    parameter of that name, which is then the one the student means.
+    """
+    scope: dict = {"t": _T}
+    for symbol in parameters:
+        if symbol.is_Symbol and symbol is not _T:
+            scope.setdefault(symbol.name, symbol)
+    for index in range(1, 10):
+        constant = sp.Symbol(f"C{index}")
+        scope.setdefault(f"C{index}", constant)
+        scope.setdefault(f"c{index}", constant)
+    scope.setdefault("C", sp.Symbol("C1"))
+    scope.setdefault("c", sp.Symbol("C1"))
+    scope.setdefault("e", sp.E)
+    scope.setdefault("ln", sp.log)
+    return scope
+
+
+def _read_expression(text: str, scope: dict, unknowns: set[str]) -> sp.Expr:
+    """One side of an answer: juxtaposition read, parsed, and checked for
+    names that cannot be in it. `ParseError` messages are for the student."""
+    known = set(scope) | {"pi", "E"}
+    try:
+        expression = _parse_side(_answer_text(text, known), scope)
+    except ParseError as exc:
+        raise ParseError(_friendly_parse_error(text) or str(exc)) from exc
+    for applied in expression.atoms(sp.core.function.AppliedUndef):
+        name = type(applied).__name__
+        if name in unknowns:
+            raise ParseError(
+                f"cannot read that as an answer: it still has {name} in it -- "
+                f"the answer is {name} written in terms of t alone")
+        raise ParseError(
+            f"cannot parse that: {name} is not a function this knows -- try "
+            f"exp, ln, sqrt, sin, cos")
+    for symbol in expression.free_symbols:
+        if symbol.name in unknowns:
+            raise ParseError(
+                f"cannot read that as an answer: it still has {symbol.name} in "
+                f"it -- the answer is {symbol.name} written in terms of t alone")
+    return expression
+
+
 def _rewrite_derivatives(text: str, name: str) -> tuple[str, int]:
     """Turn ``y''`` and ``y^(3)`` into placeholder symbols. Returns the order too."""
     highest = 0
@@ -1077,10 +1254,15 @@ class AnswerCheck:
     #: this says *how far the answer got*, which is a different claim from
     #: whether it is right.
     diagnosis: str = ""
+    #: Whether it is the *whole* family, where a general solution was asked
+    #: for: as many independent constants as the equation's order. None when
+    #: it was not asked, or could not be told.
+    general: bool | None = None
 
     @property
     def ok(self) -> bool:
-        return bool(self.correct) and self.matches_conditions is not False
+        return (bool(self.correct) and self.matches_conditions is not False
+                and self.general is not False)
 
 
 def read_answer(parsed: ParsedEquation, text: str) -> list[tuple[str, sp.Expr]]:
@@ -1100,14 +1282,11 @@ def read_answer(parsed: ParsedEquation, text: str) -> list[tuple[str, sp.Expr]]:
     if parsed.is_system:
         return _read_system_answer(parsed, text)
 
-    scope = {"t": _T, "C1": sp.Symbol("C1"), "C2": sp.Symbol("C2"),
-             "C3": sp.Symbol("C3"), "C": sp.Symbol("C1")}
     # Any free symbol already in the equation -- a parameter the user gave a
     # slider -- must resolve to the *same* symbol here, or the residual will
-    # never simplify away.
-    for symbol in parsed.equation.free_symbols:
-        if symbol.is_Symbol and symbol is not _T:
-            scope.setdefault(symbol.name, symbol)
+    # never simplify away. It also wins over the answer's own shorthands:
+    # an equation with a parameter `e` means that `e`, not Euler's number.
+    scope = _answer_scope(parsed.equation.free_symbols)
     # Likewise a function the equation was allowed to use: a caller that widened
     # the whitelist for ``Heaviside(t - 2)`` in the forcing gets an answer
     # written with it too, which is the only way a switched answer can be
@@ -1129,19 +1308,15 @@ def read_answer(parsed: ParsedEquation, text: str) -> list[tuple[str, sp.Expr]]:
     )
     if not text:
         raise ParseError("type a solution to check")
-    return [(parsed.function.__name__, _parse_side(text, scope))]
+    name = parsed.function.__name__
+    return [(name, _read_expression(text, scope, {name}))]
 
 
 def _read_system_answer(parsed: ParsedEquation,
                         text: str) -> list[tuple[str, sp.Expr]]:
     names = {function.__name__: function for function in parsed.functions}
-    scope = {"t": _T}
-    for index in range(1, 5):
-        scope[f"C{index}"] = sp.Symbol(f"C{index}")
-    for equation in parsed.equations:
-        for symbol in equation.free_symbols:
-            if symbol.is_Symbol and symbol is not _T:
-                scope.setdefault(symbol.name, symbol)
+    scope = _answer_scope(set().union(*(equation.free_symbols
+                                        for equation in parsed.equations)))
 
     candidates: dict[str, sp.Expr] = {}
     for line in re.split(r"[\n;]+", text.strip()):
@@ -1155,7 +1330,8 @@ def _read_system_answer(parsed: ParsedEquation,
                 "write one line per unknown, naming each: "
                 + ", ".join(f"{name} = ..." for name in names)
             )
-        candidates[match.group(1)] = _parse_side(match.group(3), scope)
+        candidates[match.group(1)] = _read_expression(match.group(3), scope,
+                                                      set(names))
 
     missing = set(names) - set(candidates)
     if missing:
@@ -1164,8 +1340,14 @@ def _read_system_answer(parsed: ParsedEquation,
             for function in parsed.functions]
 
 
-def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
+def check_answer(parsed: ParsedEquation, text: str, *,
+                 general: bool = False) -> AnswerCheck:
     """Substitute a proposed solution into the equation and report what is left.
+
+    `general` says the question asked for the general solution -- it has no
+    conditions -- so one member of the family is not the answer, however
+    truly it solves the equation: ``y = 0`` solves every homogeneous equation
+    and is not what "solve it" asked for.
 
     The same test the library already applies to sympy's own answer, pointed at
     the user's instead. That is the whole implementation: `_verify` decides
@@ -1227,6 +1409,14 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
     if check.correct and parsed.ics:
         check.matches_conditions = _satisfies_conditions(parsed, candidate)
 
+    if general and check.correct and not parsed.ics:
+        check.general = _independent_constants(parsed, candidate)
+        if check.general is False:
+            check.message = ("it solves the equation, but it is one "
+                             "solution, not the general solution")
+            check.diagnosis = _diagnose_general(parsed, candidate)
+            return check
+
     if check.correct is False:
         check.message = "substituting it does not give zero"
     elif check.correct is None:
@@ -1242,6 +1432,70 @@ def check_answer(parsed: ParsedEquation, text: str) -> AnswerCheck:
         check.message = "verified: substituting it gives exactly zero"
     check.diagnosis = diagnose(parsed, check)
     return check
+
+
+def _constants_in(expression) -> list[sp.Symbol]:
+    return sorted((symbol for symbol in expression.free_symbols
+                   if re.fullmatch(r"C\d+", symbol.name)),
+                  key=lambda symbol: int(symbol.name[1:]))
+
+
+def _independent_constants(parsed: ParsedEquation, candidate) -> bool | None:
+    """Whether `candidate` carries as many independent constants as the order.
+
+    Counting names is not enough: ``C1 e^(-t) + C2 e^(-t)`` has two and is
+    one constant, ``(C1 + C2) e^(-t)``. The test is the one a family must
+    pass to meet every initial condition -- the Jacobian of ``(y, y', ...,
+    y^(n-1))`` with respect to the constants has rank n -- taken numerically
+    at probe points, so it costs no simplification. None when no point could
+    be evaluated, which is "cannot tell", never "wrong".
+    """
+    order = parsed.order
+    if order < 1:
+        return None
+    constants = _constants_in(candidate)
+    if len(constants) < order:
+        return False
+    rows = [sp.diff(candidate, _T, k) for k in range(order)]
+    jacobian = [[sp.diff(row, constant) for constant in constants]
+                for row in rows]
+    others = sorted(candidate.free_symbols - set(constants) - {_T}, key=str)
+    symbols = [_T, *constants, *others]
+    tried = False
+    for round_index in range(4):
+        point = _probe_at(symbols, round_index)
+        try:
+            matrix = np.array([[complex(sp.N(entry.subs(point)))
+                                for entry in row] for row in jacobian])
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+        if not np.all(np.isfinite(matrix)):
+            continue
+        tried = True
+        scale = max(1.0, float(np.abs(matrix).max()))
+        if np.linalg.matrix_rank(matrix, tol=1e-9 * scale) >= order:
+            return True
+    return False if tried else None
+
+
+def _diagnose_general(parsed: ParsedEquation, candidate) -> str:
+    """Why a true solution is not the general one, in a sentence or two."""
+    order = parsed.order
+    named = len(_constants_in(candidate))
+    wanted = "one arbitrary constant" if order == 1 else \
+        f"{order} independent arbitrary constants"
+    if named == 0:
+        return (f"That is one solution, not the family: it has no arbitrary "
+                f"constant, and the general solution of this equation has "
+                f"{wanted}. Every solution has to be one choice of them.")
+    if named < order:
+        return (f"That is part of the family, not all of it: it has {named} "
+                f"arbitrary constant{'s' if named > 1 else ''}, and the "
+                f"general solution needs {wanted}.")
+    return ("Your constants are not independent: they only ever appear "
+            "together, so between them they count as one constant. If the "
+            "characteristic equation has a repeated root r, the second "
+            "solution is t·e^(rt), not e^(rt) again -- C1 e^(rt) + C2 t e^(rt).")
 
 
 def _sift_impulses(expression) -> tuple[sp.Expr, list]:
@@ -1521,10 +1775,13 @@ def grade_numeric(question, text: str) -> tuple[bool | None, str]:
     if not text or not text.strip():
         return None, "type a number to check"
 
+    # `e` is Euler's number here too, and `2e^3` is two times it cubed.
+    scope = {"e": sp.E, "ln": sp.log}
     try:
-        value = _parse_side(text.strip(), {})
+        value = _parse_side(_answer_text(text.strip(), {*scope, "pi", "E"}),
+                            scope)
     except ParseError as exc:
-        return None, str(exc)
+        return None, _friendly_parse_error(text) or str(exc)
 
     if value.free_symbols:
         names = ", ".join(sorted(map(str, value.free_symbols)))

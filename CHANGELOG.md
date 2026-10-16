@@ -43,6 +43,34 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The answer checker reads answers the way students write them.** A student
+  session found that the first Solve question would probably mark a right answer
+  wrong. Fixed:
+  - `e` is Euler's number. `e^(t^2)` used to be marked wrong, and the
+    residual blamed `log(e) - 1`. An equation with its own parameter `e`
+    keeps it.
+  - Juxtaposition is multiplication: `2t`, `Ce^(2t)`, `C1 cos(t) +
+    C2 sin(t)`, `C1cos(t)`, `te^(-t)`. A run of letters is split only when it
+    breaks completely into names the answer may use. `sin t` still fails
+    rather than silently becoming `sin*t`, and the message now says to write
+    `sin(t)`.
+  - `c`, `c1`, … are the constants `C1`, …, and `ln` is the natural log.
+    `grade_numeric` reads `e^2`, and `-4.9e1` is still forty-nine.
+  - An unreadable answer now says what is wrong (a bracket left open, a
+    trailing operator, a second `=`, an unknown function, `y` left in the
+    answer) instead of showing Python's syntax error. On a lesson card it is
+    shown quietly and not recorded.
+  - The answer preview flags `e^2t` (read as e² times t) and suggests
+    `e^(2t)`.
+  - **A question with no conditions wants the general solution.** `y = 0`,
+    `cos(2t)` and `C1 e^(-t) + C2 e^(-t)` were all ticked. `check_answer`
+    takes `general=True`, and the answer then needs as many *independent*
+    constants as the equation's order. That is tested numerically: the rank
+    of the Jacobian of (y, y′, …) with respect to the constants. A miss gets
+    its own explanation, including `t·e^(rt)` for a repeated root. Every
+    narrator's own general solution still passes, which a sweep in
+    `tests/test_check_answer.py` checks.
+
 - **Questions showed their equations as code.** Practice, the drills and the
   quiz set a Solve question's equation in monospace, `y' = 2*t*y`, beside
   choice questions whose equations were typeset. The new
