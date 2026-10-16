@@ -201,6 +201,9 @@ def stylesheet(palette: Palette, scale: float | None = None) -> str:
         border: 1px solid {p.border};
         border-radius: 10px;
     }}
+    QFrame[role="panel"][active="true"] {{
+        border: 1px solid {p.accent};
+    }}
     QFrame[role="card"] {{
         background: {p.surface};
         border: 1px solid {p.border};

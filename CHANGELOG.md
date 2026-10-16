@@ -435,6 +435,29 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Lessons read like a textbook: the columns either side fold away, and the
+  answers moved beside the text.** The lesson text used to be the narrowest of
+  four columns on its own page, behind the menu and the course list, and
+  Practice and Drill stacked each question's typing box, five buttons, preview,
+  hints and a 250-pixel worked solution into the reading column between one
+  question and the next. Now:
+  - The menu (`Ctrl+B`), the course list (`Ctrl+Shift+L`) and a new answer
+    column (`Ctrl+J`) each fold to a thin strip and open again from it. The
+    window remembers which are folded, across a theme change and a restart.
+  - **Reading mode** (`F11`, or the button beside the lesson's tabs) folds all
+    three; leaving it puts back exactly what was open before.
+  - The reading column is centred, so folding either side widens the margins
+    evenly rather than leaving the text against one edge.
+  - A question's prompt, equation and figure stay in the text; its box, buttons,
+    preview, verdict, hints and working move to the answer column, one page per
+    question. Clicking a question, tabbing into it or pressing its **Answer ›**
+    button brings its page up; the active card gets an accent border, and each
+    card carries a one-line copy of its verdict so a page can be scanned for
+    what is done. Multiple-choice questions stay inline.
+  - On a narrow window the course list folds itself (not remembered as the
+    reader's choice) and the answer column narrows, so the smallest window
+    still leaves about 470 pixels of text.
+
 - **One path through the course.** The Learning Hub listed nine screens as
   equals, which made them nine competing ways in. The sidebar now splits them
   into *Study* (Course Map, Lessons, Quiz & Exams, Glossary) and *Tools* (Solve

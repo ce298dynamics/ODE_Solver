@@ -615,10 +615,19 @@ def _drill(screen, qapp, key: str):
     return screen.current_lesson()
 
 
+def _find(screen, kind):
+    """Every `kind` on the page: the reading column, then the answer column,
+    where the boxes and their verdicts now live, page by page in order."""
+    found = screen._page.findChildren(kind)
+    for key in screen._workspace.keys():
+        found += screen._workspace.page(key).findChildren(kind)
+    return found
+
+
 def _boxes(screen):
     from PySide6.QtWidgets import QLineEdit
 
-    return screen._page.findChildren(QLineEdit)
+    return _find(screen, QLineEdit)
 
 
 def _page_text(screen) -> str:
@@ -631,10 +640,10 @@ def _page_text(screen) -> str:
 
     from odesuite_app.widgets.mathlabel import MathLabel
 
-    said = [label.text() for label in screen._page.findChildren(QLabel)
+    said = [label.text() for label in _find(screen, QLabel)
             if label.isVisibleTo(screen)]
     said += [label.accessibleDescription()
-             for label in screen._page.findChildren(MathLabel)
+             for label in _find(screen, MathLabel)
              if label.isVisibleTo(screen)]
     return "\n".join(said)
 
@@ -743,7 +752,7 @@ def test_the_difficulty_control_appears_only_where_there_is_a_spread(screen,
     from PySide6.QtWidgets import QPushButton
 
     def offered():
-        return {button.text() for button in screen._page.findChildren(QPushButton)
+        return {button.text() for button in _find(screen, QPushButton)
                 if button.isCheckable() and button.isVisibleTo(screen)}
 
     _drill(screen, qapp, "substitutions")      # has tiers
