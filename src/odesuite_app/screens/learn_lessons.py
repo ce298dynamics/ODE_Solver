@@ -134,6 +134,95 @@ class _WorkingJob(QRunnable):
             pass                                  # the screen went away
 
 
+class _WorkingCheckJob(QRunnable):
+    """Checks a page of working line by line, off the interface thread.
+
+    Needs the verified general solution and, where the question has
+    conditions, the particular one: both come from the narrator, through the
+    same timed subprocess as "Show me", and are handed back with the verdicts
+    for the screen to keep -- a second check of the same question does not
+    solve it again. Emits ``(token, (verdicts, solutions) | Exception)``.
+    """
+
+    def __init__(self, token: int, question, narrator: str, text: str,
+                 solutions, signals: _Signals) -> None:
+        super().__init__()
+        self.token = token
+        self.question = question
+        self.narrator = narrator
+        self.text = text
+        self.solutions = solutions
+        self.signals = signals
+        self.setAutoDelete(True)
+
+    def run(self) -> None:
+        from .. import working
+        from ..laplace import EXTRA_FUNCTIONS
+        from ..symbolic import parse_equation, spec_for
+
+        question = self.question
+        try:
+            parsed = parse_equation(spec_for(question.equation,
+                                             question.conditions),
+                                    extra_functions=EXTRA_FUNCTIONS)
+            solutions = self.solutions
+            if solutions is None:
+                def result_of(conditions: str):
+                    derivation = _work_out(question.equation, conditions,
+                                           self.narrator)
+                    if derivation is None or derivation.result is None:
+                        raise ValueError("no verified solution to check "
+                                         "against")
+                    return getattr(derivation.result, "rhs",
+                                   derivation.result)
+                solutions = (result_of(""), result_of(question.conditions)
+                             if question.conditions else None)
+            result = (working.check_working(parsed, self.text, *solutions),
+                      solutions)
+        except Exception as exc:                  # surfaced, never swallowed
+            result = exc
+        try:
+            self.signals.done.emit(self.token, result)
+        except RuntimeError:
+            pass                                  # the screen went away
+
+
+def working_report(verdicts, palette: Palette) -> str:
+    """A checked page of working, as rich text: ✓, ✗ or – against each line.
+
+    The first ✗ is set apart, because that is the line to look at: every ✗
+    after it may only be the first one carried forward.
+    """
+    from html import escape
+
+    from ..working import OK, WRONG
+
+    if not verdicts:
+        return ""
+    rows = []
+    first_wrong = next((v.number for v in verdicts if v.status == WRONG), None)
+    for verdict in verdicts:
+        mark, colour = (("✓", palette.success) if verdict.status == OK else
+                        ("✗", palette.danger) if verdict.status == WRONG else
+                        ("–", palette.text_muted))
+        line = escape(verdict.text.strip())
+        note = (f'<br><span style="color:{palette.text_muted};">'
+                f"{escape(verdict.message)}</span>" if verdict.message else "")
+        style = (f"background:{palette.surface}; font-weight:600;"
+                 if verdict.number == first_wrong else "")
+        rows.append(f'<tr><td style="color:{colour}; padding-right:6px;">'
+                    f"{mark}</td><td style=\"{style}\">{verdict.number}. "
+                    f"<code>{line}</code>{note}</td></tr>")
+    if first_wrong is None:
+        head = ("Every line that could be checked holds."
+                if any(v.status == OK for v in verdicts)
+                else "Nothing here could be checked.")
+    else:
+        head = (f"The first slip is on line {first_wrong}; lines after it may "
+                f"only be carrying it forward.")
+    return f"<p>{head}</p><table>{''.join(rows)}</table>"
+
+
 def _work_out(equation: str, conditions: str, narrator: str):
     """The worked solution, through the same subprocess the Hub tools use."""
     from ..laplace import EXTRA_FUNCTIONS
@@ -300,6 +389,14 @@ class LessonsScreen(QWidget):
 
         self._signals = _Signals()
         self._signals.done.connect(self._on_worked)
+        #: "Show your working": its own token and signals, so checking
+        #: working never supersedes a "Show me" in flight, or the reverse.
+        #: `_solutions` keeps each equation's verified solutions by `_seen`.
+        self._check_signals = _Signals()
+        self._check_signals.done.connect(self._on_checked)
+        self._check_token = 0
+        self._check_pending: dict[int, tuple] = {}
+        self._solutions: dict[tuple[str, str], tuple] = {}
 
         #: Question or template key -> its card in the reading column, and
         #: the one-line copy of its verdict that card carries. Rebuilt with
@@ -1500,6 +1597,7 @@ class LessonsScreen(QWidget):
         working.setMinimumHeight(240)
         working.setVisible(False)
         layout.addWidget(working)
+        self._working_section(layout, question, template.narrator)
 
         self._wire_hints(question, hints, hint_button)
 
@@ -2119,6 +2217,7 @@ class LessonsScreen(QWidget):
         working.setMinimumHeight(240)
         working.setVisible(False)
         layout.addWidget(working)
+        self._working_section(layout, question, lesson.narrator)
 
         self._wire_hints(question, hints, hint_button)
 
@@ -2134,6 +2233,115 @@ class LessonsScreen(QWidget):
                                shows=self._seen(question))
         )
         self._restore(lesson, question, verdict)
+
+    def _working_section(self, layout: QVBoxLayout, question,
+                         narrator: str) -> None:
+        """"Show your working ▾": a box for the lines, checked one by one.
+
+        Folded until asked for -- most answers are typed without it -- and
+        never recorded in progress: it is help, not a mark.
+        """
+        from PySide6.QtWidgets import QPlainTextEdit
+
+        # A plain button that flips the section, not a checkable one: checkable
+        # buttons in a card are its difficulty control.
+        toggle = QPushButton("Show your working ▾")
+        toggle.setCursor(Qt.PointingHandCursor)
+        toggle.setAccessibleName("show your working")
+        toggle.setToolTip("Type your working a line at a time and have each "
+                          "line checked, to find where a slip happened")
+        toggle.setStyleSheet(theme.scaled(
+            f"QPushButton {{ background: transparent; border: none;"
+            f" color: {self.palette_obj.accent}; text-align: left;"
+            f" padding: 2px 0; }}"))
+        layout.addWidget(toggle)
+
+        holder = QWidget()
+        column = QVBoxLayout(holder)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(6)
+        box = QPlainTextEdit()
+        box.setAccessibleName("your working")
+        box.setPlaceholderText("One step per line, for example\n"
+                               "y' + 2y = 4\nmu = e^(2t)\n(e^(2t) y)' = 4e^(2t)"
+                               "\n...\ny = 2 + Ce^(-2t)")
+        box.setMinimumHeight(130)
+        column.addWidget(box)
+        run = QPushButton("Check working")
+        run.setToolTip("Check each line against the solution, and find the "
+                       "first one that goes wrong. Not counted as an answer.")
+        run.setCursor(Qt.PointingHandCursor)
+        column.addWidget(run, 0, Qt.AlignLeft)
+        report = QLabel("")
+        report.setWordWrap(True)
+        report.setTextFormat(Qt.RichText)
+        report.setAccessibleName("working checked")
+        column.addWidget(report)
+        holder.setVisible(False)
+        layout.addWidget(holder)
+
+        def fold() -> None:
+            open_ = holder.isHidden()
+            holder.setVisible(open_)
+            toggle.setText("Show your working ▴" if open_
+                           else "Show your working ▾")
+        toggle.clicked.connect(fold)
+
+        from ..laplace import EXTRA_FUNCTIONS
+        from ..symbolic import parse_equation, spec_for
+        from ..working import available
+
+        try:
+            offered, why = available(
+                parse_equation(spec_for(question.equation, question.conditions),
+                               extra_functions=EXTRA_FUNCTIONS), narrator)
+        except Exception:
+            offered, why = False, "This equation could not be read here."
+        if not offered:
+            box.setEnabled(False)
+            run.setEnabled(False)
+            report.setText(f'<span style="color:{self.palette_obj.text_muted};">'
+                           f"{why}</span>")
+            return
+        run.clicked.connect(
+            lambda: self._check_working(question, narrator, box, run, report))
+
+    def _check_working(self, question, narrator: str, box, button: QPushButton,
+                       report: QLabel) -> None:
+        text = box.toPlainText()
+        if not text.strip():
+            report.setText(f'<span style="color:{self.palette_obj.text_muted};">'
+                           "Type your working above, one step per line.</span>")
+            return
+        self._check_token += 1
+        seen = self._seen(question)
+        self._check_pending[self._check_token] = (button, report, seen)
+        button.setEnabled(False)
+        report.setText(f'<span style="color:{self.palette_obj.text_muted};">'
+                       "checking each line…</span>")
+        QThreadPool.globalInstance().start(
+            _WorkingCheckJob(self._check_token, question, narrator, text,
+                             self._solutions.get(seen), self._check_signals),
+            1,
+        )
+
+    def _on_checked(self, token: int, result) -> None:
+        waiting = self._check_pending.pop(token, None)
+        if waiting is None:
+            return
+        button, report, seen = waiting
+        try:
+            button.setEnabled(True)
+        except RuntimeError:
+            return                                # its page was rebuilt
+        palette = self.palette_obj
+        if isinstance(result, Exception):
+            report.setText(f'<span style="color:{palette.text_muted};">'
+                           f"Could not check this working: {result}</span>")
+            return
+        verdicts, solutions = result
+        self._solutions[seen] = solutions
+        report.setText(working_report(verdicts, palette))
 
     def _wire_hints(self, question, hints: QLabel,
                     hint_button: QPushButton) -> None:

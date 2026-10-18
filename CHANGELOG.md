@@ -486,6 +486,32 @@ All notable changes to this project are documented here. The format follows
     reader's choice) and the answer column narrows, so the smallest window
     still leaves about 470 pixels of text.
 
+- **Show your working: each line of a derivation is checked, and the first
+  slip is found.** A Solve question's answer page has a folded **Show your
+  working ▾** box. Type the steps one per line (`mu = e^(2t)`,
+  `(e^(2t) y)' = 4e^(2t)`, `y = 2 + Ce^(-2t)`) and **Check working** marks each
+  one ✓, ✗ or –, and points at the first ✗, because lines after it may only be
+  carrying it forward. Lines are not compared with each other, because
+  integration constants break that. Each one is tested against the verified
+  solution family by numeric probes:
+  - A relation in `y` must hold for the whole family, or for the particular
+    solution once the conditions are used. If it holds only for one solution
+    on a question with no conditions, the message says a constant was lost.
+  - An integrating factor is accepted up to a constant factor. A
+    characteristic polynomial is checked against the equation, and roots are
+    checked by substituting them in.
+  - The last `y = …` is judged exactly as the answer box would judge it.
+  - `dy/dt`, `d/dt(...)`, `(expr)'`, joining words such as `so` and `=>`, and
+    `#` comments are read. A line that can't be read, or has nothing to check,
+    gets a – and the check carries on.
+
+  A line is never marked ✗ unless a probe disproves it. The check covers
+  first-order linear, separable and constant-coefficient second-order
+  equations; systems and Laplace questions say it isn't available yet. It runs
+  off the interface thread, solves each question once, and is not recorded as
+  an answer. A comparison by identity (`is not t`) became an equality, so a
+  `t` re-created after sympy's cache drops the old one is still the variable.
+
 - **One path through the course.** The Learning Hub listed nine screens as
   equals, which made them nine competing ways in. The sidebar now splits them
   into *Study* (Course Map, Lessons, Quiz & Exams, Glossary) and *Tools* (Solve

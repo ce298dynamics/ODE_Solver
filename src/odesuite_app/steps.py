@@ -299,7 +299,7 @@ def vanishes(residual) -> tuple[bool | None, str]:
     except Exception:
         pass
     others = {symbol: _PROBE_VALUE for symbol in residual.free_symbols
-              if symbol is not _T}
+              if symbol != _T}
     for time in _PROBE_TIMES:
         try:
             value = complex(residual.subs(others).subs(_T, time).evalf())

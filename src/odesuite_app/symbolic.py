@@ -332,7 +332,7 @@ def _answer_scope(parameters) -> dict:
     """
     scope: dict = {"t": _T}
     for symbol in parameters:
-        if symbol.is_Symbol and symbol is not _T:
+        if symbol.is_Symbol and symbol != _T:
             scope.setdefault(symbol.name, symbol)
     for index in range(1, 10):
         constant = sp.Symbol(f"C{index}")
