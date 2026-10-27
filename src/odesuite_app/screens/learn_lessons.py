@@ -1625,8 +1625,7 @@ class LessonsScreen(QWidget):
         hints.setVisible(False)
         layout.addWidget(hints)
 
-        working = StepsPanel(palette)
-        working.setMinimumHeight(240)
+        working = StepsPanel(palette, grows=True)
         working.setVisible(False)
         layout.addWidget(working)
         self._working_section(layout, question, template.narrator)
@@ -2291,8 +2290,7 @@ class LessonsScreen(QWidget):
         hints.setVisible(False)
         layout.addWidget(hints)
 
-        working = StepsPanel(self.palette_obj)
-        working.setMinimumHeight(240)
+        working = StepsPanel(self.palette_obj, grows=True)
         working.setVisible(False)
         layout.addWidget(working)
         self._working_section(layout, question, lesson.narrator)

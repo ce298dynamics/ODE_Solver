@@ -894,6 +894,23 @@ def test_a_high_degree_psi_is_left_implicit_rather_than_solved():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("coefficient,written", [
+    ("4", "y' + 4 y"),
+    ("-2", "y' - 2 y"),
+    ("1", "y' + y"),
+    ("-1", "y' - y"),
+    ("1/t", r"y' + \frac{1}{t} y"),
+    ("t + 1", r"y' + \left(t + 1\right) y"),
+])
+def test_standard_form_is_written_as_by_hand(coefficient, written):
+    """Brackets round p only where p is a sum: "(4) y" reads as a slip."""
+    from odesuite_app.steps import _times
+
+    t = sp.Symbol("t", real=True)
+    p = sp.sympify(coefficient, locals={"t": t})
+    assert f"y' {_times(p, 'y')}" == written
+
+
 def test_a_substitution_says_v_where_it_means_v():
     """The hand-off shares the two first-order builders rather than copying
     them, so the letters have to follow the substitution or the derivation

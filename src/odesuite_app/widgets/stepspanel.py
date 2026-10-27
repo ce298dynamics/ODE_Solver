@@ -35,21 +35,28 @@ __all__ = ["StepsPanel"]
 class StepsPanel(QWidget):
     """Renders a `steps.Derivation`, or says plainly why there is not one."""
 
-    def __init__(self, palette: Palette, parent=None) -> None:
+    def __init__(self, palette: Palette, parent=None, *,
+                 grows: bool = False) -> None:
+        """`grows`: as tall as the derivation, with no scrolling of its own,
+        for a column that already scrolls. A scroll area inside another one
+        sits at its minimum height and shows a step at a time."""
         super().__init__(parent)
         self.palette_obj = palette
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
 
-        scroll = QScrollArea()
-        scroll.setAccessibleName("derivation steps")
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        outer.addWidget(scroll)
-
         page = QWidget()
-        scroll.setWidget(page)
+        if grows:
+            page.setAccessibleName("derivation steps")
+            outer.addWidget(page)
+        else:
+            scroll = QScrollArea()
+            scroll.setAccessibleName("derivation steps")
+            scroll.setWidgetResizable(True)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            outer.addWidget(scroll)
+            scroll.setWidget(page)
         self._layout = QVBoxLayout(page)
         self._layout.setContentsMargins(18, 16, 18, 18)
         self._layout.setSpacing(12)

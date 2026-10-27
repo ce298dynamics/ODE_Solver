@@ -43,6 +43,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Two blemishes in the worked solution.** The integrating-factor narrator
+  bracketed p whatever it was, so standard form read `y' + (4)y = 5t`; it now
+  writes `y' + 4y`, `y' - y` or `y' + \frac{1}{t} y`, and keeps the brackets
+  only round a sum, `y' + (t + 1) y`. In a lesson's answer column, the worked
+  solution had a scroll box of its own inside the column's, held at 240 pixels,
+  so it showed one step at a time; it is now as tall as the working and the
+  column scrolls it.
+
 - **The answer checker reads answers the way students write them.** A student
   session found that the first Solve question would probably mark a right answer
   wrong. Fixed:
