@@ -1677,6 +1677,53 @@ def test_the_drill_page_offers_every_template(screen, qapp):
         )
 
 
+def test_past_its_versions_a_drill_asks_fresh_numbers(screen, qapp,
+                                                      monkeypatch):
+    """The last built-in version is answered while the first fresh one is
+    solved; the card says which it is asking. A fresh draw that fails gives
+    way to a built-in version, and the card says that instead."""
+    from PySide6.QtWidgets import QLabel
+
+    from odesuite_app import freshdraw
+
+    lesson = _drill(screen, qapp, "linear")
+    template = next(t for t in lesson.templates if t.key == "constant-p")
+    built_in = generate.combinations(template)
+    fresh = generate.sample(template, built_in)
+    assert fresh is not None
+    worked = object()
+    gives = {"draw": (fresh, worked)}
+    monkeypatch.setattr(freshdraw, "ENABLED", True)
+    monkeypatch.setattr(freshdraw, "fresh_draw",
+                        lambda template, seed, tier: gives["draw"])
+
+    def prompt() -> str:
+        return "\n".join(label.text() for label in
+                         screen._cards[template.key].findChildren(QLabel))
+
+    def advance() -> None:
+        card = screen._verdicts[template.key].parentWidget()
+        _card_button(card, "New question").click()
+        qapp.processEvents()
+
+    screen._drill_seed[template.key] = built_in - 1
+    screen._show()
+    assert f"one of {built_in} versions" in prompt()
+    assert _until(qapp, lambda: ("constant-p", "", built_in) in screen._fresh,
+                  seconds=20)
+
+    gives["draw"] = None                      # the next one finds nothing
+    advance()
+    assert "fresh numbers · checked by the solver" in prompt()
+    assert screen._derivations[screen._seen(fresh) + ("steps",)] is worked
+    assert _until(qapp,
+                  lambda: ("constant-p", "", built_in + 1) in screen._fresh,
+                  seconds=20)
+
+    advance()
+    assert f"one of {built_in} versions" in prompt()
+
+
 def test_a_new_question_is_a_different_question(screen, qapp):
     lesson = _drill(screen, qapp, "separable")
     template = lesson.templates[0]

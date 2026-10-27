@@ -379,6 +379,125 @@ def test_a_wrong_answer_to_a_generated_question_is_rejected(lesson, template):
 
 
 # ---------------------------------------------------------------------------
+# Fresh numbers, once the built-in versions run out
+# ---------------------------------------------------------------------------
+
+SAMPLED = [(lesson, template) for lesson, template in SOLVE_TEMPLATES
+           if template.sampler is not None]
+SAMPLED_IDS = [f"{lesson.key}-{template.key}" for lesson, template in SAMPLED]
+
+
+def _slot_names(template) -> set[str]:
+    return {name for names, _ in template.slots for name in names.split(",")}
+
+
+def _drill_tiers(template) -> tuple[str, ...]:
+    """The tiers the drill card passes: none unless it offers a choice."""
+    offered = generate.tiers(template)
+    return offered if len(offered) > 1 else ("",)
+
+
+def test_the_drills_planned_to_sample_do():
+    assert {template.key for _, template in SAMPLED} == {
+        "growth", "cooling", "constant-p", "exponential-forcing",
+        "three-cases", "polynomial-forcing", "independent-pair",
+        "which-regime", "first-order",
+    }
+
+
+@pytest.mark.parametrize("lesson,template", SAMPLED, ids=SAMPLED_IDS)
+def test_a_sampler_fills_every_slot(lesson, template):
+    """The same slots the pool fills, or a format string is left with a hole
+    in it -- or, worse, quietly drops a number the pool would have put in."""
+    import random
+
+    for tier in ("",) + generate.tiers(template):
+        slots = template.sampler(random.Random(tier), tier)
+        assert set(slots) >= _slot_names(template), tier
+    for seed in range(10):
+        question = generate.sample(template, seed)
+        if question is None:
+            continue
+        for text in (question.prompt, question.equation, question.conditions):
+            assert "{" not in text and "}" not in text, text
+        assert question.key == f"{template.key}~{seed}"
+
+
+@pytest.mark.parametrize("lesson,template", SAMPLED, ids=SAMPLED_IDS)
+def test_a_sample_is_the_same_wherever_it_is_drawn(lesson, template):
+    for seed in range(5):
+        first = generate.sample(template, seed, "", 0)
+        again = generate.sample(template, seed, "", 0)
+        assert first == again
+    drawn = {(q.equation, q.conditions) for seed in range(20)
+             if (q := generate.sample(template, seed)) is not None}
+    assert len(drawn) > 1, "every seed gave the same question"
+
+
+@pytest.mark.parametrize("lesson,template", SAMPLED, ids=SAMPLED_IDS)
+def test_a_sample_keeps_to_the_tier_and_the_reject(lesson, template):
+    """A tier asks for its own kind of question, and a fresh one is no
+    exception -- nor may it be one the template's `reject` rules out."""
+    import random
+
+    for tier in _drill_tiers(template):
+        kept = 0
+        for attempt in range(40):
+            rng = random.Random(f"{template.key}|{tier}|0|{attempt}")
+            slots = dict(template.sampler(rng, tier))
+            question = generate.sample(template, 0, tier, attempt)
+            refused = bool(template.reject and template.reject(slots))
+            off_tier = bool(tier and template.level
+                            and template.level(slots) != tier)
+            if refused or off_tier:
+                assert question is None
+            else:
+                kept += 1
+        assert kept, f"nothing at {tier} survived its own tier"
+
+
+def test_a_sampler_that_always_misses_gives_way_to_the_pool():
+    import dataclasses
+
+    from odesuite_app.freshdraw import fresh_draw
+
+    template = next(t for _, t in SAMPLED if t.key == "constant-p")
+    hopeless = dataclasses.replace(template, reject=lambda slots: True)
+    assert generate.sample(hopeless, 0) is None
+    assert fresh_draw(hopeless, 0, attempts=5) is None
+    no_sampler = dataclasses.replace(template, sampler=None)
+    assert fresh_draw(no_sampler, 0) is None
+
+
+def _fresh_is_solvable(template, seed: int) -> None:
+    from odesuite_app.freshdraw import verify_solve
+
+    for tier in _drill_tiers(template):
+        question = generate.sample(template, seed, tier)
+        if question is None:
+            continue
+        derivation, why = verify_solve(template, question)
+        assert derivation is not None, (
+            f"{question.key} at {tier or 'any'}: {question.equation}, "
+            f"{question.conditions}: {why}")
+
+
+@pytest.mark.parametrize("lesson,template", SAMPLED, ids=SAMPLED_IDS)
+def test_a_few_fresh_draws_are_solvable(lesson, template):
+    """What `freshdraw` checks at the moment of drawing, checked here too: a
+    sampler that mostly misses would leave the drill on its pool for good."""
+    for seed in range(3):
+        _fresh_is_solvable(template, seed)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("lesson,template", SAMPLED, ids=SAMPLED_IDS)
+def test_thirty_fresh_draws_are_solvable(lesson, template):
+    for seed in range(30):
+        _fresh_is_solvable(template, seed)
+
+
+# ---------------------------------------------------------------------------
 # Streaks, and where they are recorded
 # ---------------------------------------------------------------------------
 

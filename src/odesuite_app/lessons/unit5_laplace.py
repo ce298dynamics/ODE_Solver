@@ -23,6 +23,7 @@ exhaustive sweep runs every draw of every template.
 
 from __future__ import annotations
 
+from . import samplers
 from .chapters import unit5 as chapters
 from .model import (
     Choice,
@@ -350,6 +351,7 @@ LAPLACE = Lesson(
                 "each one backwards off the table.",
             ),
             slots=(("a", (1, 2, 3)), ("b", (1, 2, 3)), ("c", (0, 1))),
+            sampler=samplers.laplace_first_order,
         ),
         Template(
             key="second-order",

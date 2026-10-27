@@ -11,6 +11,7 @@ case belong here too, and arrive with the narrator each needs.
 
 from __future__ import annotations
 
+from . import samplers
 from .chapters import unit3 as chapters
 from .model import (
     Case,
@@ -370,6 +371,7 @@ ROOTS = Lesson(
                 else "harder" if slots["b"] ** 2 == 4 * slots["c"]
                 else "typical"
             ),
+            sampler=samplers.three_cases,
         ),
         ExpressionTemplate(
             key="the-characteristic-equation",
@@ -758,6 +760,7 @@ UNDETERMINED = Lesson(
                 ("b,c", ((3, 2), (4, 4), (2, 5), (5, 6), (2, 1))),
                 ("d", (1, 2, 3)),
             ),
+            sampler=samplers.polynomial_forcing,
         ),
         FaultTemplate(
             key="stopped-at-the-complementary",
@@ -1364,6 +1367,7 @@ SUPERPOSITION = Lesson(
                 ("c", (1, 4, 9, 16, 25)),
                 ("p,v", ((2, 0), (0, 1), (1, 1), (1, 0))),
             ),
+            sampler=samplers.independent_pair,
         ),
         ModelTemplate(
             key="family-to-second-order",

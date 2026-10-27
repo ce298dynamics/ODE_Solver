@@ -187,6 +187,35 @@ class _WorkingCheckJob(QRunnable):
             pass                                  # the screen went away
 
 
+class _FreshDrawJob(QRunnable):
+    """Draws and solves a drill question with fresh numbers, off the
+    interface thread. Emits ``(token, (Solve, Derivation) | None)``: None
+    when nothing the sampler offered passed in time, and the drill goes back
+    to its built-in versions."""
+
+    def __init__(self, token: int, template, seed: int, tier: str,
+                 signals: _Signals) -> None:
+        super().__init__()
+        self.token = token
+        self.template = template
+        self.seed = seed
+        self.tier = tier
+        self.signals = signals
+        self.setAutoDelete(True)
+
+    def run(self) -> None:
+        from ..freshdraw import fresh_draw
+
+        try:
+            result = fresh_draw(self.template, self.seed, self.tier)
+        except Exception:                         # the pool stands in
+            result = None
+        try:
+            self.signals.done.emit(self.token, result)
+        except RuntimeError:
+            pass                                  # the screen went away
+
+
 def working_report(verdicts, palette: Palette) -> str:
     """A checked page of working, as rich text: ✓, ✗ or – against each line.
 
@@ -225,23 +254,9 @@ def working_report(verdicts, palette: Palette) -> str:
 
 def _work_out(equation: str, conditions: str, narrator: str):
     """The worked solution, through the same subprocess the Hub tools use."""
-    from ..laplace import EXTRA_FUNCTIONS
-    from ..symbolic import (
-        parse_equation,
-        solve_by_laplace,
-        solve_symbolically,
-        spec_for,
-    )
+    from ..freshdraw import work_out
 
-    parsed = parse_equation(spec_for(equation, conditions),
-                            extra_functions=EXTRA_FUNCTIONS)
-    if narrator == "laplace":
-        return solve_by_laplace(parsed).derivation
-    if narrator == "series":
-        from ..series import derive as series_derive
-
-        return series_derive(parsed.equation, parsed.function, ics=parsed.ics)
-    return solve_symbolically(parsed, steps=True).derivation
+    return work_out(equation, conditions, narrator)
 
 
 class _QuestionCard(QFrame):
@@ -397,6 +412,22 @@ class LessonsScreen(QWidget):
         self._check_token = 0
         self._check_pending: dict[int, tuple] = {}
         self._solutions: dict[tuple[str, str], tuple] = {}
+
+        #: Fresh numbers, for a drill past its built-in versions: ``(template
+        #: key, tier, seed)`` -> ``(Solve, Derivation)``, or None where the
+        #: built-in version was asked instead. Settled the first time a card
+        #: is built for that seed and never changed after, so a draw arriving
+        #: late cannot swap the question out from under somebody answering
+        #: it -- which is why the next one is drawn while this one is asked.
+        self._fresh: dict[tuple[str, str, int], tuple | None] = {}
+        self._fresh_signals = _Signals()
+        self._fresh_signals.done.connect(self._on_fresh)
+        self._fresh_token = 0
+        self._fresh_pending: dict[int, tuple[tuple[str, str, int], str]] = {}
+        #: The solver's own working for each fresh question, by `_seen` and
+        #: narrator: it was produced to check the draw, so "Show me" and
+        #: "Next step" show it rather than solving the equation again.
+        self._derivations: dict[tuple[str, str, str], object] = {}
 
         #: Question or template key -> its card in the reading column, and
         #: the one-line copy of its verdict that card carries. Rebuilt with
@@ -1475,7 +1506,7 @@ class LessonsScreen(QWidget):
         seed = self._drill_seed.setdefault(template.key, 0)
         offered = generate.tiers(template)
         tier = self._tier_of(template, offered) if len(offered) > 1 else ""
-        question = generate.draw(template, seed, tier)
+        question, fresh = self._drill_question(template, seed, tier)
         streak, mastered = self._streak_of(lesson, template)
 
         frame, layout = self._panel(palette.success if mastered else "",
@@ -1496,8 +1527,9 @@ class LessonsScreen(QWidget):
         layout.addLayout(head)
 
         prompt = QLabel(
-            f"{question.prompt}   ·   one of "
-            f"{generate.combinations(template, tier)} versions"
+            f"{question.prompt}   ·   "
+            + ("fresh numbers · checked by the solver" if fresh else
+               f"one of {generate.combinations(template, tier)} versions")
         )
         prompt.setProperty("role", "muted")
         prompt.setWordWrap(True)
@@ -1628,6 +1660,52 @@ class LessonsScreen(QWidget):
         self._wire_fading(question, template, working, step)
         again.clicked.connect(next_question)
         return frame
+
+    def _drill_question(self, template, seed: int, tier: str):
+        """``(question, fresh)`` for this seed of a drill.
+
+        The built-in versions come first, because every one of them is
+        checked by the test suite. Past them, a template with a sampler asks
+        fresh numbers that `freshdraw` has had the solver check -- drawn in
+        the background while the question before is being answered. One not
+        back yet, or that could not be found, is replaced by a built-in
+        version for that seed, and the next seed tries again.
+        """
+        sampled = getattr(template, "sampler", None) is not None
+        built_in = generate.combinations(template, tier) if sampled else 0
+        if sampled and seed + 1 >= built_in:
+            self._prefetch(template, seed + 1, tier)
+        if not sampled or seed < built_in:
+            return generate.draw(template, seed, tier), False
+        settled = self._fresh.setdefault((template.key, tier, seed), None)
+        if settled is None:
+            return generate.draw(template, seed, tier), False
+        return settled[0], True
+
+    def _prefetch(self, template, seed: int, tier: str) -> None:
+        """Start drawing fresh numbers for `seed`, unless that is settled or
+        already on its way."""
+        from .. import freshdraw
+
+        name = (template.key, tier, seed)
+        if not freshdraw.ENABLED or name in self._fresh or any(
+                waiting[0] == name for waiting in self._fresh_pending.values()):
+            return
+        self._fresh_token += 1
+        self._fresh_pending[self._fresh_token] = (name, template.narrator)
+        QThreadPool.globalInstance().start(
+            _FreshDrawJob(self._fresh_token, template, seed, tier,
+                          self._fresh_signals))
+
+    def _on_fresh(self, token: int, result) -> None:
+        waiting = self._fresh_pending.pop(token, None)
+        if waiting is None or waiting[0] in self._fresh:
+            return              # asked before it arrived: the pool stood in
+        name, narrator = waiting
+        self._fresh[name] = result
+        if result is not None:
+            question, derivation = result
+            self._derivations[self._seen(question) + (narrator,)] = derivation
 
     def _wire_fading(self, question, template, working: StepsPanel,
                      button: QPushButton) -> None:
@@ -2654,6 +2732,12 @@ class LessonsScreen(QWidget):
         panel.clear("working it through…")
         button.setEnabled(False)
         self._pending[self._token] = (panel, button, deliver, shows)
+        known = self._derivations.get(
+            ("".join(generate.tidy(equation).split()),
+             "".join(conditions.split()), narrator))
+        if known is not None:
+            self._on_worked(self._token, known)
+            return
         # Ahead of the queue: the pool is shared with every equation's
         # typesetting, much of it for pages the reader has already left, and
         # at equal priority it is first come, first served. A long visit

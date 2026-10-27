@@ -512,6 +512,23 @@ All notable changes to this project are documented here. The format follows
   an answer. A comparison by identity (`is not t`) became an equality, so a
   `t` re-created after sympy's cache drops the old one is still the variable.
 
+- **Drills no longer run out: past the built-in versions come fresh numbers,
+  each solved before it is asked.** Nine drills (growth, cooling, constant-p,
+  exponential forcing, the three root cases, polynomial forcing, the
+  independent pair, which regime, and the first-order Laplace drill) have a
+  `sampler` that draws new coefficients once New question has gone through the
+  pool. A fresh draw is kept only if the narrator works it by the technique the
+  drill claims, every step verifies, the grader accepts the narrator's own
+  answer, and the answer is short enough to ask for; otherwise the next
+  numbers are tried, for up to 8 seconds. The next question is solved in the
+  background while the current one is answered, and its working is kept, so
+  Show me and Next step appear at once. The card says *fresh numbers · checked
+  by the solver*; when no draw was ready or none passed, it asks a built-in
+  version and says *one of N versions* as before. A card never switches
+  question under someone answering it. Draws are seeded, so the same seed and
+  tier give the same question on any machine. Streaks are unchanged. Offline,
+  50 seeds at every drill tier of all nine templates (750 draws) all verified.
+
 - **One path through the course.** The Learning Hub listed nine screens as
   equals, which made them nine competing ways in. The sidebar now splits them
   into *Study* (Course Map, Lessons, Quiz & Exams, Glossary) and *Tools* (Solve

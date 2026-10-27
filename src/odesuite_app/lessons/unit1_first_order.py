@@ -9,6 +9,7 @@ and the four techniques a first course solves them with.
 
 from __future__ import annotations
 
+from . import samplers
 from .chapters import unit1 as chapters
 from .model import (
     Case,
@@ -320,6 +321,7 @@ SEPARABLE = Lesson(
             # The power of t is what decides the work: k = 0 is a bare
             # exponential, k = 2 an integral somebody has to stop and do.
             level=lambda slots: ("easier", "typical", "harder")[slots["k"]],
+            sampler=samplers.growth,
         ),
         Template(
             key="cooling",
@@ -337,6 +339,7 @@ SEPARABLE = Lesson(
                 "y(0) = {c} fixes the coefficient in front of it.",
             ),
             slots=(("a", (1, 2, 3)), ("b", (5, 10, 20)), ("c", (0, 30, 50))),
+            sampler=samplers.cooling,
         ),
         FaultTemplate(
             key="lost-the-constant",
@@ -642,6 +645,7 @@ LINEAR = Lesson(
                 "by μ at the end, and the constant comes with it.",
             ),
             slots=(("a", (1, 2, 3)), ("b", (1, 2, 3)), ("c", (0, 1))),
+            sampler=samplers.constant_p,
         ),
         Template(
             key="variable-p",
@@ -681,6 +685,7 @@ LINEAR = Lesson(
             # constant and the integral is t, not an exponential. A different
             # answer shape, and not what this drill is practising.
             reject=lambda s: s["a"] == s["c"],
+            sampler=samplers.exponential_forcing,
         ),
         ModelTemplate(
             key="mixing-tank",

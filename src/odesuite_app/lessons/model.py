@@ -68,6 +68,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from random import Random
 
 __all__ = [
     "NOTE_KINDS",
@@ -477,6 +478,12 @@ class Template:
     technique: str = ""
     #: Which narrator works it: "steps" or "laplace".
     narrator: str = "steps"
+    #: Fresh numbers once the enumerated draws run out, as
+    #: ``sampler(rng, tier) -> slots``. `tier` is "" when the drill has no
+    #: tier control. What it returns still goes through `reject` and `level`,
+    #: and `freshdraw` has the solver check every draw before it is asked, so
+    #: a sampler only has to be plausible, not right.
+    sampler: Callable[[Random, str], Mapping[str, object]] | None = None
 
     kind: str = field(default="template", init=False)
 
