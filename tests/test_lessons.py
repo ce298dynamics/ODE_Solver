@@ -1659,6 +1659,18 @@ def test_drill_is_withheld_from_a_lesson_that_has_none(screen, qapp):
         assert screen.segment_buttons["Practice"].isChecked()
 
 
+@pytest.mark.parametrize("equation,shown", [
+    ("y' + 2*y = 4", "y = ..."),
+    ("x' = 3*x - y; y' = 2*y", "x = ...; y = ..."),
+])
+def test_the_answer_box_asks_for_each_unknown(equation, shown):
+    """A system's box asked for "y = ..." and the grader then refused it for
+    not naming x as well."""
+    from odesuite_app.screens.learn_lessons import answer_placeholder
+
+    assert answer_placeholder(equation) == shown
+
+
 def test_the_drill_page_offers_every_template(screen, qapp):
     """Every drill, and each saying how many versions it has.
 

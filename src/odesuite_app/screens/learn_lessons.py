@@ -216,6 +216,18 @@ class _FreshDrawJob(QRunnable):
             pass                                  # the screen went away
 
 
+def answer_placeholder(equation: str) -> str:
+    """What the answer box suggests: ``y = ...``, or one ``x = ...`` per
+    unknown for a system, separated as the grader reads them."""
+    import re
+
+    if ";" not in equation:
+        return "y = ..."
+    names = [match.group(1) for part in equation.split(";")
+             if (match := re.match(r"\s*([A-Za-z]\w*)'", part))]
+    return "; ".join(f"{name} = ..." for name in names) or "y = ..."
+
+
 def working_report(verdicts, palette: Palette) -> str:
     """A checked page of working, as rich text: ✓, ✗ or – against each line.
 
@@ -1567,7 +1579,7 @@ class LessonsScreen(QWidget):
         row = _AnswerRow(layout)
         answer = QLineEdit()
         answer.setAccessibleName("your answer")
-        answer.setPlaceholderText("y = ...")
+        answer.setPlaceholderText(answer_placeholder(question.equation))
         answer.setClearButtonEnabled(True)
         row.addWidget(answer, 1)
 
@@ -2246,7 +2258,7 @@ class LessonsScreen(QWidget):
         row = _AnswerRow(layout)
         answer = QLineEdit()
         answer.setAccessibleName("your answer")
-        answer.setPlaceholderText("y = ...")
+        answer.setPlaceholderText(answer_placeholder(question.equation))
         answer.setClearButtonEnabled(True)
         row.addWidget(answer, 1)
 

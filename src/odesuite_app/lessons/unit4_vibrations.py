@@ -798,6 +798,7 @@ FORCED = Lesson(
     templates=(
         Template(
             key="driven-oscillator",
+            sampler=samplers.driven_oscillator,
             title="Driven, on and off resonance",
             prompt="Guess, correct for resonance if you must, then start from "
                    "rest.",
@@ -1096,6 +1097,7 @@ CIRCUITS = Lesson(
     templates=(
         Template(
             key="rlc-regimes",
+            sampler=samplers.rlc_regimes,
             title="An RLC circuit, across its regimes",
             prompt="L·q'' + R·q' + q/C = 0. Find the charge.",
             equation="y'' + {r}*y' + {s}*y = 0",

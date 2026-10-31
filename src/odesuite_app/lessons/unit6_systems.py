@@ -18,6 +18,7 @@ enumeration cannot tell in advance which draws those are.
 
 from __future__ import annotations
 
+from . import samplers
 from .chapters import unit6 as chapters
 from .model import (
     Case,
@@ -316,6 +317,7 @@ FIRSTORDER = Lesson(
     templates=(
         Template(
             key="convertible",
+            sampler=samplers.convertible,
             title="Second order, the equation behind a system",
             prompt="Solve it directly; the eigenvalues will match these roots.",
             equation="y'' + {b}*y' + {c}*y = 0",
@@ -633,6 +635,7 @@ DISTINCT = Lesson(
     templates=(
         Template(
             key="two-by-two",
+            sampler=samplers.two_by_two,
             title="A 2×2 system with real distinct eigenvalues",
             prompt="Matrix, characteristic equation, eigenvectors, answer.",
             equation="x' = {a}*x + {b}*y; y' = {c}*x + {d}*y",
@@ -979,6 +982,7 @@ COMPLEX = Lesson(
     templates=(
         Template(
             key="spiral-system",
+            sampler=samplers.spiral_system,
             title="A complex pair, back to real form",
             prompt="Find the eigenvalues, and give a real general solution.",
             equation="x' = {a}*x - {b}*y; y' = {b}*x + {a}*y",
@@ -1290,6 +1294,7 @@ REPEATED = Lesson(
     templates=(
         Template(
             key="defective",
+            sampler=samplers.defective,
             title="A defective 2×2 system",
             prompt="One eigenvector short. Find the generalised one.",
             equation="x' = {a}*x + {b}*y; y' = {a}*y",
@@ -2048,6 +2053,7 @@ NONHOMOGENEOUS = Lesson(
     templates=(
         Template(
             key="constant-forcing",
+            sampler=samplers.constant_forcing,
             title="A stable system pushed off the origin",
             prompt="Solve the homogeneous system first, then the forcing.",
             equation="x' = -2*x + y + {f}; y' = x - 2*y",

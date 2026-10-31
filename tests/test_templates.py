@@ -398,11 +398,23 @@ def _drill_tiers(template) -> tuple[str, ...]:
 
 
 def test_the_drills_planned_to_sample_do():
+    """Every typed-answer drill but two. `secant-family` varies a function,
+    not a number, and `logistic` solves too erratically for the 8 s budget
+    (see `lessons/samplers.py`)."""
     assert {template.key for _, template in SAMPLED} == {
         "growth", "cooling", "constant-p", "exponential-forcing",
         "three-cases", "polynomial-forcing", "independent-pair",
         "which-regime", "first-order",
+        "variable-p", "linear-exact", "homogeneous", "bernoulli",
+        "growth-decay", "cosine-forcing", "second-from-first", "indicial",
+        "third-order", "driven-oscillator", "rlc-regimes",
+        "first-order-constant", "second-order", "complete-the-square",
+        "two-by-two", "spiral-system", "defective", "constant-forcing",
+        "convertible",
     }
+    unsampled = {template.key for _, template in SOLVE_TEMPLATES
+                 if template.sampler is None}
+    assert unsampled == {"secant-family", "logistic"}
 
 
 @pytest.mark.parametrize("lesson,template", SAMPLED, ids=SAMPLED_IDS)

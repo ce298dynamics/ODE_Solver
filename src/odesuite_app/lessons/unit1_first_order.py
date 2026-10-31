@@ -649,6 +649,7 @@ LINEAR = Lesson(
         ),
         Template(
             key="variable-p",
+            sampler=samplers.variable_p,
             title="p is not constant — divide first",
             prompt="Careful: y′ has a coefficient. Standard form comes first.",
             equation="t*y' + {a}*y = {b}*t**{k}",
@@ -1804,6 +1805,7 @@ EXACT = Lesson(
     templates=(
         Template(
             key="linear-exact",
+            sampler=samplers.linear_exact,
             title="Test it, build ψ, solve for y",
             prompt="Check exactness first, then integrate M and match N.",
             equation="y' = -({a}*t**2 + y)/(t + {b}*y)",
@@ -2115,6 +2117,7 @@ SUBSTITUTIONS = Lesson(
     templates=(
         Template(
             key="homogeneous",
+            sampler=samplers.homogeneous,
             title="Homogeneous: substitute y = v·t",
             prompt="Check it depends on y/t alone, then substitute.",
             equation="y' = ({a}*t**2 + y**2)/(t*y)",
@@ -2132,6 +2135,7 @@ SUBSTITUTIONS = Lesson(
         ),
         Template(
             key="bernoulli",
+            sampler=samplers.bernoulli,
             title="Bernoulli: substitute v = y^(1-n)",
             prompt="Read off n, substitute, and finish with an integrating "
                    "factor.",

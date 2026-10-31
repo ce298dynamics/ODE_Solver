@@ -15,12 +15,13 @@ quietly prints a wrong line is the one thing worse than no derivation at all.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QSize, Qt
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -30,6 +31,50 @@ from ..theme import Palette
 from .mathlabel import MathLabel
 
 __all__ = ["StepsPanel"]
+
+
+class _Sideways(QScrollArea):
+    """One line of mathematics that scrolls sideways when it is too wide.
+
+    For a panel that `grows`: with no scroll area of its own, one wide
+    equation would widen the whole column and push every card's mark and
+    note past its right edge. Here only the line that is too wide scrolls.
+    As tall as the line, plus the bar when there is one, and kept so as the
+    line's image arrives.
+    """
+
+    def __init__(self, content: QWidget) -> None:
+        super().__init__()
+        self.setFrameShape(QFrame.NoFrame)
+        self.setWidgetResizable(True)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setStyleSheet("background: transparent;")
+        self.setWidget(content)
+        content.installEventFilter(self)
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802
+        if event.type() in (QEvent.LayoutRequest, QEvent.Resize):
+            self.updateGeometry()
+        return False
+
+    def _height(self) -> int:
+        content = self.widget()
+        height = content.sizeHint().height()
+        if content.sizeHint().width() > self.viewport().width():
+            height += self.horizontalScrollBar().sizeHint().height()
+        return height
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        return QSize(0, self._height())
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        return QSize(0, self._height())
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self.updateGeometry()
 
 
 class StepsPanel(QWidget):
@@ -42,6 +87,7 @@ class StepsPanel(QWidget):
         sits at its minimum height and shows a step at a time."""
         super().__init__(parent)
         self.palette_obj = palette
+        self._grows = grows
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -139,7 +185,8 @@ class StepsPanel(QWidget):
         header.addWidget(self._mark(step.verified))
         layout.addLayout(header)
 
-        layout.addWidget(MathLabel(palette, step.latex, point_size=15))
+        mathematics = MathLabel(palette, step.latex, point_size=15)
+        layout.addWidget(_Sideways(mathematics) if self._grows else mathematics)
 
         if step.note:
             note = QLabel(step.note)

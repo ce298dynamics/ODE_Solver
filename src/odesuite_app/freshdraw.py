@@ -20,7 +20,8 @@ from collections.abc import Callable
 from .lessons import generate
 from .lessons.model import Solve, Template
 
-__all__ = ["ENABLED", "work_out", "verify_solve", "fresh_draw", "readable"]
+__all__ = ["ENABLED", "work_out", "answer_text", "verify_solve", "fresh_draw",
+           "readable"]
 
 #: Whether the drills draw fresh numbers at all. Off for the test suite,
 #: whose screen tests walk round a pool many times over and compare what is
@@ -58,7 +59,25 @@ def readable(derivation) -> bool:
     """
     import sympy as sp
 
-    return len(sp.sstr(derivation.result)) <= 120
+    result = derivation.result
+    # A system's column is several answers, each typed on its own line.
+    parts = list(result) if isinstance(result, sp.MatrixBase) else [result]
+    return all(len(sp.sstr(part)) <= 120 for part in parts)
+
+
+def answer_text(parsed, result) -> str:
+    """The narrator's result as a student would type it into the answer box.
+
+    A system's result is a column, one entry per unknown, and the box wants
+    one ``x = ...`` line for each: the whole column on one line is refused.
+    """
+    import sympy as sp
+
+    if getattr(parsed, "is_system", False):
+        return "\n".join(f"{function.__name__} = {sp.sstr(component)}"
+                         for function, component in zip(parsed.functions,
+                                                        result))
+    return sp.sstr(result)
 
 
 def verify_solve(template: Template, question: Solve,
@@ -87,11 +106,9 @@ def verify_solve(template: Template, question: Solve,
     if template.technique and derivation.technique != template.technique:
         return None, (f"worked as {derivation.technique}, not "
                       f"{template.technique}")
-    import sympy as sp
-
     parsed = parse_equation(spec_for(question.equation, question.conditions),
                             extra_functions=EXTRA_FUNCTIONS)
-    verdict = check_answer(parsed, sp.sstr(derivation.result),
+    verdict = check_answer(parsed, answer_text(parsed, derivation.result),
                            general=not question.conditions)
     if verdict.correct is not True or not verdict.ok:
         return None, f"the grader does not accept it: {verdict.message}"

@@ -718,6 +718,7 @@ UNDETERMINED = Lesson(
     templates=(
         Template(
             key="cosine-forcing",
+            sampler=samplers.cosine_forcing,
             title="Cosine forcing — sometimes resonant",
             prompt="Check the driving frequency against the natural one first.",
             equation="y'' + {w2}*y = {b}*cos({w}*t)",
@@ -1042,6 +1043,7 @@ CAUCHY = Lesson(
     templates=(
         Template(
             key="indicial",
+            sampler=samplers.indicial,
             title="Substitute a power, read the indicial roots",
             prompt="y = t^r, then whichever of the three cases you land in.",
             equation="t**2*y'' + {b}*t*y' + {c}*y = 0",
@@ -2170,6 +2172,7 @@ HIGHER = Lesson(
     templates=(
         Template(
             key="third-order",
+            sampler=samplers.third_order,
             title="Third order, three conditions",
             prompt="Factor the cubic, write the basis, pin three constants.",
             equation="y''' - {a}*y'' + {b}*y' - {c}*y = 0",
@@ -2623,6 +2626,7 @@ REDUCTION = Lesson(
     templates=(
         Template(
             key="second-from-first",
+            sampler=samplers.second_from_first,
             title="A second solution from y₁ = t",
             prompt="y₁ = t is one solution. Reduce the order and give the "
                    "general solution.",

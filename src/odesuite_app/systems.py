@@ -52,7 +52,15 @@ _SADDLE = "saddle"
 
 
 def _latex(expr) -> str:
-    return expr if isinstance(expr, str) else sp.latex(expr)
+    """LaTeX the panel can typeset: matrices through `matrix_latex`, since
+    sympy's own form is an environment mathtext cannot set."""
+    if isinstance(expr, str):
+        return expr
+    if isinstance(expr, sp.MatrixBase):
+        from .mathrender import matrix_latex
+
+        return matrix_latex(expr)
+    return sp.latex(expr)
 
 
 def _eq(lhs, rhs) -> str:
@@ -170,9 +178,9 @@ def _build(equations, functions, ics: dict, derivation: Derivation) -> None:
 
     derivation.steps.append(Step(
         title="Write it as one matrix equation",
-        latex=(rf"\frac{{d}}{{dt}}{sp.latex(vector)} = "
-               rf"{sp.latex(matrix)}{sp.latex(vector)}"
-               + (rf" + {sp.latex(forcing)}" if driven else "")),
+        latex=(rf"\frac{{d}}{{dt}}{_latex(vector)} = "
+               rf"{_latex(matrix)}{_latex(vector)}"
+               + (rf" + {_latex(forcing)}" if driven else "")),
         note="Neither equation can be solved without the other, so they stop "
              "being two problems and become one. Everything that follows is "
              "about the matrix, not about the equations."
@@ -195,7 +203,7 @@ def _build(equations, functions, ics: dict, derivation: Derivation) -> None:
     characteristic = sp.expand((matrix - _L * sp.eye(size)).det())
     derivation.steps.append(Step(
         title="The characteristic equation",
-        latex=_eq(rf"\det(A - \lambda I) = {sp.latex(sp.factor(characteristic))}",
+        latex=_eq(rf"\det(A - \lambda I) = {_latex(sp.factor(characteristic))}",
                   0),
         note="A non-zero vector v with Av = λv exists exactly when A − λI is "
              "singular, and a matrix is singular exactly when its determinant "
@@ -251,7 +259,7 @@ def _build(equations, functions, ics: dict, derivation: Derivation) -> None:
     derivation.steps.append(Step(
         title=("The homogeneous solution" if driven
                else "The general solution"),
-        latex=_eq(sp.latex(vector), sp.latex(general)),
+        latex=_eq(_latex(vector), _latex(general)),
         note=f"One arbitrary constant per equation, as a {size}×{size} system "
              "must have."
              + ("  Now for one solution of the forced system."
@@ -263,7 +271,7 @@ def _build(equations, functions, ics: dict, derivation: Derivation) -> None:
     if not driven:
         derivation.steps.append(Step(
             title="What the origin is",
-            latex=_eq(r"\text{origin}", sp.latex(sp.Matrix([0] * size).T)),
+            latex=_eq(r"\text{origin}", _latex(sp.Matrix([0] * size).T)),
             note=f"Read off the eigenvalues alone: {classify(values)}. "
                  "The trajectories were decided the moment the roots were.",
         ))
@@ -288,8 +296,8 @@ def _eigenvector_step(matrix, value, vectors, derivation: Derivation) -> None:
     column = vectors[0]
     derivation.steps.append(Step(
         title=f"An eigenvector for λ = {sp.sstr(value)}",
-        latex=(rf"(A - ({sp.latex(value)})I)\,v = 0 \quad\Longrightarrow\quad "
-               rf"v = {sp.latex(column)}"),
+        latex=(rf"(A - ({_latex(value)})I)\,v = 0 \quad\Longrightarrow\quad "
+               rf"v = {_latex(column)}"),
         note="Any non-zero multiple will do — the arbitrary constant in front "
              "absorbs the scaling, which is why a course never worries about "
              "normalising these.",
@@ -305,7 +313,7 @@ def _distinct_basis(matrix, ordered, derivation: Derivation):
         basis.append(sp.simplify(vectors[0] * sp.exp(value * _T)))
     derivation.steps.append(Step(
         title="Each pair gives a solution",
-        latex=r",\qquad ".join(sp.latex(column) for column in basis),
+        latex=r",\qquad ".join(_latex(column) for column in basis),
         note="A solution that keeps a fixed direction and only changes length "
              "— the straight-line solutions, and the skeleton every other "
              "trajectory bends around.",
@@ -339,21 +347,21 @@ def _complex_basis(matrix, ordered, derivation: Derivation):
 
     derivation.steps.append(Step(
         title="One complex solution carries both real ones",
-        latex=(rf"v e^{{\lambda t}} = {sp.latex(column)}"
-               rf"e^{{({sp.latex(alpha)} + {sp.latex(beta)}i)t}}"),
+        latex=(rf"v e^{{\lambda t}} = {_latex(column)}"
+               rf"e^{{({_latex(alpha)} + {_latex(beta)}i)t}}"),
         note="The conjugate eigenvalue gives the conjugate solution, which is "
              "no new information. Instead of using both, take this one apart.",
     ))
     derivation.steps.append(Step(
         title="Euler's formula, on the vector as well",
-        latex=(rf"e^{{{sp.latex(beta)}it}} = \cos {sp.latex(beta)}t "
-               rf"+ i\sin {sp.latex(beta)}t"),
+        latex=(rf"e^{{{_latex(beta)}it}} = \cos {_latex(beta)}t "
+               rf"+ i\sin {_latex(beta)}t"),
         note="Multiply it out — the eigenvector has complex entries too, so "
              "they mix into both parts. This is the step to take slowly.",
     ))
     derivation.steps.append(Step(
         title="Its real and imaginary parts are the two solutions",
-        latex=(rf"{sp.latex(real_part)}, \qquad {sp.latex(imaginary_part)}"),
+        latex=(rf"{_latex(real_part)}, \qquad {_latex(imaginary_part)}"),
         note="Both solve the system, because the system has real coefficients: "
              "if a complex function solves it, its real and imaginary parts "
              "each do separately.",
@@ -381,7 +389,7 @@ def _defective_basis(matrix, ordered, derivation: Derivation):
     _eigenvector_step(matrix, value, vectors, derivation)
     derivation.steps.append(Step(
         title="There is only one eigenvector",
-        latex=(rf"\lambda = {sp.latex(value)} \ (\times {multiplicity}), "
+        latex=(rf"\lambda = {_latex(value)} \ (\times {multiplicity}), "
                rf"\qquad \dim\ker(A - \lambda I) = {len(vectors)}"),
         note="A repeated eigenvalue does not have to be short of "
              "eigenvectors, but this one is — and a single direction cannot "
@@ -400,7 +408,7 @@ def _defective_basis(matrix, ordered, derivation: Derivation):
     derivation.steps.append(Step(
         title="A generalised eigenvector supplies the second",
         latex=(rf"(A - \lambda I)\,w = v \quad\Longrightarrow\quad "
-               rf"w = {sp.latex(generalised)}"),
+               rf"w = {_latex(generalised)}"),
         note="Not an eigenvector — it is one step away from being one. Any "
              "solution of this will do; the free part of it is a multiple of "
              "v, which the first constant already covers.",
@@ -411,7 +419,7 @@ def _defective_basis(matrix, ordered, derivation: Derivation):
     second = sp.simplify((column * _T + generalised) * sp.exp(value * _T))
     derivation.steps.append(Step(
         title="The second solution carries a t",
-        latex=_eq(r"x_2(t)", sp.latex(second)),
+        latex=_eq(r"x_2(t)", _latex(second)),
         note="(vt + w)e^{λt}, not simply w·e^{λt}. Differentiating it "
              "produces the extra v·e^{λt} that the equation needs, which is "
              "exactly why w had to solve (A − λI)w = v.",
@@ -491,7 +499,7 @@ def _particular(matrix, forcing, basis, homogeneous, derivation: Derivation):
         title="Vary the constants",
         latex=(r"\mathbf{x}_p = \Phi(t)\int \Phi^{-1}(t)\,"
                rf"\mathbf{{f}}(t)\,dt, \qquad \Phi^{{-1}}\mathbf{{f}} = "
-               rf"{sp.latex(integrand)}"),
+               rf"{_latex(integrand)}"),
         note="Replace the constant vector by a function of t. Requiring "
              "Φ·c′ = f is what makes the derivative work out, and it leaves "
              "c′ = Φ⁻¹f — one integral per constant.",
@@ -526,7 +534,7 @@ def _particular(matrix, forcing, basis, homogeneous, derivation: Derivation):
     general = sp.simplify(homogeneous + particular)
     derivation.steps.append(Step(
         title="The general solution",
-        latex=_eq(r"\mathbf{x}(t)", sp.latex(general)),
+        latex=_eq(r"\mathbf{x}(t)", _latex(general)),
         note="Homogeneous plus particular, as for any linear equation. The "
              "constants are still arbitrary; the forcing has not touched them.",
         verified=_solves(matrix, general, forcing),
@@ -600,8 +608,8 @@ def _apply_conditions(general, constants, functions, ics: dict, matrix,
     ))
     derivation.steps.append(Step(
         title="The particular solution",
-        latex=_eq(sp.latex(sp.Matrix([f(_T) for f in functions])),
-                  sp.latex(particular)),
+        latex=_eq(_latex(sp.Matrix([f(_T) for f in functions])),
+                  _latex(particular)),
         note="One trajectory now, rather than a family of them.",
         verified=_solves(matrix, particular, forcing),
     ))

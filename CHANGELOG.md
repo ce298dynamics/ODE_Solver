@@ -43,6 +43,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A linear system's working shows its matrices, not their LaTeX source.**
+  The eigenvalue method's first step, `x' = A x`, and every eigenvector were
+  printed as `\begin{matrix}…` text, because mathtext has no environments.
+  A 2×2 matrix or vector is now set with `\genfrac` inside brackets
+  (`mathrender.matrix_latex`). The guard against mathtext's missing `\ge` had
+  also been refusing `\genfrac` for starting with the same letters; it now
+  refuses only the bare `\ge` and `\le`. In the answer column a line too wide
+  for it scrolls sideways on its own, instead of widening the column and
+  hiding every card's ✓ and the end of its note. A system's answer box now
+  asks for `x = ...; y = ...`, not `y = ...`.
+
 - **Two blemishes in the worked solution.** The integrating-factor narrator
   bracketed p whatever it was, so standard form read `y' + (4)y = 5t`; it now
   writes `y' + 4y`, `y' - y` or `y' + \frac{1}{t} y`, and keeps the brackets
@@ -521,11 +532,14 @@ All notable changes to this project are documented here. The format follows
   `t` re-created after sympy's cache drops the old one is still the variable.
 
 - **Drills no longer run out: past the built-in versions come fresh numbers,
-  each solved before it is asked.** Nine drills (growth, cooling, constant-p,
-  exponential forcing, the three root cases, polynomial forcing, the
-  independent pair, which regime, and the first-order Laplace drill) have a
+  each solved before it is asked.** Every typed-answer drill but two has a
   `sampler` that draws new coefficients once New question has gone through the
-  pool. A fresh draw is kept only if the narrator works it by the technique the
+  pool: 28 drills across first-order equations, models, second-order and
+  higher, vibrations, Laplace transforms and linear systems. The 2×2 systems
+  are built from integer eigenvalues and eigenvectors, so their roots come out
+  whole. The two without one: `secant-family` varies a function rather than a
+  number, and `logistic` solves too erratically for the time allowed (2 s for
+  most pairs, over 40 s for K = 40, y(0) = 8, with no pattern to avoid). A fresh draw is kept only if the narrator works it by the technique the
   drill claims, every step verifies, the grader accepts the narrator's own
   answer, and the answer is short enough to ask for; otherwise the next
   numbers are tried, for up to 8 seconds. The next question is solved in the
@@ -535,7 +549,8 @@ All notable changes to this project are documented here. The format follows
   version and says *one of N versions* as before. A card never switches
   question under someone answering it. Draws are seeded, so the same seed and
   tier give the same question on any machine. Streaks are unchanged. Offline,
-  50 seeds at every drill tier of all nine templates (750 draws) all verified.
+  50 seeds at every drill tier of all 28 templates verified, none slower than
+  the 8 s allowed (the slowest took 6.8 s).
 
 - **One path through the course.** The Learning Hub listed nine screens as
   equals, which made them nine competing ways in. The sidebar now splits them

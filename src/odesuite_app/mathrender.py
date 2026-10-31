@@ -47,6 +47,7 @@ __all__ = [
     "to_plain",
     "is_renderable",
     "equation_latex",
+    "matrix_latex",
     "rows",
     "latex_to_png",
     "cached_png",
@@ -92,10 +93,12 @@ _ENVIRONMENT = re.compile(r"\\begin\{|\\end\{|\\substack|\\middle")
 #: way: the label falls back to plain text and prints the backslashes, which
 #: looks like a typo in the content rather than a limit of the renderer.
 #: ``\ge`` is here and ``\geq`` is not -- mathtext accepts only the long form,
-#: which is the one sympy prints.
+#: which is the one sympy prints. Only the bare command: every longer name
+#: that starts the same way (``\genfrac``, ``\geqslant``, ``\left``,
+#: ``\lessgtr``) is one mathtext has, and ``\genfrac`` is how a matrix is set.
 _UNSUPPORTED = re.compile(
     r"\\tfrac|\\dbinom|\\underbrace|\\overbrace|\\iff|\\implies"
-    r"|\\ge(?![q])|\\le(?![qf])|\\[Bb]ig[lrm]?(?![a-z])"
+    r"|\\ge(?![a-zA-Z])|\\le(?![a-zA-Z])|\\[Bb]ig[lrm]?(?![a-z])"
 )
 
 
@@ -248,6 +251,29 @@ def equation_latex(equation: str, conditions: str = "") -> str | None:
     if where:
         latex += r"\qquad \mathrm{at}\ " + where.strip()
     return latex if is_renderable(latex) else None
+
+
+def matrix_latex(matrix) -> str:
+    """A matrix or vector in LaTeX that mathtext can typeset.
+
+    sympy writes ``\\begin{matrix}``, an environment mathtext has no notion
+    of, so the systems narrator's ``x' = A x`` showed as its own source. Two
+    rows can be stacked with ``\\genfrac`` instead -- a fraction with no bar
+    -- one per column, inside brackets. That is every matrix a 2×2 system
+    has; anything taller keeps sympy's form and the text fallback.
+    """
+    import sympy as sp
+
+    if matrix.rows > 2:
+        return sp.latex(matrix)
+    if matrix.rows == 1:
+        body = r"\ \ ".join(sp.latex(entry) for entry in matrix)
+    else:
+        body = r"\ \ ".join(
+            rf"\genfrac{{}}{{}}{{0}}{{}}{{{sp.latex(matrix[0, j])}}}"
+            rf"{{{sp.latex(matrix[1, j])}}}"
+            for j in range(matrix.cols))
+    return rf"\left[{body}\right]"
 
 
 def rows(expr) -> list[Row]:
