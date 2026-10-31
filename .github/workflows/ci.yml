@@ -141,18 +141,24 @@ jobs:
       # a hang showed only as a leg frozen at 98% until the job's own timeout,
       # with no stack to read; pytest-timeout fails the test and dumps every
       # thread instead.
+      #
+      # --timeout-method=thread: the default, signal, raises inside the test,
+      # and so only when Python next runs a bytecode. A test blocked inside Qt
+      # never does -- the 2026-10-12 run sat at 98% for 100 minutes with the
+      # 600 s limit long past. The thread method dumps every stack from a
+      # watchdog and ends the worker, which xdist reports and replaces.
       - name: pytest
         if: matrix.os != 'ubuntu-latest' || matrix.python != '3.12'
         env:
           QT_QPA_PLATFORM: offscreen
-        run: pytest tests/ -q -n auto --timeout=600
+        run: pytest tests/ -q -n auto --timeout=600 --timeout-method=thread
 
       - name: pytest with coverage
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          pytest tests/ -q -n auto --timeout=600 \
+          pytest tests/ -q -n auto --timeout=600 --timeout-method=thread \
             --cov=odesuite --cov=odesuite_app \
             --cov-report=term-missing:skip-covered \
             --cov-report=html:htmlcov \
