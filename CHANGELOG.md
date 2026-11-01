@@ -526,7 +526,19 @@ All notable changes to this project are documented here. The format follows
 
   A line is never marked ✗ unless a probe disproves it. The check covers
   first-order linear, separable and constant-coefficient second-order
-  equations; systems and Laplace questions say it isn't available yet. It runs
+  equations, and two more methods:
+  - **Laplace transforms.** Lines in s (`L{y'} + 2L{y} = L{4}`,
+    `sY - y(0) + 2Y = 4/s`, `Y = A/s + B/(s + 2)`) are checked against
+    Y(s), the transform of the verified solution, at real s to the right of
+    every pole; `y(0)` and `y'(0)` are read from the conditions. An inverse
+    transform line gets a –, and the `y = …` it gives is checked as usual.
+  - **2×2 linear systems.** The characteristic equation (or
+    `det(A - λI) = …`) against det(A − λI), the eigenvalues by substitution,
+    each eigenvector `v = (a, b)` by A·v = λ·v, and `x = …`, `y = …` against
+    that component of the solution family. A final `x`/`y` pair is also
+    judged as one answer, so a pair that fails only together is still caught.
+
+  The box's example is written in the notation of the question's method. It runs
   off the interface thread, solves each question once, and is not recorded as
   an answer. A comparison by identity (`is not t`) became an equality, so a
   `t` re-created after sympy's cache drops the old one is still the variable.

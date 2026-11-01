@@ -1671,6 +1671,23 @@ def test_the_answer_box_asks_for_each_unknown(equation, shown):
     assert answer_placeholder(equation) == shown
 
 
+@pytest.mark.parametrize("lesson_key,template_key", [
+    ("laplace", "first-order"),
+    ("eigenvalues", "two-by-two"),
+])
+def test_working_can_be_checked_on_laplace_and_systems_drills(
+        screen, qapp, lesson_key, template_key):
+    """Both said "not available yet" until their lines in s, and their
+    eigenvalues and eigenvectors, could be checked."""
+    from PySide6.QtWidgets import QPushButton
+
+    _drill(screen, qapp, lesson_key)
+    page = screen._workspace.page(template_key)
+    run = next(button for button in page.findChildren(QPushButton)
+               if button.text() == "Check working")
+    assert run.isEnabled()
+
+
 def test_the_drill_page_offers_every_template(screen, qapp):
     """Every drill, and each saying how many versions it has.
 

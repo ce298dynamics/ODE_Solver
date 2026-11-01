@@ -97,9 +97,22 @@ class LineVerdict:
 def available(parsed: ParsedEquation, narrator: str) -> tuple[bool, str]:
     """Whether working can be checked for this equation, and if not, why."""
     reason = ("Checking working is not available for this kind of equation "
-              "yet -- first-order linear, separable and constant-coefficient "
-              "second-order equations only.")
-    if parsed.is_system or narrator != "steps" or parsed.order > 2:
+              "yet -- first-order linear, separable, constant-coefficient "
+              "second-order, Laplace-transform and 2×2 linear-system "
+              "questions only.")
+    if parsed.is_system:
+        from .systems import split_system
+
+        if narrator != "systems" or len(parsed.functions) != 2 \
+                or split_system(parsed.equations, parsed.functions) is None:
+            return False, reason
+        return True, ""
+    if narrator == "laplace":
+        # The method needs the conditions, and its working is in s.
+        if not parsed.ics:
+            return False, reason
+        return True, ""
+    if narrator != "steps" or parsed.order > 2:
         return False, reason
     if parsed.order == 2:
         analysis = analyse_linear(parsed.equation, parsed.function, 2)
@@ -358,14 +371,24 @@ def _substitute(relation, function, solution):
 
 
 def check_working(parsed: ParsedEquation, text: str, general, particular=None,
-                  *, budget: float = 6.0) -> list[LineVerdict]:
+                  *, budget: float = 6.0,
+                  narrator: str = "steps") -> list[LineVerdict]:
     """A verdict per non-empty line of `text`.
 
     `general` is the verified general solution, with sympy's ``C1``, ``C2``;
     `particular` the solution meeting the question's conditions, when it has
     any. Lines after `budget` seconds are left "unchecked" rather than
     holding the screen up.
+
+    A system's general solution is a column, one entry per unknown, and its
+    working is checked by `_check_system`. Under the Laplace `narrator` lines
+    in s are checked against the transform of `particular`; a Laplace
+    solution has no free constants, so `general` may be `particular` itself.
     """
+    if parsed.is_system:
+        return _check_system(parsed, text, general, particular, budget)
+    transform = (_Transform(parsed, particular)
+                 if narrator == "laplace" and particular is not None else None)
     reader = _Reader(parsed)
     parameters = sorted(reader.parameters, key=str)
     # Every free symbol of the family that is not t or a parameter is one of
@@ -405,9 +428,12 @@ def check_working(parsed: ParsedEquation, text: str, general, particular=None,
                                         "ran out of time before this line"))
             continue
         try:
-            verdict = _check_line(reader, parsed, _strip(raw), family, members,
-                                  particular, fixed, last_good,
-                                  number == final, linear)
+            if transform is not None and transform.claims(_strip(raw)):
+                verdict = transform.check(_strip(raw), last_good)
+            else:
+                verdict = _check_line(reader, parsed, _strip(raw), family,
+                                      members, particular, fixed, last_good,
+                                      number == final, linear)
         except ParseError as exc:
             verdict = (UNREADABLE, f"could not read this line: {exc}")
         except Exception:                        # never the thing that breaks
@@ -559,9 +585,13 @@ def _characteristic_line(left: str, right: str) -> str:
     return "poly"
 
 
-def _check_characteristic(reader, parsed, kind, left, right):
-    analysis = analyse_linear(parsed.equation, parsed.function, parsed.order)
-    reference = analysis.get("poly")
+def _check_characteristic(reader, parsed, kind, left, right, reference=None):
+    """A characteristic polynomial, or its roots, against `reference` in r:
+    the equation's own unless given -- a system gives det(A - rI)."""
+    if reference is None:
+        analysis = analyse_linear(parsed.equation, parsed.function,
+                                  parsed.order)
+        reference = analysis.get("poly")
     if reference is None:
         return UNCHECKED, "this equation has no characteristic polynomial"
     r = sp.Symbol("r")
@@ -583,8 +613,10 @@ def _check_characteristic(reader, parsed, kind, left, right):
         if mine.degree() == theirs.degree() and sp.simplify(
                 mine.LC() * theirs.as_expr() - theirs.LC() * mine.as_expr()) == 0:
             return OK, ""
+        how = ("it is det(A - rI) for the system's matrix A"
+               if parsed.is_system else "each y^(k) becomes r^k")
         return WRONG, (f"the characteristic equation is "
-                       f"{sp.sstr(reference)} = 0: each y^(k) becomes r^k")
+                       f"{sp.sstr(reference)} = 0: {how}")
 
     values = []
     for piece in re.split(r",|\band\b", right):
@@ -609,3 +641,312 @@ def _check_characteristic(reader, parsed, kind, left, right):
             return WRONG, (f"{sp.sstr(root)} is not a root of "
                            f"{sp.sstr(reference)} = 0")
     return OK, ""
+
+
+# ---------------------------------------------------------------------------
+# Laplace transforms: lines in s
+# ---------------------------------------------------------------------------
+
+#: A line in s: ``Y``, ``Y(s)``, ``L{...}``, ``ℒ{...}``, or a bare ``s``.
+_S_LINE = re.compile(
+    r"(?<![A-Za-z_])(?:s?Y|s)(?![A-Za-z_])|ℒ|(?<![A-Za-z_])L\s*\{")
+#: ``L^-1{...}``, ``L^{-1}{...}``: the inverse, judged by the line it gives.
+_INVERSE = re.compile(r"(?:L|ℒ)\s*\^\s*\{?\s*-\s*1")
+
+
+class _Transform:
+    """Checks the lines of Laplace working written in s.
+
+    Every such line is a claim about Y(s), the transform of the solution, and
+    is tested by substituting the transform of the verified particular
+    solution: ``sY - 1 + 2Y = 4/s``, ``Y = 2/s - 1/(s + 2)``. ``L{y'}`` and
+    ``y(0)`` are read too. The probes are at real s to the right of every
+    pole, where the transform is defined. A partial-fraction line with its
+    own unknowns -- ``Y = A/s + B/(s+2)`` -- holds if some A and B make it.
+    """
+
+    def __init__(self, parsed: ParsedEquation, particular) -> None:
+        self.parsed = parsed
+        self.name = parsed.function.__name__
+        self.particular = particular
+        self.s = sp.Symbol("s")
+        self.Y = sp.Symbol("Yofs")
+        self._expected = None
+        self._shift = 1.0
+        self.reader = _Reader(parsed)
+        #: Order of derivative -> its value at 0, from the conditions.
+        self.at_zero: dict[int, sp.Expr] = {}
+        function = parsed.function(_T)
+        for key, value in parsed.ics.items():
+            if key == parsed.function(0):
+                self.at_zero[0] = value
+            elif (isinstance(key, sp.Subs) and tuple(key.point) == (0,)
+                  and isinstance(key.expr, sp.Derivative)
+                  and key.expr.expr == function):
+                self.at_zero[key.expr.derivative_count] = value
+
+    def claims(self, text: str) -> bool:
+        return bool(_S_LINE.search(text) or _INVERSE.search(text))
+
+    def expected(self):
+        """Y(s), and how far right the probes start. Worked out once."""
+        if self._expected is None:
+            transform = sp.laplace_transform(self.particular, _T, self.s,
+                                             noconds=True)
+            if transform.has(sp.LaplaceTransform):
+                raise ValueError("the solution's transform was not found")
+            _, denominator = sp.fraction(sp.together(transform))
+            try:
+                poles = sp.Poly(denominator, self.s).nroots()
+                rightmost = max([0.0] + [float(sp.re(p)) for p in poles])
+            except (sp.PolynomialError, ValueError, TypeError):
+                rightmost = 0.0
+            self._shift = rightmost + 1.0
+            self._expected = transform
+        return self._expected
+
+    def _derivative(self, order: int) -> str:
+        """``L{y^(k)}`` in Y and the conditions."""
+        if any(k not in self.at_zero for k in range(order)):
+            raise ParseError("the conditions do not give every value at 0 "
+                             "this needs")
+        terms = [f"s**{order}*Yofs"] + [
+            f"s**{order - 1 - k}*({sp.sstr(self.at_zero[k])})"
+            for k in range(order)]
+        return "(" + " - ".join(terms) + ")"
+
+    def _transform_of(self, inner: str) -> str:
+        inner = re.sub(rf"^{re.escape(self.name)}\s*\(\s*t\s*\)", self.name,
+                       inner.strip())
+        match = re.fullmatch(rf"{re.escape(self.name)}('*)", inner)
+        if match:
+            return self._derivative(len(match.group(1)))
+        expression = self.reader.expression(inner)
+        if expression.has(self.parsed.function):
+            raise ParseError("transform y and its derivatives one at a time")
+        return "(" + sp.sstr(sp.laplace_transform(expression, _T, self.s,
+                                                  noconds=True)) + ")"
+
+    def _read(self, text: str) -> sp.Expr:
+        # L{...} first, its braces matched by hand.
+        while True:
+            at = re.search(r"(?:ℒ|(?<![A-Za-z_])L)\s*\{", text)
+            if at is None:
+                break
+            depth, close = 0, None
+            for index in range(at.end() - 1, len(text)):
+                depth += {"{": 1, "}": -1}.get(text[index], 0)
+                if depth == 0:
+                    close = index
+                    break
+            if close is None:
+                raise ParseError("a { is never closed")
+            text = (text[:at.start()]
+                    + self._transform_of(text[at.end():close])
+                    + text[close + 1:])
+        # Y alone, or after an s: sY and s^2Y are how the working is written.
+        lone_y = r"(?:(?<=s)|(?<![A-Za-z_]))Y"
+        text = re.sub(lone_y + r"\s*\(\s*s\s*\)", "Y", text)
+        # y(0), y'(0): the values the conditions give.
+        for order, value in self.at_zero.items():
+            primes = "'" * order
+            text = re.sub(
+                rf"(?<![A-Za-z_]){re.escape(self.name)}{primes}\s*\(\s*0\s*\)",
+                f"({sp.sstr(value)})", text)
+        text = text.replace("{", "(").replace("}", ")")
+        text = re.sub(lone_y + r"(?![A-Za-z_])", "Yofs", text)
+        scope = _answer_scope(set())
+        scope.update({"s": self.s, "Yofs": self.Y})
+        for letter in self.reader.constants:
+            scope.setdefault(letter, sp.Symbol(letter))
+        known = set(scope) | {"pi", "E"}
+        return _parse_side(_answer_text(text, known), scope)
+
+    def check(self, text: str, last_good: int):
+        if _INVERSE.search(text):
+            return UNCHECKED, ("an inverse transform is checked by the "
+                               "y = ... line it gives")
+        if text.count("=") != 1:
+            return UNREADABLE, "write one equation per line, with one ="
+        left_text, right_text = (side.strip() for side in text.split("="))
+        if not left_text or not right_text:
+            return UNREADABLE, "one side of the = is empty"
+        try:
+            expected = self.expected()
+        except Exception:
+            return UNCHECKED, ("the transform of this solution could not be "
+                               "worked out, so lines in s are not checked")
+        lhs, rhs = self._read(left_text), self._read(right_text)
+        if not any(side.has(self.s) or side.has(self.Y)
+                   for side in (lhs, rhs)):
+            return UNCHECKED, "nothing in this line can be checked"
+        probe = self._shift + 3 * _T
+        lhs = lhs.subs(self.Y, expected).subs(self.s, probe)
+        rhs = rhs.subs(self.Y, expected).subs(self.s, probe)
+        unknowns = sorted((lhs - rhs).free_symbols - {_T}, key=str)
+        result = _holds(lhs, rhs, unknowns)
+        if result is True:
+            return OK, ""
+        if result is None:
+            return UNCHECKED, "this line could not be decided"
+        if last_good:
+            return WRONG, (f"this is not true of Y(s), the transform of the "
+                           f"solution: the slip is between line {last_good} "
+                           f"and this one")
+        return WRONG, ("this is not true of Y(s), the transform of the "
+                       "solution -- check the transform of each term")
+
+
+# ---------------------------------------------------------------------------
+# Linear systems
+# ---------------------------------------------------------------------------
+
+#: An eigenvector's name: v, v1, v_2, u, w, ξ, K.
+_VECTOR_NAME = re.compile(r"(?:v|u|w|ξ|xi|K)\s*_?\s*\d*")
+
+
+def _check_system(parsed, text, general, particular, budget):
+    """A 2×2 system's working: the characteristic polynomial and its roots
+    against det(A - rI), each eigenvector by A v = λ v, and each ``x = ...``
+    against that component of the solution family. A final pair of
+    component lines goes through the answer checker as one answer."""
+    from types import SimpleNamespace
+
+    from .systems import split_system
+
+    names = [function.__name__ for function in parsed.functions]
+    matrix = split_system(parsed.equations, parsed.functions)[0]
+    r = sp.Symbol("r")
+    reference = sp.expand((matrix - r * sp.eye(matrix.rows)).det())
+    reader = _Reader(SimpleNamespace(function=parsed.functions[0],
+                                     equation=parsed.equations[0], order=1))
+    family = sp.Matrix(general)
+    constants = sorted(family.free_symbols - {_T} - reader.parameters,
+                       key=lambda s: s.name)
+    members = [sp.Dummy(f"K{i}") for i in range(len(constants))]
+    family = family.subs(dict(zip(constants, members)), simultaneous=True)
+    target = sp.Matrix(particular) if particular is not None else None
+
+    lines = [(number, raw) for number, raw in enumerate(text.splitlines(), 1)
+             if _strip(raw)]
+    started = time.monotonic()
+    verdicts: list[LineVerdict] = []
+    components: dict[str, tuple[int, str]] = {}
+    last_good = 0
+    for number, raw in lines:
+        if time.monotonic() - started > budget:
+            verdicts.append(LineVerdict(number, raw, UNCHECKED,
+                                        "ran out of time before this line"))
+            continue
+        try:
+            status, message = _system_line(
+                reader, parsed, _strip(raw), names, matrix, reference, family,
+                members, target, last_good, components, number)
+        except ParseError as exc:
+            status, message = UNREADABLE, f"could not read this line: {exc}"
+        except Exception:
+            status, message = UNCHECKED, "could not decide about this line"
+        verdicts.append(LineVerdict(number, raw, status, message))
+        if status == OK:
+            last_good = number
+
+    # The working ends on a pair x = ..., y = ...: the answer box's own
+    # verdict on the two together, which a line at a time cannot give.
+    closing = {verdict.number for verdict in verdicts[-2:]}
+    if set(components) == set(names) and all(
+            components[name][0] in closing for name in names):
+        try:
+            pieces = {name: reader.expression(right)
+                      for name, (_, right) in components.items()}
+        except ParseError:
+            return verdicts
+        own = sorted(set().union(*(p.free_symbols for p in pieces.values()))
+                     - {_T} - reader.parameters, key=str)
+        renamed = {symbol: sp.Symbol(f"C{index}")
+                   for index, symbol in enumerate(own, 1)}
+        answer = "\n".join(
+            f"{name} = {sp.sstr(pieces[name].subs(renamed, simultaneous=True))}"
+            for name in names)
+        result = check_answer(parsed, answer, general=not parsed.ics)
+        last = verdicts[-1]
+        if result.ok:
+            verdicts[-1] = LineVerdict(last.number, last.text, OK,
+                                       "the answer checks out")
+        elif result.correct is False:
+            verdicts[-1] = LineVerdict(last.number, last.text, WRONG,
+                                       result.diagnosis or result.message)
+    return verdicts
+
+
+def _system_line(reader, parsed, text, names, matrix, reference, family,
+                 members, target, last_good, components, number):
+    if text.count("=") != 1:
+        return UNREADABLE, "write one equation per line, with one ="
+    left, right = (side.strip() for side in text.split("="))
+    if not left or not right:
+        return UNREADABLE, "one side of the = is empty"
+
+    # det(A - λI) = λ² + ... : the right-hand side is the polynomial.
+    if re.match(r"det\b", left):
+        left = "0"
+    name = re.sub(r"\s*\(\s*t\s*\)$", "", left)
+    if name in names:
+        components[name] = (number, right)
+        return _component(reader, names.index(name), name, right, family,
+                          members, target, last_good)
+    if _VECTOR_NAME.fullmatch(left) and re.match(r"^[\[(<]", right):
+        return _eigenvector(reader, matrix, right)
+    kind = _characteristic_line(left, right)
+    if kind:
+        return _check_characteristic(reader, parsed, kind, left, right,
+                                     reference)
+    return UNCHECKED, ("nothing in this line can be checked -- write the "
+                       "characteristic equation, the eigenvalues, each "
+                       "eigenvector as v = (a, b), or x = ... and y = ...")
+
+
+def _eigenvector(reader, matrix, right):
+    right = right.strip()
+    if right[-1:] not in ")]>":
+        return UNREADABLE, "write an eigenvector as (a, b)"
+    entries = [part for part in re.split(r"[,;]", right[1:-1]) if part.strip()]
+    if len(entries) != matrix.rows:
+        return UNREADABLE, f"an eigenvector here has {matrix.rows} entries"
+    extra = {"i": sp.I, "j": sp.I}
+    vector = sp.Matrix([reader.expression(entry, extra) for entry in entries])
+    if vector.free_symbols:
+        return UNCHECKED, "an eigenvector with letters in it is not checked"
+    if all(entry == 0 for entry in vector):
+        return WRONG, "an eigenvector is never zero"
+    image = matrix * vector
+    for value in matrix.eigenvals():
+        if all(sp.simplify(entry) == 0 for entry in image - value * vector):
+            return OK, f"for λ = {sp.sstr(value)}"
+    return WRONG, (f"A v = {sp.sstr(list(image))}, which is not a multiple "
+                   f"of v, so v is not an eigenvector of A")
+
+
+def _component(reader, index, name, right, family, members, target,
+               last_good):
+    expression = reader.expression(right)
+    student = sorted(expression.free_symbols - {_T} - reader.parameters,
+                     key=str)
+    if target is not None:
+        if _holds(expression, target[index], student) is True:
+            return OK, ""
+    else:
+        results = [_holds(expression,
+                          family[index].subs(dict(zip(members, values))),
+                          student)
+                   for values in _MEMBERS]
+        if all(result is True for result in results):
+            return OK, ""
+        if any(result is None for result in results):
+            return UNCHECKED, ("this line could not be decided -- its "
+                               "constants do not enter in a way that can be "
+                               "tested")
+    if last_good:
+        return WRONG, (f"this is not the {name}-part of a solution: the slip "
+                       f"is between line {last_good} and this one")
+    return WRONG, (f"this is not the {name}-part of a solution -- check the "
+                   f"eigenvalues and eigenvectors it is built from")

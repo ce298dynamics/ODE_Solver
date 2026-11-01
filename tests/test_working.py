@@ -217,12 +217,126 @@ def test_working_cannot_execute_code(payload):
     assert verdicts[0].status != OK
 
 
-def test_systems_and_laplace_are_not_offered_yet():
+def test_what_is_offered():
     parsed = parse_equation(spec_for("y' + 2*y = 4"))
     assert available(parsed, "steps")[0]
+    # Laplace working needs the conditions: the method starts from them.
     assert not available(parsed, "laplace")[0]
-    system = parse_equation(spec_for("x' = y; y' = -x"))
-    assert not available(system, "systems")[0]
+    assert available(parse_equation(spec_for("y' + 2*y = 4", "y(0) = 1")),
+                     "laplace")[0]
+    assert available(parse_equation(spec_for("x' = y; y' = -x")),
+                     "systems")[0]
+    # Not a linear system with constant coefficients.
+    assert not available(parse_equation(spec_for("x' = t*y; y' = -x")),
+                         "systems")[0]
+
+
+# ---------------------------------------------------------------------------
+# Laplace transforms
+# ---------------------------------------------------------------------------
+
+
+def _laplace(equation: str, conditions: str, working: str):
+    from odesuite_app.freshdraw import work_out
+
+    parsed = parse_equation(spec_for(equation, conditions))
+    particular = work_out(equation, conditions, "laplace").result
+    return check_working(parsed, working, particular, particular,
+                         narrator="laplace")
+
+
+def test_laplace_working_checks_out_in_s():
+    verdicts = _laplace("y' + 2*y = 4", "y(0) = 1", """
+        L{y'} + 2L{y} = L{4}
+        sY - y(0) + 2Y = 4/s
+        (s + 2)Y(s) = 4/s + 1
+        Y = A/s + B/(s + 2)
+        Y = 2/s - 1/(s + 2)
+        y = L^-1{2/s - 1/(s + 2)}
+        y = 2 - e^(-2t)
+    """)
+    assert _statuses(verdicts) == [OK, OK, OK, OK, OK, UNCHECKED, OK], verdicts
+
+
+def test_a_second_order_transform_reads_both_conditions():
+    verdicts = _laplace("y'' + 2*y' + 5*y = 0", "y(0) = 1, y'(0) = 0", """
+        s^2Y - s + 2(sY - 1) + 5Y = 0
+        Y = (s + 2)/((s + 1)^2 + 4)
+        y = e^(-t)(cos(2t) + sin(2t)/2)
+    """)
+    assert _statuses(verdicts) == [OK] * 3, verdicts
+
+
+def test_a_sign_slip_in_s_is_found_on_its_line():
+    verdicts = _laplace("y' + 2*y = 4", "y(0) = 1", """
+        sY - 1 + 2Y = 4/s
+        (s + 2)Y = 4/s - 1
+        Y = 2/s - 3/(s + 2)
+        y = 2 - 3e^(-2t)
+    """)
+    assert _statuses(verdicts) == [OK, WRONG, WRONG, WRONG], verdicts
+    assert "transform of the solution" in verdicts[1].message
+    # Numbered as typed, and this text opens on an empty line.
+    assert "between line 2" in verdicts[1].message
+
+
+# ---------------------------------------------------------------------------
+# Linear systems
+# ---------------------------------------------------------------------------
+
+
+def _system(equations: str, working: str, conditions: str = ""):
+    from odesuite_app.freshdraw import work_out
+
+    parsed = parse_equation(spec_for(equations, conditions))
+    general = work_out(equations, "", "systems").result
+    particular = (work_out(equations, conditions, "systems").result
+                  if conditions else None)
+    return check_working(parsed, working, general, particular)
+
+
+def test_the_eigenvalue_method_checks_out_line_by_line():
+    verdicts = _system("x' = 3*x - y; y' = 2*y", """
+        det(A - λI) = (3 - λ)(2 - λ)
+        λ = 3, 2
+        v1 = (1, 0)
+        v2 = (1, 1)
+        x = C1 e^(3t) + C2 e^(2t)
+        y = C2 e^(2t)
+    """)
+    assert _statuses(verdicts) == [OK] * 6, verdicts
+    assert verdicts[-1].message == "the answer checks out"
+
+
+def test_a_wrong_eigenvector_and_the_pair_it_spoils_are_marked():
+    verdicts = _system("x' = 3*x - y; y' = 2*y", """
+        λ^2 - 5λ + 6 = 0
+        λ = 3, 2
+        v2 = (1, -1)
+        x = C1 e^(3t) + C2 e^(2t)
+        y = -C2 e^(2t)
+    """)
+    assert _statuses(verdicts) == [OK, OK, WRONG, OK, WRONG], verdicts
+    assert "not an eigenvector" in verdicts[2].message
+
+
+def test_a_wrong_characteristic_polynomial_is_named():
+    verdicts = _system("x' = 3*x - y; y' = 2*y", "λ^2 + 5λ + 6 = 0")
+    assert _statuses(verdicts) == [WRONG], verdicts
+    assert "det(A - rI)" in verdicts[0].message
+
+
+def test_a_forced_system_with_conditions_is_checked_against_its_solution():
+    right = _system("x' = -2*x + y + 3; y' = x - 2*y", """
+        x = 2 - (3/2)e^(-t) - (1/2)e^(-3t)
+        y = 1 - (3/2)e^(-t) + (1/2)e^(-3t)
+    """, "x(0) = 0, y(0) = 0")
+    assert _statuses(right) == [OK, OK], right
+    slipped = _system("x' = -2*x + y + 3; y' = x - 2*y", """
+        x = 2 - (3/2)e^(-t) + (1/2)e^(-3t)
+        y = 1 - (3/2)e^(-t) + (1/2)e^(-3t)
+    """, "x(0) = 0, y(0) = 0")
+    assert slipped[0].status == WRONG, slipped
 
 
 # ---------------------------------------------------------------------------

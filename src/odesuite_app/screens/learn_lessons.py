@@ -175,9 +175,17 @@ class _WorkingCheckJob(QRunnable):
                                          "against")
                     return getattr(derivation.result, "rhs",
                                    derivation.result)
-                solutions = (result_of(""), result_of(question.conditions)
-                             if question.conditions else None)
-            result = (working.check_working(parsed, self.text, *solutions),
+                if self.narrator == "laplace":
+                    # The method needs the conditions, and its answer has no
+                    # free constants: the particular solution is the family.
+                    particular = result_of(question.conditions)
+                    solutions = (particular, particular)
+                else:
+                    solutions = (result_of(""),
+                                 result_of(question.conditions)
+                                 if question.conditions else None)
+            result = (working.check_working(parsed, self.text, *solutions,
+                                            narrator=self.narrator),
                       solutions)
         except Exception as exc:                  # surfaced, never swallowed
             result = exc
@@ -2350,9 +2358,14 @@ class LessonsScreen(QWidget):
         column.setSpacing(6)
         box = QPlainTextEdit()
         box.setAccessibleName("your working")
-        box.setPlaceholderText("One step per line, for example\n"
-                               "y' + 2y = 4\nmu = e^(2t)\n(e^(2t) y)' = 4e^(2t)"
-                               "\n...\ny = 2 + Ce^(-2t)")
+        # An example in the notation of the method this question uses.
+        box.setPlaceholderText("One step per line, for example\n" + {
+            "laplace": "sY - y(0) + 2Y = 4/s\n(s + 2)Y = 4/s + 1\n"
+                       "Y = 2/s - 1/(s + 2)\ny = 2 - e^(-2t)",
+            "systems": "λ^2 - 5λ + 6 = 0\nλ = 3, 2\nv1 = (1, 0)\n"
+                       "x = C1 e^(3t) + C2 e^(2t)\ny = C2 e^(2t)",
+        }.get(narrator, "y' + 2y = 4\nmu = e^(2t)\n(e^(2t) y)' = 4e^(2t)"
+                        "\n...\ny = 2 + Ce^(-2t)"))
         box.setMinimumHeight(130)
         column.addWidget(box)
         run = QPushButton("Check working")
