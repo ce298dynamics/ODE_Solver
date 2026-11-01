@@ -335,6 +335,7 @@ def test_mathlabel_retyping_discards_the_stale_render(qapp):
     assert label.is_typeset
 
 
+@pytest.mark.own_process   # holds every thread of the shared pool; see ci.yml
 def test_a_render_nobody_wants_is_skipped(qapp, monkeypatch):
     """Jobs for labels re-typed or destroyed while still queued do not render.
 

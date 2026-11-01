@@ -27,6 +27,13 @@ from odesuite_app.widgets.mathlabel import MathLabel  # noqa: E402
 
 PALETTE = PALETTES["dark"]
 
+#: `QApplication.setFont` is delivered to every widget alive in the process.
+#: Late in a whole-suite xdist worker that is thousands of earlier tests'
+#: widgets, whose `deleteLater` a `processEvents` harness never runs, and on
+#: the macOS runners the worker died there (2026-10-31, both macOS legs; this
+#: file passes alone, every time). CI runs it in a fresh process instead.
+pytestmark = pytest.mark.own_process
+
 
 @pytest.fixture(scope="module")
 def qapp():

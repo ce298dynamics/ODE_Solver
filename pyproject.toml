@@ -98,6 +98,7 @@ odesuite = ["py.typed"]
 testpaths = ["tests"]
 markers = [
     "slow: takes more than a couple of seconds; deselect with -m 'not slow'",
+    "own_process: changes process-wide Qt state; CI runs these in a fresh process after the rest",
 ]
 
 [tool.ruff]
