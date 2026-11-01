@@ -78,6 +78,10 @@ __all__ = [
     "drills",
     "unit_progress",
     "weakest",
+    "struggling_drills",
+    "Struggle",
+    "STRUGGLING_TRIES",
+    "STRUGGLING_ACCURACY",
     "stale",
     "boxes",
     "misconceptions",
@@ -535,6 +539,48 @@ def weakest(units, everything: dict[str, dict[str, Answer]] | None = None,
             scored.append(((done / asked) if asked else 0.0, lesson, unit))
     scored.sort(key=lambda item: (item[0], item[1].key))
     return [(lesson, unit) for _, lesson, unit in scored[:limit]]
+
+
+#: A drill tried at least this often, and right less than this share of the
+#: time, is one that keeps going wrong rather than one barely begun.
+STRUGGLING_TRIES = 4
+STRUGGLING_ACCURACY = 0.5
+
+
+@dataclass(frozen=True)
+class Struggle:
+    """A drill that keeps going wrong, for the review panel."""
+
+    lesson: object
+    template: object
+    right: int
+    tries: int
+
+
+def struggling_drills(units, everything: dict[str, dict[str, Answer]]
+                      | None = None, limit: int = 3) -> list[Struggle]:
+    """Drills tried often and mostly got wrong, worst first.
+
+    `weakest` reads the practice questions only, so a drill answered wrong
+    nine times in ten never reached the review panel: its lesson's questions
+    could all be ticked. Mastered drills are left out whatever their
+    history, because the streak says the trouble is over.
+    """
+    everything = load() if everything is None else everything
+    found = []
+    for unit in units:
+        for lesson in unit.lessons:
+            answers = everything.get(drill_key(lesson.key), {})
+            for template in lesson.templates:
+                answer = answers.get(template.key)
+                if (answer is None or answer.mastered
+                        or answer.tries < STRUGGLING_TRIES
+                        or answer.accuracy >= STRUGGLING_ACCURACY):
+                    continue
+                found.append(Struggle(lesson, template, answer.right,
+                                      answer.tries))
+    found.sort(key=lambda s: (s.right / s.tries, -s.tries, s.template.key))
+    return found[:limit]
 
 
 def _payload(everything: dict[str, dict[str, Answer]]) -> dict:

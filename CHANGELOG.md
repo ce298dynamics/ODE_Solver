@@ -43,6 +43,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A drill that keeps going wrong reaches the Course Map's review panel.**
+  The panel's "worth another look" reads a lesson's practice questions only,
+  so a drill answered wrong seven times in nine went unmentioned in a lesson
+  whose questions were all ticked. A new line names up to three drills tried
+  at least four times and right less than half the time, worst first, with
+  their record: "Constant p, polynomial forcing in First-order linear (2 of 8
+  right)". A mastered drill is left out whatever its history
+  (`progress.struggling_drills`).
+
 - **A linear system's working shows its matrices, not their LaTeX source.**
   The eigenvalue method's first step, `x' = A x`, and every eigenvector were
   printed as `\begin{matrix}…` text, because mathtext has no environments.

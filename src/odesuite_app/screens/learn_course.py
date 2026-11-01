@@ -332,6 +332,15 @@ class CourseScreen(QWidget):
             )
             lines.append(f"Due for review: {names}")
 
+        # Drills, which `weakest` cannot see: it reads the practice questions,
+        # and a drill can keep going wrong in a lesson whose questions are
+        # all ticked.
+        struggles = progress.struggling_drills(content.UNITS, self._answered)
+        if struggles:
+            lines.append("Drills that keep going wrong: " + ", ".join(
+                f"{s.template.title} in {s.lesson.title} "
+                f"({s.right} of {s.tries} right)" for s in struggles))
+
         # What the schedule is holding, in its own three words. The counts move
         # in a way neither of the lines above can: a question drops back to
         # "learning" the moment it is missed, however long its tick has stood.
