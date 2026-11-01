@@ -351,6 +351,11 @@ def test_a_sample_of_draws_is_solvable(lesson, template):
 
 
 @pytest.mark.slow
+# Every draw, so as long as the slowest template's whole pool. The logistic
+# pool is nine solves of up to a minute each under coverage on a CI runner,
+# past CI's 600 s per-test limit; at that limit the thread method ends the
+# worker, and its coverage data goes with it.
+@pytest.mark.timeout(1800)
 @pytest.mark.parametrize("lesson,template", SOLVE_TEMPLATES,
                          ids=SOLVE_IDS)
 def test_every_draw_of_every_template_is_solvable(lesson, template):
