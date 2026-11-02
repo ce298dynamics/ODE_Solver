@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import pytest
 
-from odesuite_app import lessons as content
+pytest.importorskip("sympy", reason="the app extra is not installed")
+
+from odesuite_app import lessons as content  # noqa: E402
 from odesuite_app import mathrender
 from odesuite_app.lessons import generate
 from odesuite_app.mathrender import equation_latex

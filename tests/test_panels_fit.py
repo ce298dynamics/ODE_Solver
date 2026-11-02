@@ -60,10 +60,20 @@ def test_no_side_panel_is_cut_off(window, qapp, key):
             continue
         need = area.widget().minimumSizeHint().width()
         have = area.viewport().width()
-        assert need <= have, (
-            f"{key}: a panel needs {need}px and has {have}px, so its right "
-            f"edge is cut off"
-        )
+        if need > have:
+            # Name the culprit: this fails on runners whose fonts and user
+            # names differ from any machine the panel was looked at on.
+            from PySide6.QtWidgets import QWidget
+
+            widest = sorted(
+                ((child.minimumSizeHint().width(), type(child).__name__,
+                  (getattr(child, "text", lambda: "")() or "")[:40])
+                 for child in area.widget().findChildren(QWidget)
+                 if child.isVisibleTo(window)),
+                reverse=True,
+            )[:3]
+            pytest.fail(f"{key}: a panel needs {need}px and has {have}px, so "
+                        f"its right edge is cut off; widest: {widest}")
 
 
 @pytest.mark.parametrize("key", _screen_keys())

@@ -331,7 +331,14 @@ def latex_to_png(latex: str, colour: str, point_size: float, dpi: float) -> byte
 
 
 def _render(latex: str, colour: str, point_size: float, dpi: float) -> bytes:
-    """The actual typesetting. Thread-safe; no Qt, no pyplot, no caching."""
+    """The actual typesetting. No Qt, no pyplot, no caching.
+
+    Not safe to run twice at once: mathtext's font handling is shared state,
+    and a Linux CI worker segfaulted with three renders inside it together.
+    The application's renders all go through `widgets.mathlabel.render_pool`,
+    which runs one at a time. A lock here was tried first and made Linux CI
+    legs hang until their timeout, so the serialising is done by the pool.
+    """
     if not is_renderable(latex):
         return b""
 

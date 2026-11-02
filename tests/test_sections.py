@@ -204,6 +204,11 @@ def test_the_sections_share_one_model(window):
     assert catalog.get("brusselator") is not None
 
 
+# `toggle_theme` replaces the application's style sheet, which Qt delivers to
+# every widget alive in the process -- late in a parallel worker, thousands
+# of earlier tests'. A macOS worker died here on 2026-11-01, as others had in
+# `test_text_scale`'s `setFont`. CI runs `own_process` tests serially apart.
+@pytest.mark.own_process
 def test_toggling_the_theme_keeps_both_the_screen_and_the_section(window, qapp):
     """`toggle_theme` rebuilds every screen wholesale, so it has to put the user
     back where they were -- now in two dimensions rather than one."""

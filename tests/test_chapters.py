@@ -13,6 +13,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+pytest.importorskip("sympy", reason="the app extra is not installed")
+
 from odesuite_app.lessons import LESSONS
 from odesuite_app.lessons.chapter import BOX_KINDS, blocks_of, words
 

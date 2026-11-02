@@ -329,10 +329,13 @@ class PrintScreen(QWidget):
             self.sheet_picker.addItem(unit.title, unit.key)
         layout.addWidget(self.sheet_picker)
 
-        self.with_prose = QCheckBox("Include the sentence with each formula")
+        # Short, because a checkbox label never wraps: the longer wording was
+        # exactly the panel's width with Windows' fonts and cut it off with
+        # the wider ones on Linux (309 px of 278) and macOS.
+        self.with_prose = QCheckBox("Explain each formula")
         self.with_prose.setToolTip(
-            "Helpful the first time through, and the opposite of what a crib "
-            "sheet is for"
+            "Include the sentence with each formula. Helpful the first time "
+            "through, and the opposite of what a crib sheet is for"
         )
         layout.addWidget(self.with_prose)
 

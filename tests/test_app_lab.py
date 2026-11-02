@@ -89,6 +89,12 @@ def test_slider_debounces_a_drag(qapp):
     previews, commits = [], []
     slider.preview.connect(previews.append)
     slider.committed.connect(commits.append)
+    # The claim is that each movement restarts the wait rather than committing.
+    # At the real 140 ms, a loaded CI runner pausing that long between the last
+    # move and `processEvents` committed legitimately and failed the test, on
+    # main as well. A wait no pause reaches tests the same claim: a slider that
+    # committed per movement would still fail.
+    slider._timer.setInterval(60_000)
 
     start = slider.slider.value()
     for tick in range(start + 1, start + 61):

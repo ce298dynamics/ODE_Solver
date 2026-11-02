@@ -13,6 +13,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+pytest.importorskip("sympy", reason="the app extra is not installed")
+
 from odesuite import ODEProblem, solve
 from odesuite_app import analysis
 from odesuite_app.lessons import by_key, generate, unit_by_key

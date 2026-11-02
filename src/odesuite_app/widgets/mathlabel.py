@@ -67,6 +67,25 @@ class _Wanted:
         self.token: int | None = 0
 
 
+_RENDER_POOL: QThreadPool | None = None
+
+
+def render_pool() -> QThreadPool:
+    """The one thread every equation is typeset on.
+
+    mathtext is not safe to run twice at once: a Linux CI worker segfaulted
+    with three renders inside it together. A lock around the render was the
+    first fix, and it made Linux legs hang until their timeout. A pool of one
+    thread serialises the renders without a lock, and keeps them off the
+    shared pool, so a queue of equations never holds up a solve or an analysis.
+    """
+    global _RENDER_POOL
+    if _RENDER_POOL is None:
+        _RENDER_POOL = QThreadPool()
+        _RENDER_POOL.setMaxThreadCount(1)
+    return _RENDER_POOL
+
+
 class _RenderJob(QRunnable):
     """Typesets one expression off the GUI thread."""
 
@@ -344,7 +363,7 @@ class MathLabel(QWidget):
             # LaTeX for five to fifteen seconds. `showEvent` catches up.
             return
         self._pending = False
-        QThreadPool.globalInstance().start(
+        render_pool().start(
             _RenderJob(self._token, self._latex, self.colour,
                        self.rendered_point_size(), self._ratio(),
                        self._signals, self._wanted)
