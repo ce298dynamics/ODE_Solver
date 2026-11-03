@@ -63,6 +63,29 @@ def _generous_dsolve_timeout():
 
 
 @pytest.fixture(scope="session", autouse=True)
+def _no_fresh_draws():
+    """Keep the drills to their built-in versions unless a test asks.
+
+    Past them a drill solves fresh numbers in the background, a few seconds
+    of solver each. The screen tests walk round a pool many times over and
+    compare what is shown against `generate.draw`; a fresh draw landing in the
+    middle would change the question under them, and every press would leave
+    a solve running. The tests of fresh draws turn it back on themselves.
+    """
+    try:
+        from odesuite_app import freshdraw
+    except ImportError:
+        yield
+        return
+    original = freshdraw.ENABLED
+    freshdraw.ENABLED = False
+    try:
+        yield
+    finally:
+        freshdraw.ENABLED = original
+
+
+@pytest.fixture(scope="session", autouse=True)
 def _private_diagnostics_log(tmp_path_factory):
     """Keep the failed-solve log (REL-04) out of the real per-user directory.
 

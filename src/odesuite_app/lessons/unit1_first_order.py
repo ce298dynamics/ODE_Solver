@@ -9,6 +9,7 @@ and the four techniques a first course solves them with.
 
 from __future__ import annotations
 
+from . import samplers
 from .chapters import unit1 as chapters
 from .model import (
     Case,
@@ -320,6 +321,7 @@ SEPARABLE = Lesson(
             # The power of t is what decides the work: k = 0 is a bare
             # exponential, k = 2 an integral somebody has to stop and do.
             level=lambda slots: ("easier", "typical", "harder")[slots["k"]],
+            sampler=samplers.growth,
         ),
         Template(
             key="cooling",
@@ -337,6 +339,7 @@ SEPARABLE = Lesson(
                 "y(0) = {c} fixes the coefficient in front of it.",
             ),
             slots=(("a", (1, 2, 3)), ("b", (5, 10, 20)), ("c", (0, 30, 50))),
+            sampler=samplers.cooling,
         ),
         FaultTemplate(
             key="lost-the-constant",
@@ -642,9 +645,11 @@ LINEAR = Lesson(
                 "by μ at the end, and the constant comes with it.",
             ),
             slots=(("a", (1, 2, 3)), ("b", (1, 2, 3)), ("c", (0, 1))),
+            sampler=samplers.constant_p,
         ),
         Template(
             key="variable-p",
+            sampler=samplers.variable_p,
             title="p is not constant — divide first",
             prompt="Careful: y′ has a coefficient. Standard form comes first.",
             equation="t*y' + {a}*y = {b}*t**{k}",
@@ -681,6 +686,7 @@ LINEAR = Lesson(
             # constant and the integral is t, not an exponential. A different
             # answer shape, and not what this drill is practising.
             reject=lambda s: s["a"] == s["c"],
+            sampler=samplers.exponential_forcing,
         ),
         ModelTemplate(
             key="mixing-tank",
@@ -1799,6 +1805,7 @@ EXACT = Lesson(
     templates=(
         Template(
             key="linear-exact",
+            sampler=samplers.linear_exact,
             title="Test it, build ψ, solve for y",
             prompt="Check exactness first, then integrate M and match N.",
             equation="y' = -({a}*t**2 + y)/(t + {b}*y)",
@@ -2110,6 +2117,7 @@ SUBSTITUTIONS = Lesson(
     templates=(
         Template(
             key="homogeneous",
+            sampler=samplers.homogeneous,
             title="Homogeneous: substitute y = v·t",
             prompt="Check it depends on y/t alone, then substitute.",
             equation="y' = ({a}*t**2 + y**2)/(t*y)",
@@ -2127,6 +2135,7 @@ SUBSTITUTIONS = Lesson(
         ),
         Template(
             key="bernoulli",
+            sampler=samplers.bernoulli,
             title="Bernoulli: substitute v = y^(1-n)",
             prompt="Read off n, substitute, and finish with an integrating "
                    "factor.",

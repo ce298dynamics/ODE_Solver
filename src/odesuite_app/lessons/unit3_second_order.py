@@ -11,6 +11,7 @@ case belong here too, and arrive with the narrator each needs.
 
 from __future__ import annotations
 
+from . import samplers
 from .chapters import unit3 as chapters
 from .model import (
     Case,
@@ -370,6 +371,7 @@ ROOTS = Lesson(
                 else "harder" if slots["b"] ** 2 == 4 * slots["c"]
                 else "typical"
             ),
+            sampler=samplers.three_cases,
         ),
         ExpressionTemplate(
             key="the-characteristic-equation",
@@ -716,6 +718,7 @@ UNDETERMINED = Lesson(
     templates=(
         Template(
             key="cosine-forcing",
+            sampler=samplers.cosine_forcing,
             title="Cosine forcing — sometimes resonant",
             prompt="Check the driving frequency against the natural one first.",
             equation="y'' + {w2}*y = {b}*cos({w}*t)",
@@ -758,6 +761,7 @@ UNDETERMINED = Lesson(
                 ("b,c", ((3, 2), (4, 4), (2, 5), (5, 6), (2, 1))),
                 ("d", (1, 2, 3)),
             ),
+            sampler=samplers.polynomial_forcing,
         ),
         FaultTemplate(
             key="stopped-at-the-complementary",
@@ -1039,6 +1043,7 @@ CAUCHY = Lesson(
     templates=(
         Template(
             key="indicial",
+            sampler=samplers.indicial,
             title="Substitute a power, read the indicial roots",
             prompt="y = t^r, then whichever of the three cases you land in.",
             equation="t**2*y'' + {b}*t*y' + {c}*y = 0",
@@ -1364,6 +1369,7 @@ SUPERPOSITION = Lesson(
                 ("c", (1, 4, 9, 16, 25)),
                 ("p,v", ((2, 0), (0, 1), (1, 1), (1, 0))),
             ),
+            sampler=samplers.independent_pair,
         ),
         ModelTemplate(
             key="family-to-second-order",
@@ -2166,6 +2172,7 @@ HIGHER = Lesson(
     templates=(
         Template(
             key="third-order",
+            sampler=samplers.third_order,
             title="Third order, three conditions",
             prompt="Factor the cubic, write the basis, pin three constants.",
             equation="y''' - {a}*y'' + {b}*y' - {c}*y = 0",
@@ -2619,6 +2626,7 @@ REDUCTION = Lesson(
     templates=(
         Template(
             key="second-from-first",
+            sampler=samplers.second_from_first,
             title="A second solution from y₁ = t",
             prompt="y₁ = t is one solution. Reduce the order and give the "
                    "general solution.",

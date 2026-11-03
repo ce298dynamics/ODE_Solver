@@ -857,6 +857,22 @@ def _open(screen, qapp, key: str, segment: str = "Practice"):
     return screen.current_lesson()
 
 
+def _find(screen, kind):
+    """Every `kind` on the page: the reading column, then the answer column.
+
+    The answer boxes, their buttons, verdicts and working live beside the
+    text rather than in it, one page per question in question order -- so
+    reading the column and then the answers keeps the order the tests rely
+    on, the first question's box first. Page by page in question order, not
+    one `findChildren` over the column: showing a page raises it to the end
+    of the stack's children.
+    """
+    found = screen._page.findChildren(kind)
+    for key in screen._workspace.keys():
+        found += screen._workspace.page(key).findChildren(kind)
+    return found
+
+
 def _row_text(screen, key: str) -> str:
     for item, lesson in screen._lesson_items():
         if lesson.key == key:
@@ -868,7 +884,7 @@ def _page_text(screen) -> str:
     """Everything the reading column is currently showing."""
     from PySide6.QtWidgets import QLabel
 
-    return "\n".join(label.text() for label in screen._page.findChildren(QLabel)
+    return "\n".join(label.text() for label in _find(screen, QLabel)
                      if label.isVisibleTo(screen))
 
 
@@ -876,7 +892,7 @@ def _press(screen, caption: str) -> None:
     """Click the first visible button with this caption."""
     from PySide6.QtWidgets import QPushButton
 
-    for button in screen._page.findChildren(QPushButton):
+    for button in _find(screen, QPushButton):
         if button.text().startswith(caption) and button.isEnabled():
             button.click()
             return
@@ -1026,13 +1042,60 @@ def test_a_right_answer_is_recorded_and_counted(screen, qapp, store):
     lesson = _open(screen, qapp, "separable")
     question = next(q for q in lesson.questions if isinstance(q, Solve))
 
-    box = screen._page.findChildren(QLineEdit)[0]
+    box = _find(screen, QLineEdit)[0]
     box.setText("exp(t**2)")                       # solves y' = 2ty, y(0)=1
     screen._check_solve(lesson, question, box, screen._verdicts[question.key])
 
     assert "✓" in screen._verdicts[question.key].text()
     assert store.load()[lesson.key][question.key].correct
     assert "(1/" in _row_text(screen, lesson.key), "the count did not follow"
+
+
+def test_an_answer_typed_on_paper_is_read(screen, qapp, store):
+    """`e^(t^2)` is what a student types, and it is right."""
+    from PySide6.QtWidgets import QLineEdit
+
+    lesson = _open(screen, qapp, "separable")
+    question = next(q for q in lesson.questions if isinstance(q, Solve))
+    box = _find(screen, QLineEdit)[0]
+    box.setText("y = e^(t^2)")
+    screen._check_solve(lesson, question, box, screen._verdicts[question.key])
+    assert "✓" in screen._verdicts[question.key].text()
+
+
+def test_an_unreadable_answer_is_not_recorded(screen, qapp, store):
+    """A bracket left open is a typo, not an attempt: nothing is recorded."""
+    from PySide6.QtWidgets import QLineEdit
+
+    lesson = _open(screen, qapp, "separable")
+    question = next(q for q in lesson.questions if isinstance(q, Solve))
+    box = _find(screen, QLineEdit)[0]
+    box.setText("exp(t**2")
+    screen._check_solve(lesson, question, box, screen._verdicts[question.key])
+    text = screen._verdicts[question.key].text()
+    assert "bracket" in text and "✗" not in text
+    assert question.key not in store.load().get(lesson.key, {})
+
+
+def test_one_solution_is_not_the_general_solution_on_the_page(screen, qapp,
+                                                              store):
+    """y = 0 solves every homogeneous equation, and is not what "solve it"
+    asks for when there are no conditions to pick one solution out."""
+    from PySide6.QtWidgets import QLineEdit
+
+    found = next(((lesson, q) for lesson in LESSONS for q in lesson.questions
+                  if isinstance(q, Solve) and not q.conditions
+                  and lesson.narrator == "steps"
+                  and q.equation.replace(" ", "").endswith("=0")), None)
+    assert found, "this test needs a homogeneous question with no conditions"
+    lesson, question = found
+    _open(screen, qapp, lesson.key)
+    box = screen._workspace.page(question.key).findChildren(QLineEdit)[0]
+    box.setText("0")
+    screen._check_solve(lesson, question, box, screen._verdicts[question.key])
+    text = screen._verdicts[question.key].text()
+    assert "✗" in text and "general solution" in text
+    assert not store.load()[lesson.key][question.key].correct
 
 
 def test_an_equivalent_form_is_accepted(screen, qapp, store):
@@ -1045,7 +1108,7 @@ def test_an_equivalent_form_is_accepted(screen, qapp, store):
     question = next(q for q in lesson.questions if q.key == "q5")
     verdict = screen._verdicts[question.key]
 
-    box = screen._page.findChildren(QLineEdit)[-1]
+    box = _find(screen, QLineEdit)[-1]
     for spelling in ("sin(3*t)", "3*sin(3*t)/3", "-sin(-3*t)"):
         box.setText(spelling)
         screen._check_solve(lesson, question, box, verdict)
@@ -1058,7 +1121,7 @@ def test_a_wrong_answer_shows_what_is_left_over(screen, qapp, store):
     lesson = _open(screen, qapp, "separable")
     question = next(q for q in lesson.questions if isinstance(q, Solve))
 
-    box = screen._page.findChildren(QLineEdit)[0]
+    box = _find(screen, QLineEdit)[0]
     box.setText("exp(t)")
     screen._check_solve(lesson, question, box, screen._verdicts[question.key])
 
@@ -1077,7 +1140,7 @@ def test_a_wrong_answer_is_diagnosed_rather_than_dumped(screen, qapp, store):
     question = next(q for q in lesson.questions if isinstance(q, Solve))
     assert question.conditions, "this test needs a question with a condition"
 
-    box = screen._page.findChildren(QLineEdit)[0]
+    box = _find(screen, QLineEdit)[0]
     # Solves the equation; wrong member of the family. The most encouraging
     # miss there is, and the one a bare cross hides completely.
     box.setText("2*exp(t**2)")
@@ -1100,7 +1163,7 @@ def test_the_option_picked_is_remembered_not_just_the_verdict(screen, qapp,
     wrong = next(index for index in range(len(question.options))
                  if index != question.answer)
 
-    group = screen._page.findChildren(QButtonGroup)[0]
+    group = _find(screen, QButtonGroup)[0]
     group.button(wrong).setChecked(True)
     screen._check_choice(lesson, question, group, screen._verdicts[question.key])
 
@@ -1114,7 +1177,7 @@ def test_a_typed_answer_records_no_option(screen, qapp, store):
 
     lesson = _open(screen, qapp, "separable")
     question = next(q for q in lesson.questions if isinstance(q, Solve))
-    box = screen._page.findChildren(QLineEdit)[0]
+    box = _find(screen, QLineEdit)[0]
     box.setText("exp(t**2)")
     screen._check_solve(lesson, question, box, screen._verdicts[question.key])
 
@@ -1157,7 +1220,7 @@ def test_a_choice_explains_the_option_that_was_picked(screen, qapp, store):
 
     lesson = _open(screen, qapp, "separable")
     question = next(q for q in lesson.questions if isinstance(q, Choice))
-    group = screen._page.findChildren(QButtonGroup)[0]
+    group = _find(screen, QButtonGroup)[0]
     verdict = screen._verdicts[question.key]
 
     group.button(question.answer).setChecked(True)
@@ -1179,7 +1242,7 @@ def test_answering_nothing_asks_rather_than_marks(screen, qapp, store):
 
     lesson = _open(screen, qapp, "separable")
     question = next(q for q in lesson.questions if isinstance(q, Choice))
-    group = screen._page.findChildren(QButtonGroup)[0]
+    group = _find(screen, QButtonGroup)[0]
     verdict = screen._verdicts[question.key]
 
     screen._check_choice(lesson, question, group, verdict)
@@ -1194,16 +1257,18 @@ def test_hints_come_one_rung_at_a_time(screen, qapp):
 
     lesson = _open(screen, qapp, "separable")
     question = next(q for q in lesson.questions if isinstance(q, Solve))
-    card = screen._page.findChildren(QPushButton)
+    card = _find(screen, QPushButton)
     hint_button = next(b for b in card if b.text() == "Hint")
-    hints = [w for w in screen._page.findChildren(QLabel)
-             if w.property("role") == "muted"]
+    # The cards' "not answered yet" chips are muted too, and meant to show.
+    chips = set(screen._chips.values())
+    hints = [w for w in _find(screen, QLabel)
+             if w.property("role") == "muted" and w not in chips]
 
     assert not any(w.isVisibleTo(screen) and w.text() for w in hints)
     hint_button.click()
     qapp.processEvents()
 
-    shown = [w for w in screen._page.findChildren(QLabel)
+    shown = [w for w in _find(screen, QLabel)
              if w.isVisibleTo(screen) and question.hints[0] in w.text()]
     assert shown, "the first rung did not appear"
     assert all(question.hints[1] not in w.text() for w in shown), (
@@ -1215,7 +1280,7 @@ def test_hints_come_one_rung_at_a_time(screen, qapp):
         hint_button.click()
         qapp.processEvents()
     assert not hint_button.isEnabled()
-    last = [w for w in screen._page.findChildren(QLabel)
+    last = [w for w in _find(screen, QLabel)
             if question.hints[-1] in w.text()]
     assert last, "the ladder never reached its last rung"
 
@@ -1225,7 +1290,7 @@ def test_progress_is_restored_when_the_lesson_is_reopened(screen, qapp, store):
 
     lesson = _open(screen, qapp, "separable")
     question = next(q for q in lesson.questions if isinstance(q, Choice))
-    group = screen._page.findChildren(QButtonGroup)[0]
+    group = _find(screen, QButtonGroup)[0]
     group.button(question.answer).setChecked(True)
     screen._check_choice(lesson, question, group, screen._verdicts[question.key])
 
@@ -1240,7 +1305,7 @@ def test_a_second_attempt_is_counted_without_taking_the_tick_away(screen, qapp,
 
     lesson = _open(screen, qapp, "separable")
     question = next(q for q in lesson.questions if isinstance(q, Solve))
-    box = screen._page.findChildren(QLineEdit)[0]
+    box = _find(screen, QLineEdit)[0]
     verdict = screen._verdicts[question.key]
 
     box.setText("exp(t**2)")
@@ -1258,7 +1323,7 @@ def test_reset_clears_the_ticks_and_the_counts(screen, qapp, store):
 
     lesson = _open(screen, qapp, "separable")
     question = next(q for q in lesson.questions if isinstance(q, Choice))
-    group = screen._page.findChildren(QButtonGroup)[0]
+    group = _find(screen, QButtonGroup)[0]
     group.button(question.answer).setChecked(True)
     screen._check_choice(lesson, question, group, screen._verdicts[question.key])
     assert "(1/" in _row_text(screen, lesson.key)
@@ -1324,8 +1389,8 @@ def test_a_worked_example_is_produced_on_request(screen, qapp):
     from odesuite_app.widgets.stepspanel import StepsPanel
 
     lesson = _open(screen, qapp, "separable", "Examples")
-    panels = screen._page.findChildren(StepsPanel)
-    button = next(b for b in screen._page.findChildren(QPushButton)
+    panels = _find(screen, StepsPanel)
+    button = next(b for b in _find(screen, QPushButton)
                   if b.text() == "Work it through")
 
     assert len(panels) == len(lesson.examples)
@@ -1371,8 +1436,8 @@ def test_a_worked_example_is_not_queued_behind_typesetting(screen, qapp,
     monkeypatch.setattr(learn_lessons._WorkingJob, "run", timed)
 
     _open(screen, qapp, "separable", "Examples")
-    panels = screen._page.findChildren(StepsPanel)
-    button = next(b for b in screen._page.findChildren(QPushButton)
+    panels = _find(screen, StepsPanel)
+    button = next(b for b in _find(screen, QPushButton)
                   if b.text() == "Work it through")
     pool = QThreadPool.globalInstance()
     try:
@@ -1403,9 +1468,9 @@ def test_a_drill_fades_its_working_one_step_at_a_time(screen, qapp):
     from odesuite_app.widgets.stepspanel import StepsPanel
 
     _open(screen, qapp, "separable", "Drill")
-    button = next(b for b in screen._page.findChildren(QPushButton)
+    button = next(b for b in _find(screen, QPushButton)
                   if b.text() == "Next step")
-    panel = next(p for p in screen._page.findChildren(StepsPanel)
+    panel = next(p for p in _find(screen, StepsPanel)
                  if not p.isVisibleTo(screen))
 
     def press():
@@ -1436,9 +1501,9 @@ def test_a_superseded_request_hands_its_button_back(screen, qapp):
     from odesuite_app.widgets.stepspanel import StepsPanel
 
     _open(screen, qapp, "separable", "Examples")
-    buttons = [b for b in screen._page.findChildren(QPushButton)
+    buttons = [b for b in _find(screen, QPushButton)
                if b.text() == "Work it through"]
-    panels = screen._page.findChildren(StepsPanel)
+    panels = _find(screen, StepsPanel)
     assert len(buttons) >= 2
 
     screen._work("y' = y", "", "steps", panels[0], buttons[0])
@@ -1594,6 +1659,35 @@ def test_drill_is_withheld_from_a_lesson_that_has_none(screen, qapp):
         assert screen.segment_buttons["Practice"].isChecked()
 
 
+@pytest.mark.parametrize("equation,shown", [
+    ("y' + 2*y = 4", "y = ..."),
+    ("x' = 3*x - y; y' = 2*y", "x = ...; y = ..."),
+])
+def test_the_answer_box_asks_for_each_unknown(equation, shown):
+    """A system's box asked for "y = ..." and the grader then refused it for
+    not naming x as well."""
+    from odesuite_app.screens.learn_lessons import answer_placeholder
+
+    assert answer_placeholder(equation) == shown
+
+
+@pytest.mark.parametrize("lesson_key,template_key", [
+    ("laplace", "first-order"),
+    ("eigenvalues", "two-by-two"),
+])
+def test_working_can_be_checked_on_laplace_and_systems_drills(
+        screen, qapp, lesson_key, template_key):
+    """Both said "not available yet" until their lines in s, and their
+    eigenvalues and eigenvectors, could be checked."""
+    from PySide6.QtWidgets import QPushButton
+
+    _drill(screen, qapp, lesson_key)
+    page = screen._workspace.page(template_key)
+    run = next(button for button in page.findChildren(QPushButton)
+               if button.text() == "Check working")
+    assert run.isEnabled()
+
+
 def test_the_drill_page_offers_every_template(screen, qapp):
     """Every drill, and each saying how many versions it has.
 
@@ -1612,6 +1706,53 @@ def test_the_drill_page_offers_every_template(screen, qapp):
         )
 
 
+def test_past_its_versions_a_drill_asks_fresh_numbers(screen, qapp,
+                                                      monkeypatch):
+    """The last built-in version is answered while the first fresh one is
+    solved; the card says which it is asking. A fresh draw that fails gives
+    way to a built-in version, and the card says that instead."""
+    from PySide6.QtWidgets import QLabel
+
+    from odesuite_app import freshdraw
+
+    lesson = _drill(screen, qapp, "linear")
+    template = next(t for t in lesson.templates if t.key == "constant-p")
+    built_in = generate.combinations(template)
+    fresh = generate.sample(template, built_in)
+    assert fresh is not None
+    worked = object()
+    gives = {"draw": (fresh, worked)}
+    monkeypatch.setattr(freshdraw, "ENABLED", True)
+    monkeypatch.setattr(freshdraw, "fresh_draw",
+                        lambda template, seed, tier: gives["draw"])
+
+    def prompt() -> str:
+        return "\n".join(label.text() for label in
+                         screen._cards[template.key].findChildren(QLabel))
+
+    def advance() -> None:
+        card = screen._verdicts[template.key].parentWidget()
+        _card_button(card, "New question").click()
+        qapp.processEvents()
+
+    screen._drill_seed[template.key] = built_in - 1
+    screen._show()
+    assert f"one of {built_in} versions" in prompt()
+    assert _until(qapp, lambda: ("constant-p", "", built_in) in screen._fresh,
+                  seconds=20)
+
+    gives["draw"] = None                      # the next one finds nothing
+    advance()
+    assert "fresh numbers · checked by the solver" in prompt()
+    assert screen._derivations[screen._seen(fresh) + ("steps",)] is worked
+    assert _until(qapp,
+                  lambda: ("constant-p", "", built_in + 1) in screen._fresh,
+                  seconds=20)
+
+    advance()
+    assert f"one of {built_in} versions" in prompt()
+
+
 def test_a_new_question_is_a_different_question(screen, qapp):
     lesson = _drill(screen, qapp, "separable")
     template = lesson.templates[0]
@@ -1622,7 +1763,12 @@ def test_a_new_question_is_a_different_question(screen, qapp):
     tier = screen._tier_of(template, offered) if len(offered) > 1 else ""
 
     first = generate.draw(template, screen._drill_seed[template.key], tier)
-    _press(screen, "New question")
+    # This template's own button: a choice drill keeps its buttons inline, in
+    # the reading column, which is searched before the answer column.
+    from PySide6.QtWidgets import QPushButton
+
+    next(b for b in screen._workspace.page(template.key).findChildren(QPushButton)
+         if b.text().startswith("New question")).click()
     qapp.processEvents()
     second = generate.draw(template, screen._drill_seed[template.key], tier)
 
@@ -1724,13 +1870,13 @@ def test_a_multiple_choice_drill_answers_to_the_keyboard_too(screen, qapp,
     template = lesson.templates[0]
     seed = screen._drill_seed[template.key]
 
-    option = screen._page.findChildren(QRadioButton)[0]
+    option = _find(screen, QRadioButton)[0]
     option.setChecked(True)
     _enter(option, qapp)
     assert screen._drill_seed[template.key] == seed, "the first press marks"
     assert screen._verdicts[template.key].text()
 
-    _enter(screen._page.findChildren(QRadioButton)[0], qapp)
+    _enter(_find(screen, QRadioButton)[0], qapp)
     assert screen._drill_seed[template.key] == seed + 1, "the second advances"
 
 
@@ -1742,7 +1888,7 @@ def test_an_unpicked_option_is_not_spent_as_a_turn(screen, qapp, store):
     seed = screen._drill_seed[template.key]
 
     for _ in range(3):
-        _enter(screen._page.findChildren(QRadioButton)[0], qapp)
+        _enter(_find(screen, QRadioButton)[0], qapp)
     assert screen._drill_seed[template.key] == seed
     assert "pick an option" in screen._verdicts[template.key].text()
 
@@ -1757,7 +1903,7 @@ def test_a_drill_is_mastered_by_three_in_a_row(screen, qapp, store):
     for expected in range(1, store.MASTERED_STREAK + 1):
         question = generate.draw(template, screen._drill_seed[template.key])
         derivation = _work_out(lesson, question.equation, question.conditions)
-        box = screen._page.findChildren(QLineEdit)[0]
+        box = _find(screen, QLineEdit)[0]
         box.setText(sp.sstr(derivation.result))
         screen._check_solve(lesson, question, box,
                             screen._verdicts[template.key],
@@ -1780,7 +1926,7 @@ def test_a_wrong_drill_answer_starts_the_count_again(screen, qapp, store):
 
     question = generate.draw(template, screen._drill_seed[template.key])
     derivation = _work_out(lesson, question.equation, question.conditions)
-    box = screen._page.findChildren(QLineEdit)[0]
+    box = _find(screen, QLineEdit)[0]
     box.setText(sp.sstr(derivation.result))
     screen._check_solve(lesson, question, box, screen._verdicts[template.key],
                         bucket=bucket, key=template.key)
@@ -2138,7 +2284,7 @@ def test_drilling_does_not_move_the_lessons_own_count(screen, qapp, store):
     question = generate.draw(template, screen._drill_seed[template.key])
     derivation = _work_out(lesson, question.equation, question.conditions)
 
-    box = screen._page.findChildren(QLineEdit)[0]
+    box = _find(screen, QLineEdit)[0]
     box.setText(sp.sstr(derivation.result))
     screen._check_solve(lesson, question, box, screen._verdicts[template.key],
                         bucket=store.drill_key(lesson.key), key=template.key)
@@ -2350,12 +2496,12 @@ def test_a_lesson_shows_its_figure_in_learn_and_not_in_examples(screen, qapp):
     from odesuite_app.widgets.lessonfigure import LessonFigure
 
     _open(screen, qapp, "slopefields", "Learn")
-    assert screen._page.findChildren(LessonFigure), "the figure is missing"
+    assert _find(screen, LessonFigure), "the figure is missing"
 
     # It belongs to Learn. Examples is the narrator working an equation
     # through, and a figure there would be a third thing to read.
     _open(screen, qapp, "slopefields", "Examples")
-    assert not screen._page.findChildren(LessonFigure)
+    assert not _find(screen, LessonFigure)
 
 
 def test_a_question_can_be_asked_about_a_picture(screen, qapp):
@@ -2368,14 +2514,14 @@ def test_a_question_can_be_asked_about_a_picture(screen, qapp):
     from odesuite_app.widgets.lessonfigure import LessonFigure
 
     _open(screen, qapp, "slopefields", "Practice")
-    shown = screen._page.findChildren(LessonFigure)
+    shown = _find(screen, LessonFigure)
     assert shown, "a question that names a figure should show it"
     assert any(type(one).__name__ == "SlopeFieldFigure" for one in shown), (
         "and it should be the figure the question actually names"
     )
 
     _open(screen, qapp, "separable", "Practice")
-    assert not screen._page.findChildren(LessonFigure)
+    assert not _find(screen, LessonFigure)
 
 
 def test_every_figure_a_question_names_exists():

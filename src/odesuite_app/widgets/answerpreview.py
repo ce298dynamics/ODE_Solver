@@ -16,6 +16,7 @@ typed in, not a mistake.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 from PySide6.QtCore import QTimer
@@ -25,6 +26,10 @@ from ..theme import Palette
 from .mathlabel import MathLabel
 
 __all__ = ["AnswerPreview", "DELAY_MS", "question_parser"]
+
+#: ``e^2t``, ``e^-3t``, ``exp^...`` aside: an exponent of a number then a name,
+#: with no bracket round the two.
+_BARE_EXPONENT = re.compile(r"\be\s*\^\s*-?\s*\d+(?:\.\d+)?\s*[A-Za-z(]")
 
 #: How long typing has to pause before the preview is refreshed. Long enough
 #: not to parse on every keystroke, short enough to feel live.
@@ -103,7 +108,13 @@ class AnswerPreview(QWidget):
         t = Symbol("t", real=True)
         self._show_rows([Eq(Function(name)(t), expression, evaluate=False)
                          for name, expression in pairs])
-        self.note.setText("Read as:")
+        # `e^2t` is e² times t, as a calculator would read it, and almost
+        # never what was meant. Read as written, but say so beside it.
+        if _BARE_EXPONENT.search(text):
+            self.note.setText("Read as (for e^(2t), put the exponent in "
+                              "brackets):")
+        else:
+            self.note.setText("Read as:")
         self.note.setVisible(True)
         self.setVisible(True)
 

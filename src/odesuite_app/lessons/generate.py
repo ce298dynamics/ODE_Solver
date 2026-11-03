@@ -48,7 +48,8 @@ from .model import (
 __all__ = ["draws", "draw", "draw_choice", "draw_numeric", "draw_model",
            "draw_expression", "draw_classify", "draw_fault", "case_shown",
            "combinations", "every", "every_at", "tidy", "tier_of",
-           "tiers", "option_written"]
+           "tiers", "option_written", "sample", "integer_box",
+           "second_order_from_roots", "REGIMES"]
 
 
 #: Cosmetic repairs to a formatted equation, in order. Substituting numbers
@@ -219,13 +220,82 @@ def draw(template, seed: int, tier: str = ""):
     if isinstance(template, FaultTemplate):
         return draw_fault(template, seed, tier)
     index, slots = _pick(template, seed, tier)
+    return _solve(template, slots, f"{template.key}#{index}")
+
+
+def _solve(template: Template, slots, key: str) -> Solve:
     return Solve(
-        key=f"{template.key}#{index}",
+        key=key,
         prompt=template.prompt.format(**slots),
         equation=tidy(template.equation.format(**slots)),
         conditions=template.conditions.format(**slots),
         hints=tuple(hint.format(**slots) for hint in template.hints),
     )
+
+
+# ---------------------------------------------------------------------------
+# Sampled draws, for after the enumerated ones run out
+# ---------------------------------------------------------------------------
+
+
+def sample(template: Template, seed: int, tier: str = "",
+           attempt: int = 0) -> Solve | None:
+    """One question with numbers from the template's `sampler`, or None.
+
+    None when the template has no sampler, or this attempt's numbers are ones
+    `reject` refuses or sit outside `tier`: the caller tries the next
+    `attempt`. Seeded from everything that names the draw, so the same seed,
+    tier and attempt always give the same question, on any machine.
+
+    Keyed ``key~seed`` rather than ``key#index``: there is no pool for an
+    index to point into. Nothing here says the question is right. That is
+    `freshdraw`'s job, and nothing should be asked before it has done it.
+    """
+    if template.sampler is None:
+        return None
+    rng = random.Random(f"{template.key}|{tier}|{seed}|{attempt}")
+    slots = dict(template.sampler(rng, tier))
+    if template.reject and template.reject(slots):
+        return None
+    if tier and template.level and template.level(slots) != tier:
+        return None
+    return _solve(template, slots, f"{template.key}~{seed}")
+
+
+def integer_box(rng: random.Random, low: int, high: int,
+                exclude=()) -> int:
+    """An integer in ``[low, high]``, not one of `exclude`."""
+    choices = [n for n in range(low, high + 1) if n not in exclude]
+    return rng.choice(choices)
+
+
+#: The three root cases of a constant-coefficient second-order equation.
+REGIMES = ("distinct", "repeated", "complex")
+
+
+def second_order_from_roots(regime: str, rng: random.Random,
+                            damped: bool = True) -> tuple[int, int]:
+    """``(b, c)`` for ``y'' + b y' + c y = 0`` with integer roots of a kind.
+
+    Built from the roots rather than drawn as coefficients, for the reason
+    `Template` gives: coefficients drawn independently give irrational roots,
+    and the drill is practice at the method, not at surds. `damped` keeps
+    every root in the left half-plane, so the solution decays.
+    """
+    if regime == "distinct":
+        first, second = rng.sample(range(1, 7), 2)
+        if damped:
+            return first + second, first * second
+        # One root of each sign: y'' - c y = 0 and its shifted relatives.
+        return second - first, -first * second
+    if regime == "repeated":
+        root = integer_box(rng, 1, 6)
+        return 2 * root, root * root
+    if regime == "complex":
+        real = integer_box(rng, 1 if damped else 0, 4)
+        imaginary = integer_box(rng, 1, 5)
+        return 2 * real, real * real + imaginary * imaginary
+    raise ValueError(f"unknown regime {regime!r}; expected one of {REGIMES}")
 
 
 def draw_choice(template: ChoiceTemplate, seed: int,

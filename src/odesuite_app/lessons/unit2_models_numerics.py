@@ -11,6 +11,7 @@ with when none of chapter 1's techniques applies.
 
 from __future__ import annotations
 
+from . import samplers
 from .chapters import unit2 as chapters
 from .model import (
     Choice,
@@ -280,6 +281,7 @@ POPULATION = Lesson(
     templates=(
         Template(
             key="growth-decay",
+            sampler=samplers.growth_decay,
             title="Proportional growth and decay",
             prompt="A rate proportional to the amount. Separate and integrate.",
             equation="y' = {k}*y/10",

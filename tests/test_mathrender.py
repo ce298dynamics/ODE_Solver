@@ -102,6 +102,36 @@ def test_matrix_is_refused_rather_than_raising():
     assert _png(latex) == b""
 
 
+@pytest.mark.parametrize("matrix", [
+    sp.Matrix([[0, 1], [-2, -3]]),
+    sp.Matrix([sp.Function("x")(T), sp.Function("y")(T)]),
+    sp.Matrix([[sp.exp(2 * T), T * sp.exp(2 * T)], [0, sp.exp(2 * T)]]),
+    sp.Matrix([[1, -2]]),
+])
+def test_a_two_row_matrix_is_typeset_rather_than_printed(matrix):
+    """What the systems narrator shows: ``x' = A x`` as mathematics, not as
+    the ``\\begin{matrix}`` source it used to print."""
+    latex = mathrender.matrix_latex(matrix)
+    assert mathrender.is_renderable(latex)
+    assert _png(latex).startswith(b"\x89PNG")
+
+
+def test_a_taller_matrix_keeps_sympys_form():
+    tall = sp.Matrix([1, 2, 3])
+    assert mathrender.matrix_latex(tall) == sp.latex(tall)
+
+
+@pytest.mark.parametrize("latex,renderable", [
+    (r"x \ge 0", False), (r"x \le 0", False),
+    (r"x \geq 0", True), (r"x \leq 0", True),
+    (r"\genfrac{}{}{0}{}{a}{b}", True), (r"\left(x\right)", True),
+])
+def test_only_the_bare_comparison_commands_are_refused(latex, renderable):
+    """``\\ge`` is missing from mathtext; ``\\genfrac`` is not, and an
+    over-eager guard once refused it for starting with the same letters."""
+    assert mathrender.is_renderable(latex) is renderable
+
+
 def test_piecewise_decomposes_into_renderable_rows():
     """The refusal above is only acceptable because this works."""
     rows = mathrender.rows(sp.Piecewise((T, T < 1), (sp.exp(-T), True)))

@@ -91,28 +91,74 @@ SECTION_OF = {
 
 
 class Sidebar(QFrame):
-    """Fixed-width navigation rail: Home, a section switch, then that section."""
+    """Fixed-width navigation rail: Home, a section switch, then that section.
+
+    It folds to a thin strip (Ctrl+B) for reading: a lesson wants the width
+    more than the menu does, and the shortcuts still reach every screen.
+    """
 
     #: Emitted when the user picks a section from the switch.
     section_changed = Signal(str)
+    #: Emitted when the fold button or the strip is pressed: the reader asking.
+    fold_requested = Signal(bool)
+
+    WIDTH = 196
+    COLLAPSED_WIDTH = 30
 
     def __init__(self, palette: Palette, parent=None) -> None:
         super().__init__(parent)
-        self.setFixedWidth(196)
+        self.setFixedWidth(self.WIDTH)
+        # The border on the rail alone: a bare declaration reaches every child,
+        # and drew a short rule beside each button and label.
+        self.setObjectName("sidebar")
         self.setStyleSheet(
-            f"background: {palette.surface}; border-right: 1px solid {palette.border};"
+            f"* {{ background: {palette.surface}; }}"
+            f"QFrame#sidebar {{ border-right: 1px solid {palette.border}; }}"
         )
+        self._collapsed = False
 
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        self._body = QWidget()
+        outer.addWidget(self._body, 1)
+
+        quiet = theme.scaled(
+            f"QPushButton {{ background: transparent; border: none;"
+            f" color: {palette.text_muted}; font-size: 12px; padding: 2px 4px; }}"
+            f"QPushButton:hover {{ color: {palette.accent}; }}"
+        )
+        # The whole strip is the button, as in `CollapsibleRail`.
+        self._strip = QPushButton("›\n\n" + "\n".join("Menu"))
+        self._strip.setAccessibleName("show menu")
+        self._strip.setToolTip("Show the menu (Ctrl+B)")
+        self._strip.setCursor(Qt.PointingHandCursor)
+        self._strip.setStyleSheet(quiet)
+        self._strip.clicked.connect(lambda: self.fold_requested.emit(False))
+        self._strip.setVisible(False)
+        outer.addWidget(self._strip, 0, Qt.AlignTop)
+        outer.addStretch(0)
+
+        layout = QVBoxLayout(self._body)
         layout.setContentsMargins(12, 18, 12, 14)
         layout.setSpacing(3)
 
+        top = QHBoxLayout()
+        top.setSpacing(0)
         brand = QLabel("odesuite")
         brand.setStyleSheet(
             theme.scaled(f"font-size: 17px; font-weight: 700; color: {palette.accent};"
                          f"padding: 0 8px 2px 8px;")
         )
-        layout.addWidget(brand)
+        top.addWidget(brand, 1)
+        self.fold_button = QPushButton("‹")
+        self.fold_button.setAccessibleName("hide menu")
+        self.fold_button.setToolTip("Fold the menu away (Ctrl+B)")
+        self.fold_button.setCursor(Qt.PointingHandCursor)
+        self.fold_button.setStyleSheet(quiet)
+        self.fold_button.clicked.connect(lambda: self.fold_requested.emit(True))
+        top.addWidget(self.fold_button)
+        layout.addLayout(top)
 
         tagline = QLabel("ODE solver studio")
         tagline.setProperty("role", "muted")
@@ -208,6 +254,17 @@ class Sidebar(QFrame):
 
         self.show_section(SECTIONS[0][0])
 
+    def is_collapsed(self) -> bool:
+        return self._collapsed
+
+    def set_collapsed(self, collapsed: bool) -> None:
+        """Fold to the strip or open again. Only width and visibility change,
+        so the buttons inside keep their checked state while hidden."""
+        self._collapsed = bool(collapsed)
+        self._body.setVisible(not self._collapsed)
+        self._strip.setVisible(self._collapsed)
+        self.setFixedWidth(self.COLLAPSED_WIDTH if self._collapsed else self.WIDTH)
+
     def show_section(self, section: str) -> None:
         """Reveal one section's screen buttons and check its switch button."""
         for name, page in self.section_pages.items():
@@ -236,6 +293,15 @@ class MainWindow(QWidget):
 
         self.sidebar = Sidebar(self.palette_obj)
         layout.addWidget(self.sidebar)
+        #: The reader's choice for the menu; reading mode folds it without
+        #: changing this, so leaving reading mode puts back what was chosen.
+        self._sidebar_wanted = not self._flag("layout/sidebar_collapsed")
+        self._reading = False
+        self.sidebar.set_collapsed(not self._sidebar_wanted)
+        self.sidebar.fold_requested.connect(
+            lambda folded: self.toggle_sidebar(not folded))
+        QShortcut(QKeySequence("Ctrl+B"), self,
+                  activated=lambda: self.toggle_sidebar())
 
         self.stack = QStackedWidget()
         layout.addWidget(self.stack, 1)
@@ -294,6 +360,16 @@ class MainWindow(QWidget):
         lessons = LessonsScreen(self.state, self.palette_obj)
         lessons.open_tool.connect(self._open_tool)
         lessons.open_term.connect(self._open_term)
+        # Held here, not by the screen: a theme or text-scale change rebuilds
+        # every screen, and the columns must come back the way they were.
+        lessons.set_rails(course=not self._flag("lessons/course_collapsed"),
+                          workspace=not self._flag("lessons/workspace_collapsed"))
+        if self._reading:
+            lessons.reading_mode(True)
+        lessons.rails_changed.connect(
+            lambda name, folded: self._settings.setValue(
+                f"lessons/{name}_collapsed", bool(folded)))
+        lessons.reading_changed.connect(self._on_reading)
         self._add("lessons", lessons)
 
         course = CourseScreen(self.state, self.palette_obj)
@@ -352,6 +428,31 @@ class MainWindow(QWidget):
         saved = self._settings.value("window/geometry")
         if saved is not None:
             self.restoreGeometry(saved)
+
+    def _flag(self, key: str) -> bool:
+        """A saved yes/no. The INI and registry backends hand a bool back as
+        the string "true" or "false", and `bool("false")` is True."""
+        value = self._settings.value(key, False)
+        if isinstance(value, str):
+            return value.lower() == "true"
+        return bool(value)
+
+    def toggle_sidebar(self, show: bool | None = None) -> None:
+        """Fold or open the menu, as the reader asking for it (Ctrl+B)."""
+        show = self.sidebar.is_collapsed() if show is None else bool(show)
+        self._sidebar_wanted = show
+        self._settings.setValue("layout/sidebar_collapsed", not show)
+        self.sidebar.set_collapsed(not show)
+        if show and self._reading:
+            # Opening the menu is leaving reading mode.
+            lessons = self._screens.get("lessons")
+            if lessons is not None and hasattr(lessons, "reading_mode"):
+                lessons.reading_mode(False)
+
+    def _on_reading(self, on: bool) -> None:
+        """Reading mode folds the menu too, without it being remembered."""
+        self._reading = bool(on)
+        self.sidebar.set_collapsed(on or not self._sidebar_wanted)
 
     def current_screen(self) -> str:
         """The key of the screen on show, or "" if it cannot be told."""

@@ -36,8 +36,9 @@ stays instant.
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
-from PySide6.QtGui import QFontMetrics
+from PySide6.QtGui import QFontMetrics, QKeySequence, QShortcut, QTextDocumentFragment
 from PySide6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QFrame,
     QHBoxLayout,
@@ -57,10 +58,14 @@ from .. import progress, richtext, theme
 from ..lessons import generate
 from ..theme import Palette
 from ..widgets.answerpreview import AnswerPreview, question_parser
+from ..widgets.collapsible import CollapsibleRail
 from ..widgets.controls import add_heading, control_panel
+from ..widgets.flow import FlowWidget
 from ..widgets.lessonfigure import build_figure
 from ..widgets.mathlabel import MathLabel, equation_label
+from ..widgets.soon import run_soon
 from ..widgets.stepspanel import StepsPanel
+from ..widgets.workspace import AnswerWorkspace
 
 __all__ = ["CARRIES_EQUATION", "TOOL_NAMES", "LessonsScreen", "SEGMENTS"]
 
@@ -86,6 +91,19 @@ TOOL_NAMES = {
 #: -- so there is nothing for a lesson's example to be loaded into, and
 #: promising otherwise is the bug this set exists to avoid repeating.
 CARRIES_EQUATION = frozenset({"steps", "laplace"})
+
+#: The course column and the answer column, open.
+COURSE_WIDTH = 276
+WORKSPACE_WIDTH = 380
+#: The answer column on a window too narrow for the full one. Below this the
+#: buttons wrap to a third line, which is worse than a narrower text.
+WORKSPACE_NARROW = 320
+#: The narrowest the reading column is allowed to get before the course
+#: column folds itself away to make room. Not remembered: it is the window's
+#: doing, not the reader's choice.
+READING_MIN = 600
+#: The widest the reading column grows, however much room it is given.
+PAGE_WIDTH = 900
 
 
 class _Signals(QObject):
@@ -116,28 +134,208 @@ class _WorkingJob(QRunnable):
             pass                                  # the screen went away
 
 
+class _WorkingCheckJob(QRunnable):
+    """Checks a page of working line by line, off the interface thread.
+
+    Needs the verified general solution and, where the question has
+    conditions, the particular one: both come from the narrator, through the
+    same timed subprocess as "Show me", and are handed back with the verdicts
+    for the screen to keep -- a second check of the same question does not
+    solve it again. Emits ``(token, (verdicts, solutions) | Exception)``.
+    """
+
+    def __init__(self, token: int, question, narrator: str, text: str,
+                 solutions, signals: _Signals) -> None:
+        super().__init__()
+        self.token = token
+        self.question = question
+        self.narrator = narrator
+        self.text = text
+        self.solutions = solutions
+        self.signals = signals
+        self.setAutoDelete(True)
+
+    def run(self) -> None:
+        from .. import working
+        from ..laplace import EXTRA_FUNCTIONS
+        from ..symbolic import parse_equation, spec_for
+
+        question = self.question
+        try:
+            parsed = parse_equation(spec_for(question.equation,
+                                             question.conditions),
+                                    extra_functions=EXTRA_FUNCTIONS)
+            solutions = self.solutions
+            if solutions is None:
+                def result_of(conditions: str):
+                    derivation = _work_out(question.equation, conditions,
+                                           self.narrator)
+                    if derivation is None or derivation.result is None:
+                        raise ValueError("no verified solution to check "
+                                         "against")
+                    return getattr(derivation.result, "rhs",
+                                   derivation.result)
+                if self.narrator == "laplace":
+                    # The method needs the conditions, and its answer has no
+                    # free constants: the particular solution is the family.
+                    particular = result_of(question.conditions)
+                    solutions = (particular, particular)
+                else:
+                    solutions = (result_of(""),
+                                 result_of(question.conditions)
+                                 if question.conditions else None)
+            result = (working.check_working(parsed, self.text, *solutions,
+                                            narrator=self.narrator),
+                      solutions)
+        except Exception as exc:                  # surfaced, never swallowed
+            result = exc
+        try:
+            self.signals.done.emit(self.token, result)
+        except RuntimeError:
+            pass                                  # the screen went away
+
+
+class _FreshDrawJob(QRunnable):
+    """Draws and solves a drill question with fresh numbers, off the
+    interface thread. Emits ``(token, (Solve, Derivation) | None)``: None
+    when nothing the sampler offered passed in time, and the drill goes back
+    to its built-in versions."""
+
+    def __init__(self, token: int, template, seed: int, tier: str,
+                 signals: _Signals) -> None:
+        super().__init__()
+        self.token = token
+        self.template = template
+        self.seed = seed
+        self.tier = tier
+        self.signals = signals
+        self.setAutoDelete(True)
+
+    def run(self) -> None:
+        from ..freshdraw import fresh_draw
+
+        try:
+            result = fresh_draw(self.template, self.seed, self.tier)
+        except Exception:                         # the pool stands in
+            result = None
+        try:
+            self.signals.done.emit(self.token, result)
+        except RuntimeError:
+            pass                                  # the screen went away
+
+
+def answer_placeholder(equation: str) -> str:
+    """What the answer box suggests: ``y = ...``, or one ``x = ...`` per
+    unknown for a system, separated as the grader reads them."""
+    import re
+
+    if ";" not in equation:
+        return "y = ..."
+    names = [match.group(1) for part in equation.split(";")
+             if (match := re.match(r"\s*([A-Za-z]\w*)'", part))]
+    return "; ".join(f"{name} = ..." for name in names) or "y = ..."
+
+
+def working_report(verdicts, palette: Palette) -> str:
+    """A checked page of working, as rich text: ✓, ✗ or – against each line.
+
+    The first ✗ is set apart, because that is the line to look at: every ✗
+    after it may only be the first one carried forward.
+    """
+    from html import escape
+
+    from ..working import OK, WRONG
+
+    if not verdicts:
+        return ""
+    rows = []
+    first_wrong = next((v.number for v in verdicts if v.status == WRONG), None)
+    for verdict in verdicts:
+        mark, colour = (("✓", palette.success) if verdict.status == OK else
+                        ("✗", palette.danger) if verdict.status == WRONG else
+                        ("–", palette.text_muted))
+        line = escape(verdict.text.strip())
+        note = (f'<br><span style="color:{palette.text_muted};">'
+                f"{escape(verdict.message)}</span>" if verdict.message else "")
+        style = (f"background:{palette.surface}; font-weight:600;"
+                 if verdict.number == first_wrong else "")
+        rows.append(f'<tr><td style="color:{colour}; padding-right:6px;">'
+                    f"{mark}</td><td style=\"{style}\">{verdict.number}. "
+                    f"<code>{line}</code>{note}</td></tr>")
+    if first_wrong is None:
+        head = ("Every line that could be checked holds."
+                if any(v.status == OK for v in verdicts)
+                else "Nothing here could be checked.")
+    else:
+        head = (f"The first slip is on line {first_wrong}; lines after it may "
+                f"only be carrying it forward.")
+    return f"<p>{head}</p><table>{''.join(rows)}</table>"
+
+
 def _work_out(equation: str, conditions: str, narrator: str):
     """The worked solution, through the same subprocess the Hub tools use."""
-    from ..laplace import EXTRA_FUNCTIONS
-    from ..symbolic import (
-        parse_equation,
-        solve_by_laplace,
-        solve_symbolically,
-        spec_for,
-    )
+    from ..freshdraw import work_out
 
-    parsed = parse_equation(spec_for(equation, conditions),
-                            extra_functions=EXTRA_FUNCTIONS)
-    if narrator == "laplace":
-        return solve_by_laplace(parsed).derivation
-    if narrator == "series":
-        from ..series import derive as series_derive
-
-        return series_derive(parsed.equation, parsed.function, ics=parsed.ics)
-    return solve_symbolically(parsed, steps=True).derivation
+    return work_out(equation, conditions, narrator)
 
 
-class _DrillCard(QFrame):
+class _QuestionCard(QFrame):
+    """A question's card in the reading column, which says when it is clicked.
+
+    Clicking a question is how its answer page comes up in the answer column.
+    Labels and figures ignore a press and let it reach the card, so anywhere
+    on the card will do -- there is no small target to hunt for.
+    """
+
+    pressed = Signal()
+
+    def mousePressEvent(self, event) -> None:          # noqa: N802
+        self.pressed.emit()
+        super().mousePressEvent(event)
+
+
+class _Verdict(QLabel):
+    """A verdict that says when it changes.
+
+    The verdict lives in the answer column, with the box. The card in the
+    reading column carries a one-line copy of it, so a page of questions can
+    be scanned for which are done without opening each -- and every
+    `setText` the checkers already make keeps that copy current, without
+    any of them knowing it exists.
+    """
+
+    changed = Signal()
+
+    def setText(self, text: str) -> None:              # noqa: N802
+        super().setText(text)
+        self.changed.emit()
+
+
+class _AnswerRow:
+    """The answer box on a line of its own, and its buttons wrapping beneath.
+
+    Takes the place of the one `QHBoxLayout` the builders used to put the box
+    and up to five buttons in. That row was laid out for the full reading
+    column; in the answer column it would be a box forty pixels wide. The
+    builders still call `addWidget` on it in the same order, and it sorts
+    each widget onto the line it belongs on.
+    """
+
+    def __init__(self, layout: QVBoxLayout) -> None:
+        self.line = QHBoxLayout()
+        self.line.setSpacing(8)
+        self.buttons = FlowWidget(spacing=6)
+        layout.addLayout(self.line)
+        layout.addWidget(self.buttons)
+
+    def addWidget(self, widget, stretch: int = 0) -> None:     # noqa: N802
+        if isinstance(widget, QPushButton):
+            self.buttons.addWidget(widget)
+        else:
+            self.line.addWidget(widget, stretch)
+
+
+class _DrillCard(_QuestionCard):
     """A drill's card, which answers to Enter however it is focused.
 
     A `QLineEdit` consumes Return and reports it as `returnPressed`, so a
@@ -173,6 +371,12 @@ class LessonsScreen(QWidget):
     open_tool = Signal(str, str, str)
     #: Asks the window to open the glossary at a term a chapter linked.
     open_term = Signal(str)
+    #: Somebody folded or opened a column: ``("course" | "workspace",
+    #: collapsed)``. Only the reader's own choices, for the window to
+    #: remember -- the screen's own folding on a narrow window is not sent.
+    rails_changed = Signal(str, bool)
+    #: Reading mode went on or off, so the window can fold its navigation too.
+    reading_changed = Signal(bool)
 
     def __init__(self, state, palette: Palette, parent=None) -> None:
         super().__init__(parent)
@@ -220,19 +424,89 @@ class LessonsScreen(QWidget):
 
         self._signals = _Signals()
         self._signals.done.connect(self._on_worked)
+        #: "Show your working": its own token and signals, so checking
+        #: working never supersedes a "Show me" in flight, or the reverse.
+        #: `_solutions` keeps each equation's verified solutions by `_seen`.
+        self._check_signals = _Signals()
+        self._check_signals.done.connect(self._on_checked)
+        self._check_token = 0
+        self._check_pending: dict[int, tuple] = {}
+        self._solutions: dict[tuple[str, str], tuple] = {}
+
+        #: Fresh numbers, for a drill past its built-in versions: ``(template
+        #: key, tier, seed)`` -> ``(Solve, Derivation)``, or None where the
+        #: built-in version was asked instead. Settled the first time a card
+        #: is built for that seed and never changed after, so a draw arriving
+        #: late cannot swap the question out from under somebody answering
+        #: it -- which is why the next one is drawn while this one is asked.
+        self._fresh: dict[tuple[str, str, int], tuple | None] = {}
+        self._fresh_signals = _Signals()
+        self._fresh_signals.done.connect(self._on_fresh)
+        self._fresh_token = 0
+        self._fresh_pending: dict[int, tuple[tuple[str, str, int], str]] = {}
+        #: The solver's own working for each fresh question, by `_seen` and
+        #: narrator: it was produced to check the draw, so "Show me" and
+        #: "Next step" show it rather than solving the equation again.
+        self._derivations: dict[tuple[str, str, str], object] = {}
+
+        #: Question or template key -> its card in the reading column, and
+        #: the one-line copy of its verdict that card carries. Rebuilt with
+        #: the page.
+        self._cards: dict[str, QFrame] = {}
+        self._chips: dict[str, QLabel] = {}
+        #: Question key -> "Question 3", for the answer column's heading.
+        self._card_titles: dict[str, str] = {}
+
+        #: Whether the reader wants each column open. The columns follow
+        #: these except where the screen overrides them for the moment: the
+        #: answer column on a page with nothing to answer, the course column
+        #: on a window too narrow for it, and both in reading mode.
+        self._course_wanted = True
+        self._workspace_wanted = True
+        self._narrow = False
+        self._overruled = False
+        self._reading = False
+
+        self._workspace = AnswerWorkspace(palette)
+        self.course_rail = CollapsibleRail(self._build_controls(), "Course",
+                                           "left", COURSE_WIDTH, palette)
+        self.workspace_rail = CollapsibleRail(self._workspace, "Answers",
+                                              "right", WORKSPACE_WIDTH, palette)
+        self.course_rail.user_toggled.connect(
+            lambda folded: self._chosen("course", folded))
+        self.workspace_rail.user_toggled.connect(
+            lambda folded: self._chosen("workspace", folded))
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(14)
-        layout.addWidget(self._build_controls())
+        layout.addWidget(self.course_rail)
         layout.addWidget(self._build_body(), 1)
+        layout.addWidget(self.workspace_rail)
+
+        # Scoped to this screen and its children, so they do nothing on the
+        # other screens -- and the methods behind them are public, because a
+        # shortcut is only matched in an active window and the tests have none.
+        for keys, action in (("Ctrl+Shift+L", self.toggle_course),
+                             ("Ctrl+J", self.toggle_workspace),
+                             ("F11", self.reading_mode)):
+            shortcut = QShortcut(QKeySequence(keys), self)
+            shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(action)
+
+        # A key pressed in a question's card, or a button pressed in its
+        # answer page, makes that question the one being answered -- tabbing
+        # through the page moves the answer column along with the caret.
+        app = QApplication.instance()
+        if app is not None:
+            app.focusChanged.connect(self._on_focus)
 
         self.select(content.LESSONS[0].key if content.LESSONS else "")
 
     # -- construction ----------------------------------------------------
 
     def _build_controls(self) -> QWidget:
-        panel, layout = control_panel(276)
+        panel, layout = control_panel(COURSE_WIDTH)
 
         add_heading(layout, "Course")
         note = QLabel(
@@ -408,8 +682,10 @@ class LessonsScreen(QWidget):
         self.reference_label.setWordWrap(True)
         head_layout.addWidget(self.reference_label)
 
-        bar = QHBoxLayout()
-        bar.setSpacing(6)
+        # Buttons that wrap onto a second line rather than one row that cannot
+        # shrink. The row was over 900 pixels at its narrowest, which with a
+        # column either side pushed the screen wider than the window.
+        bar = FlowWidget(spacing=6)
         bar.setContentsMargins(0, 8, 0, 0)
         self.segment_buttons: dict[str, QPushButton] = {}
         self._segment_group = QButtonGroup(head)
@@ -431,7 +707,18 @@ class LessonsScreen(QWidget):
             button.clicked.connect(
                 lambda _=False, n=name: self._choose_segment(n)
             )
-        bar.addStretch(1)
+        # Everything folded away but the text. The same as F11, for anyone
+        # who does not know that F11 does it.
+        self.reading_button = QPushButton("Reading mode")
+        self.reading_button.setCheckable(True)
+        self.reading_button.setCursor(Qt.PointingHandCursor)
+        self.reading_button.setToolTip(
+            "Fold away the menu, the course and the answers, and give the "
+            "whole window to the text (F11). Press again to bring them back."
+        )
+        self.reading_button.clicked.connect(
+            lambda on: self.reading_mode(bool(on)))
+        bar.addWidget(self.reading_button)
         # The way on. Without it a lesson was a dead end: the reader finished
         # the drill and had to go back to the tree, or the Course Map, to find
         # out what came next.
@@ -440,8 +727,20 @@ class LessonsScreen(QWidget):
         self.next_button.setCursor(Qt.PointingHandCursor)
         self.next_button.clicked.connect(self._open_next)
         bar.addWidget(self.next_button)
-        head_layout.addLayout(bar)
-        outer.addWidget(head)
+        head_layout.addWidget(bar)
+        # Centred over the reading column below, and capped to the same
+        # width, so the title starts where the text does.
+        head.setMaximumWidth(PAGE_WIDTH)
+        # Scoped by name, or every button in it would lose its own background.
+        # Without it the capped heading painted a dark band across the panel.
+        head.setObjectName("lessonHead")
+        head.setStyleSheet("QWidget#lessonHead { background: transparent; }")
+        heading_row = QHBoxLayout()
+        heading_row.setContentsMargins(0, 0, 0, 0)
+        heading_row.addStretch(1)
+        heading_row.addWidget(head, 100)
+        heading_row.addStretch(1)
+        outer.addLayout(heading_row)
 
         scroll = QScrollArea()
         scroll.setAccessibleName("lesson")
@@ -454,18 +753,21 @@ class LessonsScreen(QWidget):
         # A reading column, not the full width of the window. Notes set across
         # 1400 pixels are genuinely hard to read -- the eye loses the line on
         # the way back -- and this is the one screen here whose main job is
-        # being read rather than being operated.
+        # being read rather than being operated. Centred, so that folding the
+        # columns either side opens the margins evenly rather than leaving
+        # the text against one edge with a field of nothing beside it.
         holder = QWidget()
         scroll.setWidget(holder)
         across = QHBoxLayout(holder)
         across.setContentsMargins(0, 0, 0, 0)
 
         self._page = QWidget()
-        self._page.setMaximumWidth(900)
+        self._page.setMaximumWidth(PAGE_WIDTH)
         # Stretch as well as a cap: without it the column takes its size hint
-        # and the answer boxes collapse to nothing.
-        across.addWidget(self._page, 1)
-        across.addStretch(0)
+        # and the cards collapse to nothing.
+        across.addStretch(1)
+        across.addWidget(self._page, 100)
+        across.addStretch(1)
 
         self._layout = QVBoxLayout(self._page)
         self._layout.setContentsMargins(24, 14, 24, 24)
@@ -550,6 +852,7 @@ class LessonsScreen(QWidget):
             for button in self.segment_buttons.values():
                 button.setEnabled(False)
             self.next_button.setVisible(False)
+            self._apply_rails()
             return
 
         following = self.next_lesson()
@@ -589,6 +892,12 @@ class LessonsScreen(QWidget):
             self._build_practice(lesson)
         self._layout.addStretch(1)
         self._scroll.verticalScrollBar().setValue(0)
+        # The first question's answer page is up until another is chosen, so
+        # the answer column is never blank on a page that has questions.
+        pages = self._workspace.keys()
+        if pages:
+            self._activate(pages[0])
+        self._apply_rails()
         self._restore_drill_focus()
 
     def _restore_drill_focus(self) -> None:
@@ -601,11 +910,216 @@ class LessonsScreen(QWidget):
         """
         wanted, self._focus_drill = self._focus_drill, ""
         box = self._drill_inputs.get(wanted)
+        if wanted:
+            self._activate(wanted)
         if box is not None:
             box.setFocus(Qt.OtherFocusReason)
-            # The card is somewhere down a scrolling column, and a caret
-            # nobody can see is not where the caret should be.
-            self._scroll.ensureWidgetVisible(box, 0, 60)
+        card = self._cards.get(wanted)
+        if card is not None:
+            # The card is somewhere down a scrolling column, and a question
+            # nobody can see is not the one that should be being answered.
+            self._scroll.ensureWidgetVisible(card, 0, 60)
+
+    # -- the columns either side -----------------------------------------
+
+    def toggle_course(self) -> None:
+        """Fold or open the course column, as the reader asking for it."""
+        self.course_rail.toggle()
+
+    def toggle_workspace(self) -> None:
+        """Fold or open the answer column, as the reader asking for it."""
+        self.workspace_rail.toggle()
+
+    def set_rails(self, *, course: bool | None = None,
+                  workspace: bool | None = None) -> None:
+        """Say which columns the reader wants open -- the window's memory of
+        it, handed back when the screen is built."""
+        if course is not None:
+            self._course_wanted = bool(course)
+        if workspace is not None:
+            self._workspace_wanted = bool(workspace)
+        self._apply_rails()
+
+    def reading_mode(self, on: bool | None = None) -> None:
+        """Fold everything but the text away, or bring it back.
+
+        Nothing the reader chose is forgotten on the way in: coming out puts
+        back whichever columns were open before, rather than opening all of
+        them.
+        """
+        on = (not self._reading) if on is None else bool(on)
+        if on == self._reading:
+            return
+        self._reading = on
+        self.reading_button.setChecked(on)
+        self._apply_rails()
+        self.reading_changed.emit(on)
+
+    def is_reading(self) -> bool:
+        return self._reading
+
+    def _chosen(self, name: str, folded: bool) -> None:
+        """A column was folded or opened by hand: that is now the preference."""
+        if name == "course":
+            self._course_wanted = not folded
+            # Opened by hand while there was no room for it: the reader has
+            # overruled the screen, and it stops folding the column by itself
+            # until the reader folds it again.
+            self._overruled = not folded and self._narrow
+        else:
+            self._workspace_wanted = not folded
+        if self._reading and not folded:
+            # Opening a column is leaving reading mode, whatever the button
+            # says -- the other column stays as it was.
+            self._reading = False
+            self.reading_button.setChecked(False)
+            self.reading_changed.emit(False)
+        self.rails_changed.emit(name, folded)
+
+    def _apply_rails(self) -> None:
+        """Open and fold the columns: the reader's wishes, then the screen's.
+
+        The answer column folds on a page with nothing to answer. The course
+        column folds when keeping it would leave the text narrower than
+        `READING_MIN` -- which, at the default window, is on Practice and
+        Drill, where the answer column needs the room, and not on Learn,
+        where it does not.
+        """
+        reading = self._reading
+        answers = not (reading or not self._workspace_wanted
+                       or not self._workspace.keys())
+        self.workspace_rail.set_collapsed(not answers)
+        # Measured only once the screen has a size: before it is shown or
+        # placed, its width is a default that says nothing about the window.
+        if self.testAttribute(Qt.WA_Resized) or self.isVisible():
+            room = (self.width() - 14 * 4 - COURSE_WIDTH
+                    - (WORKSPACE_WIDTH if answers
+                       else CollapsibleRail.COLLAPSED_WIDTH))
+            self._narrow = room < READING_MIN
+            # And if folding the course is not room enough, the answer column
+            # gives up some of its width too. Both measured against the full
+            # widths, never the current ones, so the result cannot flicker
+            # between the two on successive passes.
+            squeezed = (self.width() - 14 * 4 - CollapsibleRail.COLLAPSED_WIDTH
+                        - WORKSPACE_WIDTH) < READING_MIN
+            self.workspace_rail.set_expanded_width(
+                WORKSPACE_NARROW if squeezed else WORKSPACE_WIDTH)
+        self.course_rail.set_collapsed(
+            reading or not self._course_wanted
+            or (self._narrow and not self._overruled))
+
+    def resizeEvent(self, event) -> None:                  # noqa: N802
+        super().resizeEvent(event)
+        # On the next pass rather than now: folding a column inside a resize
+        # re-lays-out the screen in the middle of laying it out.
+        run_soon(self, self._apply_rails)
+
+    # -- one question's answer, beside it --------------------------------
+
+    def _answer_block(self, card, card_layout: QVBoxLayout, key: str,
+                      title: str, *, drill: bool = False
+                      ) -> tuple[QFrame, QVBoxLayout]:
+        """Start a question's answer page, and give its card a way to it.
+
+        Returns the page and its layout, for the builder to go on adding to
+        exactly as it added to the card before: everything it adds after this
+        is operated rather than read, and goes beside the text rather than
+        into it. A drill's page is a `_DrillCard` like the drill's own card,
+        because Enter pressed in its box has to reach the keyboard loop and
+        the box is no longer inside the card.
+        """
+        block = (_DrillCard if drill else QFrame)()
+        block.setAccessibleName(f"answer to {title}")
+        layout = QVBoxLayout(block)
+        layout.setContentsMargins(16, 4, 16, 14)
+        layout.setSpacing(8)
+        self._workspace.add_page(key, title, block)
+        self._cards[key] = card
+        self._card_titles[key] = title
+
+        footer = QHBoxLayout()
+        footer.setSpacing(8)
+        chip = QLabel("not answered yet")
+        chip.setProperty("role", "muted")
+        chip.setWordWrap(True)
+        footer.addWidget(chip, 1)
+        self._chips[key] = chip
+        go = QPushButton("Answer ›")
+        go.setAccessibleName(f"answer {title}")
+        go.setToolTip("Bring this question's answer box up beside the text")
+        go.setCursor(Qt.PointingHandCursor)
+        go.clicked.connect(lambda: self.answer(key))
+        footer.addWidget(go)
+        card_layout.addLayout(footer)
+        if isinstance(card, _QuestionCard):
+            card.pressed.connect(lambda: self._activate(key))
+        return block, layout
+
+    def _link_verdict(self, key: str) -> None:
+        """Keep the card's one-line copy of the verdict in step with it."""
+        verdict, chip = self._verdicts.get(key), self._chips.get(key)
+        if verdict is None or chip is None:
+            return
+        palette = self.palette_obj
+
+        def copy() -> None:
+            text = verdict.text()
+            # The checkers write markup -- spans and breaks -- and plain text
+            # that may contain a bare "<", as in "t < 0", which is not markup.
+            if "<span" in text or "<br" in text:
+                text = QTextDocumentFragment.fromHtml(text).toPlainText()
+            line = text.strip().splitlines()[0] if text.strip() else ""
+            if len(line) > 90:
+                line = line[:89].rstrip() + "…"
+            colour = (palette.success if line.startswith("✓") else
+                      palette.danger if line.startswith("✗") else
+                      palette.text_muted)
+            chip.setStyleSheet(f"color: {colour};")
+            chip.setText(line or "not answered yet")
+
+        if isinstance(verdict, _Verdict):
+            verdict.changed.connect(copy)
+        copy()
+
+    def answer(self, key: str) -> None:
+        """Open the answer column on one question, with the caret in its box."""
+        if self.workspace_rail.is_collapsed():
+            self.workspace_rail.toggle()
+        if not self._activate(key):
+            return
+        page = self._workspace.page(key)
+        boxes = page.findChildren(QLineEdit) if page is not None else []
+        if boxes:
+            boxes[0].setFocus(Qt.OtherFocusReason)
+
+    def _on_focus(self, _old, now) -> None:
+        """Follow the focus to whichever question it landed in, if any."""
+        try:
+            if now is None or not self.isAncestorOf(now):
+                return
+        except RuntimeError:
+            # A screen a theme change threw away, still connected to the
+            # application for the moment it takes to go.
+            return
+        for key, card in self._cards.items():
+            page = self._workspace.page(key)
+            if card.isAncestorOf(now) or (page is not None
+                                          and page.isAncestorOf(now)):
+                if key != self._workspace.current_key():
+                    self._activate(key)
+                return
+
+    def _activate(self, key: str) -> bool:
+        """Bring one question's answer page up, and mark its card."""
+        if not self._workspace.activate(key):
+            return False
+        for name, card in self._cards.items():
+            active = name == key
+            if bool(card.property("active")) != active:
+                card.setProperty("active", active)
+                card.style().unpolish(card)
+                card.style().polish(card)
+        return True
 
     def _build_learn(self, lesson) -> None:
         if lesson.chapter:
@@ -732,6 +1246,7 @@ class LessonsScreen(QWidget):
     def _build_practice(self, lesson) -> None:
         for number, question in enumerate(lesson.questions, start=1):
             self._layout.addWidget(self._question_card(lesson, number, question))
+            self._link_verdict(question.key)
 
     def _build_drill(self, lesson) -> None:
         # Which grading is described depends on what this lesson drills. A
@@ -768,6 +1283,7 @@ class LessonsScreen(QWidget):
         self._layout.addWidget(blurb)
         for template in lesson.templates:
             self._layout.addWidget(self._drill_card(lesson, template))
+            self._link_verdict(template.key)
 
     # -- cards -----------------------------------------------------------
 
@@ -1010,7 +1526,7 @@ class LessonsScreen(QWidget):
         seed = self._drill_seed.setdefault(template.key, 0)
         offered = generate.tiers(template)
         tier = self._tier_of(template, offered) if len(offered) > 1 else ""
-        question = generate.draw(template, seed, tier)
+        question, fresh = self._drill_question(template, seed, tier)
         streak, mastered = self._streak_of(lesson, template)
 
         frame, layout = self._panel(palette.success if mastered else "",
@@ -1031,8 +1547,9 @@ class LessonsScreen(QWidget):
         layout.addLayout(head)
 
         prompt = QLabel(
-            f"{question.prompt}   ·   one of "
-            f"{generate.combinations(template, tier)} versions"
+            f"{question.prompt}   ·   "
+            + ("fresh numbers · checked by the solver" if fresh else
+               f"one of {generate.combinations(template, tier)} versions")
         )
         prompt.setProperty("role", "muted")
         prompt.setWordWrap(True)
@@ -1064,12 +1581,13 @@ class LessonsScreen(QWidget):
 
         layout.addWidget(equation_label(self.palette_obj, question.equation,
                                         question.conditions))
+        block, layout = self._answer_block(frame, layout, template.key,
+                                           template.title, drill=True)
 
-        row = QHBoxLayout()
-        row.setSpacing(8)
+        row = _AnswerRow(layout)
         answer = QLineEdit()
         answer.setAccessibleName("your answer")
-        answer.setPlaceholderText("y = ...")
+        answer.setPlaceholderText(answer_placeholder(question.equation))
         answer.setClearButtonEnabled(True)
         row.addWidget(answer, 1)
 
@@ -1112,11 +1630,10 @@ class LessonsScreen(QWidget):
         )
         again.setCursor(Qt.PointingHandCursor)
         row.addWidget(again)
-        layout.addLayout(row)
         layout.addWidget(AnswerPreview(self.palette_obj, answer,
                                        question_parser(question)))
 
-        verdict = QLabel("")
+        verdict = _Verdict("")
         verdict.setWordWrap(True)
         verdict.setTextFormat(Qt.RichText)
         layout.addWidget(verdict)
@@ -1128,10 +1645,10 @@ class LessonsScreen(QWidget):
         hints.setVisible(False)
         layout.addWidget(hints)
 
-        working = StepsPanel(palette)
-        working.setMinimumHeight(240)
+        working = StepsPanel(palette, grows=True)
         working.setVisible(False)
         layout.addWidget(working)
+        self._working_section(layout, question, template.narrator)
 
         self._wire_hints(question, hints, hint_button)
 
@@ -1153,7 +1670,7 @@ class LessonsScreen(QWidget):
             self._show()
 
         check.clicked.connect(graded)
-        self._keyboard_loop(frame, template, answer, graded, next_question)
+        self._keyboard_loop(block, template, answer, graded, next_question)
         show.clicked.connect(
             lambda: self._work(question.equation, question.conditions,
                                template.narrator, working, show,
@@ -1162,6 +1679,52 @@ class LessonsScreen(QWidget):
         self._wire_fading(question, template, working, step)
         again.clicked.connect(next_question)
         return frame
+
+    def _drill_question(self, template, seed: int, tier: str):
+        """``(question, fresh)`` for this seed of a drill.
+
+        The built-in versions come first, because every one of them is
+        checked by the test suite. Past them, a template with a sampler asks
+        fresh numbers that `freshdraw` has had the solver check -- drawn in
+        the background while the question before is being answered. One not
+        back yet, or that could not be found, is replaced by a built-in
+        version for that seed, and the next seed tries again.
+        """
+        sampled = getattr(template, "sampler", None) is not None
+        built_in = generate.combinations(template, tier) if sampled else 0
+        if sampled and seed + 1 >= built_in:
+            self._prefetch(template, seed + 1, tier)
+        if not sampled or seed < built_in:
+            return generate.draw(template, seed, tier), False
+        settled = self._fresh.setdefault((template.key, tier, seed), None)
+        if settled is None:
+            return generate.draw(template, seed, tier), False
+        return settled[0], True
+
+    def _prefetch(self, template, seed: int, tier: str) -> None:
+        """Start drawing fresh numbers for `seed`, unless that is settled or
+        already on its way."""
+        from .. import freshdraw
+
+        name = (template.key, tier, seed)
+        if not freshdraw.ENABLED or name in self._fresh or any(
+                waiting[0] == name for waiting in self._fresh_pending.values()):
+            return
+        self._fresh_token += 1
+        self._fresh_pending[self._fresh_token] = (name, template.narrator)
+        QThreadPool.globalInstance().start(
+            _FreshDrawJob(self._fresh_token, template, seed, tier,
+                          self._fresh_signals))
+
+    def _on_fresh(self, token: int, result) -> None:
+        waiting = self._fresh_pending.pop(token, None)
+        if waiting is None or waiting[0] in self._fresh:
+            return              # asked before it arrived: the pool stood in
+        name, narrator = waiting
+        self._fresh[name] = result
+        if result is not None:
+            question, derivation = result
+            self._derivations[self._seen(question) + (narrator,)] = derivation
 
     def _wire_fading(self, question, template, working: StepsPanel,
                      button: QPushButton) -> None:
@@ -1290,9 +1853,10 @@ class LessonsScreen(QWidget):
         if question.latex:
             layout.addWidget(MathLabel(self.palette_obj, question.latex,
                                        point_size=15))
+        block, layout = self._answer_block(frame, layout, template.key,
+                                           template.title, drill=True)
 
-        row = QHBoxLayout()
-        row.setSpacing(8)
+        row = _AnswerRow(layout)
         answer = QLineEdit()
         answer.setAccessibleName("your answer")
         answer.setPlaceholderText("a number")
@@ -1329,9 +1893,8 @@ class LessonsScreen(QWidget):
         )
         again.setCursor(Qt.PointingHandCursor)
         row.addWidget(again)
-        layout.addLayout(row)
 
-        verdict = QLabel("")
+        verdict = _Verdict("")
         verdict.setWordWrap(True)
         verdict.setTextFormat(Qt.RichText)
         layout.addWidget(verdict)
@@ -1364,7 +1927,7 @@ class LessonsScreen(QWidget):
             self._show()
 
         check.clicked.connect(graded)
-        self._keyboard_loop(frame, template, answer, graded, next_question)
+        self._keyboard_loop(block, template, answer, graded, next_question)
         again.clicked.connect(next_question)
 
     def _build_model_drill(self, lesson, template, question, run: QLabel,
@@ -1385,9 +1948,10 @@ class LessonsScreen(QWidget):
         if question.latex:
             layout.addWidget(MathLabel(self.palette_obj, question.latex,
                                        point_size=15))
+        block, layout = self._answer_block(frame, layout, template.key,
+                                           template.title, drill=True)
 
-        row = QHBoxLayout()
-        row.setSpacing(8)
+        row = _AnswerRow(layout)
         answer = QLineEdit()
         answer.setAccessibleName("your answer")
         answer.setPlaceholderText("y' = ...")
@@ -1416,9 +1980,8 @@ class LessonsScreen(QWidget):
         )
         again.setCursor(Qt.PointingHandCursor)
         row.addWidget(again)
-        layout.addLayout(row)
 
-        verdict = QLabel("")
+        verdict = _Verdict("")
         verdict.setWordWrap(True)
         verdict.setTextFormat(Qt.RichText)
         layout.addWidget(verdict)
@@ -1451,7 +2014,7 @@ class LessonsScreen(QWidget):
             self._show()
 
         check.clicked.connect(graded)
-        self._keyboard_loop(frame, template, answer, graded, next_question)
+        self._keyboard_loop(block, template, answer, graded, next_question)
         again.clicked.connect(next_question)
 
     def _build_expression_drill(self, lesson, template, question, run: QLabel,
@@ -1468,9 +2031,10 @@ class LessonsScreen(QWidget):
         if question.latex:
             layout.addWidget(MathLabel(self.palette_obj, question.latex,
                                        point_size=15))
+        block, layout = self._answer_block(frame, layout, template.key,
+                                           template.title, drill=True)
 
-        row = QHBoxLayout()
-        row.setSpacing(8)
+        row = _AnswerRow(layout)
         answer = QLineEdit()
         answer.setAccessibleName("your answer")
         answer.setPlaceholderText("an expression, like exp(3*t)")
@@ -1499,9 +2063,8 @@ class LessonsScreen(QWidget):
         )
         again.setCursor(Qt.PointingHandCursor)
         row.addWidget(again)
-        layout.addLayout(row)
 
-        verdict = QLabel("")
+        verdict = _Verdict("")
         verdict.setWordWrap(True)
         verdict.setTextFormat(Qt.RichText)
         layout.addWidget(verdict)
@@ -1535,11 +2098,12 @@ class LessonsScreen(QWidget):
             self._show()
 
         check.clicked.connect(graded)
-        self._keyboard_loop(frame, template, answer, graded, next_question)
+        self._keyboard_loop(block, template, answer, graded, next_question)
         again.clicked.connect(next_question)
 
     def _question_card(self, lesson, number: int, question) -> QWidget:
-        frame, layout = self._panel()
+        frame, layout = self._panel(card=_QuestionCard)
+        self._card_titles[question.key] = f"Question {number}"
 
         prompt = QLabel(f"{number}.  {question.prompt}")
         prompt.setProperty("role", "heading")
@@ -1638,8 +2202,10 @@ class LessonsScreen(QWidget):
         narrator that works through *that*; the reason the answer is the
         answer arrives with the verdict instead.
         """
-        row = QHBoxLayout()
-        row.setSpacing(8)
+        _, layout = self._answer_block(layout.parentWidget(), layout,
+                                       question.key,
+                                       self._card_titles[question.key])
+        row = _AnswerRow(layout)
         answer = QLineEdit()
         answer.setAccessibleName("your answer")
         answer.setPlaceholderText("a number")
@@ -1668,9 +2234,8 @@ class LessonsScreen(QWidget):
         hint_button.setCursor(Qt.PointingHandCursor)
         hint_button.setEnabled(bool(question.hints))
         row.addWidget(hint_button)
-        layout.addLayout(row)
 
-        verdict = QLabel("")
+        verdict = _Verdict("")
         verdict.setWordWrap(True)
         verdict.setTextFormat(Qt.RichText)
         layout.addWidget(verdict)
@@ -1694,12 +2259,14 @@ class LessonsScreen(QWidget):
     def _build_solve(self, lesson, question, layout) -> None:
         layout.addWidget(equation_label(self.palette_obj, question.equation,
                                         question.conditions))
+        _, layout = self._answer_block(layout.parentWidget(), layout,
+                                       question.key,
+                                       self._card_titles[question.key])
 
-        row = QHBoxLayout()
-        row.setSpacing(8)
+        row = _AnswerRow(layout)
         answer = QLineEdit()
         answer.setAccessibleName("your answer")
-        answer.setPlaceholderText("y = ...")
+        answer.setPlaceholderText(answer_placeholder(question.equation))
         answer.setClearButtonEnabled(True)
         row.addWidget(answer, 1)
 
@@ -1726,11 +2293,10 @@ class LessonsScreen(QWidget):
         )
         show.setCursor(Qt.PointingHandCursor)
         row.addWidget(show)
-        layout.addLayout(row)
         layout.addWidget(AnswerPreview(self.palette_obj, answer,
                                        question_parser(question)))
 
-        verdict = QLabel("")
+        verdict = _Verdict("")
         verdict.setWordWrap(True)
         verdict.setTextFormat(Qt.RichText)
         layout.addWidget(verdict)
@@ -1744,10 +2310,10 @@ class LessonsScreen(QWidget):
         hints.setVisible(False)
         layout.addWidget(hints)
 
-        working = StepsPanel(self.palette_obj)
-        working.setMinimumHeight(240)
+        working = StepsPanel(self.palette_obj, grows=True)
         working.setVisible(False)
         layout.addWidget(working)
+        self._working_section(layout, question, lesson.narrator)
 
         self._wire_hints(question, hints, hint_button)
 
@@ -1763,6 +2329,120 @@ class LessonsScreen(QWidget):
                                shows=self._seen(question))
         )
         self._restore(lesson, question, verdict)
+
+    def _working_section(self, layout: QVBoxLayout, question,
+                         narrator: str) -> None:
+        """"Show your working ▾": a box for the lines, checked one by one.
+
+        Folded until asked for -- most answers are typed without it -- and
+        never recorded in progress: it is help, not a mark.
+        """
+        from PySide6.QtWidgets import QPlainTextEdit
+
+        # A plain button that flips the section, not a checkable one: checkable
+        # buttons in a card are its difficulty control.
+        toggle = QPushButton("Show your working ▾")
+        toggle.setCursor(Qt.PointingHandCursor)
+        toggle.setAccessibleName("show your working")
+        toggle.setToolTip("Type your working a line at a time and have each "
+                          "line checked, to find where a slip happened")
+        toggle.setStyleSheet(theme.scaled(
+            f"QPushButton {{ background: transparent; border: none;"
+            f" color: {self.palette_obj.accent}; text-align: left;"
+            f" padding: 2px 0; }}"))
+        layout.addWidget(toggle)
+
+        holder = QWidget()
+        column = QVBoxLayout(holder)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(6)
+        box = QPlainTextEdit()
+        box.setAccessibleName("your working")
+        # An example in the notation of the method this question uses.
+        box.setPlaceholderText("One step per line, for example\n" + {
+            "laplace": "sY - y(0) + 2Y = 4/s\n(s + 2)Y = 4/s + 1\n"
+                       "Y = 2/s - 1/(s + 2)\ny = 2 - e^(-2t)",
+            "systems": "λ^2 - 5λ + 6 = 0\nλ = 3, 2\nv1 = (1, 0)\n"
+                       "x = C1 e^(3t) + C2 e^(2t)\ny = C2 e^(2t)",
+        }.get(narrator, "y' + 2y = 4\nmu = e^(2t)\n(e^(2t) y)' = 4e^(2t)"
+                        "\n...\ny = 2 + Ce^(-2t)"))
+        box.setMinimumHeight(130)
+        column.addWidget(box)
+        run = QPushButton("Check working")
+        run.setToolTip("Check each line against the solution, and find the "
+                       "first one that goes wrong. Not counted as an answer.")
+        run.setCursor(Qt.PointingHandCursor)
+        column.addWidget(run, 0, Qt.AlignLeft)
+        report = QLabel("")
+        report.setWordWrap(True)
+        report.setTextFormat(Qt.RichText)
+        report.setAccessibleName("working checked")
+        column.addWidget(report)
+        holder.setVisible(False)
+        layout.addWidget(holder)
+
+        def fold() -> None:
+            open_ = holder.isHidden()
+            holder.setVisible(open_)
+            toggle.setText("Show your working ▴" if open_
+                           else "Show your working ▾")
+        toggle.clicked.connect(fold)
+
+        from ..laplace import EXTRA_FUNCTIONS
+        from ..symbolic import parse_equation, spec_for
+        from ..working import available
+
+        try:
+            offered, why = available(
+                parse_equation(spec_for(question.equation, question.conditions),
+                               extra_functions=EXTRA_FUNCTIONS), narrator)
+        except Exception:
+            offered, why = False, "This equation could not be read here."
+        if not offered:
+            box.setEnabled(False)
+            run.setEnabled(False)
+            report.setText(f'<span style="color:{self.palette_obj.text_muted};">'
+                           f"{why}</span>")
+            return
+        run.clicked.connect(
+            lambda: self._check_working(question, narrator, box, run, report))
+
+    def _check_working(self, question, narrator: str, box, button: QPushButton,
+                       report: QLabel) -> None:
+        text = box.toPlainText()
+        if not text.strip():
+            report.setText(f'<span style="color:{self.palette_obj.text_muted};">'
+                           "Type your working above, one step per line.</span>")
+            return
+        self._check_token += 1
+        seen = self._seen(question)
+        self._check_pending[self._check_token] = (button, report, seen)
+        button.setEnabled(False)
+        report.setText(f'<span style="color:{self.palette_obj.text_muted};">'
+                       "checking each line…</span>")
+        QThreadPool.globalInstance().start(
+            _WorkingCheckJob(self._check_token, question, narrator, text,
+                             self._solutions.get(seen), self._check_signals),
+            1,
+        )
+
+    def _on_checked(self, token: int, result) -> None:
+        waiting = self._check_pending.pop(token, None)
+        if waiting is None:
+            return
+        button, report, seen = waiting
+        try:
+            button.setEnabled(True)
+        except RuntimeError:
+            return                                # its page was rebuilt
+        palette = self.palette_obj
+        if isinstance(result, Exception):
+            report.setText(f'<span style="color:{palette.text_muted};">'
+                           f"Could not check this working: {result}</span>")
+            return
+        verdicts, solutions = result
+        self._solutions[seen] = solutions
+        report.setText(working_report(verdicts, palette))
 
     def _wire_hints(self, question, hints: QLabel,
                     hint_button: QPushButton) -> None:
@@ -1900,8 +2580,17 @@ class LessonsScreen(QWidget):
             verdict.setText(f"this question could not be set up: {exc}")
             return False
 
-        result = check_answer(parsed, answer.text())
-        right = result.correct is True and result.matches_conditions is not False
+        # A question with no conditions asks for the general solution, and
+        # one member of the family -- y = 0, say -- is not it.
+        result = check_answer(parsed, answer.text(),
+                              general=not question.conditions)
+        if result.expression is None and result.correct is None:
+            # Not read at all: a typo, not an attempt. Said quietly and not
+            # recorded, so a bracket left open does not cost a streak.
+            verdict.setStyleSheet(f"color: {palette.text_muted};")
+            verdict.setText(result.message)
+            return True
+        right = result.ok
         if right and self._was_worked(question):
             # A drill's bucket is not shown as ticks, so only practice says so.
             before = progress.load().get(lesson.key, {}).get(question.key)
@@ -1918,7 +2607,8 @@ class LessonsScreen(QWidget):
         if right:
             colour, text = palette.success, "✓ " + result.message
             state = progress.State.CORRECT
-        elif result.correct is False or result.matches_conditions is False:
+        elif (result.correct is False or result.matches_conditions is False
+              or result.general is False):
             colour, text = palette.danger, "✗ " + result.message
             state = progress.State.ATTEMPTED
         else:
@@ -2065,6 +2755,12 @@ class LessonsScreen(QWidget):
         panel.clear("working it through…")
         button.setEnabled(False)
         self._pending[self._token] = (panel, button, deliver, shows)
+        known = self._derivations.get(
+            ("".join(generate.tidy(equation).split()),
+             "".join(conditions.split()), narrator))
+        if known is not None:
+            self._on_worked(self._token, known)
+            return
         # Ahead of the queue: the pool is shared with every equation's
         # typesetting, much of it for pages the reader has already left, and
         # at equal priority it is first come, first served. A long visit
@@ -2148,6 +2844,10 @@ class LessonsScreen(QWidget):
         self._show()
 
     def _clear(self) -> None:
+        self._workspace.clear()
+        self._cards = {}
+        self._chips = {}
+        self._card_titles = {}
         while self._layout.count():
             item = self._layout.takeAt(0)
             widget = item.widget()

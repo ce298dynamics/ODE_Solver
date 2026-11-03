@@ -53,6 +53,18 @@ CASES = {
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("case", sorted(CASES))
+def test_every_step_of_a_planar_system_can_be_typeset(case):
+    """No step prints its own LaTeX source: a 2×2 system's matrices and
+    vectors are written in a form mathtext can set."""
+    from odesuite_app import mathrender
+
+    derivation = _derive(*CASES[case], ics={"x(0)": 1, "y(0)": 0})
+    unset = [step.title for step in derivation.steps
+             if not mathrender.is_renderable(step.latex)]
+    assert not unset, unset
+
+
 def test_the_matrix_is_read_off_the_equations():
     assert matrix_of(_system(1, 2, 3, 2), [X, Y]) == sp.Matrix([[1, 2], [3, 2]])
 

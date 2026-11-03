@@ -43,6 +43,62 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A drill that keeps going wrong reaches the Course Map's review panel.**
+  The panel's "worth another look" reads a lesson's practice questions only,
+  so a drill answered wrong seven times in nine went unmentioned in a lesson
+  whose questions were all ticked. A new line names up to three drills tried
+  at least four times and right less than half the time, worst first, with
+  their record: "Constant p, polynomial forcing in First-order linear (2 of 8
+  right)". A mastered drill is left out whatever its history
+  (`progress.struggling_drills`).
+
+- **A linear system's working shows its matrices, not their LaTeX source.**
+  The eigenvalue method's first step, `x' = A x`, and every eigenvector were
+  printed as `\begin{matrix}…` text, because mathtext has no environments.
+  A 2×2 matrix or vector is now set with `\genfrac` inside brackets
+  (`mathrender.matrix_latex`). The guard against mathtext's missing `\ge` had
+  also been refusing `\genfrac` for starting with the same letters; it now
+  refuses only the bare `\ge` and `\le`. In the answer column a line too wide
+  for it scrolls sideways on its own, instead of widening the column and
+  hiding every card's ✓ and the end of its note. A system's answer box now
+  asks for `x = ...; y = ...`, not `y = ...`.
+
+- **Two blemishes in the worked solution.** The integrating-factor narrator
+  bracketed p whatever it was, so standard form read `y' + (4)y = 5t`; it now
+  writes `y' + 4y`, `y' - y` or `y' + \frac{1}{t} y`, and keeps the brackets
+  only round a sum, `y' + (t + 1) y`. In a lesson's answer column, the worked
+  solution had a scroll box of its own inside the column's, held at 240 pixels,
+  so it showed one step at a time; it is now as tall as the working and the
+  column scrolls it.
+
+- **The answer checker reads answers the way students write them.** A student
+  session found that the first Solve question would probably mark a right answer
+  wrong. Fixed:
+  - `e` is Euler's number. `e^(t^2)` used to be marked wrong, and the
+    residual blamed `log(e) - 1`. An equation with its own parameter `e`
+    keeps it.
+  - Juxtaposition is multiplication: `2t`, `Ce^(2t)`, `C1 cos(t) +
+    C2 sin(t)`, `C1cos(t)`, `te^(-t)`. A run of letters is split only when it
+    breaks completely into names the answer may use. `sin t` still fails
+    rather than silently becoming `sin*t`, and the message now says to write
+    `sin(t)`.
+  - `c`, `c1`, … are the constants `C1`, …, and `ln` is the natural log.
+    `grade_numeric` reads `e^2`, and `-4.9e1` is still forty-nine.
+  - An unreadable answer now says what is wrong (a bracket left open, a
+    trailing operator, a second `=`, an unknown function, `y` left in the
+    answer) instead of showing Python's syntax error. On a lesson card it is
+    shown quietly and not recorded.
+  - The answer preview flags `e^2t` (read as e² times t) and suggests
+    `e^(2t)`.
+  - **A question with no conditions wants the general solution.** `y = 0`,
+    `cos(2t)` and `C1 e^(-t) + C2 e^(-t)` were all ticked. `check_answer`
+    takes `general=True`, and the answer then needs as many *independent*
+    constants as the equation's order. That is tested numerically: the rank
+    of the Jacobian of (y, y′, …) with respect to the constants. A miss gets
+    its own explanation, including `t·e^(rt)` for a repeated root. Every
+    narrator's own general solution still passes, which a sweep in
+    `tests/test_check_answer.py` checks.
+
 - **Questions showed their equations as code.** Practice, the drills and the
   quiz set a Solve question's equation in monospace, `y' = 2*t*y`, beside
   choice questions whose equations were typeset. The new
@@ -434,6 +490,88 @@ All notable changes to this project are documented here. The format follows
   install alongside anything else.
 
 ### Added
+
+- **Lessons read like a textbook: the columns either side fold away, and the
+  answers moved beside the text.** The lesson text used to be the narrowest of
+  four columns on its own page, behind the menu and the course list, and
+  Practice and Drill stacked each question's typing box, five buttons, preview,
+  hints and a 250-pixel worked solution into the reading column between one
+  question and the next. Now:
+  - The menu (`Ctrl+B`), the course list (`Ctrl+Shift+L`) and a new answer
+    column (`Ctrl+J`) each fold to a thin strip and open again from it. The
+    window remembers which are folded, across a theme change and a restart.
+  - **Reading mode** (`F11`, or the button beside the lesson's tabs) folds all
+    three; leaving it puts back exactly what was open before.
+  - The reading column is centred, so folding either side widens the margins
+    evenly rather than leaving the text against one edge.
+  - A question's prompt, equation and figure stay in the text; its box, buttons,
+    preview, verdict, hints and working move to the answer column, one page per
+    question. Clicking a question, tabbing into it or pressing its **Answer ›**
+    button brings its page up; the active card gets an accent border, and each
+    card carries a one-line copy of its verdict so a page can be scanned for
+    what is done. Multiple-choice questions stay inline.
+  - On a narrow window the course list folds itself (not remembered as the
+    reader's choice) and the answer column narrows, so the smallest window
+    still leaves about 470 pixels of text.
+
+- **Show your working: each line of a derivation is checked, and the first
+  slip is found.** A Solve question's answer page has a folded **Show your
+  working ▾** box. Type the steps one per line (`mu = e^(2t)`,
+  `(e^(2t) y)' = 4e^(2t)`, `y = 2 + Ce^(-2t)`) and **Check working** marks each
+  one ✓, ✗ or –, and points at the first ✗, because lines after it may only be
+  carrying it forward. Lines are not compared with each other, because
+  integration constants break that. Each one is tested against the verified
+  solution family by numeric probes:
+  - A relation in `y` must hold for the whole family, or for the particular
+    solution once the conditions are used. If it holds only for one solution
+    on a question with no conditions, the message says a constant was lost.
+  - An integrating factor is accepted up to a constant factor. A
+    characteristic polynomial is checked against the equation, and roots are
+    checked by substituting them in.
+  - The last `y = …` is judged exactly as the answer box would judge it.
+  - `dy/dt`, `d/dt(...)`, `(expr)'`, joining words such as `so` and `=>`, and
+    `#` comments are read. A line that can't be read, or has nothing to check,
+    gets a – and the check carries on.
+
+  A line is never marked ✗ unless a probe disproves it. The check covers
+  first-order linear, separable and constant-coefficient second-order
+  equations, and two more methods:
+  - **Laplace transforms.** Lines in s (`L{y'} + 2L{y} = L{4}`,
+    `sY - y(0) + 2Y = 4/s`, `Y = A/s + B/(s + 2)`) are checked against
+    Y(s), the transform of the verified solution, at real s to the right of
+    every pole; `y(0)` and `y'(0)` are read from the conditions. An inverse
+    transform line gets a –, and the `y = …` it gives is checked as usual.
+  - **2×2 linear systems.** The characteristic equation (or
+    `det(A - λI) = …`) against det(A − λI), the eigenvalues by substitution,
+    each eigenvector `v = (a, b)` by A·v = λ·v, and `x = …`, `y = …` against
+    that component of the solution family. A final `x`/`y` pair is also
+    judged as one answer, so a pair that fails only together is still caught.
+
+  The box's example is written in the notation of the question's method. It runs
+  off the interface thread, solves each question once, and is not recorded as
+  an answer. A comparison by identity (`is not t`) became an equality, so a
+  `t` re-created after sympy's cache drops the old one is still the variable.
+
+- **Drills no longer run out: past the built-in versions come fresh numbers,
+  each solved before it is asked.** Every typed-answer drill but two has a
+  `sampler` that draws new coefficients once New question has gone through the
+  pool: 28 drills across first-order equations, models, second-order and
+  higher, vibrations, Laplace transforms and linear systems. The 2×2 systems
+  are built from integer eigenvalues and eigenvectors, so their roots come out
+  whole. The two without one: `secant-family` varies a function rather than a
+  number, and `logistic` solves too erratically for the time allowed (2 s for
+  most pairs, over 40 s for K = 40, y(0) = 8, with no pattern to avoid). A fresh draw is kept only if the narrator works it by the technique the
+  drill claims, every step verifies, the grader accepts the narrator's own
+  answer, and the answer is short enough to ask for; otherwise the next
+  numbers are tried, for up to 8 seconds. The next question is solved in the
+  background while the current one is answered, and its working is kept, so
+  Show me and Next step appear at once. The card says *fresh numbers · checked
+  by the solver*; when no draw was ready or none passed, it asks a built-in
+  version and says *one of N versions* as before. A card never switches
+  question under someone answering it. Draws are seeded, so the same seed and
+  tier give the same question on any machine. Streaks are unchanged. Offline,
+  50 seeds at every drill tier of all 28 templates verified, none slower than
+  the 8 s allowed (the slowest took 6.8 s).
 
 - **One path through the course.** The Learning Hub listed nine screens as
   equals, which made them nine competing ways in. The sidebar now splits them

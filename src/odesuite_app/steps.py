@@ -299,7 +299,7 @@ def vanishes(residual) -> tuple[bool | None, str]:
     except Exception:
         pass
     others = {symbol: _PROBE_VALUE for symbol in residual.free_symbols
-              if symbol is not _T}
+              if symbol != _T}
     for time in _PROBE_TIMES:
         try:
             value = complex(residual.subs(others).subs(_T, time).evalf())
@@ -665,6 +665,21 @@ def _passes_through(candidate, ics: dict) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _times(coefficient, variable: str) -> str:
+    """``+ p y`` as it would be written by hand: ``+ 4 y``, ``- y``,
+    ``+ \\frac{1}{t} y``. Bracketed only where p is a sum, which is the one
+    place the brackets say something: ``(4) y`` reads as a typesetting slip.
+    """
+    sign = "+"
+    if coefficient.could_extract_minus_sign():
+        sign, coefficient = "-", -coefficient
+    if coefficient == 1:
+        return f"{sign} {variable}"
+    if isinstance(coefficient, sp.Add):
+        return rf"{sign} \left({sp.latex(coefficient)}\right) {variable}"
+    return f"{sign} {sp.latex(coefficient)} {variable}"
+
+
 def _integrating_factor(equation: sp.Eq, function: sp.Function, ics: dict,
                         derivation: Derivation, *,
                         variable: str = "y") -> None:
@@ -678,8 +693,7 @@ def _integrating_factor(equation: sp.Eq, function: sp.Function, ics: dict,
 
     derivation.steps.append(Step(
         title="Put it in standard form",
-        latex=rf"{variable}' + \left({sp.latex(p)}\right) {variable}"
-              rf" = {sp.latex(q)}",
+        latex=rf"{variable}' {_times(p, variable)} = {sp.latex(q)}",
         note="Divide through by the coefficient of y'. The technique needs the "
              "equation in exactly this shape.",
         # Dividing the original by that same coefficient has to give back

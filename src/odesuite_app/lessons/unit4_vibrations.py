@@ -13,6 +13,7 @@ steady state -- and two figures to move.
 
 from __future__ import annotations
 
+from . import samplers
 from .chapters import unit4 as chapters
 from .model import (
     Case,
@@ -364,6 +365,7 @@ FREE = Lesson(
                          (0, 4), (0, 9), (4, 8))),
                 ("p", (1, 2, 3)),
             ),
+            sampler=samplers.which_regime,
         ),
         ModelTemplate(
             key="mass-on-a-spring",
@@ -796,6 +798,7 @@ FORCED = Lesson(
     templates=(
         Template(
             key="driven-oscillator",
+            sampler=samplers.driven_oscillator,
             title="Driven, on and off resonance",
             prompt="Guess, correct for resonance if you must, then start from "
                    "rest.",
@@ -1094,6 +1097,7 @@ CIRCUITS = Lesson(
     templates=(
         Template(
             key="rlc-regimes",
+            sampler=samplers.rlc_regimes,
             title="An RLC circuit, across its regimes",
             prompt="L·q'' + R·q' + q/C = 0. Find the charge.",
             equation="y'' + {r}*y' + {s}*y = 0",

@@ -566,6 +566,60 @@ def test_weakest_puts_the_worst_first(store):
     assert [item[0].key for item in weak][0] == first.key
 
 
+def _drill_record(right: int, tries: int, streak: int = 0):
+    return progress.Answer(state=progress.State.CORRECT if right
+                           else progress.State.ATTEMPTED,
+                           right=right, tries=tries, streak=streak)
+
+
+def test_a_drill_that_keeps_going_wrong_is_found(store):
+    """`weakest` reads practice questions only: a drill wrong seven times in
+    nine sat in a lesson whose questions were all ticked, unseen."""
+    lesson = next(lesson for unit in UNITS for lesson in unit.lessons
+                  if len(lesson.templates) >= 3)
+    bad, worse, fine = lesson.templates[:3]
+    everything = {progress.drill_key(lesson.key): {
+        bad.key: _drill_record(2, 9),
+        worse.key: _drill_record(1, 8),
+        fine.key: _drill_record(7, 9),
+    }}
+    found = progress.struggling_drills(UNITS, everything)
+    assert [s.template.key for s in found] == [worse.key, bad.key]
+    assert (found[0].right, found[0].tries) == (1, 8)
+
+
+@pytest.mark.parametrize("record", [
+    _drill_record(1, 3),                       # too few tries to say
+    _drill_record(3, 8, streak=progress.MASTERED_STREAK),   # over it now
+    _drill_record(4, 8),                       # half right is not struggling
+])
+def test_a_drill_is_not_called_a_struggle_too_soon(store, record):
+    lesson = next(lesson for unit in UNITS for lesson in unit.lessons
+                  if lesson.templates)
+    everything = {progress.drill_key(lesson.key): {
+        lesson.templates[0].key: record}}
+    assert progress.struggling_drills(UNITS, everything) == []
+
+
+def test_the_course_map_names_a_struggling_drill(qapp, store):
+    from odesuite_app.screens.learn_course import CourseScreen
+    from odesuite_app.state import SessionState
+    from odesuite_app.theme import PALETTES
+
+    lesson = next(lesson for unit in UNITS for lesson in unit.lessons
+                  if lesson.templates)
+    template = lesson.templates[0]
+    for _ in range(5):
+        store.record(store.drill_key(lesson.key), template.key,
+                     store.State.ATTEMPTED)
+    made = CourseScreen(SessionState(), PALETTES["dark"])
+    qapp.processEvents()
+    shown = made.review_label.text()
+    assert "Drills that keep going wrong" in shown
+    assert f"{template.title} in {lesson.title} (0 of 5 right)" in shown
+    made.deleteLater()
+
+
 def test_the_course_map_says_what_to_review(qapp, store):
     from odesuite_app.screens.learn_course import CourseScreen
     from odesuite_app.state import SessionState

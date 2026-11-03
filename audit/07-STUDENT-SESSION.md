@@ -1,7 +1,7 @@
 # A first session with real students
 
 Everything this app knows about itself came from its author and from audits.
-Nobody taking MA 266 has used it while someone watched. This is a 30-minute
+Nobody taking MA 266 has used it while someone watched. This is a 40-minute
 script for doing that with two or three classmates, one at a time. Three
 sessions will show more than another audit would.
 
@@ -33,7 +33,7 @@ Each task below tests a decision that was made without evidence. The
   Write down the minute it happened.
 - Do not explain the design or defend it. Notes only.
 
-## The tasks (about 25 minutes)
+## The tasks (about 36 minutes)
 
 1. **Unzip it and open it. Find where you would start.** (3 min)
    - *Watch for:* do they launch it without help, or stall at the Windows
@@ -50,26 +50,54 @@ Each task below tests a decision that was made without evidence. The
    - *Ask afterwards:* "Was anything said in a way your lecture didn't?"
 
 3. **Do the first typed Practice question.** (5 min)
-   - *Watch for:* how do they write the answer: `e^(2t)`, `exp(2*t)`,
-     `e**2t`? Do they look at the *Read as:* preview under the box? Does it
-     catch a typo before they press Check? Do they understand a message like
-     "'(' was never closed"?
-   - *Decision under test:* the live preview (`widgets/answerpreview.py`).
-     If people type in a form the parser refuses, that is the next thing to
-     fix.
+   - *Watch for:* do they find where to type? The box is in the **answer
+     column** on the right, not under the question; clicking the question or
+     its **Answer ›** button brings it up. How do they write the answer:
+     `e^(2t)`, `2e^-t`, `exp(2*t)`, `e**2t`? Copy it exactly. Do they look at
+     the *Read as:* preview? Do they understand a message like "'(' was never
+     closed"?
+   - *Decision under test:* the answer column (`widgets/workspace.py`), and
+     the checker reading answers the way students write them (`e^`, implicit
+     multiplication). Any form that is refused or misread is the next fix.
 
-4. **Get one wrong on purpose, then use Hint and Show me.** (4 min)
+4. **Fold the columns away, then bring them back.** (2 min) Say only "make
+   the text bigger on the screen" and see what they try.
+   - *Watch for:* do they find the folding strips, **Reading mode** (F11),
+     or neither? Can they get the answer column back afterwards?
+   - *Decision under test:* the folding layout and its strips.
+
+5. **Get one wrong on purpose, then use Hint and Show me.** (4 min)
    - *Watch for:* do they understand why the answer was marked wrong? Is a
      hint a nudge or does it give the answer away? After **Show me**, do they
      try the next question themselves?
 
-5. **Press Next lesson, then go back and take the unit check-up in Quiz &
+6. **Show your working, with a slip in it.** (5 min) On a first-order linear
+   question, open **Show your working ▾** and ask them to type their steps one
+   per line. If they get it all right, ask them to change one middle line to
+   something wrong and check again.
+   - *Watch for:* do they write one equation per line without being told? Do
+     they understand ✓, ✗ and –? When the first ✗ is on the slipped line, do
+     they see that later ✗s are only that one carried forward? Note any line
+     they wrote correctly that was marked ✗ or – : copy it exactly.
+   - *Decision under test:* line-by-line checking (`working.py`), and the rule
+     that a line is never ✗ without a probe disproving it.
+
+7. **Drill until it runs out.** (4 min) Open **Drill** and keep pressing New
+   question on one drill past "one of N versions" (pick one with few, such as
+   a harder-tier separable drill).
+   - *Watch for:* do they notice the card change to "fresh numbers · checked
+     by the solver"? Does it mean anything to them? Does any fresh question
+     look odd or unfair?
+   - *Decision under test:* fresh numbers once the built-in versions run out
+     (`freshdraw.py`, `lessons/samplers.py`).
+
+8. **Press Next lesson, then go back and take the unit check-up in Quiz &
    Exams.** (6 min)
    - *Watch for:* do they find the check-up on their own? Does a mixed set
      feel harder than the lesson's practice (it is meant to)? Does the timer
      cause stress, even though it only reports?
 
-6. **One open question.** (2 min) "If this were on your laptop the night
+9. **One open question.** (2 min) "If this were on your laptop the night
    before the midterm, would you open it? What for?"
 
 ## After
@@ -96,8 +124,13 @@ Task  Minute  What happened                          Stuck?  Helped?
 4
 5
 6
+7
+8
+9
 
 How they typed answers (copy them exactly):
+
+Lines of working marked ✗ or – that were actually right (copy exactly):
 
 Things they said, word for word:
 

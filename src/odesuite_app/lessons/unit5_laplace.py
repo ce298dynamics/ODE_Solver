@@ -23,6 +23,7 @@ exhaustive sweep runs every draw of every template.
 
 from __future__ import annotations
 
+from . import samplers
 from .chapters import unit5 as chapters
 from .model import (
     Choice,
@@ -350,9 +351,11 @@ LAPLACE = Lesson(
                 "each one backwards off the table.",
             ),
             slots=(("a", (1, 2, 3)), ("b", (1, 2, 3)), ("c", (0, 1))),
+            sampler=samplers.laplace_first_order,
         ),
         Template(
             key="second-order",
+            sampler=samplers.laplace_second_order,
             title="A second-order transform, conditions at the start",
             prompt="Both conditions enter through the transform of y''.",
             equation="y'' + {w2}*y = 0",
@@ -705,6 +708,7 @@ TRANSFORM = Lesson(
     templates=(
         Template(
             key="first-order-constant",
+            sampler=samplers.transform_constant,
             title="Transform, solve, invert",
             prompt="One derivative and a constant. Every step is a table row.",
             equation="y' + {a}*y = {b}",
@@ -1039,6 +1043,7 @@ SHIFTING = Lesson(
     templates=(
         Template(
             key="complete-the-square",
+            sampler=samplers.complete_the_square,
             title="An irreducible quadratic, from rest displaced",
             prompt="Transform, complete the square, split the numerator.",
             equation="y'' + {b}*y' + {c}*y = 0",
